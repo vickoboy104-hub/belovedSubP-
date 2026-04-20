@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">BelovedSubP</string>
+    <string name="home_url">https://belovedsubp.com</string>
+    <string name="login_url">https://belovedsubp.com/login</string>
+    <string name="signup_url">https://belovedsubp.com/register</string>
+    <string name="unable_to_open_link">Unable to open this link.</string>
+    <string name="file_picker_not_found">No file picker app found.</string>
+    <string name="download_started">Download started. Check notification shade.</string>
+    <string name="download_saved">File saved to Downloads.</string>
+    <string name="download_failed">Unable to save file.</string>
+    <string name="print_started">Preparing print preview...</string>
+    <string name="biometric_title">Unlock with fingerprint</string>
+    <string name="biometric_subtitle">Use your biometric to continue.</string>
+    <string name="biometric_not_now">Not now</string>
+    <string name="biometric_enable_title">Enable fingerprint unlock?</string>
+    <string name="biometric_enable_message">You can lock app access with fingerprint if your phone supports it.</string>
+    <string name="biometric_failed_try_again">Fingerprint not recognized. Try again.</string>
+    <string name="biometric_unavailable_continue">Fingerprint unavailable right now. Continuing...</string>
+    <string name="enable">Enable</string>
+    <string name="skip">Skip</string>
+    <string name="continue_text">Continue</string>
+    <string name="next_text">Next</string>
+    <string name="welcome_message">Welcome to BelovedSubP</string>
+    <string name="signup_text">Haven\'t used BelovedSubP before? Sign Up</string>
+    <string name="website_name">BelovedSubP</string>
+</resources>

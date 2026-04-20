@@ -1,0 +1,292 @@
+GSUBZ.com API Documentation
+GSUBZ API: Powering Seamless VTU and Bill Payment Integrations
+
+Unlock your business's full potential with the GSUBZ API, a leading solution for simple and efficient online/mobile recharges. Designed to streamline your services, our API allows you to effortlessly integrate diverse functionalities such as data subscriptions, bill payments, airtime purchases, TV subscriptions, and recharge card printing directly into your website.
+
+Getting Started is Easy:
+
+Create Your Free GSUBZ Account: Sign up for free and immediately start exploring our API's capabilities.
+
+Integrate and Innovate: Use our well-documented API to enhance your service offerings and provide your customers with a seamless experience.
+
+Receive an Upgrade: After integrating our API, we'll upgrade your account to allow you to get even cheaper prices.
+
+With GSUBZ API, you're not just staying competitive—you're setting the pace in the world of virtual top-up and bill payment solutions. Start building with GSUBZ today and transform how your business handles payments and subscriptions.
+
+Get your Token[API KEY] here https://gsubz.com//dashboard/key.php
+
+Code:'200':'TRANSACTION_SUCCESSFUL',
+However, a transaction can fail and still return 200, but with 'status": 'failed'
+Example:
+
+View More
+Plain Text
+{
+    "code": 200,
+    "status": "failed",
+    "transactionID": "3485293xxx",
+    "amount": 125,
+    "phone": "08167926xxx",
+    "serviceID": "mtn_sme",
+    "amountPaid": 140,
+    "initialBalance": 6927928.0532408,
+    "finalBalance": 6927833.0532408,
+    "date": "2024-09-14T19:31:06+01:00",
+    "api_response": "Activation of Data Transfer 500MB was not successful. Please try again."
+}
+Code:'204':'REQUIRED_CONTENT_NOT_SENT',
+
+Code:'206':'INVALID_CONTENT',
+
+Code:'401':' INVALID_PLAN',
+
+Code:'402':'INSUFFICIENT_BALANCE',
+
+Code:'404':'CONTENT_NOT_FOUND',
+
+Code:'405':'REQUEST_METHOD_NOT_IN_POST'
+
+Code:'406':'SERVICE_DISABLED',
+
+Code:'502':'GATEWAY_ERROR'
+
+GET
+cable tv sub plans
+https://api.gsubz.com/api/plans?service=gotv
+https://gsubz.com/api/plans?service=mtn_sme
+
+End Point to get a list of all available cable tv plans
+
+useful for getting the appropriate plan a particular cable subscription 
+
+List of available data services (parameters)
+
+service = serviceID
+
+service = gotv
+
+service = dstv
+
+service = startimes
+
+PARAMS
+service
+gotv
+
+//dstv, gotv, startimes
+
+Example Request
+plans
+curl
+curl --location 'https://gsubz.com/api/plans?service=gotv'
+200 OK
+Example Response
+Body
+Headers (12)
+View More
+json
+{
+  "service": "GOTV",
+  "PlanName": "variation_code",
+  "fixedPrice": true,
+  "plans": [
+    {
+      "displayName": "GOtv Jinja N1,900",
+      "value": "gotv-jinja",
+      "price": "1900"
+    },
+    {
+      "displayName": "GOtv Jolli N2,800",
+      "value": "gotv-jolli",
+      "price": "2800"
+    },
+    {
+      "displayName": "GOtv Max N4,150",
+      "value": "gotv-max",
+      "price": "4150"
+    },
+    {
+      "displayName": "GOtv Smallie - monthly N900",
+      "value": "gotv-smallie",
+      "price": "900"
+    },
+    {
+      "displayName": "GOtv Smallie - quarterly N2,400",
+      "value": "gotv-smallie-3months",
+      "price": "2400"
+    },
+    {
+      "displayName": "GOtv Smallie - yearly N7,000",
+      "value": "gotv-smallie-1year",
+      "price": "7000"
+    }
+  ]
+}
+POST
+buy tv/decoder/cablesub
+https://api.gsubz.com/api/pay/
+Endpoint to send data to your customers
+
+The api is your API key and it can be gotten from here as API KEY
+The serviceID allowed here are gotv, dstv, startimes only.. They both must be spelt correctly with the proper case.
+AUTHORIZATION
+API Key
+Key
+api
+
+Value
+<value>
+
+HEADERS
+Authorization
+Bearer ap_83c2ee17ca19e2c34e29a0f17cd5bd89
+
+Body
+formdata
+serviceID
+gotv
+
+//dstv, gotv, startimes
+
+api
+ap_83c2ee17ca19e2c34e29a0f17cd5bd89
+
+//your api_key
+
+variation_code
+gotv-smallie
+
+//query GET cable tv sub plans to get plans for various plans
+
+phone
+08140558898
+
+//phone number, can be any number
+
+amount
+//passed as empty string
+
+customerID
+0000000000
+
+//IUC or Smartcard Number of the decoder
+
+Example Request
+buy tv/decoder/cablesub
+curl
+curl --location 'https://gsubz.com/api/pay/' \
+--header 'Authorization: Bearer ap_83c2ee17ca19e2c34e29a0f17cd5bd89' \
+--form 'serviceID="gotv"' \
+--form 'api="ap_83c2ee17ca19e2c34e29a0f17cd5bd89"' \
+--form 'plan="gotv-smallie"' \
+--form 'phone="08140558898"' \
+--form 'amount=""' \
+--form 'customerID="0000000000"'
+200 OK
+Example Response
+Body
+Headers (12)
+View More
+json
+{
+  "code": 200,
+  "status": "TRANSACTION_SUCCESSFUL",
+  "description": "TRANSACTION_SUCCESSFUL",
+  "content": {
+    "transactionID": 3685573902,
+    "requestID": "",
+    "amount": "900",
+    "phone": "08140558898",
+    "serviceID": "gotv",
+    "amountPaid": 900,
+    "initialBalance": "1180",
+    "finalBalance": 280,
+    "image": "//gsubz.com/uploads/service/1029285934.png",
+    "fee": "0",
+    "serviceName": "GOTV",
+    "status": "TRANSACTION_SUCCESSFUL",
+    "code": 200,
+    "description": "TRANSACTION_SUCCESSFUL",
+    "date": "2022-05-03T02:34:19+01:00",
+    "diplayValue": null
+  },
+  "gateway": {
+    "referrer": ""
+  }
+}
+POST
+buy electric token
+https://api.gsubz.com/api/pay/
+Endpoint to send generate electricity tokens.
+The api is your API key and it can be gotten from here as API KEY
+The serviceID allowed here are
+
+abuja-electric
+
+eko-electric
+
+ibadan-electric
+
+ikeja-electric
+
+jos-electic
+
+Kaduna-electric
+
+kano-electric
+
+portharcourt-electric
+
+aba-electric
+
+yola-electric
+
+benin-electric
+
+enugu-electric
+
+They all must be spelt correctly with the proper case.
+
+AUTHORIZATION
+API Key
+Key
+api
+
+Value
+<value>
+
+HEADERS
+Authorization
+Bearer ap_83c2ee17ca19e2c34e29a0f17cd5bd89
+
+Body
+formdata
+serviceID
+kaduna-electric
+
+//check comment above for available serviceID's
+
+api
+ap_83c2ee17ca19e2c34e29a0f17cd5bd89
+
+//your api key
+
+phone
+08140558898
+
+//phone number can be any number
+
+customerID
+00000000000
+
+//meter number
+
+amount
+1100
+
+//amount to be generated
+
+variation_code
+prepaid
+
+//prepaid or postpaid
