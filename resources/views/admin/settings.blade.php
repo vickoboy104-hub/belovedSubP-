@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="max-w-4xl space-y-5">
+    <div class="admin-light-page mx-auto max-w-5xl space-y-5">
 
         <div class="rounded-3xl p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow">
             <h2 class="text-2xl font-extrabold">Admin Settings</h2>
@@ -32,7 +32,7 @@
             <div class="space-y-8">
                 <div class="sticky top-24 z-20 -mx-1 px-1">
                     <div class="rounded-2xl border border-white/10 bg-[#0b1220]/90 backdrop-blur p-2">
-                        <nav class="grid grid-cols-4 gap-1 text-[11px] sm:text-xs">
+                        <nav class="flex gap-1 overflow-x-auto whitespace-nowrap text-[11px] sm:text-xs">
                             <a href="#group-branding" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Branding</a>
                             <a href="#group-announcements" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Announcements</a>
                             <a href="#group-maintenance-overlay" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Maintenance Overlay</a>
@@ -147,8 +147,25 @@
 
                             <div>
                                 <label class="text-sm font-bold text-white/80">Popup Message</label>
-                                <textarea name="home_popup_message" rows="3"
-                                          class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">{{ old('home_popup_message', $settings['home_popup_message'] ?? $settings['popup_message'] ?? 'Need NIN services? Tap the WhatsApp button to chat with us.') }}</textarea>
+                                @php
+                                    $homePopupValue = old('home_popup_message', $settings['home_popup_message'] ?? $settings['popup_message'] ?? 'Need NIN services? Tap the WhatsApp button to chat with us.');
+                                @endphp
+                                <textarea name="home_popup_message" id="home_popup_message" class="hidden">{{ $homePopupValue }}</textarea>
+                                <div class="mt-1 rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                    <div class="flex flex-wrap gap-2 border-b border-gray-200 px-3 py-3">
+                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="bold">Bold</button>
+                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="italic">Italic</button>
+                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="underline">Underline</button>
+                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="justifyLeft">Left</button>
+                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="justifyCenter">Center</button>
+                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="justifyRight">Right</button>
+                                    </div>
+                                    <div id="home_popup_message_editor"
+                                         contenteditable="true"
+                                         data-editor-surface="home_popup_message"
+                                         class="min-h-[180px] w-full rounded-b-2xl px-4 py-4 text-sm leading-7 text-slate-800 focus:outline-none">{!! sanitize_popup_message_html((string) $homePopupValue) !!}</div>
+                                </div>
+                                <div class="mt-2 text-xs text-white/50">Use the toolbar to format text and align it the way you want users to see it.</div>
                             </div>
                         </div>
                     </div>
@@ -171,8 +188,25 @@
 
                             <div>
                                 <label class="text-sm font-bold text-white/80">Popup Message</label>
-                                <textarea name="dashboard_popup_message" rows="3"
-                                          class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">{{ old('dashboard_popup_message', $settings['dashboard_popup_message'] ?? 'For NIN services (New enrolment, correction, printing, etc.) click the WhatsApp Support button to chat with us instantly.') }}</textarea>
+                                @php
+                                    $dashboardPopupValue = old('dashboard_popup_message', $settings['dashboard_popup_message'] ?? 'For NIN services (New enrolment, correction, printing, etc.) click the WhatsApp Support button to chat with us instantly.');
+                                @endphp
+                                <textarea name="dashboard_popup_message" id="dashboard_popup_message" class="hidden">{{ $dashboardPopupValue }}</textarea>
+                                <div class="mt-1 rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                    <div class="flex flex-wrap gap-2 border-b border-gray-200 px-3 py-3">
+                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="bold">Bold</button>
+                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="italic">Italic</button>
+                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="underline">Underline</button>
+                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="justifyLeft">Left</button>
+                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="justifyCenter">Center</button>
+                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="justifyRight">Right</button>
+                                    </div>
+                                    <div id="dashboard_popup_message_editor"
+                                         contenteditable="true"
+                                         data-editor-surface="dashboard_popup_message"
+                                         class="min-h-[180px] w-full rounded-b-2xl px-4 py-4 text-sm leading-7 text-slate-800 focus:outline-none">{!! sanitize_popup_message_html((string) $dashboardPopupValue) !!}</div>
+                                </div>
+                                <div class="mt-2 text-xs text-white/50">Formatting here is preserved in the popup shown to users.</div>
                             </div>
                         </div>
                     </div>
@@ -1159,6 +1193,34 @@
             if (faviconInput) {
                 faviconInput.addEventListener('change', () => updatePreview(faviconInput, faviconPreview, faviconPlaceholder));
             }
+
+            document.querySelectorAll('[data-editor-command]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const targetId = button.getAttribute('data-editor-target');
+                    const command = button.getAttribute('data-editor-command');
+                    const surface = targetId ? document.querySelector(`[data-editor-surface="${targetId}"]`) : null;
+
+                    if (!surface || !command) return;
+
+                    surface.focus();
+                    document.execCommand(command, false, null);
+                    surface.dispatchEvent(new Event('input', { bubbles: true }));
+                });
+            });
+
+            document.querySelectorAll('[data-editor-surface]').forEach((surface) => {
+                const targetId = surface.getAttribute('data-editor-surface');
+                const textarea = targetId ? document.getElementById(targetId) : null;
+                if (!textarea) return;
+
+                const sync = () => {
+                    textarea.value = surface.innerHTML.trim();
+                };
+
+                surface.addEventListener('input', sync);
+                surface.addEventListener('blur', sync);
+                sync();
+            });
         })();
     </script>
 </x-app-layout>

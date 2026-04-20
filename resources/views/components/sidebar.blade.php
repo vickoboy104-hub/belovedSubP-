@@ -24,6 +24,10 @@
             <a href="{{ route('vtu.cable') }}" class="nav-item">Cable TV</a>
             <a href="{{ route('vtu.electricity') }}" class="nav-item">Electricity</a>
             <a href="{{ route('vtu.exam') }}" class="nav-item">Exam Pins</a>
+            <a href="{{ route('vtu.recharge-card') }}" class="nav-item">Recharge PIN</a>
+            <a href="{{ route('vtu.premium-apps') }}" class="nav-item">Premium Apps</a>
+            <a href="{{ route('vtu.nin') }}" class="nav-item">NIN Services</a>
+            <a href="{{ route('vtu.nin-validation') }}" class="nav-item">NIN Validation</a>
             <a href="{{ route('vtu.orders') }}" class="nav-item">Orders</a>
         </div>
 

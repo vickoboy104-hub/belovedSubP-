@@ -1,4 +1,4 @@
-@props([
+﻿@props([
     'id' => 'confirmModal',
     'title' => 'Confirm Transaction',
     'confirmText' => 'Confirm & Proceed',
@@ -10,55 +10,61 @@
 @endphp
 
 <div id="{{ $id }}_overlay"
+     data-wallet-kobo="{{ (int) (auth()->user()?->wallet->balance ?? 0) }}"
      class="fixed inset-0 z-[2147483647] hidden items-center justify-center p-4"
      style="isolation:isolate;">
 
-    {{-- Modal --}}
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+
     <div class="relative w-full max-w-lg">
-        <div class="rounded-3xl border border-white/15 bg-[#0b1220]/95 shadow-2xl overflow-hidden">
+        <div class="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_22px_55px_rgba(18,31,56,0.24)]">
             <div class="p-6 sm:p-7">
                 <div class="flex items-start justify-between gap-3">
                     <div>
-                        <div class="text-xl font-extrabold text-white">{{ $title }}</div>
-                        <div class="text-white/60 text-sm mt-1">
+                        <div class="text-xl font-extrabold text-slate-900">{{ $title }}</div>
+                        <div class="mt-1 text-sm text-slate-600">
                             Please review the details carefully before proceeding.
                         </div>
                     </div>
 
                     <button type="button"
-                            class="px-3 py-2 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/10 text-white font-extrabold"
+                            class="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:bg-slate-100"
                             data-modal-close="{{ $id }}">
-                        ✕
+                        &times;
                     </button>
                 </div>
 
-                {{-- Details (dynamic) --}}
-                <div class="mt-5 space-y-3" data-confirm-rows>
-                    {{-- JS will populate here --}}
+                <div class="mt-4 space-y-0" data-confirm-rows></div>
+
+                <div class="mt-3 rounded-[20px] border border-slate-200 bg-slate-50 px-3 py-2" data-confirm-balance hidden>
+                    <div class="flex items-center gap-2 overflow-x-auto whitespace-nowrap text-[11px] text-slate-500 sm:text-xs">
+                        <span class="shrink-0 font-bold uppercase tracking-[0.18em] text-slate-400">Wallet</span>
+                        <span class="shrink-0 rounded-full bg-white px-2 py-1">Bal <span class="font-bold text-slate-900" data-balance-current>&#8358;0.00</span></span>
+                        <span class="shrink-0 rounded-full bg-white px-2 py-1">Debit <span class="font-bold text-slate-900" data-balance-deduct>&#8358;0.00</span></span>
+                        <span class="shrink-0 rounded-full bg-white px-2 py-1">Left <span class="font-bold text-slate-900" data-balance-remaining>&#8358;0.00</span></span>
+                    </div>
                 </div>
 
-                {{-- Optional WhatsApp --}}
-                <div class="mt-5 flex items-center justify-between gap-3">
-                    <div class="text-xs text-white/50">
+                <div class="mt-4 flex items-center justify-between gap-3">
+                    <div class="text-xs text-slate-500">
                         Need help? Chat support.
                     </div>
                     <a href="{{ $whatsapp }}"
                        target="_blank"
-                       class="text-green-300 hover:text-green-200 font-extrabold text-sm">
-                        Chat WhatsApp →
+                       class="text-sm font-extrabold text-emerald-700 transition hover:text-emerald-800">
+                        Chat WhatsApp &rarr;
                     </a>
                 </div>
 
-                {{-- Actions --}}
-                <div class="mt-6 grid grid-cols-2 gap-3">
+                <div class="mt-5 grid grid-cols-2 gap-3">
                     <button type="button"
-                            class="px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/10 text-white font-extrabold"
+                            class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-extrabold text-slate-700 transition hover:bg-slate-100"
                             data-modal-cancel="{{ $id }}">
                         Cancel
                     </button>
 
                     <button type="button"
-                            class="px-4 py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold"
+                            class="rounded-2xl bg-[#d8b07a] px-4 py-3 font-extrabold text-slate-900 transition hover:bg-[#c99c60]"
                             data-modal-confirm="{{ $id }}">
                         {{ $confirmText }}
                     </button>
@@ -81,9 +87,39 @@
 
     function qs(sel, root=document){ return root.querySelector(sel); }
 
+    function formatNairaFromKobo(kobo) {
+        const amount = Number(kobo || 0) / 100;
+        return '\u20A6' + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function parseAmountToKobo(value) {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return Math.round(value * 100);
+        }
+
+        const cleaned = String(value || '').replace(/[^0-9.\-]/g, '');
+        const parsed = Number(cleaned);
+        if (!Number.isFinite(parsed)) return null;
+        return Math.round(parsed * 100);
+    }
+
+    function resolveDebitAmountKobo(data) {
+        const direct = parseAmountToKobo(data?.__debitAmount ?? data?.__debit_amount ?? data?.amount ?? data?.total ?? data?.payable);
+        if (direct !== null) return direct;
+
+        const candidates = ['amount', 'total', 'payable'];
+        for (const key of candidates) {
+            if (!Object.prototype.hasOwnProperty.call(data || {}, key)) continue;
+            const parsed = parseAmountToKobo(data[key]);
+            if (parsed !== null) return parsed;
+        }
+
+        return null;
+    }
+
     function showOverlay(overlay){
         overlay.classList.remove('hidden');
-        overlay.classList.add('flex'); // IMPORTANT: ensures it actually displays
+        overlay.classList.add('flex');
     }
 
     function hideOverlay(overlay){
@@ -97,26 +133,52 @@
         if (!box) return;
 
         const entries = Object.entries(data || {})
-            .filter(([k,v]) => v !== undefined && v !== null && String(v).trim() !== '');
+            .filter(([k, v]) => !String(k).startsWith('__'))
+            .filter(([,v]) => v !== undefined && v !== null && String(v).trim() !== '');
 
         if (entries.length === 0) {
-            box.innerHTML = `<div class="text-white/60 text-sm">No details provided.</div>`;
+            box.innerHTML = '<div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-1.5 text-sm text-slate-500">No details provided.</div>';
             return;
         }
 
-        box.innerHTML = entries.map(([k,v]) => {
+        box.innerHTML = entries.map(([k,v], index, arr) => {
             const key = escapeHtml(k);
             const val = escapeHtml(String(v));
+            const edgeClass = index === 0
+                ? 'rounded-t-2xl'
+                : (index === arr.length - 1 ? 'rounded-b-2xl' : 'rounded-none');
+
             return `
-                <div class="flex items-center justify-between gap-3 py-2 border-b border-white/10 last:border-b-0">
-                    <div class="text-white/60 text-sm capitalize">${key}</div>
-                    <div class="text-white font-extrabold text-sm text-right">${val}</div>
+                <div class="flex items-center justify-between gap-3 border border-slate-200 bg-slate-50 px-4 py-1.5 ${edgeClass}">
+                    <div class="text-sm capitalize text-slate-500">${key}</div>
+                    <div class="text-right text-sm font-extrabold text-slate-900">${val}</div>
                 </div>
             `;
         }).join('');
     }
 
-    // ✅ Global function your pages call
+    function renderBalanceSummary(overlay, data) {
+        const wrap = qs('[data-confirm-balance]', overlay);
+        const currentEl = qs('[data-balance-current]', overlay);
+        const deductEl = qs('[data-balance-deduct]', overlay);
+        const remainingEl = qs('[data-balance-remaining]', overlay);
+        const walletEl = document.getElementById('walletBalance');
+        const currentKobo = Number(walletEl?.dataset?.walletKobo ?? overlay?.dataset?.walletKobo ?? 0);
+        const debitKobo = resolveDebitAmountKobo(data);
+
+        if (!wrap || !currentEl || !deductEl || !remainingEl || debitKobo === null) {
+            if (wrap) wrap.hidden = true;
+            return;
+        }
+
+        const remainingKobo = currentKobo - debitKobo;
+        currentEl.textContent = formatNairaFromKobo(currentKobo);
+        deductEl.textContent = formatNairaFromKobo(debitKobo);
+        remainingEl.textContent = formatNairaFromKobo(remainingKobo);
+        remainingEl.className = 'font-bold ' + (remainingKobo < 0 ? 'text-rose-700' : 'text-slate-900');
+        wrap.hidden = false;
+    }
+
     window.openConfirmModal = function(modalId, data, formIdToSubmit) {
         const overlay = document.getElementById(modalId + '_overlay');
         if (!overlay) {
@@ -130,19 +192,13 @@
             return;
         }
 
-        // Save target form
         overlay.dataset.formTarget = formIdToSubmit || '';
-
-        // Render details dynamically (works for ALL services)
         renderRows(overlay, data || {});
-
-        console.log('[Confirm Modal] Opening modal:', { modalId, formId: formIdToSubmit });
-        // Show modal
+        renderBalanceSummary(overlay, data || {});
         showOverlay(overlay);
     };
 
     document.addEventListener('click', function (e) {
-        // Close handlers
         const closeBtn = e.target.closest('[data-modal-close]');
         const cancelBtn = e.target.closest('[data-modal-cancel]');
         if (closeBtn) {
@@ -162,51 +218,28 @@
             return;
         }
 
-        // Confirm handler
         const confirmBtn = e.target.closest('[data-modal-confirm]');
         if (confirmBtn) {
             e.preventDefault();
             e.stopPropagation();
-            
+
             const modalId = confirmBtn.getAttribute('data-modal-confirm');
             const ov = document.getElementById(modalId + '_overlay');
             const formId = ov?.dataset?.formTarget || '';
             const form = formId ? document.getElementById(formId) : null;
 
-            console.log('[Confirm Modal] ============================================');
-            console.log('[Confirm Modal] Confirm Button Clicked');
-            console.log('[Confirm Modal] Modal ID:', modalId);
-            console.log('[Confirm Modal] Form ID to find:', formId);
-            console.log('[Confirm Modal] Form found:', !!form);
-            console.log('[Confirm Modal] Overlay dataset:', ov?.dataset);
-            
             if (form) {
-                console.log('[Confirm Modal] Form details:', {
-                    id: form.id,
-                    action: form.action,
-                    method: form.method,
-                    inputs: form.querySelectorAll('input').length,
-                    formData: new FormData(form)
-                });
-
-                // Loader if available
                 if (typeof window.showGlobalLoader === 'function') {
                     window.showGlobalLoader('Processing transaction...');
                 }
 
-                // prevent double click
                 confirmBtn.disabled = true;
                 confirmBtn.classList.add('opacity-60');
 
-                // Close modal BEFORE submitting
                 if (ov) hideOverlay(ov);
 
-                console.log('[Confirm Modal] Submitting form:', formId);
-                
-                // Use a small delay to ensure modal is fully hidden
                 setTimeout(() => {
                     try {
-                        console.log('[Confirm Modal] About to call form.submit()');
                         if (typeof form.requestSubmit === 'function') {
                             form.requestSubmit();
                         } else {
@@ -214,22 +247,16 @@
                             const allowed = form.dispatchEvent(evt);
                             if (allowed) form.submit();
                         }
-                        console.log('[Confirm Modal] form.submit() called successfully');
                     } catch (err) {
                         console.error('[Confirm Modal] Error submitting form:', err);
                     }
                 }, 100);
-            } else {
-                console.warn('[Confirm Modal] Form NOT found!');
-                console.warn('[Confirm Modal] Looking for form with ID:', formId);
-                console.warn('[Confirm Modal] All forms on page:', Array.from(document.querySelectorAll('form')).map(f => f.id));
-                if (ov) hideOverlay(ov);
+            } else if (ov) {
+                hideOverlay(ov);
             }
-            console.log('[Confirm Modal] ============================================');
         }
     });
 
-    // ESC closes any open confirm modal
     document.addEventListener('keydown', function (e) {
         if (e.key !== 'Escape') return;
         document.querySelectorAll('[id$="_overlay"]').forEach(ov => {
@@ -238,3 +265,4 @@
     });
 })();
 </script>
+

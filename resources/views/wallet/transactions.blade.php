@@ -1,116 +1,152 @@
 <x-app-layout>
-    <div class="max-w-5xl space-y-5">
-
-        <div class="rounded-3xl p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow">
-            <div class="flex items-start justify-between gap-4">
+    <div class="mx-auto max-w-5xl space-y-6">
+        <section class="app-section p-6 sm:p-8">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h2 class="text-2xl font-extrabold">Wallet Transactions</h2>
-                    <p class="text-white/60 text-sm mt-1">Credits, debits, funding requests, and refunds.</p>
+                    <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">Wallet Transactions</h1>
+                    <p class="app-page-subtitle">Credits, debits, funding requests, and refunds.</p>
                 </div>
-                <div class="text-right">
-                    <div class="text-xs text-white/60">Balance</div>
-                    <div class="text-xl font-extrabold">₦{{ number_format($walletBalanceNaira, 2) }}</div>
+                <div class="rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4 text-left sm:text-right">
+                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Balance</div>
+                    <div class="mt-2 text-2xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
                 </div>
             </div>
 
-            <div class="mt-4 flex flex-col sm:flex-row gap-3">
-                <a href="{{ route('wallet.fund') }}"
-                   class="px-5 py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold transition text-center">
-                    Fund Wallet
-                </a>
-                <a href="{{ route('vtu.orders') }}"
-                   class="px-5 py-3 rounded-2xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 border border-white/10 font-extrabold transition text-center">
-                    View Orders
-                </a>
+            <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+                <a href="{{ route('wallet.fund') }}" class="btn-primary text-center">Fund Wallet</a>
+                <a href="{{ route('vtu.orders') }}" class="btn-outline text-center">View Orders</a>
             </div>
 
             @if(auth()->user()?->virtual_account_number)
-                <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div class="rounded-2xl bg-black/10 dark:bg-black/30 border border-white/10 p-4">
-                        <div class="text-xs text-white/60">Virtual Account Bank</div>
-                        <div class="font-extrabold">{{ auth()->user()->virtual_account_bank ?: '-' }}</div>
+                <div class="mt-6 grid gap-4 sm:grid-cols-3">
+                    <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                        <div class="text-xs font-semibold text-slate-500">Virtual Account Bank</div>
+                        <div class="mt-2 text-sm font-extrabold text-slate-900">{{ auth()->user()->virtual_account_bank ?: '-' }}</div>
                     </div>
-                    <div class="rounded-2xl bg-black/10 dark:bg-black/30 border border-white/10 p-4">
-                        <div class="text-xs text-white/60">Virtual Account Number</div>
-                        <div class="font-extrabold tracking-wide">{{ auth()->user()->virtual_account_number }}</div>
+                    <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                        <div class="text-xs font-semibold text-slate-500">Virtual Account Number</div>
+                        <div class="mt-2 text-sm font-extrabold tracking-wide text-slate-900">{{ auth()->user()->virtual_account_number }}</div>
                     </div>
-                    <div class="rounded-2xl bg-black/10 dark:bg-black/30 border border-white/10 p-4">
-                        <div class="text-xs text-white/60">Virtual Account Name</div>
-                        <div class="font-extrabold">{{ auth()->user()->virtual_account_name ?: '-' }}</div>
+                    <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                        <div class="text-xs font-semibold text-slate-500">Virtual Account Name</div>
+                        <div class="mt-2 text-sm font-extrabold text-slate-900">{{ auth()->user()->virtual_account_name ?: '-' }}</div>
                     </div>
                 </div>
             @endif
 
             @if(session('success'))
-                <div class="mt-4 p-4 rounded-2xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 text-green-700 dark:text-green-200">
+                <div class="mt-4 rounded-[20px] border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
                     {{ session('success') }}
                 </div>
             @endif
 
             @if(session('error'))
-                <div class="mt-4 p-4 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-200">
+                <div class="mt-4 rounded-[20px] border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">
                     {{ session('error') }}
                 </div>
             @endif
-        </div>
+        </section>
 
-        <div class="rounded-3xl p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="text-white/60">
-                    <tr class="border-b border-white/10">
-                        <th class="text-left py-3 pr-4">Date</th>
-                        <th class="text-left py-3 pr-4">Type</th>
-                        <th class="text-left py-3 pr-4">Amount</th>
-                        <th class="text-left py-3 pr-4">Status</th>
-                        <th class="text-left py-3 pr-4">Channel</th>
-                        <th class="text-left py-3 pr-4">Reference</th>
-                    </tr>
-                </thead>
-                <tbody class="text-white/80">
-                    @forelse($transactions as $t)
-                        @php
-                            $amountN = number_format(((int)$t->amount)/100, 2);
-                            $type = strtoupper($t->type ?? '-');
-                            $status = $t->status ?? 'pending';
-                            if ($status === 'pending' && ($t->type ?? '') === 'debit') {
-                                $status = 'success';
-                            }
-                        @endphp
-                        <tr class="border-b border-white/5">
-                            <td class="py-3 pr-4">{{ optional($t->created_at)->format('d M, Y h:ia') }}</td>
-                            <td class="py-3 pr-4 font-bold">
-                                @if(($t->type ?? '') === 'credit')
-                                    <span class="text-green-200">CREDIT</span>
-                                @else
-                                    <span class="text-red-200">DEBIT</span>
-                                @endif
-                            </td>
-                            <td class="py-3 pr-4">
-                                ₦{{ $amountN }}
-                            </td>
-                            <td class="py-3 pr-4">
-                                <span class="px-3 py-1 rounded-full text-xs font-bold
-                                    @if($status==='success') bg-green-500/15 text-green-200 border border-green-500/20
-                                    @elseif($status==='failed') bg-red-500/15 text-red-200 border border-red-500/20
-                                    @else bg-yellow-500/15 text-yellow-200 border border-yellow-500/20
-                                    @endif">
-                                    {{ strtoupper($status) }}
-                                </span>
-                            </td>
-                            <td class="py-3 pr-4">{{ $t->channel ?? '-' }}</td>
-                            <td class="py-3 pr-4 text-white/70">{{ $t->reference ?? '-' }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="6" class="py-4 text-white/60">No wallet transactions yet.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+        <section class="app-section p-4 sm:p-6">
+            <div class="space-y-4 md:hidden">
+                @forelse($transactions as $t)
+                    @php
+                        $amountN = number_format(((int)$t->amount)/100, 2);
+                        $status = $t->status ?? 'pending';
+                        if ($status === 'pending' && ($t->type ?? '') === 'debit') {
+                            $status = 'success';
+                        }
+                        $typeLabel = ($t->type ?? '') === 'credit' ? 'Credit' : 'Debit';
+                        $statusClasses = $status === 'success'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : ($status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700');
+                    @endphp
+                    <article class="app-record-card">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <div class="text-lg font-extrabold text-slate-900">{{ $typeLabel }}</div>
+                                <div class="mt-1 text-sm text-slate-500">{{ optional($t->created_at)->format('M j, Y, g:ia') }}</div>
+                            </div>
+                            <span class="inline-flex rounded-full px-3 py-1 text-xs font-bold {{ $statusClasses }}">
+                                {{ strtoupper($status) }}
+                            </span>
+                        </div>
 
-            <div class="mt-4">
+                        <div class="app-record-grid">
+                            <div>
+                                <div class="app-record-label">Amount</div>
+                                <div class="app-record-value">&#8358;{{ $amountN }}</div>
+                            </div>
+                            <div>
+                                <div class="app-record-label">Channel</div>
+                                <div class="app-record-value">{{ $t->channel ?? '-' }}</div>
+                            </div>
+                            <div class="col-span-2">
+                                <div class="app-record-label">Reference</div>
+                                <div class="app-record-value break-all">{{ $t->reference ?? '-' }}</div>
+                            </div>
+                        </div>
+                    </article>
+                @empty
+                    <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No wallet transactions yet.</div>
+                @endforelse
+            </div>
+
+            <div class="hidden overflow-x-auto md:block">
+                <table class="w-full min-w-[760px] text-sm">
+                    <thead>
+                        <tr class="border-b border-slate-200 text-left text-slate-500">
+                            <th class="py-3 pr-4">Date</th>
+                            <th class="py-3 pr-4">Type</th>
+                            <th class="py-3 pr-4">Amount</th>
+                            <th class="py-3 pr-4">Status</th>
+                            <th class="py-3 pr-4">Channel</th>
+                            <th class="py-3 pr-4">Reference</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-slate-700">
+                        @forelse($transactions as $t)
+                            @php
+                                $amountN = number_format(((int)$t->amount)/100, 2);
+                                $status = $t->status ?? 'pending';
+                                if ($status === 'pending' && ($t->type ?? '') === 'debit') {
+                                    $status = 'success';
+                                }
+                            @endphp
+                            <tr class="border-b border-slate-100">
+                                <td class="py-3 pr-4">{{ optional($t->created_at)->format('d M, Y h:ia') }}</td>
+                                <td class="py-3 pr-4 font-bold">
+                                    @if(($t->type ?? '') === 'credit')
+                                        <span class="text-emerald-700">CREDIT</span>
+                                    @else
+                                        <span class="text-rose-700">DEBIT</span>
+                                    @endif
+                                </td>
+                                <td class="py-3 pr-4">&#8358;{{ $amountN }}</td>
+                                <td class="py-3 pr-4">
+                                    <span class="px-3 py-1 rounded-full text-xs font-bold
+                                        @if($status==='success') bg-emerald-50 text-emerald-700
+                                        @elseif($status==='failed') bg-rose-50 text-rose-700
+                                        @else bg-amber-50 text-amber-700
+                                        @endif">
+                                        {{ strtoupper($status) }}
+                                    </span>
+                                </td>
+                                <td class="py-3 pr-4">{{ $t->channel ?? '-' }}</td>
+                                <td class="py-3 pr-4 text-slate-500">{{ $t->reference ?? '-' }}</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="py-4 text-slate-500">No wallet transactions yet.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-5">
                 {{ $transactions->links() }}
             </div>
-        </div>
+        </section>
     </div>
 </x-app-layout>

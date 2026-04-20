@@ -1,4 +1,4 @@
-<x-app-layout>
+﻿<x-app-layout>
     @php
         $netNames = [
             'mtn' => 'MTN',
@@ -26,7 +26,7 @@
                 <button type="button" class="net-card app-service-card text-left" data-net="{{ $key }}">
                     <div class="flex items-start justify-between gap-3">
                         <div>
-                            <div class="text-xl font-extrabold text-slate-900">{{ $label }} Airtime</div>
+                            <div class="app-service-title">{{ $label }} Airtime</div>
                             <div class="mt-2 text-sm text-slate-500">Quick recharge for {{ $label }} numbers</div>
                         </div>
                         <div class="app-icon-ring h-16 w-16">
@@ -67,7 +67,16 @@
 
                 <div>
                     <label class="block text-sm font-bold text-slate-700">Phone Number</label>
-                    <input id="phone" type="text" name="phone" required placeholder="Enter Phone Number" list="airtimePhoneSuggestionList" class="input-field mt-2">
+                    <div class="contact-picker-row mt-2">
+                        <input id="phone" type="tel" name="phone" required placeholder="Enter Phone Number" list="airtimePhoneSuggestionList" class="input-field" inputmode="tel" autocomplete="tel-national" data-contact-picker-input>
+                        <button type="button" class="contact-picker-btn" data-contact-picker-button data-contact-picker-target="#phone" aria-label="Pick phone contact">
+                            <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+                                <path d="M17 21v-8H7v8"></path>
+                                <path d="M7 3v5h8"></path>
+                            </svg>
+                        </button>
+                    </div>
                     @if(!empty($phoneSuggestions ?? []))
                         <datalist id="airtimePhoneSuggestionList">
                             @foreach(($phoneSuggestions ?? []) as $suggestion)
@@ -106,21 +115,29 @@
             </form>
         </section>
 
-        <div id="confirmAirtime_overlay" class="fixed inset-0 z-[2147483647] hidden items-center justify-center p-4" style="isolation:isolate;">
+        <div id="confirmAirtime_overlay" data-wallet-kobo="{{ (int) (auth()->user()?->wallet->balance ?? 0) }}" class="fixed inset-0 z-[2147483647] hidden items-center justify-center p-4" style="isolation:isolate;">
             <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
-            <div class="relative w-full max-w-lg overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_22px_55px_rgba(18,31,56,0.18)]">
+            <div class="relative w-full max-w-lg overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_22px_55px_rgba(18,31,56,0.24)]">
                 <div class="p-6 sm:p-7">
                     <div class="flex items-start justify-between gap-3">
                         <div>
                             <div class="text-2xl font-extrabold text-slate-900">Confirm Airtime Purchase</div>
-                            <div class="mt-1 text-sm text-slate-500">Please review the details before proceeding.</div>
+                            <div class="mt-1 text-sm text-slate-600">Please review the details before proceeding.</div>
                         </div>
-                        <button type="button" id="confirmAirtime_close" class="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500">×</button>
+                        <button type="button" id="confirmAirtime_close" class="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:bg-slate-100">&times;</button>
                     </div>
-                    <div class="mt-5 space-y-3" id="confirmAirtime_rows"></div>
-                    <div class="mt-6 grid grid-cols-2 gap-3">
-                        <button type="button" id="confirmAirtime_cancel" class="btn-outline justify-center">Cancel</button>
-                        <button type="button" id="confirmAirtime_ok" class="btn-primary justify-center">Confirm</button>
+                    <div class="mt-4 space-y-0" id="confirmAirtime_rows"></div>
+                    <div id="confirmAirtime_balance" class="mt-3 hidden rounded-[20px] border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div class="flex items-center gap-2 overflow-x-auto whitespace-nowrap text-[11px] text-slate-500 sm:text-xs">
+                            <span class="shrink-0 font-bold uppercase tracking-[0.18em] text-slate-400">Wallet</span>
+                            <span class="shrink-0 rounded-full bg-white px-2 py-1">Bal <span id="confirmAirtime_currentBalance" class="font-bold text-slate-900">&#8358;0.00</span></span>
+                            <span class="shrink-0 rounded-full bg-white px-2 py-1">Debit <span id="confirmAirtime_deductBalance" class="font-bold text-slate-900">&#8358;0.00</span></span>
+                            <span class="shrink-0 rounded-full bg-white px-2 py-1">Left <span id="confirmAirtime_remainingBalance" class="font-bold text-slate-900">&#8358;0.00</span></span>
+                        </div>
+                    </div>
+                    <div class="mt-5 grid grid-cols-2 gap-3">
+                        <button type="button" id="confirmAirtime_cancel" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-extrabold text-slate-700 transition hover:bg-slate-100">Cancel</button>
+                        <button type="button" id="confirmAirtime_ok" class="rounded-2xl bg-[#d8b07a] px-4 py-3 font-extrabold text-slate-900 transition hover:bg-[#c99c60]">Confirm</button>
                     </div>
                 </div>
             </div>
@@ -145,6 +162,10 @@
 
             const overlay = document.getElementById('confirmAirtime_overlay');
             const rowsBox = document.getElementById('confirmAirtime_rows');
+            const balanceWrap = document.getElementById('confirmAirtime_balance');
+            const currentBalanceEl = document.getElementById('confirmAirtime_currentBalance');
+            const deductBalanceEl = document.getElementById('confirmAirtime_deductBalance');
+            const remainingBalanceEl = document.getElementById('confirmAirtime_remainingBalance');
             const btnClose = document.getElementById('confirmAirtime_close');
             const btnCancel = document.getElementById('confirmAirtime_cancel');
             const btnOk = document.getElementById('confirmAirtime_ok');
@@ -204,11 +225,26 @@
 
             function showModal(summary) {
                 rowsBox.innerHTML = Object.entries(summary).map(([k, v]) => `
-                    <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+                    <div class="flex items-center justify-between gap-3 rounded-none border border-slate-200 bg-slate-50 px-4 py-1.5 first:rounded-t-2xl last:rounded-b-2xl">
                         <div class="text-sm text-slate-500">${esc(k)}</div>
                         <div class="text-right text-sm font-extrabold text-slate-900">${esc(v)}</div>
                     </div>
                 `).join('');
+
+                const walletBalance = Number(document.getElementById('walletBalance')?.dataset?.walletKobo || overlay?.dataset?.walletKobo || 0);
+                const debitKobo = Math.round(Number(amountInput.value || 0) * 100);
+
+                if (Number.isFinite(debitKobo) && balanceWrap && currentBalanceEl && deductBalanceEl && remainingBalanceEl) {
+                    const remaining = walletBalance - debitKobo;
+                    currentBalanceEl.textContent = '\u20A6' + (walletBalance / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    deductBalanceEl.textContent = '\u20A6' + (debitKobo / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    remainingBalanceEl.textContent = '\u20A6' + (remaining / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    remainingBalanceEl.className = 'font-bold ' + (remaining < 0 ? 'text-rose-700' : 'text-slate-900');
+                    balanceWrap.classList.remove('hidden');
+                } else if (balanceWrap) {
+                    balanceWrap.classList.add('hidden');
+                }
+
                 overlay.classList.remove('hidden');
                 overlay.classList.add('flex');
             }
@@ -260,13 +296,13 @@
 
                 if (!netKey) return notify('error', 'Please select a network.');
                 if (!phone || phone.length < 8) return notify('error', 'Please enter a valid phone number.');
-                if (!amount || Number(amount) < 50) return notify('error', 'Please enter a valid amount (min ₦50).');
+                if (!amount || Number(amount) < 50) return notify('error', 'Please enter a valid amount (min \u20A650).');
 
                 showModal({
                     service: 'Airtime',
                     network: netNames[netKey] ?? netKey,
                     phone: phone,
-                    amount: '₦' + Number(amount).toLocaleString(),
+                    amount: '\u20A6' + Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 });
             });
 
@@ -361,3 +397,4 @@
         })();
     </script>
 </x-app-layout>
+

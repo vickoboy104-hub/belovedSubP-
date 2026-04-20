@@ -3,7 +3,7 @@
         Website Editor
     </x-slot>
 
-    <div class="max-w-5xl mx-auto space-y-6">
+    <div class="admin-light-page max-w-5xl mx-auto space-y-6">
         <div class="rounded-3xl p-6 border border-red-400/30 bg-red-500/10">
             <div class="text-xl font-extrabold text-red-200">Danger Zone</div>
             <p class="text-sm text-red-100/90 mt-2">
@@ -29,7 +29,7 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('admin.website-editor.update') }}"
+        <form id="websiteEditorForm" method="POST" action="{{ route('admin.website-editor.update') }}"
               class="rounded-3xl p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 space-y-8">
             @csrf
 
@@ -37,7 +37,7 @@
                 <h3 class="text-lg font-extrabold">Feature Toggles</h3>
                 <p class="text-sm text-white/60 mt-1">Turn sections on/off without touching code.</p>
 
-                <div class="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     @php
                         $toggles = [
                             'editor_home_marquee_enabled' => 'Home Marquee',
@@ -71,7 +71,7 @@
                 <h3 class="text-lg font-extrabold">Theme Colors</h3>
                 <p class="text-sm text-white/60 mt-1">Global colors for buttons, links, surfaces and header.</p>
 
-                <div class="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     @php
                         $colorFields = [
                             'editor_primary_color' => ['label' => 'Primary Color', 'default' => '#f97316'],

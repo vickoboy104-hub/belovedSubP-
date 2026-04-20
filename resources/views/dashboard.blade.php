@@ -4,6 +4,9 @@
         $referralBalanceNaira = number_format(((int) ($referralBalanceKobo ?? 0)) / 100, 2);
         $referralTotalNaira = number_format(((int) ($referralTotalKobo ?? 0)) / 100, 2);
         $authUser = auth()->user();
+        $dashboardPopupEnabled = (string) setting('dashboard_popup_enabled', '1') === '1'
+            && (string) setting('editor_dashboard_popup_enabled', '1') === '1';
+        $dashboardPopupMessage = setting('dashboard_popup_message', 'For NIN services (New enrolment, correction, printing, etc.) click the WhatsApp Support button to chat with us instantly.');
     @endphp
 
     <div class="space-y-8">
@@ -107,7 +110,46 @@
                         <a href="{{ route('vtu.orders') }}" class="btn-soft">View All</a>
                     </div>
 
-                    <div class="mt-6 overflow-x-auto">
+                    <div class="mt-6 space-y-4 md:hidden">
+                        @forelse(($recentOrders ?? []) as $o)
+                            @php
+                                $type = $o->meta['type'] ?? 'order';
+                                $amountN = number_format(((int) $o->amount) / 100, 2);
+                                $status = $o->status ?? 'pending';
+                            @endphp
+                            <article class="app-record-card">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div>
+                                        <div class="text-lg font-extrabold capitalize text-slate-900">{{ str_replace('-', ' ', $type) }}</div>
+                                        <div class="mt-1 text-sm text-slate-500">{{ optional($o->created_at)->format('M j, Y, g:ia') }}</div>
+                                    </div>
+                                    <span class="inline-flex rounded-full px-3 py-1 text-xs font-bold
+                                        {{ $status === 'success' ? 'bg-emerald-50 text-emerald-700' : ($status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700') }}">
+                                        {{ strtoupper($status) }}
+                                    </span>
+                                </div>
+
+                                <div class="app-record-grid">
+                                    <div>
+                                        <div class="app-record-label">Customer</div>
+                                        <div class="app-record-value">{{ $o->customer_ref }}</div>
+                                    </div>
+                                    <div>
+                                        <div class="app-record-label">Amount</div>
+                                        <div class="app-record-value">&#8358;{{ $amountN }}</div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4">
+                                    <a href="{{ route('vtu.receipt', $o->id) }}" class="btn-primary w-full justify-center">View</a>
+                                </div>
+                            </article>
+                        @empty
+                            <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No recent orders yet.</div>
+                        @endforelse
+                    </div>
+
+                    <div class="mt-6 hidden overflow-x-auto md:block">
                         <table class="w-full min-w-[760px] text-sm">
                             <thead>
                                 <tr class="border-b border-slate-200 text-left text-slate-500">
@@ -178,6 +220,7 @@
                             <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
                                 <div class="font-bold text-slate-900">{{ $ndata['title'] ?? 'Notification' }}</div>
                                 <div class="mt-1 text-sm leading-6 text-slate-500">{{ $ndata['message'] ?? '' }}</div>
+                                <div class="mt-2 text-xs font-medium text-slate-400">{{ optional($notification->created_at)->format('M j, Y, g:ia') }}</div>
                             </div>
                         @empty
                             <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No notifications yet.</div>
@@ -187,4 +230,8 @@
             </div>
         </section>
     </div>
+
+    @if($dashboardPopupEnabled && trim(strip_tags((string) $dashboardPopupMessage)) !== '')
+        <x-nin-popup :message="$dashboardPopupMessage" popupKey="dashboard_popup_seen" />
+    @endif
 </x-app-layout>

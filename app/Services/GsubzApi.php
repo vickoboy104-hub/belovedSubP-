@@ -145,7 +145,9 @@ class GsubzApi
                 'ok' => false,
                 'message' => 'GSUBZ request failed (pay).',
                 'error' => $e->getMessage(),
+                'http_status' => optional($e->response)->status(),
                 'response' => optional($e->response)->json(),
+                'response_body' => optional($e->response)->body(),
             ];
         }
     }
@@ -184,7 +186,9 @@ class GsubzApi
                 'ok' => false,
                 'message' => 'GSUBZ request failed (balance).',
                 'error' => $e->getMessage(),
+                'http_status' => optional($e->response)->status(),
                 'response' => optional($e->response)->json(),
+                'response_body' => optional($e->response)->body(),
             ];
         }
     }
@@ -243,7 +247,9 @@ class GsubzApi
                 'ok' => false,
                 'message' => 'GSUBZ request failed (verify).',
                 'error' => $e->getMessage(),
+                'http_status' => optional($e->response)->status(),
                 'response' => optional($e->response)->json(),
+                'response_body' => optional($e->response)->body(),
             ];
         }
     }
@@ -310,6 +316,7 @@ class GsubzApi
         $desc = strtolower(trim((string) ($normalized['description'] ?? ($merged['description'] ?? ''))));
         $apiResponse = strtolower(trim((string) ($normalized['api_response'] ?? ($merged['api_response'] ?? ''))));
         $message = strtolower(trim((string) ($normalized['message'] ?? ($merged['message'] ?? ''))));
+        $httpStatus = (int) ($normalized['http_status'] ?? ($merged['http_status'] ?? 0));
         $combined = trim($status . ' ' . $desc . ' ' . $apiResponse . ' ' . $message);
 
         $code = (int) ($normalized['code'] ?? ($merged['code'] ?? 0));
@@ -343,7 +350,7 @@ class GsubzApi
             return true;
         }
 
-        if ($code === 200) {
+        if ($code === 200 || $httpStatus === 200) {
             return true;
         }
 
@@ -365,19 +372,26 @@ class GsubzApi
         if (!empty($resp['message'])) return (string) $resp['message'];
 
         $code = (int) ($resp['code'] ?? 0);
+        $httpStatus = (int) ($resp['http_status'] ?? 0);
         $map = [
             204 => 'Required content not sent.',
             206 => 'Invalid content.',
             401 => 'Invalid plan.',
             402 => 'Insufficient provider balance.',
+            500 => 'Provider server error.',
             404 => 'Content not found.',
             405 => 'Request method not POST.',
             406 => 'Service disabled.',
             502 => 'Gateway error.',
+            503 => 'Provider service unavailable.',
+            504 => 'Provider timeout.',
+            506 => 'Provider service configuration error.',
         ];
 
         if ($code !== 0 && isset($map[$code])) return $map[$code];
+        if ($httpStatus !== 0 && isset($map[$httpStatus])) return $map[$httpStatus];
         if (!empty($resp['code'])) return "Transaction failed (Code: {$resp['code']}).";
+        if ($httpStatus > 0) return "Transaction failed (HTTP {$httpStatus}).";
         return "Transaction failed.";
     }
 

@@ -6,7 +6,7 @@
         </section>
 
         <div class="grid gap-6 lg:grid-cols-2">
-            <section class="app-section p-6 sm:p-8">
+            <section id="profile-information" class="app-section p-6 sm:p-8">
                 <div class="text-2xl font-extrabold text-slate-900">Profile Information</div>
                 <p class="mt-2 text-sm leading-6 text-slate-500">Update your identity and contact details for wallet funding and account recovery.</p>
                 <div class="mt-6">
@@ -14,7 +14,7 @@
                 </div>
             </section>
 
-            <section class="app-section p-6 sm:p-8">
+            <section id="security-settings" class="app-section p-6 sm:p-8">
                 <div class="text-2xl font-extrabold text-slate-900">Change Password</div>
                 <p class="mt-2 text-sm leading-6 text-slate-500">Use a strong password to keep your account safe.</p>
                 <div class="mt-6">

@@ -46,18 +46,22 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::post('/vtu/airtime/buy', [VtuController::class, 'buyAirtime'])->name('vtu.airtime.buy');
 
     Route::get('/vtu/data', [VtuController::class, 'dataForm'])->name('vtu.data');
+    Route::get('/vtu/data/{service}', [VtuController::class, 'dataServiceForm'])->name('vtu.data.service');
     Route::post('/vtu/data/buy', [VtuController::class, 'buyData'])->name('vtu.data.buy');
 
     Route::get('/vtu/recharge-card', [VtuController::class, 'rechargeCardForm'])->name('vtu.recharge-card');
     Route::post('/vtu/recharge-card/buy', [VtuController::class, 'buyRechargeCard'])->name('vtu.recharge-card.buy');
 
     Route::get('/vtu/cable', [VtuController::class, 'cableForm'])->name('vtu.cable');
+    Route::get('/vtu/cable/{service}', [VtuController::class, 'cableServiceForm'])->name('vtu.cable.service');
     Route::post('/vtu/cable/buy', [VtuController::class, 'buyCable'])->name('vtu.cable.buy');
 
     Route::get('/vtu/electricity', [VtuController::class, 'electricityForm'])->name('vtu.electricity');
+    Route::get('/vtu/electricity/{service}', [VtuController::class, 'electricityServiceForm'])->name('vtu.electricity.service');
     Route::post('/vtu/electricity/buy', [VtuController::class, 'buyElectricity'])->name('vtu.electricity.buy');
 
     Route::get('/vtu/exam', [VtuController::class, 'examPinForm'])->name('vtu.exam');
+    Route::get('/vtu/exam/{service}', [VtuController::class, 'examServiceForm'])->name('vtu.exam.service');
     Route::post('/vtu/exam/buy', [VtuController::class, 'buyExamPin'])->name('vtu.exam.buy');
 
     Route::get('/vtu/premium-apps', [VtuController::class, 'premiumAppsForm'])->name('vtu.premium-apps');

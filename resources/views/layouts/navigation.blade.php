@@ -83,6 +83,10 @@
                 <a href="{{ route('vtu.cable') }}" class="nav-item">Cable TV</a>
                 <a href="{{ route('vtu.electricity') }}" class="nav-item">Electricity</a>
                 <a href="{{ route('vtu.exam') }}" class="nav-item">Exam Pins</a>
+                <a href="{{ route('vtu.recharge-card') }}" class="nav-item">Recharge PIN</a>
+                <a href="{{ route('vtu.premium-apps') }}" class="nav-item">Premium Apps</a>
+                <a href="{{ route('vtu.nin') }}" class="nav-item">NIN Services</a>
+                <a href="{{ route('vtu.nin-validation') }}" class="nav-item">NIN Validation</a>
                 <a href="{{ route('vtu.orders') }}" class="nav-item">My Orders</a>
 
                 <div class="pt-3 border-t border-white/10 mt-3"></div>
@@ -149,6 +153,10 @@
                 <a href="{{ route('vtu.cable') }}" class="nav-item" @click="open=false">Cable TV</a>
                 <a href="{{ route('vtu.electricity') }}" class="nav-item" @click="open=false">Electricity</a>
                 <a href="{{ route('vtu.exam') }}" class="nav-item" @click="open=false">Exam Pins</a>
+                <a href="{{ route('vtu.recharge-card') }}" class="nav-item" @click="open=false">Recharge PIN</a>
+                <a href="{{ route('vtu.premium-apps') }}" class="nav-item" @click="open=false">Premium Apps</a>
+                <a href="{{ route('vtu.nin') }}" class="nav-item" @click="open=false">NIN Services</a>
+                <a href="{{ route('vtu.nin-validation') }}" class="nav-item" @click="open=false">NIN Validation</a>
                 <a href="{{ route('vtu.orders') }}" class="nav-item" @click="open=false">My Orders</a>
 
                 @if(Route::has('admin.dashboard'))

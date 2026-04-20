@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -36,7 +38,11 @@ body {
 }
 
 body {
-    font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+    font-family: "Sora", "Segoe UI", "Helvetica Neue", sans-serif;
+}
+
+body.page-is-entering main {
+    animation: fadeInUp 0.32s ease both;
 }
 
 img,
@@ -83,6 +89,42 @@ button {
 
 .fade-in {
     animation: fadeInUp 0.5s ease forwards;
+}
+
+.tech-loader-core {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    border: 3px solid rgba(125, 211, 252, 0.18);
+    border-top-color: rgba(125, 211, 252, 0.95);
+    border-right-color: rgba(165, 243, 252, 0.8);
+    animation: techSpin 0.9s linear infinite;
+    box-shadow: 0 0 18px rgba(34, 211, 238, 0.25);
+}
+
+.tech-loader-bar {
+    display: block;
+    height: 5px;
+    flex: 1;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(34,211,238,0.12), rgba(125,211,252,0.95), rgba(34,211,238,0.12));
+    background-size: 200% 100%;
+    animation: techSweep 1.3s ease-in-out infinite;
+}
+
+.tech-loader-bar:nth-child(2) { animation-delay: 0.12s; }
+.tech-loader-bar:nth-child(3) { animation-delay: 0.24s; }
+.tech-loader-bar:nth-child(4) { animation-delay: 0.36s; }
+
+@keyframes techSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes techSweep {
+    0% { background-position: 200% 0; opacity: 0.45; }
+    50% { background-position: 100% 0; opacity: 1; }
+    100% { background-position: 0% 0; opacity: 0.45; }
 }
 
 .card-glow {
@@ -201,6 +243,28 @@ button {
         @apply text-sm font-semibold text-white/90 hover:text-white;
     }
 
+    .desktop-account-link {
+        @apply inline-flex items-center justify-center text-white/90 hover:text-white;
+    }
+
+    .mobile-topbar-icon {
+        @apply flex h-10 w-10 items-center justify-center rounded-2xl text-white;
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    .mobile-topbar-icon:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .mobile-profile-menu-item {
+        @apply flex items-center rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700;
+    }
+
+    .mobile-profile-menu-item:hover {
+        background: #f4f7fc;
+        color: var(--brand-navy);
+    }
+
     .app-service-card {
         @apply relative overflow-hidden rounded-[22px] border bg-white p-6;
         border-color: #edf1f7;
@@ -218,6 +282,49 @@ button {
 
     .app-service-copy {
         @apply mt-2 text-sm leading-6 text-slate-500;
+    }
+
+    .app-service-arrow {
+        @apply inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-500;
+        background: rgba(255, 255, 255, 0.88);
+        box-shadow: 0 4px 16px rgba(18, 31, 56, 0.08);
+    }
+
+    .app-record-card {
+        @apply rounded-[22px] border border-slate-200 bg-white p-4;
+        box-shadow: 0 10px 28px rgba(18, 31, 56, 0.05);
+    }
+
+    .app-record-grid {
+        @apply mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm;
+    }
+
+    .app-record-label {
+        @apply text-xs font-semibold uppercase tracking-[0.14em] text-slate-400;
+    }
+
+    .app-record-value {
+        @apply mt-1 text-sm font-bold text-slate-900;
+    }
+
+    .contact-picker-row {
+        @apply flex items-center gap-3;
+    }
+
+    .contact-picker-row .input-field,
+    .contact-picker-row input,
+    .contact-picker-row .block.w-full {
+        flex: 1 1 auto;
+    }
+
+    .contact-picker-btn {
+        @apply hidden h-[50px] min-w-[50px] items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700;
+        box-shadow: 0 8px 20px rgba(18, 31, 56, 0.05);
+    }
+
+    .contact-picker-btn:hover {
+        background: #eef4ff;
+        color: var(--brand-navy);
     }
 
     .app-icon-ring {
@@ -241,7 +348,7 @@ button {
     }
 
     .app-mini-tile-icon {
-        @apply mb-3 flex h-16 w-16 items-center justify-center rounded-full;
+        @apply mb-3 flex h-20 w-20 items-center justify-center rounded-full text-3xl;
         background: #eaf1ff;
         color: var(--brand-navy);
     }
@@ -329,6 +436,221 @@ button {
     color: var(--brand-navy);
 }
 
+.desktop-sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #b8c6df transparent;
+}
+
+.desktop-sidebar-scroll::-webkit-scrollbar {
+    width: 10px;
+}
+
+.desktop-sidebar-scroll::-webkit-scrollbar-thumb {
+    background: #c4d0e4;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+.desktop-sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.app-form-shell .text-white,
+.app-section .text-white,
+.app-section-muted .text-white,
+[class*="bg-white/5"] .text-white,
+[class*="dark:bg-white/5"] .text-white,
+[class*="bg-black/5"] .text-white,
+[class*="bg-black/10"] .text-white,
+[class*="bg-black/20"] .text-white,
+[class*="bg-black/30"] .text-white {
+    color: var(--brand-text) !important;
+}
+
+.app-form-shell [class*="text-white/"],
+.app-section [class*="text-white/"],
+.app-section-muted [class*="text-white/"],
+[class*="bg-white/5"] [class*="text-white/"],
+[class*="dark:bg-white/5"] [class*="text-white/"],
+[class*="bg-black/5"] [class*="text-white/"],
+[class*="bg-black/10"] [class*="text-white/"],
+[class*="bg-black/20"] [class*="text-white/"],
+[class*="bg-black/30"] [class*="text-white/"] {
+    color: var(--brand-muted) !important;
+}
+
+.app-form-shell [class*="border-white/10"],
+.app-section [class*="border-white/10"],
+.app-section-muted [class*="border-white/10"],
+[class*="bg-white/5"] [class*="border-white/10"],
+[class*="dark:bg-white/5"] [class*="border-white/10"],
+[class*="bg-black/5"] [class*="border-white/10"],
+[class*="bg-black/10"] [class*="border-white/10"],
+[class*="bg-black/20"] [class*="border-white/10"],
+[class*="bg-black/30"] [class*="border-white/10"] {
+    border-color: #d7e0ef !important;
+}
+
+.app-form-shell [class*="bg-black/5"],
+.app-form-shell [class*="bg-black/10"],
+.app-form-shell [class*="bg-black/20"],
+.app-form-shell [class*="bg-black/30"],
+.app-section [class*="bg-black/5"],
+.app-section [class*="bg-black/10"],
+.app-section [class*="bg-black/20"],
+.app-section [class*="bg-black/30"],
+.app-section-muted [class*="bg-black/5"],
+.app-section-muted [class*="bg-black/10"],
+.app-section-muted [class*="bg-black/20"],
+.app-section-muted [class*="bg-black/30"],
+[class*="bg-white/5"] [class*="bg-black/5"],
+[class*="bg-white/5"] [class*="bg-black/10"],
+[class*="bg-white/5"] [class*="bg-black/20"],
+[class*="bg-white/5"] [class*="bg-black/30"],
+[class*="dark:bg-white/5"] [class*="bg-black/5"],
+[class*="dark:bg-white/5"] [class*="bg-black/10"],
+[class*="dark:bg-white/5"] [class*="bg-black/20"],
+[class*="dark:bg-white/5"] [class*="bg-black/30"] {
+    background: #f8fbff !important;
+}
+
+.app-form-shell input[class*="text-white"],
+.app-form-shell textarea[class*="text-white"],
+.app-form-shell select[class*="text-white"],
+.app-section input[class*="text-white"],
+.app-section textarea[class*="text-white"],
+.app-section select[class*="text-white"],
+.app-section-muted input[class*="text-white"],
+.app-section-muted textarea[class*="text-white"],
+.app-section-muted select[class*="text-white"],
+[class*="bg-white/5"] input[class*="text-white"],
+[class*="bg-white/5"] textarea[class*="text-white"],
+[class*="bg-white/5"] select[class*="text-white"],
+[class*="dark:bg-white/5"] input[class*="text-white"],
+[class*="dark:bg-white/5"] textarea[class*="text-white"],
+[class*="dark:bg-white/5"] select[class*="text-white"] {
+    color: var(--brand-text) !important;
+}
+
+.app-form-shell input[class*="placeholder:text-white/"],
+.app-form-shell textarea[class*="placeholder:text-white/"],
+.app-section input[class*="placeholder:text-white/"],
+.app-section textarea[class*="placeholder:text-white/"],
+.app-section-muted input[class*="placeholder:text-white/"],
+.app-section-muted textarea[class*="placeholder:text-white/"],
+[class*="bg-white/5"] input[class*="placeholder:text-white/"],
+[class*="bg-white/5"] textarea[class*="placeholder:text-white/"],
+[class*="dark:bg-white/5"] input[class*="placeholder:text-white/"],
+[class*="dark:bg-white/5"] textarea[class*="placeholder:text-white/"] {
+    color: #9aa7bc !important;
+}
+
+.btn-primary,
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active,
+.btn-primary * {
+    color: #ffffff !important;
+}
+
+#adminSettingsForm .sticky nav a,
+#adminSettingsForm .sticky nav a:hover,
+#adminSettingsForm .sticky nav a:focus {
+    color: rgba(255, 255, 255, 0.94) !important;
+}
+
+.admin-light-page [class*="text-white/"],
+.admin-light-page .text-white,
+#websiteEditorForm [class*="text-white/"],
+#websiteEditorForm .text-white,
+#adminSettingsForm [class*="text-white/"],
+#adminSettingsForm .text-white {
+    color: var(--brand-muted) !important;
+}
+
+.admin-light-page h1,
+.admin-light-page h2,
+.admin-light-page h3,
+.admin-light-page h4,
+.admin-light-page h5,
+.admin-light-page h6,
+#websiteEditorForm h1,
+#websiteEditorForm h2,
+#websiteEditorForm h3,
+#websiteEditorForm h4,
+#websiteEditorForm h5,
+#websiteEditorForm h6,
+#adminSettingsForm h1,
+#adminSettingsForm h2,
+#adminSettingsForm h3,
+#adminSettingsForm h4,
+#adminSettingsForm h5,
+#adminSettingsForm h6 {
+    color: var(--brand-text) !important;
+}
+
+.admin-light-page label,
+#websiteEditorForm label,
+#adminSettingsForm label,
+.admin-light-page .font-bold,
+.admin-light-page .font-extrabold,
+#websiteEditorForm .font-bold,
+#websiteEditorForm .font-extrabold,
+#adminSettingsForm .font-bold,
+#adminSettingsForm .font-extrabold {
+    color: var(--brand-text);
+}
+
+.admin-light-page [class*="bg-white/5"],
+.admin-light-page [class*="bg-black/10"],
+.admin-light-page [class*="bg-black/20"],
+.admin-light-page [class*="bg-black/30"],
+#websiteEditorForm [class*="bg-white/5"],
+#websiteEditorForm [class*="bg-black/10"],
+#websiteEditorForm [class*="bg-black/20"],
+#websiteEditorForm [class*="bg-black/30"],
+#adminSettingsForm [class*="bg-white/5"],
+#adminSettingsForm [class*="bg-black/10"],
+#adminSettingsForm [class*="bg-black/20"],
+#adminSettingsForm [class*="bg-black/30"] {
+    background: #f8fbff !important;
+}
+
+.admin-light-page [class*="border-white/10"],
+#websiteEditorForm [class*="border-white/10"],
+#adminSettingsForm [class*="border-white/10"] {
+    border-color: #d7e0ef !important;
+}
+
+.admin-light-page input,
+.admin-light-page select,
+.admin-light-page textarea,
+#websiteEditorForm input,
+#websiteEditorForm select,
+#websiteEditorForm textarea,
+#adminSettingsForm input,
+#adminSettingsForm select,
+#adminSettingsForm textarea {
+    color: var(--brand-text);
+}
+
+.admin-light-page .text-red-200,
+#websiteEditorForm .text-red-200 {
+    color: #b42318 !important;
+}
+
+.admin-light-page .text-red-100\/90,
+#websiteEditorForm .text-red-100\/90 {
+    color: #7a271a !important;
+}
+
+#websiteEditorForm .rounded-2xl.border.border-white\/10.bg-black\/10.p-4,
+#adminSettingsForm .rounded-2xl.border.border-white\/10.p-4,
+#adminSettingsForm .rounded-2xl.border.border-white\/10.overflow-x-auto.mt-3 {
+    background: #f8fbff !important;
+}
+
 .network-pick[aria-pressed="true"],
 .net-card[aria-pressed="true"] {
     border-color: #c2d1ec !important;
@@ -336,8 +658,34 @@ button {
 }
 
 @media (max-width: 640px) {
+    header .app-topbar-link {
+        display: none;
+    }
+
+    main {
+        padding-top: 1rem;
+        padding-bottom: 1.5rem;
+    }
+
+    .app-page {
+        padding-left: 1.1rem;
+        padding-right: 1.1rem;
+    }
+
     .app-page-title {
-        font-size: 2rem;
+        font-size: 1.06rem;
+        line-height: 1.35;
+        letter-spacing: -0.02em;
+    }
+
+    .app-page-subtitle {
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+
+    .app-divider {
+        height: 4px;
+        margin-top: 1rem;
     }
 
     .app-form-shell,
@@ -346,5 +694,40 @@ button {
     .app-section,
     .app-section-muted {
         border-radius: 22px;
+    }
+
+    .app-service-card {
+        padding: 1.15rem 1.2rem;
+        border-radius: 18px;
+        min-height: 74px;
+    }
+
+    .app-service-title {
+        font-size: 1.02rem;
+        line-height: 1.35;
+    }
+
+    .app-service-copy {
+        margin-top: 0.2rem;
+        font-size: 0.8rem;
+        line-height: 1.45;
+    }
+
+    .app-icon-ring {
+        width: 64px;
+        height: 64px;
+    }
+
+    .app-form-shell {
+        padding: 1.2rem;
+    }
+
+    .app-form-card {
+        padding: 1.2rem;
+    }
+
+    .nav-item {
+        padding: 0.95rem 1rem;
+        border-radius: 16px;
     }
 }

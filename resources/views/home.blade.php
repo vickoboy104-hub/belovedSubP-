@@ -2,6 +2,9 @@
     @php
         $homeMarquee = setting('home_marquee_message', setting('popup_message', 'Need NIN services? Click WhatsApp Support to chat with us instantly.'));
         $homeMarqueeEnabled = (string) setting('editor_home_marquee_enabled', '1') === '1';
+        $homePopupEnabled = (string) setting('home_popup_enabled', setting('popup_enabled', '1')) === '1'
+            && (string) setting('editor_home_popup_enabled', '1') === '1';
+        $homePopupMessage = setting('home_popup_message', setting('popup_message', 'Need NIN services? Tap the WhatsApp button to chat with us.'));
         $footerPhone = setting('footer_phone', '08165587119');
         $footerEmail = setting('footer_email', 'vickoboy104@gmail.com');
     @endphp
@@ -215,4 +218,8 @@
             </div>
         </footer>
     </div>
+
+    @if($homePopupEnabled && trim(strip_tags((string) $homePopupMessage)) !== '')
+        <x-nin-popup :message="$homePopupMessage" popupKey="home_popup_seen" />
+    @endif
 </x-guest-layout>

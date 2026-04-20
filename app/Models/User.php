@@ -25,6 +25,8 @@ class User extends Authenticatable
         'first_name',
         'last_name',
         'phone',
+        'flutterwave_bvn',
+        'flutterwave_nin',
         'email',
         'password',
         'referral_code',
@@ -43,6 +45,8 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'flutterwave_bvn',
+        'flutterwave_nin',
     ];
 
     /**
@@ -57,6 +61,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'discount_percent' => 'float',
             'is_admin' => 'boolean',
+            'flutterwave_bvn' => 'encrypted',
+            'flutterwave_nin' => 'encrypted',
             'virtual_account_assigned_at' => 'datetime',
             'virtual_account_metadata' => 'array',
             'last_login_at' => 'datetime',

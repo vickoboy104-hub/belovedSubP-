@@ -32,9 +32,18 @@
 
         <div>
             <x-input-label for="phone" :value="__('Phone Number')" />
-            <x-text-input id="phone" name="phone" type="text" class="mt-1 block w-full"
-                          :value="old('phone', $user->phone)" placeholder="+2348012345678 or 08012345678"
-                          autocomplete="tel" />
+            <div class="contact-picker-row mt-1">
+                <x-text-input id="phone" name="phone" type="tel" class="block w-full"
+                              :value="old('phone', $user->phone)" placeholder="+2348012345678 or 08012345678"
+                              autocomplete="tel-national" inputmode="tel" data-contact-picker-input />
+                <button type="button" class="contact-picker-btn" data-contact-picker-button data-contact-picker-target="#phone" aria-label="Pick phone contact">
+                    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+                        <path d="M17 21v-8H7v8"></path>
+                        <path d="M7 3v5h8"></path>
+                    </svg>
+                </button>
+            </div>
             <x-input-error class="mt-2 text-red-400" :messages="$errors->get('phone')" />
             <p class="mt-2 text-xs text-slate-500">This number is used for virtual account assignment and account recovery verification.</p>
         </div>

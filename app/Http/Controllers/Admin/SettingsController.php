@@ -110,9 +110,9 @@ class SettingsController extends Controller
             'provider'              => ['nullable', 'string', 'in:gsubz,alt,mock'],
 
             'home_marquee_message'      => ['nullable', 'string', 'max:500'],
-            'home_popup_message'        => ['nullable', 'string', 'max:500'],
+            'home_popup_message'        => ['nullable', 'string', 'max:5000'],
             'dashboard_marquee_message' => ['nullable', 'string', 'max:500'],
-            'dashboard_popup_message'   => ['nullable', 'string', 'max:500'],
+            'dashboard_popup_message'   => ['nullable', 'string', 'max:5000'],
             'fund_wallet_marquee_message' => ['nullable', 'string', 'max:500'],
             'marquee_speed_seconds' => ['nullable', 'numeric', 'min:5', 'max:120'],
             'maintenance_overlay_end_at' => ['nullable', 'date'],
@@ -235,7 +235,11 @@ class SettingsController extends Controller
         // Backward compatibility for old keys
         $data['popup_enabled'] = $data['home_popup_enabled'];
         if (array_key_exists('home_popup_message', $data)) {
+            $data['home_popup_message'] = sanitize_popup_message_html((string) $data['home_popup_message']);
             $data['popup_message'] = $data['home_popup_message'];
+        }
+        if (array_key_exists('dashboard_popup_message', $data)) {
+            $data['dashboard_popup_message'] = sanitize_popup_message_html((string) $data['dashboard_popup_message']);
         }
 
         // handle uploads (store and save URL in settings)

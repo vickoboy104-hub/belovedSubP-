@@ -45,7 +45,7 @@ class FlutterwaveController extends Controller
         $creditKobo = $amountKobo - $feeKobo;
         $reference = 'FLW_'.Str::upper(Str::random(12));
 
-        WalletTransaction::create([
+        $tx = WalletTransaction::create([
             'wallet_id' => $user->wallet->id,
             'type' => 'credit',
             'amount' => $amountKobo,
@@ -91,6 +91,11 @@ class FlutterwaveController extends Controller
                     'reference' => $reference,
                 ]);
 
+                $this->markInitializationFailed($tx, 'Payment initialization failed at Flutterwave.', [
+                    'gateway_status' => $response->status(),
+                    'gateway_body' => $response->json() ?: $response->body(),
+                ]);
+
                 return back()->with('error', 'Payment initialization failed. Please try again.');
             }
 
@@ -103,6 +108,10 @@ class FlutterwaveController extends Controller
                     'reference' => $reference,
                 ]);
 
+                $this->markInitializationFailed($tx, 'Payment link was not returned by Flutterwave.', [
+                    'gateway_response' => $response->json(),
+                ]);
+
                 return back()->with('error', 'Payment initialization failed. Please try again.');
             }
 
@@ -111,6 +120,10 @@ class FlutterwaveController extends Controller
             Log::error('Flutterwave initialize exception', [
                 'message' => $e->getMessage(),
                 'reference' => $reference,
+            ]);
+
+            $this->markInitializationFailed($tx, 'Payment initialization exception.', [
+                'exception_message' => $e->getMessage(),
             ]);
 
             return back()->with('error', 'Payment could not start. Please try again.');
@@ -565,6 +578,19 @@ class FlutterwaveController extends Controller
         $feeNaira = (float) setting('wallet_funding_fee', 50);
 
         return max(0, (int) round($feeNaira * 100));
+    }
+
+    private function markInitializationFailed(WalletTransaction $tx, string $reason, array $extraMeta = []): void
+    {
+        $meta = array_merge($tx->meta ?? [], [
+            'initialization_failed_at' => now()->toISOString(),
+            'initialization_error' => $reason,
+        ], $extraMeta);
+
+        $tx->update([
+            'status' => 'failed',
+            'meta' => $meta,
+        ]);
     }
 
     private function markReferralQualified(User $user): void

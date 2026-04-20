@@ -75,6 +75,8 @@ class FlutterwaveService
     {
         return Http::withToken($this->secretKey)
             ->acceptJson()
+            ->connectTimeout(15)
+            ->retry(2, 400)
             ->timeout(30);
     }
 }

@@ -274,89 +274,20 @@ class VtuController extends Controller
     // =========================================================
     public function dataForm()
     {
-        $fallback = [
-            'mtn_awoof'      => 'MTN Awoof Data (Cheap)',
-            'mtn_gifting'    => 'MTN Data (Gifting)',
-            'mtn_sme'        => 'MTN Data (SME)',
-            'mtn_cg'         => 'MTN Data (Corporate)',
-            'mtn_cg_lite'    => 'MTN Data (CG Lite)',
-            'mtn_coupon'     => 'MTN Coupon',
-            'mtncg'          => 'MTN CG',
-            'airtel_sme'     => 'Airtel Data (SME)',
-            'airtel_cg'      => 'Airtel Data (CG)',
-            'airtel_gifting' => 'Airtel Data (Gifting)',
-            'glo_data'       => 'Glo Data',
-            'glo_sme'        => 'Glo Data (SME)',
-            'etisalat_data'  => '9mobile Data',
-        ];
+        return view('vtu.data-index', [
+            'services' => $this->dataServices(),
+        ]);
+    }
 
-        $displayOrder = [
-            'mtn_awoof',
-            'mtn_gifting',
-            'mtn_sme',
-            'mtn_cg',
-            'mtn_cg_lite',
-            'mtn_coupon',
-            'mtncg',
-            'airtel_sme',
-            'airtel_cg',
-            'airtel_gifting',
-            'glo_data',
-            'glo_sme',
-            'etisalat_data',
-        ];
-
-        $serviceDefaultEnabled = [
-            'mtn_awoof'      => '1',
-            'mtn_gifting'    => '1',
-            'mtn_sme'        => '1',
-            'mtn_cg'         => '0',
-            'mtn_cg_lite'    => '0',
-            'mtn_coupon'     => '0',
-            'mtncg'          => '0',
-            'airtel_sme'     => '1',
-            'airtel_cg'      => '1',
-            'airtel_gifting' => '1',
-            'glo_data'       => '1',
-            'glo_sme'        => '1',
-            'etisalat_data'  => '1',
-        ];
-
-        $customServices = $this->parseServicesSetting('services_data');
-        $baseServices = !empty($customServices) ? $customServices : $fallback;
-        $expectedSlugs = array_values(array_unique(array_merge(array_keys($fallback), array_keys($baseServices))));
-
-        $dbServices = Service::query()
-            ->whereIn('slug', $expectedSlugs)
-            ->orderBy('name')
-            ->pluck('name', 'slug')
-            ->toArray();
-
-        $services = array_replace($baseServices, $dbServices);
-
-        foreach ($serviceDefaultEnabled as $slug => $defaultEnabled) {
-            $enabled = (string) setting('data_service_enabled_' . $slug, $defaultEnabled) === '1';
-            if (!$enabled) {
-                unset($services[$slug]);
-            }
-        }
-
-        $orderedServices = [];
-        foreach ($displayOrder as $slug) {
-            if (!array_key_exists($slug, $services)) {
-                continue;
-            }
-
-            $orderedServices[$slug] = $services[$slug];
-            unset($services[$slug]);
-        }
-
-        foreach ($services as $slug => $label) {
-            $orderedServices[$slug] = $label;
-        }
+    public function dataServiceForm(string $service)
+    {
+        $services = $this->dataServices();
+        abort_unless(array_key_exists($service, $services), 404);
 
         return view('vtu.data', [
-            'services' => $orderedServices,
+            'serviceSlug' => $service,
+            'serviceLabel' => $services[$service],
+            'services' => [$service => $services[$service]],
             'phoneSuggestions' => $this->phoneSuggestionsForUser(auth()->user(), 'data'),
         ]);
     }
@@ -721,16 +652,19 @@ class VtuController extends Controller
     // =========================================================
     public function cableForm()
     {
-        $services = $this->parseServicesSetting('services_cable');
-        if (empty($services)) {
-            $services = [
-                'dstv'      => 'DSTV Subscription',
-                'gotv'      => 'GOTV Subscription',
-                'startimes' => 'Startimes Subscription',
-            ];
-        }
+        return view('vtu.cable-index', ['services' => $this->cableServices()]);
+    }
 
-        return view('vtu.cable', ['services' => $services]);
+    public function cableServiceForm(string $service)
+    {
+        $services = $this->cableServices();
+        abort_unless(array_key_exists($service, $services), 404);
+
+        return view('vtu.cable', [
+            'selectedService' => $service,
+            'selectedServiceLabel' => $services[$service],
+            'services' => [$service => $services[$service]],
+        ]);
     }
 
     public function buyCable(Request $request)
@@ -899,27 +833,19 @@ class VtuController extends Controller
     // =========================================================
     public function electricityForm()
     {
-        // Your electricity.blade.php can use either controller services OR fallback services.
-        // We pass the GSUBZ-style IDs you already had in your previous controller.
-        $services = $this->parseServicesSetting('services_electricity');
-        if (empty($services)) {
-            $services = [
-                'abuja-electric'        => 'Abuja Electric (AEDC)',
-                'eko-electric'          => 'Eko Electric (EKEDC)',
-                'ibadan-electric'       => 'Ibadan Electric (IBEDC)',
-                'ikeja-electric'        => 'Ikeja Electric (IKEDC)',
-                'jos-electic'           => 'Jos Electric (JED)',
-                'kaduna-electric'       => 'Kaduna Electric (KAEDCO)',
-                'kano-electric'         => 'Kano Electric (KEDCO)',
-                'portharcourt-electric' => 'Port Harcourt Electric (PHED)',
-                'aba-electric'          => 'Aba Electric (ABA)',
-                'yola-electric'         => 'Yola Electric (YEDC)',
-                'benin-electric'        => 'Benin Electric (BEDC)',
-                'enugu-electric'        => 'Enugu Electric (EEDC)',
-            ];
-        }
+        return view('vtu.electricity-index', ['services' => $this->electricityServices()]);
+    }
 
-        return view('vtu.electricity', ['services' => $services]);
+    public function electricityServiceForm(string $service)
+    {
+        $services = $this->electricityServices();
+        abort_unless(array_key_exists($service, $services), 404);
+
+        return view('vtu.electricity', [
+            'selectedService' => $service,
+            'selectedServiceLabel' => $services[$service],
+            'services' => [$service => $services[$service]],
+        ]);
     }
 
     public function buyElectricity(Request $request)
@@ -1087,17 +1013,19 @@ class VtuController extends Controller
     // =========================================================
     public function examPinForm()
     {
-        $services = $this->parseServicesSetting('services_education');
-        if (empty($services)) {
-            $services = [
-                'jamb' => 'JAMB PIN (UTME & Direct Entry)',
-                'waec' => 'WAEC Result Checker PIN',
-                'neco' => 'NECO Result Checker PIN',
-                'nabteb' => 'NABTEB Result Checker PIN',
-            ];
-        }
+        return view('vtu.exam-index', ['services' => $this->educationServices()]);
+    }
 
-        return view('vtu.exam-pin', ['services' => $services]);
+    public function examServiceForm(string $service)
+    {
+        $services = $this->educationServices();
+        abort_unless(array_key_exists($service, $services), 404);
+
+        return view('vtu.exam-pin', [
+            'selectedService' => $service,
+            'selectedServiceLabel' => $services[$service],
+            'services' => [$service => $services[$service]],
+        ]);
     }
 
     public function buyExamPin(Request $request)
@@ -1711,16 +1639,17 @@ class VtuController extends Controller
                     'provider' => 'nin_api',
                     'provider_reference' => $requestId,
                     'status' => 'success',
-                    'meta' => [
-                        'type' => 'nin',
-                        'service_type' => 'verify',
-                        'verification_type' => $searchType,
-                        'base_amount_naira' => $priceVerifyNaira,
-                        'requestID' => $requestId,
-                        'provider_response' => $response,
-                        'message' => $message,
-                    ],
-                ]);
+                'meta' => [
+                    'type' => 'nin',
+                    'service_type' => 'verify',
+                    'verification_type' => $searchType,
+                    'base_amount_naira' => $priceVerifyNaira,
+                    'requestID' => $requestId,
+                    'normalized' => $normalized,
+                    'provider_response' => $response,
+                    'message' => $message,
+                ],
+            ]);
                 $this->awardReferralCommission($order);
                 $orderId = $order->id;
                 DB::commit();
@@ -1755,13 +1684,15 @@ class VtuController extends Controller
 
     public function ninPrint(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'slip_type' => ['required', Rule::in(['long_slip', 'standard_slip', 'premium_slip', 'vnin_slip'])],
-            'verification_type' => ['required', Rule::in(['by_nin', 'by_phone', 'by_demo'])],
+            'verification_order_id' => ['nullable', 'integer', 'min:1'],
+            'verification_type' => ['nullable', Rule::in(['by_nin', 'by_phone', 'by_demo'])],
         ]);
 
-        $verificationType = (string) $request->input('verification_type');
-        $slipType = (string) $request->input('slip_type');
+        $verificationOrderId = (int) ($validated['verification_order_id'] ?? 0);
+        $verificationType = (string) ($validated['verification_type'] ?? '');
+        $slipType = (string) $validated['slip_type'];
         $priceMapNaira = [
             'long_slip' => (float) setting('price_nin_slip_long', 180),
             'standard_slip' => (float) setting('price_nin_slip_standard', 180),
@@ -1784,49 +1715,119 @@ class VtuController extends Controller
             ], 402);
         }
 
-        $basePayload = [
-            'service_type' => 'print',
-            'slip_type' => $slipType,
-            'verification_type' => $verificationType,
-        ];
+        $providerPayload = [];
+        $providerData = [];
+        $normalized = [];
+        $response = [];
+        $ok = false;
+        $message = '';
+        $sourceVerificationOrderId = null;
 
-        if ($verificationType === 'by_nin') {
-            $ninPayload = $request->validate([
-                'nin' => ['required', 'digits:11'],
-            ]);
-            $providerPayload = array_merge($basePayload, [
-                'nin' => (string) $ninPayload['nin'],
-            ]);
-        } elseif ($verificationType === 'by_phone') {
-            $phonePayload = $request->validate([
-                'phone' => ['required', 'digits_between:10,14'],
-            ]);
-            $providerPayload = array_merge($basePayload, [
-                'phone' => (string) $phonePayload['phone'],
-            ]);
+        if ($verificationOrderId > 0) {
+            try {
+                $verified = $this->verifiedNinPrintDataFromOrder($verificationOrderId, $user);
+            } catch (\RuntimeException $e) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => $e->getMessage(),
+                    'data' => [],
+                    'balance_kobo' => (int) $wallet->balance,
+                ], 422);
+            }
+
+            $verificationType = (string) $verified['verification_type'];
+            $providerData = $verified['provider_data'];
+            $normalized = $verified['normalized'];
+            $sourceVerificationOrderId = (int) $verified['order']->id;
+
+            $printableNin = trim((string) ($normalized['nin'] ?? ''));
+            if ($printableNin === '' || $printableNin === '-') {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'This verified record does not contain a printable NIN.',
+                    'data' => [],
+                    'balance_kobo' => (int) $wallet->balance,
+                ], 422);
+            }
+
+            $providerPayload = [
+                'service_type' => 'print',
+                'slip_type' => $slipType,
+                'verification_type' => $verificationType,
+                'nin' => $printableNin,
+            ];
+
+            $message = 'Slip generated successfully. Use print or save as PDF.';
+            $response = [
+                'success' => true,
+                'message' => $message,
+                'data' => [
+                    'local_generated' => true,
+                    'slip_type' => $slipType,
+                    'normalized' => $normalized,
+                    'provider_data' => $providerData,
+                    'source_verification_order_id' => $sourceVerificationOrderId,
+                ],
+            ];
+            $ok = true;
         } else {
-            $demoPayload = $request->validate([
-                'firstname' => ['required', 'string', 'max:120'],
-                'lastname' => ['required', 'string', 'max:120'],
-                'dob' => ['required', 'date_format:d-m-Y'],
-                'gender' => ['required', Rule::in(['male', 'female', 'm', 'f'])],
-            ]);
+            if ($verificationType === '') {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Choose a verification type before printing.',
+                    'data' => [],
+                    'balance_kobo' => (int) $wallet->balance,
+                ], 422);
+            }
 
-            $providerPayload = array_merge($basePayload, [
-                // Keep both key styles for compatibility with providers that use either format.
-                'firstname' => (string) $demoPayload['firstname'],
-                'lastname' => (string) $demoPayload['lastname'],
-                'dob' => (string) $demoPayload['dob'],
-                'gender' => (string) $demoPayload['gender'],
-                'fname' => (string) $demoPayload['firstname'],
-                'lname' => (string) $demoPayload['lastname'],
-            ]);
+            $basePayload = [
+                'service_type' => 'print',
+                'slip_type' => $slipType,
+                'verification_type' => $verificationType,
+            ];
+
+            if ($verificationType === 'by_nin') {
+                $ninPayload = $request->validate([
+                    'nin' => ['required', 'digits:11'],
+                ]);
+                $providerPayload = array_merge($basePayload, [
+                    'nin' => (string) $ninPayload['nin'],
+                ]);
+            } elseif ($verificationType === 'by_phone') {
+                $phonePayload = $request->validate([
+                    'phone' => ['required', 'digits_between:10,14'],
+                ]);
+                $providerPayload = array_merge($basePayload, [
+                    'phone' => (string) $phonePayload['phone'],
+                ]);
+            } else {
+                $demoPayload = $request->validate([
+                    'firstname' => ['required', 'string', 'max:120'],
+                    'lastname' => ['required', 'string', 'max:120'],
+                    'dob' => ['required', 'date_format:d-m-Y'],
+                    'gender' => ['required', Rule::in(['male', 'female', 'm', 'f'])],
+                ]);
+
+                $providerPayload = array_merge($basePayload, [
+                    // Keep both key styles for compatibility with providers that use either format.
+                    'firstname' => (string) $demoPayload['firstname'],
+                    'lastname' => (string) $demoPayload['lastname'],
+                    'dob' => (string) $demoPayload['dob'],
+                    'gender' => (string) $demoPayload['gender'],
+                    'fname' => (string) $demoPayload['firstname'],
+                    'lname' => (string) $demoPayload['lastname'],
+                ]);
+            }
+
+            $response = $this->ninApi->printSlip($providerPayload);
+            $ok = $this->ninApi->isSuccessful($response);
+            $message = $this->ninApi->message($response);
+            $providerData = is_array($response['data'] ?? null) ? $response['data'] : [];
+            $normalized = $this->normalizeNinPayload($providerData);
         }
 
-        $response = $this->ninApi->printSlip($providerPayload);
-        $ok = $this->ninApi->isSuccessful($response);
-        $message = $this->ninApi->message($response);
         $orderId = null;
+        $issuedAt = now();
 
         if ($ok) {
             $requestId = $this->makeRequestId('NINP');
@@ -1857,12 +1858,16 @@ class VtuController extends Controller
                         'base_amount_naira' => $basePriceNaira,
                         'markup_naira' => $markupNaira,
                         'requestID' => $requestId,
+                        'source_verification_order_id' => $sourceVerificationOrderId,
+                        'normalized' => $normalized,
+                        'provider_data' => $providerData,
                         'provider_response' => $response,
                         'message' => $message,
                     ],
                 ]);
                 $this->awardReferralCommission($order);
                 $orderId = $order->id;
+                $issuedAt = $order->created_at ?? $issuedAt;
                 DB::commit();
             } catch (\RuntimeException $e) {
                 DB::rollBack();
@@ -1882,14 +1887,68 @@ class VtuController extends Controller
             }
         }
 
+        $responseData = is_array($response['data'] ?? null) ? $response['data'] : [];
+
         return response()->json([
             'ok' => $ok,
             'message' => $message,
-            'data' => is_array($response['data'] ?? null) ? $response['data'] : [],
+            'data' => array_merge($responseData, [
+                'slip_type' => $slipType,
+                'normalized' => $normalized,
+                'provider_data' => $providerData,
+                'issued_at' => $issuedAt->toIso8601String(),
+                'issued_at_label' => $issuedAt->format('d M Y'),
+                'source_verification_order_id' => $sourceVerificationOrderId,
+            ]),
             'order_id' => $orderId,
             'balance_kobo' => (int) ($wallet->fresh()?->balance ?? $wallet->balance ?? 0),
             'raw' => $response,
         ], $ok ? 200 : 422);
+    }
+
+    private function verifiedNinPrintDataFromOrder(int $orderId, User $user): array
+    {
+        $order = Order::query()
+            ->where('id', $orderId)
+            ->where('user_id', $user->id)
+            ->where('status', 'success')
+            ->first();
+
+        if (!$order) {
+            throw new \RuntimeException('Verified NIN record not found.');
+        }
+
+        $meta = is_array($order->meta) ? $order->meta : [];
+        if (($meta['type'] ?? null) !== 'nin' || ($meta['service_type'] ?? null) !== 'verify') {
+            throw new \RuntimeException('The selected record is not a verified NIN result.');
+        }
+
+        $providerResponse = is_array($meta['provider_response'] ?? null) ? $meta['provider_response'] : [];
+        $providerData = is_array($providerResponse['data'] ?? null) ? $providerResponse['data'] : [];
+        $normalized = is_array($meta['normalized'] ?? null) ? $meta['normalized'] : [];
+
+        if (empty($normalized)) {
+            $normalized = $this->normalizeNinPayload($providerData);
+        }
+
+        if (empty($providerData) && empty($normalized)) {
+            throw new \RuntimeException('Verified NIN data is no longer available for printing.');
+        }
+
+        $verificationType = match ((string) ($meta['verification_type'] ?? 'nin')) {
+            'phone' => 'by_phone',
+            'demo' => 'by_demo',
+            'by_phone' => 'by_phone',
+            'by_demo' => 'by_demo',
+            default => 'by_nin',
+        };
+
+        return [
+            'order' => $order,
+            'provider_data' => $providerData,
+            'normalized' => $normalized,
+            'verification_type' => $verificationType,
+        ];
     }
 
     public function ninSlipReports()
@@ -2793,6 +2852,143 @@ class VtuController extends Controller
         return [$percent, $discountKobo, $payableKobo];
     }
 
+    private function dataServices(): array
+    {
+        $fallback = [
+            'mtn_awoof' => 'MTN Awoof Data (Cheap)',
+            'mtn_gifting' => 'MTN Data (Gifting)',
+            'mtn_sme' => 'MTN Data (SME)',
+            'mtn_cg' => 'MTN Data (Corporate)',
+            'mtn_cg_lite' => 'MTN Data (CG Lite)',
+            'mtn_coupon' => 'MTN Coupon',
+            'mtncg' => 'MTN CG',
+            'airtel_sme' => 'Airtel Data (SME)',
+            'airtel_cg' => 'Airtel Data (CG)',
+            'airtel_gifting' => 'Airtel Data (Gifting)',
+            'glo_data' => 'Glo Data',
+            'glo_sme' => 'Glo Data (SME)',
+            'etisalat_data' => '9mobile Data',
+        ];
+
+        $displayOrder = [
+            'mtn_awoof',
+            'mtn_gifting',
+            'mtn_sme',
+            'mtn_cg',
+            'mtn_cg_lite',
+            'mtn_coupon',
+            'mtncg',
+            'airtel_sme',
+            'airtel_cg',
+            'airtel_gifting',
+            'glo_data',
+            'glo_sme',
+            'etisalat_data',
+        ];
+
+        $serviceDefaultEnabled = [
+            'mtn_awoof' => '1',
+            'mtn_gifting' => '1',
+            'mtn_sme' => '1',
+            'mtn_cg' => '0',
+            'mtn_cg_lite' => '0',
+            'mtn_coupon' => '0',
+            'mtncg' => '0',
+            'airtel_sme' => '1',
+            'airtel_cg' => '1',
+            'airtel_gifting' => '1',
+            'glo_data' => '1',
+            'glo_sme' => '1',
+            'etisalat_data' => '1',
+        ];
+
+        $customServices = $this->parseServicesSetting('services_data');
+        $baseServices = !empty($customServices) ? $customServices : $fallback;
+        $expectedSlugs = array_values(array_unique(array_merge(array_keys($fallback), array_keys($baseServices))));
+
+        $dbServices = Service::query()
+            ->whereIn('slug', $expectedSlugs)
+            ->orderBy('name')
+            ->pluck('name', 'slug')
+            ->toArray();
+
+        $services = array_replace($baseServices, $dbServices);
+
+        foreach ($serviceDefaultEnabled as $slug => $defaultEnabled) {
+            $enabled = (string) setting('data_service_enabled_' . $slug, $defaultEnabled) === '1';
+            if (!$enabled) {
+                unset($services[$slug]);
+            }
+        }
+
+        $orderedServices = [];
+        foreach ($displayOrder as $slug) {
+            if (!array_key_exists($slug, $services)) {
+                continue;
+            }
+            $orderedServices[$slug] = $services[$slug];
+            unset($services[$slug]);
+        }
+
+        foreach ($services as $slug => $label) {
+            $orderedServices[$slug] = $label;
+        }
+
+        return $orderedServices;
+    }
+
+    private function cableServices(): array
+    {
+        $services = $this->parseServicesSetting('services_cable');
+        if (!empty($services)) {
+            return $services;
+        }
+
+        return [
+            'dstv' => 'DSTV Subscription',
+            'gotv' => 'GOTV Subscription',
+            'startimes' => 'Startimes Subscription',
+        ];
+    }
+
+    private function electricityServices(): array
+    {
+        $services = $this->parseServicesSetting('services_electricity');
+        if (!empty($services)) {
+            return $services;
+        }
+
+        return [
+            'abuja-electric' => 'Abuja Electric (AEDC)',
+            'eko-electric' => 'Eko Electric (EKEDC)',
+            'ibadan-electric' => 'Ibadan Electric (IBEDC)',
+            'ikeja-electric' => 'Ikeja Electric (IKEDC)',
+            'jos-electic' => 'Jos Electric (JED)',
+            'kaduna-electric' => 'Kaduna Electric (KAEDCO)',
+            'kano-electric' => 'Kano Electric (KEDCO)',
+            'portharcourt-electric' => 'Port Harcourt Electric (PHED)',
+            'aba-electric' => 'Aba Electric (ABA)',
+            'yola-electric' => 'Yola Electric (YEDC)',
+            'benin-electric' => 'Benin Electric (BEDC)',
+            'enugu-electric' => 'Enugu Electric (EEDC)',
+        ];
+    }
+
+    private function educationServices(): array
+    {
+        $services = $this->parseServicesSetting('services_education');
+        if (!empty($services)) {
+            return $services;
+        }
+
+        return [
+            'jamb' => 'JAMB PIN (UTME & Direct Entry)',
+            'waec' => 'WAEC Result Checker PIN',
+            'neco' => 'NECO Result Checker PIN',
+            'nabteb' => 'NABTEB Result Checker PIN',
+        ];
+    }
+
     private function parseServicesSetting(string $key): array
     {
         $raw = trim((string) setting($key, ''));
@@ -3094,9 +3290,11 @@ class VtuController extends Controller
             (string) ($resp['api_response'] ?? ''),
             (string) ($resp['description'] ?? ''),
             (string) ($resp['message'] ?? ''),
+            (string) ($resp['response_body'] ?? ''),
         ]))));
 
         $code = (int) ($resp['code'] ?? 0);
+        $httpStatus = (int) ($resp['http_status'] ?? 0);
 
         if ($raw === '') {
             return $this->buildErrorMessage(3);
@@ -3113,12 +3311,16 @@ class VtuController extends Controller
         }
 
         if (
-            $code === 402 || $code === 502 ||
+            in_array($code, [402, 500, 502, 503, 504, 506], true) ||
+            in_array($httpStatus, [500, 502, 503, 504, 506], true) ||
             str_contains($raw, 'insufficient balance') ||
             str_contains($raw, 'insufficient provider balance') ||
             str_contains($raw, 'timeout') ||
             str_contains($raw, 'gateway') ||
-            str_contains($raw, 'no response')
+            str_contains($raw, 'no response') ||
+            str_contains($raw, 'server error') ||
+            str_contains($raw, 'service unavailable') ||
+            str_contains($raw, 'variant also negotiates')
         ) {
             return $this->buildErrorMessage(2);
         }
