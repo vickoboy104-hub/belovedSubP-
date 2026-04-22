@@ -16,34 +16,26 @@
         ];
     @endphp
 
-    <div class="mx-auto max-w-3xl space-y-8">
-        <section class="flex items-center justify-between gap-4">
+    <div class="mx-auto max-w-3xl space-y-5 sm:space-y-6">
+        <section class="flex items-start justify-between gap-3">
             <div>
                 <div class="app-kicker">Education Services</div>
-                <h1 class="app-page-title mt-2 text-[2.1rem] sm:text-[2.6rem]">Buy {{ $selectedServiceLabel }}</h1>
-                <p class="app-page-subtitle">Use this dedicated page for {{ $selectedServiceLabel }} only.</p>
+                <h1 class="app-page-title mt-2 text-[1.7rem] leading-tight sm:text-[2.3rem]">Buy {{ $selectedServiceLabel }}</h1>
             </div>
-            <a href="{{ route('vtu.exam') }}" class="btn-outline">All Education Services</a>
+            <a href="{{ route('vtu.exam') }}" class="btn-outline shrink-0">All Education Services</a>
         </section>
 
-        <section class="app-form-shell">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <div class="text-3xl font-extrabold text-slate-900">{{ $selectedServiceLabel }}</div>
-                    <p class="mt-2 text-sm leading-6 text-slate-500">Enter the required details below and continue with wallet checkout.</p>
-                </div>
-                <div class="app-icon-ring">
+        <section class="app-form-shell space-y-4 sm:space-y-5">
+            <div class="flex items-start justify-between gap-3">
+                <p class="max-w-xl text-sm leading-6 text-slate-500 sm:text-[0.95rem]">Enter the required details below and continue with wallet checkout.</p>
+                <div class="app-icon-ring shrink-0">
                     <img src="{{ asset($examLogos[$selectedService] ?? '/images/providers/waec.png') }}" alt="{{ $selectedServiceLabel }}" class="h-10 w-10 object-contain">
                 </div>
             </div>
 
-            <form id="examPurchaseForm" method="POST" action="{{ route('vtu.exam.buy') }}" class="mt-8 space-y-4">
+            <form id="examPurchaseForm" method="POST" action="{{ route('vtu.exam.buy') }}" class="space-y-4">
                 @csrf
                 <input type="hidden" id="pin_code" name="pin_code" value="{{ $selectedService }}">
-
-                <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    Selected service: <span class="font-extrabold text-slate-900">{{ $selectedServiceLabel }}</span>
-                </div>
 
                 <div>
                     <label class="block text-sm font-bold text-slate-700">Plan</label>
@@ -60,7 +52,7 @@
 
                 <div id="profileIdWrap" class="{{ $selectedService === 'jamb' ? '' : 'hidden' }}">
                     <label class="block text-sm font-bold text-slate-700">Profile ID (JAMB only)</label>
-                    <input id="profile_id" name="profile_id" type="text" placeholder="Enter profile ID" class="input-field mt-2">
+                    <input id="profile_id" name="profile_id" type="text" placeholder="Enter profile ID" class="input-field mt-2" @if($selectedService === 'jamb') required @endif>
                     <p class="mt-2 text-xs text-slate-500">For JAMB, send "NIN 12345678901" to 55019 to generate your profile code.</p>
                 </div>
 
@@ -78,11 +70,11 @@
                     </div>
                 </div>
 
-                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                <div class="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-medium text-amber-700">
                     A transaction service charge of &#8358;{{ number_format($transactionFee, 2) }} applies after you click Continue.
                 </div>
 
-                <button type="button" id="examActionBtn" class="btn-primary w-full justify-center py-4 text-base">Continue</button>
+                <button type="button" id="examActionBtn" class="btn-primary w-full justify-center py-3.5 text-[0.98rem]">Continue</button>
             </form>
         </section>
 

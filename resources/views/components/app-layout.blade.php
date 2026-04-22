@@ -346,6 +346,9 @@
 
     function showOverlay(el) {
         if (!el) return;
+        if (typeof window.promoteViewportLayer === 'function') {
+            window.promoteViewportLayer(el);
+        }
         el.classList.remove('hidden');
         el.classList.add('flex');
     }

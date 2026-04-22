@@ -91,6 +91,8 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
 
     Route::post('/wallet/virtual-account/assign', [VirtualAccountController::class, 'assign'])
         ->name('wallet.virtual-account.assign');
+    Route::post('/wallet/virtual-account/temporary', [VirtualAccountController::class, 'assignTemporary'])
+        ->name('wallet.virtual-account.temporary');
 
     // Wallet transactions page
     Route::get('/wallet/transactions', [WalletController::class, 'transactions'])->name('wallet.transactions');

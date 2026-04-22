@@ -34,17 +34,6 @@
                 </div>
             @endif
 
-            @if(session('success'))
-                <div class="mt-4 rounded-[20px] border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-700">
-                    {{ session('success') }}
-                </div>
-            @endif
-
-            @if(session('error'))
-                <div class="mt-4 rounded-[20px] border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">
-                    {{ session('error') }}
-                </div>
-            @endif
         </section>
 
         <section class="app-section p-4 sm:p-6">

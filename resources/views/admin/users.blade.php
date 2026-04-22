@@ -23,17 +23,6 @@
             </div>
         </section>
 
-        @if(session('success'))
-            <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 break-words">
-                {{ session('success') }}
-            </div>
-        @endif
-        @if(session('error'))
-            <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 break-words">
-                {{ session('error') }}
-            </div>
-        @endif
-
         <section class="app-section p-4 sm:p-6">
             <div class="space-y-4 md:hidden">
                 @forelse($users as $u)

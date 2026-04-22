@@ -1,21 +1,31 @@
 <x-app-layout>
-    @if(session('success'))
-        <div class="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700">
-            {{ session('success') }}
-        </div>
-    @endif
+    @php
+        $criticalAdminNotifications = collect($adminNotifications ?? [])->filter(function ($notification) {
+            $data = is_array($notification->data ?? null) ? $notification->data : [];
 
-    @if(session('error'))
-        <div class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-700">
-            {{ session('error') }}
-        </div>
-    @endif
+            return ($data['severity'] ?? null) === 'critical' && is_null($notification->read_at);
+        })->values();
+        $criticalAdminNotification = $criticalAdminNotifications->first();
+    @endphp
 
     <div class="mx-auto max-w-6xl space-y-6">
         <section class="app-section p-6 sm:p-8">
             <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">Admin Dashboard</h1>
             <p class="app-page-subtitle">Monitor users, orders, funding, profits, notifications, and system activity.</p>
         </section>
+
+        @if($criticalAdminNotification)
+            <section class="rounded-3xl border border-rose-200 bg-rose-50 p-5 shadow-[0_18px_48px_rgba(190,24,93,0.12)]">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <div class="text-sm font-extrabold uppercase tracking-[0.18em] text-rose-700">Urgent Admin Warning</div>
+                        <div class="mt-2 text-xl font-extrabold text-rose-900">{{ $criticalAdminNotification->data['title'] ?? 'Critical alert' }}</div>
+                        <div class="mt-2 text-sm text-rose-800">{{ $criticalAdminNotification->data['message'] ?? '' }}</div>
+                    </div>
+                    <a href="{{ route('admin.notifications.index') }}" class="btn-primary justify-center bg-rose-600 hover:bg-rose-700">Open Alerts</a>
+                </div>
+            </section>
+        @endif
 
         <section class="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div class="app-section p-4 sm:p-5">
@@ -154,17 +164,24 @@
                     @php
                         $data = $notification->data ?? [];
                         $isUnread = is_null($notification->read_at);
+                        $severity = (string) ($data['severity'] ?? 'info');
+                        $isCritical = $severity === 'critical';
                     @endphp
-                    <div class="rounded-2xl border {{ $isUnread ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-slate-50' }} p-4">
+                    <div class="rounded-2xl border {{ $isCritical ? 'border-rose-200 bg-rose-50' : ($isUnread ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-slate-50') }} p-4">
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <div class="font-bold text-slate-900">{{ $data['title'] ?? 'Notification' }}</div>
-                                <div class="text-sm text-slate-600 mt-1">{{ $data['message'] ?? '' }}</div>
+                                <div class="text-sm {{ $isCritical ? 'text-rose-800' : 'text-slate-600' }} mt-1">{{ $data['message'] ?? '' }}</div>
                                 <div class="text-xs text-slate-400 mt-2">{{ optional($notification->created_at)->format('d M Y, h:ia') }}</div>
                             </div>
-                            @if($isUnread)
-                                <span class="px-2 py-1 rounded-full text-xs font-bold bg-orange-100 text-slate-900">Unread</span>
-                            @endif
+                            <div class="flex flex-col items-end gap-2">
+                                @if($isCritical)
+                                    <span class="rounded-full bg-rose-100 px-2 py-1 text-xs font-bold text-rose-700">Critical</span>
+                                @endif
+                                @if($isUnread)
+                                    <span class="px-2 py-1 rounded-full text-xs font-bold {{ $isCritical ? 'bg-rose-200 text-rose-900' : 'bg-orange-100 text-slate-900' }}">Unread</span>
+                                @endif
+                            </div>
                         </div>
                     </div>
                 @empty
@@ -282,12 +299,32 @@
         </section>
     </div>
 
+    @if($criticalAdminNotification)
+        <div id="adminCriticalAlertOverlay" class="fixed inset-0 z-[110] hidden items-center justify-center px-4">
+            <div class="absolute inset-0 bg-black/65 backdrop-blur-sm"></div>
+            <div class="relative w-full max-w-lg overflow-hidden rounded-3xl border border-rose-200 bg-white shadow-[0_24px_60px_rgba(159,18,57,0.22)]">
+                <div class="p-6">
+                    <div class="text-sm font-extrabold uppercase tracking-[0.18em] text-rose-700">Critical Alert</div>
+                    <div class="mt-3 text-2xl font-extrabold text-slate-900">{{ $criticalAdminNotification->data['title'] ?? 'Critical alert' }}</div>
+                    <div class="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm leading-6 text-rose-800">
+                        {{ $criticalAdminNotification->data['message'] ?? '' }}
+                    </div>
+                    <div class="mt-6 flex flex-wrap justify-end gap-3">
+                        <button type="button" id="dismissAdminCriticalAlert" class="btn-outline">Close</button>
+                        <a href="{{ route('admin.notifications.index') }}" class="btn-primary justify-center bg-rose-600 hover:bg-rose-700">View Notifications</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <script>
         (function () {
             const openBtn = document.getElementById('openWebsiteEditorWarning');
             const closeBtn = document.getElementById('closeWebsiteEditorWarning');
             const overlay = document.getElementById('websiteEditorWarningOverlay');
-            if (!openBtn || !overlay) return;
+            const criticalOverlay = document.getElementById('adminCriticalAlertOverlay');
+            const dismissCriticalBtn = document.getElementById('dismissAdminCriticalAlert');
 
             function openWarning() {
                 overlay.classList.remove('hidden');
@@ -299,11 +336,32 @@
                 overlay.classList.remove('flex');
             }
 
-            openBtn.addEventListener('click', openWarning);
-            closeBtn?.addEventListener('click', closeWarning);
-            overlay.addEventListener('click', function (e) {
-                if (e.target === overlay) closeWarning();
-            });
+            if (openBtn && overlay) {
+                openBtn.addEventListener('click', openWarning);
+                closeBtn?.addEventListener('click', closeWarning);
+                overlay.addEventListener('click', function (e) {
+                    if (e.target === overlay) closeWarning();
+                });
+            }
+
+            if (criticalOverlay) {
+                if (typeof window.promoteViewportLayer === 'function') {
+                    window.promoteViewportLayer(criticalOverlay);
+                }
+
+                criticalOverlay.classList.remove('hidden');
+                criticalOverlay.classList.add('flex');
+
+                const closeCritical = () => {
+                    criticalOverlay.classList.add('hidden');
+                    criticalOverlay.classList.remove('flex');
+                };
+
+                dismissCriticalBtn?.addEventListener('click', closeCritical);
+                criticalOverlay.addEventListener('click', function (event) {
+                    if (event.target === criticalOverlay) closeCritical();
+                });
+            }
         })();
     </script>
 </x-app-layout>

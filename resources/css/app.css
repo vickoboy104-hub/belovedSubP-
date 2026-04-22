@@ -91,6 +91,120 @@ button {
     animation: fadeInUp 0.5s ease forwards;
 }
 
+@keyframes idleGuideFloat {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-4px);
+    }
+}
+
+@keyframes idleGuidePoint {
+    0%,
+    100% {
+        transform: rotate(-10deg) translate3d(0, 0, 0);
+    }
+    50% {
+        transform: rotate(-14deg) translate3d(-4px, 3px, 0);
+    }
+}
+
+@keyframes idleGuideTargetPulse {
+    0%,
+    100% {
+        outline-color: rgba(56, 189, 248, 0.14);
+        outline-offset: 3px;
+    }
+    50% {
+        outline-color: rgba(56, 189, 248, 0.28);
+        outline-offset: 5px;
+    }
+}
+
+.idle-guide-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    pointer-events: none;
+}
+
+.idle-guide-bubble,
+.idle-guide-hand {
+    position: fixed;
+    opacity: 0;
+    transition: opacity 180ms ease, transform 220ms ease;
+    will-change: transform, opacity;
+}
+
+.idle-guide-layer.is-visible .idle-guide-bubble,
+.idle-guide-layer.is-visible .idle-guide-hand {
+    opacity: 1;
+}
+
+.idle-guide-bubble-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    max-width: 180px;
+    border-radius: 18px;
+    border: 1px solid rgba(23, 35, 61, 0.1);
+    background: rgba(255, 255, 255, 0.56);
+    padding: 0.65rem 0.75rem;
+    box-shadow: 0 12px 28px rgba(18, 31, 56, 0.08);
+    backdrop-filter: blur(10px);
+}
+
+.idle-guide-layer.is-visible .idle-guide-bubble-card {
+    animation: idleGuideFloat 1.8s ease-in-out infinite;
+}
+
+.idle-guide-bot {
+    display: inline-flex;
+    height: 34px;
+    width: 34px;
+    flex: 0 0 34px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(125, 211, 252, 0.28), rgba(191, 219, 254, 0.18));
+    color: rgba(23, 35, 61, 0.78);
+}
+
+.idle-guide-copy {
+    font-size: 0.74rem;
+    line-height: 1.2rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: rgba(23, 35, 61, 0.82);
+}
+
+.idle-guide-hand-icon {
+    display: inline-flex;
+    height: 36px;
+    width: 36px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid rgba(23, 35, 61, 0.08);
+    background: rgba(255, 255, 255, 0.44);
+    color: rgba(23, 35, 61, 0.72);
+    box-shadow: 0 10px 24px rgba(18, 31, 56, 0.08);
+    backdrop-filter: blur(8px);
+    transform-origin: 70% 22%;
+}
+
+.idle-guide-layer.is-visible .idle-guide-hand-icon {
+    animation: idleGuidePoint 1.35s ease-in-out infinite;
+}
+
+.idle-guide-target {
+    outline: 2px solid rgba(56, 189, 248, 0.16);
+    outline-offset: 3px;
+    animation: idleGuideTargetPulse 1.8s ease-in-out infinite;
+}
+
 .tech-loader-core {
     width: 30px;
     height: 30px;
@@ -658,6 +772,29 @@ button {
 }
 
 @media (max-width: 640px) {
+    .idle-guide-bubble-card {
+        max-width: 150px;
+        gap: 0.55rem;
+        padding: 0.55rem 0.65rem;
+    }
+
+    .idle-guide-bot {
+        height: 30px;
+        width: 30px;
+        flex-basis: 30px;
+        border-radius: 10px;
+    }
+
+    .idle-guide-copy {
+        font-size: 0.69rem;
+        line-height: 1.05rem;
+    }
+
+    .idle-guide-hand-icon {
+        height: 32px;
+        width: 32px;
+    }
+
     header .app-topbar-link {
         display: none;
     }
@@ -729,5 +866,15 @@ button {
     .nav-item {
         padding: 0.95rem 1rem;
         border-radius: 16px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.page-is-entering main,
+    .fade-in,
+    .idle-guide-layer.is-visible .idle-guide-bubble-card,
+    .idle-guide-layer.is-visible .idle-guide-hand-icon,
+    .idle-guide-target {
+        animation: none !important;
     }
 }

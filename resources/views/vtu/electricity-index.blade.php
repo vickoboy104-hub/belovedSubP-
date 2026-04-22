@@ -11,7 +11,7 @@
                     <div class="flex items-start justify-between gap-3">
                         <div>
                             <div class="app-service-title">{{ $label }}</div>
-                            <div class="mt-2 text-sm text-slate-500">Open a dedicated page for {{ $label }} meter payment.</div>
+                            <div class="mt-2 text-sm text-slate-500">Choose this provider and continue.</div>
                         </div>
                         <span class="app-service-arrow" aria-hidden="true">
                             <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">

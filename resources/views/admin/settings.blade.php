@@ -8,12 +8,6 @@
             </p>
         </div>
 
-        @if(session('success'))
-            <div class="p-4 rounded-2xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 text-green-700 dark:text-green-200">
-                {{ session('success') }}
-            </div>
-        @endif
-
         @if($errors->any())
             <div class="p-4 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-200">
                 <div class="font-bold">Please fix these errors:</div>
@@ -925,19 +919,19 @@
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
                     <div>
                         <label class="text-sm font-bold text-white/80">NIN Verify Price</label>
-                        <input type="number" step="0.01" name="price_nin_verify" value="{{ old('price_nin_verify', $settings['price_nin_verify'] ?? '180') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
+                        <input type="number" step="0.01" name="price_nin_verify" value="{{ old('price_nin_verify', $settings['price_nin_verify'] ?? '250') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
                     </div>
                     <div>
                         <label class="text-sm font-bold text-white/80">NIN Slip Long Price</label>
-                        <input type="number" step="0.01" name="price_nin_slip_long" value="{{ old('price_nin_slip_long', $settings['price_nin_slip_long'] ?? '180') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
+                        <input type="number" step="0.01" name="price_nin_slip_long" value="{{ old('price_nin_slip_long', $settings['price_nin_slip_long'] ?? '300') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
                     </div>
                     <div>
                         <label class="text-sm font-bold text-white/80">NIN Slip Standard Price</label>
-                        <input type="number" step="0.01" name="price_nin_slip_standard" value="{{ old('price_nin_slip_standard', $settings['price_nin_slip_standard'] ?? '180') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
+                        <input type="number" step="0.01" name="price_nin_slip_standard" value="{{ old('price_nin_slip_standard', $settings['price_nin_slip_standard'] ?? '350') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
                     </div>
                     <div>
                         <label class="text-sm font-bold text-white/80">NIN Slip Premium Price</label>
-                        <input type="number" step="0.01" name="price_nin_slip_premium" value="{{ old('price_nin_slip_premium', $settings['price_nin_slip_premium'] ?? '180') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
+                        <input type="number" step="0.01" name="price_nin_slip_premium" value="{{ old('price_nin_slip_premium', $settings['price_nin_slip_premium'] ?? '400') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
                     </div>
                     <div>
                         <label class="text-sm font-bold text-white/80">NIN VNIN Slip Price</label>

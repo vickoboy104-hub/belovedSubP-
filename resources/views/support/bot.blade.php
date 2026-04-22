@@ -14,12 +14,6 @@
             </div>
         </div>
 
-        @if(session('success'))
-            <div class="rounded-2xl p-4 border border-green-200 dark:border-green-500/20 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-200">
-                {{ session('success') }}
-            </div>
-        @endif
-
         @if($errors->any())
             <div class="rounded-2xl p-4 border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-200">
                 <div class="font-bold">Please fix these errors:</div>

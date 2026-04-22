@@ -8,34 +8,23 @@
 @endphp
 
 <x-app-layout>
-    <div class="mx-auto max-w-3xl space-y-8">
-        <section class="flex items-center justify-between gap-4">
+    <div class="mx-auto max-w-3xl space-y-5 sm:space-y-6">
+        <section class="flex items-start justify-between gap-3">
             <div>
                 <div class="app-kicker">Cable Subscription</div>
-                <h1 class="app-page-title mt-2 text-[2.1rem] sm:text-[2.6rem]">Buy {{ $selectedServiceLabel }}</h1>
-                <p class="app-page-subtitle">This page is dedicated to {{ $selectedServiceLabel }} only.</p>
+                <h1 class="app-page-title mt-2 text-[1.7rem] leading-tight sm:text-[2.3rem]">Buy {{ $selectedServiceLabel }}</h1>
             </div>
-            <a href="{{ route('vtu.cable') }}" class="btn-outline">All Cable Services</a>
+            <a href="{{ route('vtu.cable') }}" class="btn-outline shrink-0">All Cable Services</a>
         </section>
 
-        <form id="cableForm" method="POST" action="{{ route('vtu.cable.buy') }}" class="app-form-shell space-y-5">
+        <form id="cableForm" method="POST" action="{{ route('vtu.cable.buy') }}" class="app-form-shell space-y-4 sm:space-y-5">
             @csrf
             <input type="hidden" name="service_id" id="service_id" value="{{ $selectedService }}">
 
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <div class="text-3xl font-extrabold text-slate-900">{{ $selectedServiceLabel }}</div>
-                    <p class="mt-2 text-sm leading-6 text-slate-500">Select the bouquet, enter the smartcard number and continue.</p>
-                </div>
-                <div class="app-icon-ring">
+            <div class="flex items-start justify-between gap-3">
+                <p class="max-w-xl text-sm leading-6 text-slate-500 sm:text-[0.95rem]">Select the bouquet, enter the smartcard number and continue.</p>
+                <div class="app-icon-ring shrink-0">
                     <img src="{{ $icons[$selectedService] ?? '' }}" class="h-10 w-10 object-contain" alt="{{ $selectedServiceLabel }}">
-                </div>
-            </div>
-
-            <div>
-                <label class="block text-sm font-bold text-slate-700">Provider</label>
-                <div class="mt-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    Selected provider: <span class="font-extrabold text-slate-900">{{ $selectedServiceLabel }}</span>
                 </div>
             </div>
 
@@ -56,7 +45,7 @@
                 <input type="text" name="customer_ref" id="customer_ref" required class="input-field mt-2" placeholder="e.g. 1234567890">
             </div>
 
-            <button type="button" id="openConfirm" class="btn-primary w-full justify-center py-4 text-base">Continue</button>
+            <button type="button" id="openConfirm" class="btn-primary w-full justify-center py-3.5 text-[0.98rem]">Continue</button>
         </form>
     </div>
 
