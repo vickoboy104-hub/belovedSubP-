@@ -1,10 +1,49 @@
 ﻿<x-app-layout>
     @php
+        $resolveInlineImage = static function (array $relativePaths): ?string {
+            foreach ($relativePaths as $relativePath) {
+                $absolutePath = public_path($relativePath);
+
+                if (!is_file($absolutePath) || !is_readable($absolutePath)) {
+                    continue;
+                }
+
+                $contents = file_get_contents($absolutePath);
+                if ($contents === false) {
+                    continue;
+                }
+
+                $extension = strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION));
+                $mimeType = match ($extension) {
+                    'svg' => 'image/svg+xml',
+                    'png' => 'image/png',
+                    'jpg', 'jpeg' => 'image/jpeg',
+                    'webp' => 'image/webp',
+                    default => null,
+                };
+
+                if ($mimeType === null) {
+                    continue;
+                }
+
+                return 'data:' . $mimeType . ';base64,' . base64_encode($contents);
+            }
+
+            return null;
+        };
+
         $verifyPrice = (float) setting('price_nin_verify', 250);
         $premiumCardBackground = asset('images/nin/premium-card-bg.png');
-        $nimcLogo = asset('images/nin/nimc-logo-modern.svg');
-        $coatOfArmsLogo = asset('images/nin/coat-of-arms.png');
-        $internetExplorerLogo = asset('images/nin/internet-explorer-logo.png');
+        $nimcLogo = $resolveInlineImage([
+            'images/nin/nimc-logo-modern.svg',
+            'images/nin/nimc-logo.png',
+        ]) ?? asset('images/nin/nimc-logo-modern.svg');
+        $coatOfArmsLogo = $resolveInlineImage([
+            'images/nin/coat-of-arms.png',
+        ]) ?? asset('images/nin/coat-of-arms.png');
+        $internetExplorerLogo = $resolveInlineImage([
+            'images/nin/internet-explorer-logo.png',
+        ]) ?? asset('images/nin/internet-explorer-logo.png');
         $printMarkup = (float) setting('markup_nin_print', 0);
         $slipPrices = [
             'standard_slip' => (float) setting('price_nin_slip_standard', 350),
