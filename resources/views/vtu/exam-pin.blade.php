@@ -17,16 +17,16 @@
     @endphp
 
     <div class="mx-auto max-w-3xl space-y-5 sm:space-y-6">
-        <section class="flex items-start justify-between gap-3">
+        <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
                 <div class="app-kicker">Education Services</div>
                 <h1 class="app-page-title mt-2 text-[1.7rem] leading-tight sm:text-[2.3rem]">Buy {{ $selectedServiceLabel }}</h1>
             </div>
-            <a href="{{ route('vtu.exam') }}" class="btn-outline shrink-0">All Education Services</a>
+            <a href="{{ route('vtu.exam') }}" class="btn-outline sm:w-auto">All Education Services</a>
         </section>
 
         <section class="app-form-shell space-y-4 sm:space-y-5">
-            <div class="flex items-start justify-between gap-3">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <p class="max-w-xl text-sm leading-6 text-slate-500 sm:text-[0.95rem]">Enter the required details below and continue with wallet checkout.</p>
                 <div class="app-icon-ring shrink-0">
                     <img src="{{ asset($examLogos[$selectedService] ?? '/images/providers/waec.png') }}" alt="{{ $selectedServiceLabel }}" class="h-10 w-10 object-contain">

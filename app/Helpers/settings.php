@@ -59,7 +59,7 @@ if (!function_exists('sanitize_popup_message_html')) {
             return '';
         }
 
-        $allowedTags = ['p', 'div', 'br', 'strong', 'b', 'em', 'i', 'u', 'span', 'ul', 'ol', 'li'];
+        $allowedTags = ['p', 'div', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'span', 'ul', 'ol', 'li'];
 
         try {
             $previous = libxml_use_internal_errors(true);
@@ -98,17 +98,28 @@ if (!function_exists('sanitize_popup_message_html')) {
                     }
 
                     foreach ($attrs as $attributeName) {
-                        if ($attributeName !== 'style') {
-                            $node->removeAttribute($attributeName);
+                        if ($attributeName === 'style') {
+                            $style = (string) $node->getAttribute('style');
+                            if (preg_match('/text-align\s*:\s*(left|center|right)/i', $style, $match)) {
+                                $node->setAttribute('style', 'text-align: '.strtolower($match[1]).';');
+                            } else {
+                                $node->removeAttribute('style');
+                            }
+
                             continue;
                         }
 
-                        $style = (string) $node->getAttribute('style');
-                        if (preg_match('/text-align\s*:\s*(left|center|right)/i', $style, $match)) {
-                            $node->setAttribute('style', 'text-align: '.strtolower($match[1]).';');
-                        } else {
-                            $node->removeAttribute('style');
+                        if ($attributeName === 'align') {
+                            $align = strtolower(trim((string) $node->getAttribute('align')));
+                            if (in_array($align, ['left', 'center', 'right'], true)) {
+                                $node->setAttribute('style', 'text-align: '.$align.';');
+                            }
+
+                            $node->removeAttribute('align');
+                            continue;
                         }
+
+                        $node->removeAttribute($attributeName);
                     }
                 }
 

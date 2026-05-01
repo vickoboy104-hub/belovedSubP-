@@ -61,7 +61,7 @@
         <div class="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
             <div class="space-y-5">
                 <section class="app-section p-5 sm:p-6">
-                    <div class="flex items-start justify-between gap-3">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                             <div class="text-xl font-extrabold text-slate-900">Temporary Virtual Account</div>
                             <p class="mt-1 text-sm text-slate-500">No BVN or NIN needed. Generate a time-limited account for one transfer.</p>

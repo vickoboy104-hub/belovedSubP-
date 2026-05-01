@@ -20,16 +20,16 @@
     @endphp
 
     <div class="mx-auto max-w-4xl space-y-5 sm:space-y-6">
-        <section class="flex items-start justify-between gap-3">
+        <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
                 <div class="app-kicker">Data Subscription</div>
                 <h1 class="app-page-title mt-2 text-[1.7rem] leading-tight sm:text-[2.3rem]">Buy {{ $serviceLabel }}</h1>
             </div>
-            <a href="{{ route('vtu.data') }}" class="btn-outline shrink-0">All Data Services</a>
+            <a href="{{ route('vtu.data') }}" class="btn-outline sm:w-auto">All Data Services</a>
         </section>
 
         <section class="app-form-shell space-y-5 sm:space-y-6">
-            <div class="flex items-start justify-between gap-3">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <p class="max-w-xl text-sm leading-6 text-slate-500 sm:text-[0.95rem]">Select a plan, enter the phone number and continue with wallet checkout.</p>
                 <div class="app-icon-ring shrink-0">
                     <img src="{{ $netLogos[$serviceSlug] ?? asset('images/providers/mtn.png') }}" alt="{{ $serviceLabel }}" class="h-10 w-10 object-contain">

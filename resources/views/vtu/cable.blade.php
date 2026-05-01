@@ -9,19 +9,19 @@
 
 <x-app-layout>
     <div class="mx-auto max-w-3xl space-y-5 sm:space-y-6">
-        <section class="flex items-start justify-between gap-3">
+        <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
                 <div class="app-kicker">Cable Subscription</div>
                 <h1 class="app-page-title mt-2 text-[1.7rem] leading-tight sm:text-[2.3rem]">Buy {{ $selectedServiceLabel }}</h1>
             </div>
-            <a href="{{ route('vtu.cable') }}" class="btn-outline shrink-0">All Cable Services</a>
+            <a href="{{ route('vtu.cable') }}" class="btn-outline sm:w-auto">All Cable Services</a>
         </section>
 
         <form id="cableForm" method="POST" action="{{ route('vtu.cable.buy') }}" class="app-form-shell space-y-4 sm:space-y-5">
             @csrf
             <input type="hidden" name="service_id" id="service_id" value="{{ $selectedService }}">
 
-            <div class="flex items-start justify-between gap-3">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <p class="max-w-xl text-sm leading-6 text-slate-500 sm:text-[0.95rem]">Select the bouquet, enter the smartcard number and continue.</p>
                 <div class="app-icon-ring shrink-0">
                     <img src="{{ $icons[$selectedService] ?? '' }}" class="h-10 w-10 object-contain" alt="{{ $selectedServiceLabel }}">

@@ -24,7 +24,7 @@
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             @foreach($netNames as $key => $label)
                 <button type="button" class="net-card app-service-card text-left" data-net="{{ $key }}">
-                    <div class="flex items-start justify-between gap-3">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                             <div class="app-service-title">{{ $label }} Airtime</div>
                             <div class="mt-2 text-sm text-slate-500">Quick recharge for {{ $label }} numbers</div>
@@ -38,7 +38,7 @@
         </div>
 
         <section class="app-form-shell">
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <div class="text-3xl font-extrabold text-slate-900">Airtime Purchase</div>
                     <p class="mt-2 text-sm leading-6 text-slate-500">Select a network, enter the phone number and choose the amount you want to send.</p>

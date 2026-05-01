@@ -59,7 +59,7 @@
         }
     </style>
 
-    <div class="mx-auto w-full max-w-5xl space-y-5 px-4 sm:px-0">
+    <div class="legacy-themed-page mx-auto w-full max-w-5xl space-y-5 px-4 sm:px-0">
         <div class="rounded-3xl border border-gray-200 bg-white p-5 card-glow dark:border-white/10 dark:bg-white/5">
             <div class="flex items-start justify-between gap-4">
                 <div>
@@ -447,6 +447,32 @@
                 `;
             }
 
+            function phoneInputBlock(label, name, placeholder, span2 = false) {
+                const safeName = escapeHtml(name);
+
+                return `
+                    <div class="${span2 ? 'sm:col-span-2' : ''}">
+                        <label class="text-sm font-bold text-gray-700 dark:text-white/80">${escapeHtml(label)}</label>
+                        <div class="contact-picker-row mt-1">
+                            <input type="tel"
+                                   name="${safeName}"
+                                   inputmode="tel"
+                                   autocomplete="tel-national"
+                                   data-contact-picker-input
+                                   placeholder="${escapeHtml(placeholder)}"
+                                   class="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 dark:border-white/10 dark:bg-black/30 dark:text-white dark:placeholder:text-white/40">
+                            <button type="button" class="contact-picker-btn" data-contact-picker-button data-contact-picker-target="#ninServiceForm input[name='${safeName}']" aria-label="Pick phone contact">
+                                <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+                                    <path d="M17 21v-8H7v8"></path>
+                                    <path d="M7 3v5h8"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
             function sectionCard(title, rows) {
                 const rowHtml = rows.map((row) => `
                     <div class="border-b border-gray-100 py-2 dark:border-white/10">
@@ -511,11 +537,17 @@
                 const mode = verificationType.value;
                 if (mode === 'by_nin') {
                     verificationFields.innerHTML = inputBlock('Enter NIN Number', 'nin', '11-digit NIN', 'text', true);
+                    if (typeof window.initContactPickerButtons === 'function') {
+                        window.initContactPickerButtons(verificationFields);
+                    }
                     return;
                 }
 
                 if (mode === 'by_phone') {
-                    verificationFields.innerHTML = inputBlock('Enter Phone Number', 'phone', 'Phone linked to NIN', 'text', true);
+                    verificationFields.innerHTML = phoneInputBlock('Enter Phone Number', 'phone', 'Phone linked to NIN', true);
+                    if (typeof window.initContactPickerButtons === 'function') {
+                        window.initContactPickerButtons(verificationFields);
+                    }
                     return;
                 }
 
@@ -535,6 +567,10 @@
                         </select>
                     </div>
                 `;
+
+                if (typeof window.initContactPickerButtons === 'function') {
+                    window.initContactPickerButtons(verificationFields);
+                }
             }
 
             function renderVerifyPrice() {

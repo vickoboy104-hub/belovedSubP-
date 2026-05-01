@@ -20,7 +20,7 @@
         @endif
 
         <form id="adminSettingsForm" method="POST" action="{{ route('admin.settings.update') }}" enctype="multipart/form-data"
-              class="rounded-3xl p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 space-y-6">
+              class="rounded-3xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 p-6 pb-36 space-y-6">
             @csrf
 
             <div class="space-y-8">
@@ -144,22 +144,13 @@
                                 @php
                                     $homePopupValue = old('home_popup_message', $settings['home_popup_message'] ?? $settings['popup_message'] ?? 'Need NIN services? Tap the WhatsApp button to chat with us.');
                                 @endphp
-                                <textarea name="home_popup_message" id="home_popup_message" class="hidden">{{ $homePopupValue }}</textarea>
-                                <div class="mt-1 rounded-2xl border border-gray-200 bg-white shadow-sm">
-                                    <div class="flex flex-wrap gap-2 border-b border-gray-200 px-3 py-3">
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="bold">Bold</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="italic">Italic</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="underline">Underline</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="justifyLeft">Left</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="justifyCenter">Center</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="justifyRight">Right</button>
-                                    </div>
-                                    <div id="home_popup_message_editor"
-                                         contenteditable="true"
-                                         data-editor-surface="home_popup_message"
-                                         class="min-h-[180px] w-full rounded-b-2xl px-4 py-4 text-sm leading-7 text-slate-800 focus:outline-none">{!! sanitize_popup_message_html((string) $homePopupValue) !!}</div>
-                                </div>
-                                <div class="mt-2 text-xs text-white/50">Use the toolbar to format text and align it the way you want users to see it.</div>
+                                <x-admin.popup-rich-editor
+                                    name="home_popup_message"
+                                    id="home_popup_message"
+                                    :value="$homePopupValue"
+                                    placeholder="Type the home popup message..."
+                                    helper="Use the toolbar to control bold, italic, alignment, lists, and other popup formatting."
+                                />
                             </div>
                         </div>
                     </div>
@@ -185,22 +176,13 @@
                                 @php
                                     $dashboardPopupValue = old('dashboard_popup_message', $settings['dashboard_popup_message'] ?? 'For NIN services (New enrolment, correction, printing, etc.) click the WhatsApp Support button to chat with us instantly.');
                                 @endphp
-                                <textarea name="dashboard_popup_message" id="dashboard_popup_message" class="hidden">{{ $dashboardPopupValue }}</textarea>
-                                <div class="mt-1 rounded-2xl border border-gray-200 bg-white shadow-sm">
-                                    <div class="flex flex-wrap gap-2 border-b border-gray-200 px-3 py-3">
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="bold">Bold</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="italic">Italic</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="underline">Underline</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="justifyLeft">Left</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="justifyCenter">Center</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="justifyRight">Right</button>
-                                    </div>
-                                    <div id="dashboard_popup_message_editor"
-                                         contenteditable="true"
-                                         data-editor-surface="dashboard_popup_message"
-                                         class="min-h-[180px] w-full rounded-b-2xl px-4 py-4 text-sm leading-7 text-slate-800 focus:outline-none">{!! sanitize_popup_message_html((string) $dashboardPopupValue) !!}</div>
-                                </div>
-                                <div class="mt-2 text-xs text-white/50">Formatting here is preserved in the popup shown to users.</div>
+                                <x-admin.popup-rich-editor
+                                    name="dashboard_popup_message"
+                                    id="dashboard_popup_message"
+                                    :value="$dashboardPopupValue"
+                                    placeholder="Type the dashboard popup message..."
+                                    helper="Formatting here is preserved in the popup shown to users."
+                                />
                             </div>
                         </div>
                     </div>
@@ -1138,22 +1120,23 @@
                 <div class="text-xs text-white/50">
                     Review your changes, then save to apply them across the website.
                 </div>
-                <button type="submit"
-                        class="px-6 py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold transition">
-                    Save Settings
-                </button>
             </div>
             </div>
         </form>
 
     </div>
 
-    <div class="fixed right-4 bottom-4 z-40">
-        <button type="submit"
-                form="adminSettingsForm"
-                class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold shadow-2xl border border-orange-400/30 backdrop-blur transition">
-            <span>Save Settings</span>
-        </button>
+    <div class="page-save-overlay">
+        <div class="page-save-overlay-card">
+            <div class="page-save-overlay-copy">
+                Save changes from anywhere on the page. This overlay stays visible while you review the admin settings.
+            </div>
+            <button type="submit"
+                    form="adminSettingsForm"
+                    class="btn-primary">
+                Save Settings
+            </button>
+        </div>
     </div>
 
     <script>
@@ -1188,33 +1171,6 @@
                 faviconInput.addEventListener('change', () => updatePreview(faviconInput, faviconPreview, faviconPlaceholder));
             }
 
-            document.querySelectorAll('[data-editor-command]').forEach((button) => {
-                button.addEventListener('click', () => {
-                    const targetId = button.getAttribute('data-editor-target');
-                    const command = button.getAttribute('data-editor-command');
-                    const surface = targetId ? document.querySelector(`[data-editor-surface="${targetId}"]`) : null;
-
-                    if (!surface || !command) return;
-
-                    surface.focus();
-                    document.execCommand(command, false, null);
-                    surface.dispatchEvent(new Event('input', { bubbles: true }));
-                });
-            });
-
-            document.querySelectorAll('[data-editor-surface]').forEach((surface) => {
-                const targetId = surface.getAttribute('data-editor-surface');
-                const textarea = targetId ? document.getElementById(targetId) : null;
-                if (!textarea) return;
-
-                const sync = () => {
-                    textarea.value = surface.innerHTML.trim();
-                };
-
-                surface.addEventListener('input', sync);
-                surface.addEventListener('blur', sync);
-                sync();
-            });
         })();
     </script>
 </x-app-layout>

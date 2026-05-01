@@ -7,7 +7,7 @@
 
     <div class="mx-auto max-w-5xl space-y-5">
         <section class="app-section p-5 sm:p-6">
-            <div class="flex items-start justify-between gap-3">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <div class="app-kicker">NIN Validation</div>
                     <h1 class="app-page-title mt-2 text-[1.7rem] sm:text-[2.2rem]">Submit Validation Request</h1>

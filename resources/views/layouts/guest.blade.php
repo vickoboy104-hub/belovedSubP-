@@ -34,7 +34,7 @@
     @endif
 
     <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="theme-color" content="#17233d">
+    <meta name="theme-color" content="#173f8a">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="{{ $siteName }}">
@@ -43,11 +43,11 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#eef4fb_100%)] text-slate-900">
+<body class="app-shell-bg min-h-screen text-slate-900">
     <x-maintenance-overlay />
     <x-global-loader />
 
-    <header class="fixed inset-x-0 top-0 z-40 bg-[#17233d] text-white shadow-[0_10px_30px_rgba(16,26,49,0.18)]">
+    <header class="app-header-bar fixed inset-x-0 top-0 z-40">
         <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6">
             <a href="{{ route('home') }}" class="flex items-center gap-3">
                 <img src="{{ $logoUrl }}" alt="{{ $siteName }} logo" class="h-10 w-auto max-w-[180px] object-contain">
@@ -77,7 +77,7 @@
                     {{ $slot }}
                 </section>
 
-                <section class="hidden rounded-[30px] border border-[#233455] bg-[linear-gradient(180deg,#b6b6b6_0%,#949494_100%)] p-10 text-white shadow-[0_22px_55px_rgba(20,31,53,0.18)] lg:flex lg:flex-col lg:justify-center">
+                <section class="app-accent-panel hidden rounded-[30px] p-10 text-white lg:flex lg:flex-col lg:justify-center">
                     <div class="mx-auto max-w-xl text-center">
                         <div class="text-lg font-bold">Welcome to {{ $siteName }}</div>
                         <h2 class="mt-4 text-4xl font-extrabold leading-tight">Your one-stop digital marketplace for data, airtime, bills payment and more</h2>

@@ -16,7 +16,7 @@
         }
     </style>
 
-    <div class="max-w-5xl mx-auto w-full px-4 sm:px-0 space-y-5 bvn-print-wrap">
+    <div class="legacy-themed-page max-w-5xl mx-auto w-full px-4 sm:px-0 space-y-5 bvn-print-wrap">
         <div class="rounded-3xl p-5 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow">
             <div class="flex items-start justify-between gap-4">
                 <div>
@@ -221,11 +221,23 @@
                     retrieveFields.innerHTML = `
                         <div>
                             <label class="text-sm font-bold text-gray-700 dark:text-white/80">Phone Number</label>
-                            <input type="text" name="phone" required
-                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white"
-                                   placeholder="Phone registered with BVN">
+                            <div class="contact-picker-row mt-1">
+                                <input type="tel" name="phone" required inputmode="tel" autocomplete="tel-national" data-contact-picker-input
+                                       class="w-full px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white"
+                                       placeholder="Phone registered with BVN">
+                                <button type="button" class="contact-picker-btn" data-contact-picker-button data-contact-picker-target="#bvnRetrieveForm input[name='phone']" aria-label="Pick phone contact">
+                                    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+                                        <path d="M17 21v-8H7v8"></path>
+                                        <path d="M7 3v5h8"></path>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     `;
+                    if (typeof window.initContactPickerButtons === 'function') {
+                        window.initContactPickerButtons(retrieveFields);
+                    }
                     return;
                 }
 
@@ -250,10 +262,16 @@
                                    placeholder="Agent code">
                         </div>
                     `;
+                    if (typeof window.initContactPickerButtons === 'function') {
+                        window.initContactPickerButtons(retrieveFields);
+                    }
                     return;
                 }
 
                 retrieveFields.innerHTML = '';
+                if (typeof window.initContactPickerButtons === 'function') {
+                    window.initContactPickerButtons(retrieveFields);
+                }
             }
 
             async function submitForm(form, endpoint) {

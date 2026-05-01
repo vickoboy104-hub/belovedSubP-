@@ -41,7 +41,7 @@
         }
     </style>
 
-    <div class="max-w-3xl space-y-5">
+    <div class="legacy-themed-page mx-auto max-w-3xl space-y-5">
         <div class="rounded-3xl p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow print-card">
             <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div>

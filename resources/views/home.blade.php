@@ -54,7 +54,7 @@
                 </div>
             </div>
 
-            <div class="app-section-muted p-6 sm:p-8">
+            <div class="app-section-muted relative overflow-hidden p-6 sm:p-8">
                 <div class="flex items-center justify-between">
                     <div>
                         <div class="app-kicker">Quick Access</div>
@@ -72,7 +72,7 @@
                                 <div class="text-lg font-extrabold text-slate-900">Buy Data</div>
                                 <div class="mt-1 text-sm text-slate-500">MTN, Glo, Airtel and 9mobile plans</div>
                             </div>
-                            <span class="text-2xl font-bold text-slate-300">›</span>
+                            <span class="text-2xl font-bold text-slate-400">&rsaquo;</span>
                         </div>
                     </a>
                     <a href="{{ route('vtu.airtime') }}" class="app-service-card block">
@@ -81,7 +81,7 @@
                                 <div class="text-lg font-extrabold text-slate-900">Buy Airtime</div>
                                 <div class="mt-1 text-sm text-slate-500">Instant recharge for all major networks</div>
                             </div>
-                            <span class="text-2xl font-bold text-slate-300">›</span>
+                            <span class="text-2xl font-bold text-slate-400">&rsaquo;</span>
                         </div>
                     </a>
                     <a href="{{ route('wallet.fund') }}" class="app-service-card block">
@@ -90,7 +90,7 @@
                                 <div class="text-lg font-extrabold text-slate-900">Fund Wallet</div>
                                 <div class="mt-1 text-sm text-slate-500">Virtual account and checkout funding</div>
                             </div>
-                            <span class="text-2xl font-bold text-slate-300">›</span>
+                            <span class="text-2xl font-bold text-slate-400">&rsaquo;</span>
                         </div>
                     </a>
                 </div>
@@ -144,15 +144,15 @@
                 <div class="app-kicker">How it works</div>
                 <h2 class="mt-3 text-3xl font-extrabold text-slate-900">A cleaner transaction experience</h2>
                 <div class="mt-6 space-y-4">
-                    <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                    <div class="app-soft-panel rounded-[22px] p-4">
                         <div class="font-extrabold text-slate-900">1. Pick a service</div>
                         <p class="mt-2 text-sm leading-6 text-slate-500">Choose data, airtime, bills, education, premium apps or identity services.</p>
                     </div>
-                    <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                    <div class="app-soft-panel rounded-[22px] p-4">
                         <div class="font-extrabold text-slate-900">2. Complete your details</div>
                         <p class="mt-2 text-sm leading-6 text-slate-500">Use focused forms with provider plans, recent numbers and confirmation modals.</p>
                     </div>
-                    <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                    <div class="app-soft-panel rounded-[22px] p-4">
                         <div class="font-extrabold text-slate-900">3. Receive instant result</div>
                         <p class="mt-2 text-sm leading-6 text-slate-500">Track wallet balance, order receipt and recent activity from one dashboard.</p>
                     </div>
@@ -162,12 +162,12 @@
             <div class="app-section p-6 sm:p-8">
                 <div class="app-kicker">Helpful Guides</div>
                 <div class="mt-4 grid gap-3">
-                    <a href="{{ route('guides.cheap-data') }}" class="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-900 hover:bg-slate-100">How to Buy Cheap Data in Nigeria</a>
-                    <a href="{{ route('guides.fund-wallet') }}" class="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-900 hover:bg-slate-100">How to Fund Your VTU Wallet</a>
-                    <a href="{{ route('guides.electricity-bills') }}" class="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-900 hover:bg-slate-100">How to Buy Electricity Bills Online</a>
-                    <a href="{{ route('guides.nin-services') }}" class="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-900 hover:bg-slate-100">NIN Services Guide</a>
-                    <a href="{{ route('guides.education-services') }}" class="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-900 hover:bg-slate-100">Education Services Guide</a>
-                    <a href="{{ route('guides.premium-apps') }}" class="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-900 hover:bg-slate-100">Premium Apps Guide</a>
+                    <a href="{{ route('guides.cheap-data') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">How to Buy Cheap Data in Nigeria</a>
+                    <a href="{{ route('guides.fund-wallet') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">How to Fund Your VTU Wallet</a>
+                    <a href="{{ route('guides.electricity-bills') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">How to Buy Electricity Bills Online</a>
+                    <a href="{{ route('guides.nin-services') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">NIN Services Guide</a>
+                    <a href="{{ route('guides.education-services') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">Education Services Guide</a>
+                    <a href="{{ route('guides.premium-apps') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">Premium Apps Guide</a>
                 </div>
             </div>
         </section>

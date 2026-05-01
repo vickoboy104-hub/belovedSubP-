@@ -220,15 +220,56 @@ document.body.classList.add('page-is-entering');
 // ==============================
 (function () {
     const supported = !!(navigator.contacts && typeof navigator.contacts.select === 'function' && window.isSecureContext);
-    const buttons = document.querySelectorAll('[data-contact-picker-button]');
+
+    const normalizePhone = (value) => String(value || '')
+        .replace(/[^\d+]+/g, '')
+        .replace(/(?!^)\+/g, '')
+        .trim();
+
+    const ensureButtonLabel = (button) => {
+        if (button.querySelector('.contact-picker-btn-label')) return;
+
+        const label = document.createElement('span');
+        label.className = 'contact-picker-btn-label';
+        label.textContent = button.getAttribute('data-contact-picker-label') || 'Pick contact';
+        button.appendChild(label);
+    };
+
+    const setBusyState = (button, busy) => {
+        if (!(button instanceof HTMLButtonElement)) return;
+        const label = button.querySelector('.contact-picker-btn-label');
+
+        if (busy) {
+            button.disabled = true;
+            button.dataset.pickerBusy = '1';
+            button.setAttribute('aria-busy', 'true');
+            if (label) label.textContent = 'Opening...';
+            return;
+        }
+
+        button.disabled = false;
+        delete button.dataset.pickerBusy;
+        button.removeAttribute('aria-busy');
+        if (label) {
+            label.textContent = button.getAttribute('data-contact-picker-label') || 'Pick contact';
+        }
+    };
+
     const getInput = (button) => {
         const selector = button.getAttribute('data-contact-picker-target');
         return selector ? document.querySelector(selector) : null;
     };
 
-    buttons.forEach((button) => {
+    const initButton = (button) => {
+        if (!(button instanceof HTMLButtonElement)) return;
+        if (button.dataset.contactPickerReady === '1') return;
+
         const input = getInput(button);
         if (!input) return;
+
+        button.dataset.contactPickerReady = '1';
+        ensureButtonLabel(button);
+        button.setAttribute('title', 'Choose from phone contacts');
 
         if (supported) {
             button.classList.remove('hidden');
@@ -242,19 +283,119 @@ document.body.classList.add('page-is-entering');
             }
 
             try {
+                setBusyState(button, true);
                 const contacts = await navigator.contacts.select(['name', 'tel'], { multiple: false });
                 const picked = contacts && contacts[0];
-                const tel = picked && Array.isArray(picked.tel) ? picked.tel[0] : '';
+                const tel = picked && Array.isArray(picked.tel)
+                    ? picked.tel.find((value) => String(value || '').trim() !== '') || ''
+                    : '';
                 if (!tel) return;
 
-                input.value = tel;
+                input.value = normalizePhone(tel) || tel;
                 input.dispatchEvent(new Event('input', { bubbles: true }));
                 input.dispatchEvent(new Event('change', { bubbles: true }));
                 input.focus();
             } catch (error) {
                 // User cancelled or browser denied access; keep manual input available.
+            } finally {
+                setBusyState(button, false);
             }
         });
+    };
+
+    const initButtons = (root = document) => {
+        if (root instanceof HTMLButtonElement && root.matches('[data-contact-picker-button]')) {
+            initButton(root);
+            return;
+        }
+
+        if (!(root instanceof Document || root instanceof HTMLElement)) return;
+
+        root.querySelectorAll('[data-contact-picker-button]').forEach((button) => {
+            initButton(button);
+        });
+    };
+
+    window.initContactPickerButtons = initButtons;
+    initButtons();
+
+    if (document.body) {
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                mutation.addedNodes.forEach((node) => {
+                    if (!(node instanceof HTMLElement)) return;
+                    initButtons(node);
+                });
+            });
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+        });
+    }
+})();
+
+// ==============================
+// ADMIN RICH TEXT EDITORS
+// ==============================
+(function () {
+    const roots = Array.from(document.querySelectorAll('[data-rich-editor-root]'));
+    if (roots.length === 0) return;
+
+    const syncEditor = (root) => {
+        const targetId = root.getAttribute('data-editor-input');
+        const surface = root.querySelector('[data-rich-editor-surface]');
+        const textarea = targetId ? document.getElementById(targetId) : null;
+        if (!(surface instanceof HTMLElement) || !(textarea instanceof HTMLTextAreaElement)) return;
+
+        const html = surface.innerHTML
+            .replace(/<(div|p)><br><\/\1>/gi, '')
+            .replace(/&nbsp;/gi, ' ')
+            .trim();
+
+        textarea.value = html;
+    };
+
+    const focusSurface = (root) => {
+        const surface = root.querySelector('[data-rich-editor-surface]');
+        if (!(surface instanceof HTMLElement)) return null;
+
+        surface.focus();
+        return surface;
+    };
+
+    roots.forEach((root) => {
+        const surface = root.querySelector('[data-rich-editor-surface]');
+        if (!(surface instanceof HTMLElement)) return;
+
+        surface.addEventListener('input', () => syncEditor(root));
+        surface.addEventListener('blur', () => syncEditor(root));
+        surface.addEventListener('paste', () => {
+            window.setTimeout(() => syncEditor(root), 0);
+        });
+
+        syncEditor(root);
+    });
+
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-rich-editor-action]');
+        if (!(button instanceof HTMLButtonElement)) return;
+
+        const root = button.closest('[data-rich-editor-root]');
+        if (!(root instanceof HTMLElement)) return;
+
+        const command = button.getAttribute('data-rich-editor-action');
+        if (!command) return;
+
+        const surface = focusSurface(root);
+        if (!(surface instanceof HTMLElement)) return;
+
+        event.preventDefault();
+
+        const value = button.getAttribute('data-editor-value');
+        document.execCommand(command, false, value ?? null);
+        syncEditor(root);
     });
 })();
 
