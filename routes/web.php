@@ -43,6 +43,7 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::get('/dashboard', [VtuController::class, 'dashboard'])->name('dashboard');
 
     Route::get('/vtu/airtime', [VtuController::class, 'airtimeForm'])->name('vtu.airtime');
+    Route::get('/vtu/airtime/{service}', [VtuController::class, 'airtimeServiceForm'])->name('vtu.airtime.service');
     Route::post('/vtu/airtime/buy', [VtuController::class, 'buyAirtime'])->name('vtu.airtime.buy');
 
     Route::get('/vtu/data', [VtuController::class, 'dataForm'])->name('vtu.data');

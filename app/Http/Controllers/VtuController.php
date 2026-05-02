@@ -81,25 +81,21 @@ class VtuController extends Controller
     // =========================================================
     public function airtimeForm()
     {
-        /**
-         * Your airtime.blade.php builds the network list itself,
-         * so this page doesn't strictly require DB services.
-         *
-         * But we still pass a safe services list in case you later use it.
-         */
-        $services = $this->parseServicesSetting('services_airtime');
-        if (empty($services)) {
-            $services = [
-                'mtn'      => 'MTN',
-                'airtel'   => 'Airtel',
-                'glo'      => 'Glo',
-                'etisalat' => '9mobile',
-            ];
-        }
+        return view('vtu.airtime-index', [
+            'services' => $this->airtimeServices(),
+        ]);
+    }
 
-        $phoneSuggestions = $this->phoneSuggestionsForUser(auth()->user(), 'airtime');
+    public function airtimeServiceForm(string $service)
+    {
+        $services = $this->airtimeServices();
+        abort_unless(array_key_exists($service, $services), 404);
 
-        return view('vtu.airtime', compact('services', 'phoneSuggestions'));
+        return view('vtu.airtime', [
+            'serviceSlug' => $service,
+            'serviceLabel' => $services[$service],
+            'phoneSuggestions' => $this->phoneSuggestionsForUser(auth()->user(), 'airtime'),
+        ]);
     }
 
     public function buyAirtime(Request $request)
@@ -2424,7 +2420,7 @@ class VtuController extends Controller
         $serviceSlug = trim((string) ($service?->slug ?? ($meta['service_id'] ?? '')));
 
         return match ($type) {
-            'airtime' => route('vtu.airtime'),
+            'airtime' => $serviceSlug !== '' ? route('vtu.airtime.service', $serviceSlug) : route('vtu.airtime'),
             'data' => $serviceSlug !== '' ? route('vtu.data.service', $serviceSlug) : route('vtu.data'),
             'cable' => $serviceSlug !== '' ? route('vtu.cable.service', $serviceSlug) : route('vtu.cable'),
             'electricity' => $serviceSlug !== '' ? route('vtu.electricity.service', $serviceSlug) : route('vtu.electricity'),
@@ -3438,6 +3434,21 @@ class VtuController extends Controller
         }
 
         return $orderedServices;
+    }
+
+    private function airtimeServices(): array
+    {
+        $services = $this->parseServicesSetting('services_airtime');
+        if (!empty($services)) {
+            return $services;
+        }
+
+        return [
+            'mtn' => 'MTN Airtime',
+            'airtel' => 'Airtel Airtime',
+            'glo' => 'Glo Airtime',
+            'etisalat' => '9mobile Airtime',
+        ];
     }
 
     private function cableServices(): array

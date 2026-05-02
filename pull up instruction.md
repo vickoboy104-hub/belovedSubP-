@@ -128,6 +128,47 @@ Why `--ff-only` matters:
 - It updates safely only when the server can move forward without creating a merge commit.
 - If git refuses, stop and inspect the server state before forcing anything.
 
+## 6b. Reusable deploy routine for this cPanel or LiteSpeed setup
+
+This project currently deploys from:
+
+```powershell
+/home/beloveds/vtu
+```
+
+and the live domain serves public files from:
+
+```powershell
+/home/beloveds/public_html
+```
+
+Because Laravel Vite writes frontend assets into `/home/beloveds/vtu/public/build`, the live `public_html/build` path must point to that real build folder after pulling updates.
+
+Use this full routine when deploying the current branch:
+
+```powershell
+cd /home/beloveds/vtu
+php artisan down
+git checkout codex/flutterwave-wallet-nin-fixes
+git pull --ff-only origin codex/flutterwave-wallet-nin-fixes
+rm -rf ~/public_html/build
+ln -s /home/beloveds/vtu/public/build /home/beloveds/public_html/build
+php artisan optimize:clear
+php artisan view:clear
+php artisan cache:clear
+php artisan up
+```
+
+If the site ever loads plain HTML without styling after a pull, re-run this recovery block:
+
+```powershell
+rm -rf ~/public_html/build
+ln -s /home/beloveds/vtu/public/build /home/beloveds/public_html/build
+php artisan optimize:clear
+php artisan view:clear
+php artisan cache:clear
+```
+
 ## 7. If the server has modified files
 
 If `git status -sb` shows modified files, do not pull immediately.

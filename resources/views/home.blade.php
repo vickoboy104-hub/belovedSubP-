@@ -93,6 +93,15 @@
                             <span class="text-2xl font-bold text-slate-400">&rsaquo;</span>
                         </div>
                     </a>
+                    <a href="{{ route('vtu.bvn') }}" class="app-service-card block">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <div class="text-lg font-extrabold text-slate-900">BVN Services</div>
+                                <div class="mt-1 text-sm text-slate-500">Verify BVN details or run the retrieval workflow from one page.</div>
+                            </div>
+                            <span class="text-2xl font-bold text-slate-400">&rsaquo;</span>
+                        </div>
+                    </a>
                 </div>
             </div>
         </section>
@@ -131,6 +140,10 @@
                 <a href="{{ route('vtu.nin') }}" class="app-service-card block">
                     <div class="app-service-title">NIN Services</div>
                     <p class="app-service-copy">Identity-related services presented in a clear supportable layout.</p>
+                </a>
+                <a href="{{ route('vtu.bvn') }}" class="app-service-card block">
+                    <div class="app-service-title">BVN Services</div>
+                    <p class="app-service-copy">Run BVN verification and retrieval requests inside the same polished service experience.</p>
                 </a>
                 <a href="{{ route('wallet.fund') }}" class="app-service-card block">
                     <div class="app-service-title">Wallet Funding</div>
@@ -200,6 +213,7 @@
                         <div>Cable Subscription</div>
                         <div>Electricity Bills</div>
                         <div>Exam Pins</div>
+                        <div>BVN Services</div>
                     </div>
                 </div>
 

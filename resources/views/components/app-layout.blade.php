@@ -111,6 +111,7 @@
                 <a href="{{ route('vtu.recharge-card') }}" class="nav-item">Recharge PIN</a>
                 <a href="{{ route('vtu.premium-apps') }}" class="nav-item">Premium Apps</a>
                 <a href="{{ route('vtu.nin') }}" class="nav-item">NIN Services</a>
+                <a href="{{ route('vtu.bvn') }}" class="nav-item">BVN Services</a>
                 <a href="{{ route('vtu.nin-validation') }}" class="nav-item">NIN Validation</a>
             </div>
 
@@ -459,4 +460,3 @@
 
 </body>
 </html>
-

@@ -34,6 +34,7 @@
                     ['label' => 'Recharge PIN', 'route' => 'vtu.recharge-card'],
                     ['label' => 'Premium Apps', 'route' => 'vtu.premium-apps'],
                     ['label' => 'NIN Services', 'route' => 'vtu.nin'],
+                    ['label' => 'BVN Services', 'route' => 'vtu.bvn'],
                     ['label' => 'NIN Validation', 'route' => 'vtu.nin-validation'],
                 ],
             ],

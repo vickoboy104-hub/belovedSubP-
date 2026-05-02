@@ -90,6 +90,10 @@
                             <span class="app-mini-tile-icon">🪪</span>
                             <span class="app-mini-tile-label">NIN</span>
                         </a>
+                        <a href="{{ route('vtu.bvn') }}" class="app-mini-tile">
+                            <span class="app-mini-tile-icon text-lg font-black">BVN</span>
+                            <span class="app-mini-tile-label">BVN</span>
+                        </a>
                         <a href="{{ route('wallet.transactions') }}" class="app-mini-tile">
                             <span class="app-mini-tile-icon">🧾</span>
                             <span class="app-mini-tile-label">Transactions</span>
