@@ -228,31 +228,29 @@
             <div class="app-page">
                 <x-toast />
 
-                <div id="transactionResultOverlay" class="fixed inset-0 z-[96] hidden items-center justify-center px-4">
-                    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true"></div>
-                    <div class="app-glass-card relative w-full max-w-md overflow-hidden rounded-[28px]">
-                        <div class="p-8 text-center">
-                            <div id="transactionResultIconWrap" class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200">
+                <div id="transactionResultOverlay" class="app-modal-overlay fixed inset-0 z-[96] hidden items-center justify-center px-4">
+                    <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
+                        <div class="p-5 text-center">
+                            <div id="transactionResultIconWrap" class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200">
                                 <div id="transactionResultIcon"></div>
                             </div>
-                            <div id="transactionResultTitle" class="mt-4 text-2xl font-extrabold text-slate-900">Status</div>
-                            <div id="transactionResultMessage" class="mt-2 text-sm text-slate-500">Message</div>
-                            <div class="mt-6 flex items-center justify-center">
-                                <button type="button" id="transactionResultOk" class="btn-primary min-w-[140px]">Okay</button>
+                            <div id="transactionResultTitle" class="mt-3 text-xl font-extrabold text-slate-950">Status</div>
+                            <div id="transactionResultMessage" class="mt-2 text-sm leading-6 text-slate-700">Message</div>
+                            <div class="mt-5 flex items-center justify-center">
+                                <button type="button" id="transactionResultOk" class="app-modal-btn app-modal-btn-warm min-w-[112px]">Okay</button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div id="transactionContinueOverlay" class="fixed inset-0 z-[95] hidden items-center justify-center px-4">
-                    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true"></div>
-                    <div class="app-glass-card relative w-full max-w-xl overflow-hidden rounded-[28px]">
-                        <div class="p-8 text-center">
-                            <div class="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-extrabold uppercase tracking-wide text-emerald-700">
+                <div id="transactionContinueOverlay" class="app-modal-overlay fixed inset-0 z-[95] hidden items-center justify-center px-4">
+                    <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
+                        <div class="p-5 text-center">
+                            <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-extrabold uppercase tracking-wide text-emerald-800">
                                 Transaction Successful
                             </div>
-                            <div class="mt-5 flex items-center justify-center">
-                                <button type="button" id="transactionContinueBtn" class="btn-primary min-w-[170px]">Continue</button>
+                            <div class="mt-4 flex items-center justify-center">
+                                <button type="button" id="transactionContinueBtn" class="app-modal-btn app-modal-btn-success min-w-[132px]">Continue</button>
                             </div>
                         </div>
                     </div>
@@ -306,6 +304,40 @@
                         </div>
                         <div class="mt-6 flex items-center justify-end">
                             <button type="button" onclick="closeFlashToast()" class="btn-primary min-w-[120px]">OK</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(wrap);
+            setTimeout(closeFlashToast, 8000);
+        }
+
+        function showFlashToast(type, message) {
+            const ok = type === 'success';
+            const safeMessage = escapeToastHtml(message || '');
+            closeFlashToast();
+
+            const wrap = document.createElement('div');
+            wrap.id = 'flashToast';
+            wrap.className = 'app-modal-overlay fixed inset-0 z-[85] flex items-center justify-center px-4';
+            wrap.innerHTML = `
+                <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
+                    <div class="p-5">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="text-lg font-extrabold text-slate-950">${ok ? 'Success' : 'Failed'}</div>
+                                <div class="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-600">Transaction status</div>
+                            </div>
+                            <button type="button" onclick="closeFlashToast()" class="app-modal-close">
+                                &times;
+                            </button>
+                        </div>
+                        <div class="mt-4 rounded-2xl border ${ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'} p-4 text-sm font-semibold leading-6">
+                            ${safeMessage}
+                        </div>
+                        <div class="mt-5 flex items-center justify-end">
+                            <button type="button" onclick="closeFlashToast()" class="app-modal-btn app-modal-btn-warm min-w-[96px]">OK</button>
                         </div>
                     </div>
                 </div>

@@ -88,6 +88,8 @@
                         </div>
 
                         <div class="mt-4 space-y-3">
+                            <a href="{{ route('admin.users.show', $u) }}" class="btn-outline w-full justify-center">View Details</a>
+
                             <form method="POST" action="{{ route('admin.users.discount', $u) }}" class="grid grid-cols-[1fr_auto] gap-2">
                                 @csrf
                                 <input type="number" min="0" max="100" step="0.01" name="discount_percent"
@@ -212,6 +214,11 @@
 
                                 <td class="p-4">
                                     <div class="flex flex-col gap-2">
+                                        <a href="{{ route('admin.users.show', $u) }}"
+                                           class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs font-bold text-slate-800 hover:bg-white">
+                                            View Details
+                                        </a>
+
                                         <form method="POST" action="{{ route('admin.users.admin', $u) }}">
                                             @csrf
                                             <input type="hidden" name="is_admin" value="{{ $u->is_admin ? '0' : '1' }}">

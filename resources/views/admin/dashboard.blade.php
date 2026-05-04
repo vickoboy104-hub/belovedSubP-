@@ -30,34 +30,34 @@
         <section class="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div class="app-section p-4 sm:p-5">
                 <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Total Users</p>
-                <p class="mt-2 text-2xl font-extrabold text-slate-900">{{ $totalUsers }}</p>
+                <p class="admin-metric-value mt-2 text-2xl font-extrabold text-slate-900">{{ $totalUsers }}</p>
             </div>
             <div class="app-section p-4 sm:p-5">
                 <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Total Orders</p>
-                <p class="mt-2 text-2xl font-extrabold text-slate-900">{{ $totalOrders }}</p>
+                <p class="admin-metric-value mt-2 text-2xl font-extrabold text-slate-900">{{ $totalOrders }}</p>
             </div>
             <div class="app-section p-4 sm:p-5">
                 <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Total Funding</p>
-                <p class="mt-2 text-2xl font-extrabold text-slate-900">N{{ number_format($totalFunding / 100, 2) }}</p>
+                <p class="admin-metric-value mt-2 text-2xl font-extrabold text-slate-900">N{{ number_format($totalFunding / 100, 2) }}</p>
             </div>
             <div class="app-section p-4 sm:p-5">
                 <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Total Purchases</p>
-                <p class="mt-2 text-2xl font-extrabold text-slate-900">N{{ number_format($totalPurchases / 100, 2) }}</p>
+                <p class="admin-metric-value mt-2 text-2xl font-extrabold text-slate-900">N{{ number_format($totalPurchases / 100, 2) }}</p>
             </div>
         </section>
 
         <section class="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div class="app-section p-4 sm:p-5">
                 <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Profit Today</p>
-                <p class="mt-2 text-xl font-extrabold text-emerald-700">N{{ number_format($todayProfit / 100, 2) }}</p>
+                <p class="admin-metric-value mt-2 text-xl font-extrabold text-emerald-700">N{{ number_format($todayProfit / 100, 2) }}</p>
             </div>
             <div class="app-section p-4 sm:p-5">
                 <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Profit This Month</p>
-                <p class="mt-2 text-xl font-extrabold text-emerald-700">N{{ number_format($monthProfit / 100, 2) }}</p>
+                <p class="admin-metric-value mt-2 text-xl font-extrabold text-emerald-700">N{{ number_format($monthProfit / 100, 2) }}</p>
             </div>
             <div class="app-section p-4 sm:p-5">
                 <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Profit This Year</p>
-                <p class="mt-2 text-xl font-extrabold text-emerald-700">N{{ number_format($yearProfit / 100, 2) }}</p>
+                <p class="admin-metric-value mt-2 text-xl font-extrabold text-emerald-700">N{{ number_format($yearProfit / 100, 2) }}</p>
             </div>
         </section>
 
@@ -103,7 +103,7 @@
             </form>
             <div class="mt-3 text-sm text-slate-600">
                 Orders: <span class="font-bold text-slate-900">{{ (int) ($profitFilterResult['orders'] ?? 0) }}</span> |
-                Profit: <span class="font-bold text-emerald-700">N{{ number_format(((int) ($profitFilterResult['profit'] ?? 0)) / 100, 2) }}</span>
+                Profit: <span class="amount-fit inline-block font-bold text-emerald-700">N{{ number_format(((int) ($profitFilterResult['profit'] ?? 0)) / 100, 2) }}</span>
             </div>
         </section>
 
@@ -205,7 +205,7 @@
                                     <div class="text-lg font-extrabold text-slate-900">#{{ $o->id }}</div>
                                     <div class="text-sm font-semibold text-slate-700">{{ strtoupper($o->meta['type'] ?? '-') }}</div>
                                 </div>
-                                <div class="text-sm font-bold text-slate-900">N{{ number_format($o->amount / 100, 2) }}</div>
+                                <div class="amount-fit text-sm font-bold text-slate-900">N{{ number_format($o->amount / 100, 2) }}</div>
                             </div>
                             <div class="app-record-grid">
                                 <div>
@@ -239,7 +239,7 @@
                                     <td class="p-3">#{{ $o->id }}</td>
                                     <td class="p-3 font-semibold">{{ strtoupper($o->meta['type'] ?? '-') }}</td>
                                     <td class="p-3">{{ $o->customer_ref }}</td>
-                                    <td class="p-3 font-bold text-slate-900">N{{ number_format($o->amount / 100, 2) }}</td>
+                                    <td class="amount-fit p-3 font-bold text-slate-900">N{{ number_format($o->amount / 100, 2) }}</td>
                                     <td class="p-3">{{ strtoupper($o->status) }}</td>
                                 </tr>
                             @endforeach
@@ -256,7 +256,7 @@
                         <article class="app-record-card">
                             <div class="flex items-start justify-between gap-3">
                                 <div class="text-lg font-extrabold text-slate-900">{{ strtoupper($t->type) }}</div>
-                                <div class="text-sm font-bold text-slate-900">N{{ number_format($t->amount / 100, 2) }}</div>
+                                <div class="amount-fit text-sm font-bold text-slate-900">N{{ number_format($t->amount / 100, 2) }}</div>
                             </div>
                             <div class="app-record-grid">
                                 <div>
@@ -287,9 +287,9 @@
                             @foreach($recentTransactions as $t)
                                 <tr class="hover:bg-slate-50 transition">
                                     <td class="p-3 font-semibold">{{ strtoupper($t->type) }}</td>
-                                    <td class="p-3 font-bold text-slate-900">N{{ number_format($t->amount / 100, 2) }}</td>
+                                    <td class="amount-fit p-3 font-bold text-slate-900">N{{ number_format($t->amount / 100, 2) }}</td>
                                     <td class="p-3">{{ strtoupper($t->status) }}</td>
-                                    <td class="p-3 text-xs text-slate-500">{{ $t->reference }}</td>
+                                    <td class="table-token p-3 text-xs text-slate-500">{{ $t->reference }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

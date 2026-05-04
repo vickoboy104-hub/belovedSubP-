@@ -8,7 +8,7 @@
                 </div>
                 <div class="rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4 text-left sm:text-right">
                     <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Balance</div>
-                    <div class="mt-2 text-2xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
+                    <div class="amount-fit mt-2 text-2xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
                 </div>
             </div>
 
@@ -64,7 +64,7 @@
                         <div class="app-record-grid">
                             <div>
                                 <div class="app-record-label">Amount</div>
-                                <div class="app-record-value">&#8358;{{ $amountN }}</div>
+                                <div class="app-record-value amount-fit">&#8358;{{ $amountN }}</div>
                             </div>
                             <div>
                                 <div class="app-record-label">Channel</div>
@@ -111,7 +111,7 @@
                                         <span class="text-rose-700">DEBIT</span>
                                     @endif
                                 </td>
-                                <td class="py-3 pr-4">&#8358;{{ $amountN }}</td>
+                                <td class="amount-fit py-3 pr-4">&#8358;{{ $amountN }}</td>
                                 <td class="py-3 pr-4">
                                     <span class="px-3 py-1 rounded-full text-xs font-bold
                                         @if($status==='success') bg-emerald-50 text-emerald-700
@@ -122,7 +122,7 @@
                                     </span>
                                 </td>
                                 <td class="py-3 pr-4">{{ $t->channel ?? '-' }}</td>
-                                <td class="py-3 pr-4 text-slate-500">{{ $t->reference ?? '-' }}</td>
+                                <td class="table-token py-3 pr-4 text-slate-500">{{ $t->reference ?? '-' }}</td>
                             </tr>
                         @empty
                             <tr>

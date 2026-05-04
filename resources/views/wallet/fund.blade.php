@@ -41,7 +41,7 @@
                 </div>
                 <div class="rounded-[24px] border border-slate-200 bg-slate-50 px-5 py-4">
                     <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Balance</div>
-                    <div class="mt-1 text-3xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
+                    <div class="amount-fit mt-1 text-3xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
                     <div class="mt-1 text-xs text-slate-500">Flutterwave deposit fee: &#8358;{{ number_format((float) ($funding_fee_naira ?? 0), 2) }}</div>
                 </div>
             </div>

@@ -123,6 +123,138 @@ button {
     }
 }
 
+.app-modal-overlay {
+    background: rgba(15, 23, 42, 0.58);
+    backdrop-filter: blur(8px);
+    animation: appModalBackdropIn 180ms ease both;
+}
+
+.app-modal-panel {
+    max-width: 27rem;
+    max-height: min(82vh, 620px);
+    overflow: auto;
+    border-radius: 22px;
+    border: 1px solid rgba(64, 87, 93, 0.16);
+    background:
+        radial-gradient(circle at top right, rgba(224, 154, 65, 0.14), transparent 30%),
+        linear-gradient(180deg, rgba(248, 243, 234, 0.98) 0%, rgba(231, 238, 231, 0.98) 100%);
+    color: var(--brand-text);
+    box-shadow: 0 24px 60px rgba(18, 31, 56, 0.26);
+    animation: appModalPanelIn 220ms cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.app-notice-modal {
+    max-width: 25.5rem;
+}
+
+.app-modal-close {
+    display: inline-flex;
+    height: 2.25rem;
+    width: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    border: 1px solid rgba(64, 87, 93, 0.16);
+    background: rgba(248, 251, 255, 0.86);
+    color: #1e293b;
+    font-size: 1.25rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.app-modal-close:hover {
+    background: #ffffff;
+    color: var(--brand-navy);
+    transform: translateY(-1px);
+}
+
+.app-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.55rem;
+}
+
+.app-modal-btn {
+    display: inline-flex;
+    min-height: 2.35rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    padding: 0.58rem 0.85rem;
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1.2;
+    text-align: center;
+    box-shadow: 0 10px 20px rgba(18, 31, 56, 0.08);
+}
+
+.app-modal-btn-muted {
+    border: 1px solid rgba(64, 87, 93, 0.16);
+    background: rgba(248, 251, 255, 0.78);
+    color: #334155;
+}
+
+.app-modal-btn-muted:hover {
+    background: #ffffff;
+    color: var(--brand-navy);
+}
+
+.app-modal-btn-warm {
+    background: #a85d1f;
+    color: #ffffff !important;
+}
+
+.app-modal-btn-warm:hover {
+    background: #8f4d19;
+}
+
+.app-modal-btn-success {
+    background: #187242;
+    color: #ffffff !important;
+}
+
+.app-modal-btn-success:hover {
+    background: #125c35;
+}
+
+.amount-fit,
+.numeric-fit,
+.admin-metric-value,
+.app-stat-value {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.12;
+}
+
+.table-token {
+    max-width: 16rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+@keyframes appModalBackdropIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes appModalPanelIn {
+    from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
 .fade-in {
     animation: fadeInUp 0.5s ease forwards;
 }
@@ -1051,6 +1183,48 @@ button {
     background: #f8fbff !important;
 }
 
+.admin-light-page .btn-primary,
+.admin-light-page button[class*="bg-orange"],
+.admin-light-page button[class*="bg-blue"],
+.admin-light-page button[class*="bg-rose"],
+.admin-light-page button[class*="bg-red"],
+.admin-light-page button[class*="bg-emerald"],
+.admin-light-page button[class*="bg-amber"],
+.admin-light-page a[class*="bg-orange"],
+.admin-light-page a[class*="bg-blue"],
+.admin-light-page a[class*="bg-rose"],
+.admin-light-page a[class*="bg-red"],
+.admin-light-page a[class*="bg-emerald"],
+.admin-light-page a[class*="bg-amber"],
+#websiteEditorForm .btn-primary,
+#websiteEditorForm button[class*="bg-orange"],
+#websiteEditorForm button[class*="bg-blue"],
+#websiteEditorForm button[class*="bg-rose"],
+#websiteEditorForm button[class*="bg-red"],
+#websiteEditorForm button[class*="bg-emerald"],
+#websiteEditorForm button[class*="bg-amber"],
+#websiteEditorForm a[class*="bg-orange"],
+#websiteEditorForm a[class*="bg-blue"],
+#websiteEditorForm a[class*="bg-rose"],
+#websiteEditorForm a[class*="bg-red"],
+#websiteEditorForm a[class*="bg-emerald"],
+#websiteEditorForm a[class*="bg-amber"],
+#adminSettingsForm .btn-primary,
+#adminSettingsForm button[class*="bg-orange"],
+#adminSettingsForm button[class*="bg-blue"],
+#adminSettingsForm button[class*="bg-rose"],
+#adminSettingsForm button[class*="bg-red"],
+#adminSettingsForm button[class*="bg-emerald"],
+#adminSettingsForm button[class*="bg-amber"],
+#adminSettingsForm a[class*="bg-orange"],
+#adminSettingsForm a[class*="bg-blue"],
+#adminSettingsForm a[class*="bg-rose"],
+#adminSettingsForm a[class*="bg-red"],
+#adminSettingsForm a[class*="bg-emerald"],
+#adminSettingsForm a[class*="bg-amber"] {
+    color: #ffffff !important;
+}
+
 .network-pick[aria-pressed="true"],
 .net-card[aria-pressed="true"] {
     border-color: #c2d1ec !important;
@@ -1058,6 +1232,22 @@ button {
 }
 
 @media (max-width: 640px) {
+    .app-modal-panel {
+        max-width: 22rem;
+        border-radius: 20px;
+    }
+
+    .app-modal-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .app-modal-btn {
+        width: 100%;
+        min-height: 2.45rem;
+        padding: 0.62rem 0.75rem;
+    }
+
     .btn-primary,
     .btn-soft,
     .btn-outline {
@@ -1221,7 +1411,9 @@ button {
     .fade-in,
     .idle-guide-layer.is-visible .idle-guide-bubble-card,
     .idle-guide-layer.is-visible .idle-guide-hand-icon,
-    .idle-guide-target {
+    .idle-guide-target,
+    .app-modal-overlay,
+    .app-modal-panel {
         animation: none !important;
     }
 }
