@@ -126,6 +126,7 @@ class SettingsController extends Controller
             'services_premium'     => ['nullable', 'string', 'max:4000'],
 
             'wallet_funding_fee' => ['nullable', 'numeric', 'min:0'],
+            'data_plan_price_overrides' => ['nullable', 'string', 'max:20000'],
 
             'referral_default_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'referral_percent_airtime' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -219,6 +220,12 @@ class SettingsController extends Controller
             'favicon'         => ['nullable', 'image', 'max:1024'],
         ], $serviceMapRules));
 
+        foreach ($serviceMapKeys as $key) {
+            if (array_key_exists($key, $data) && $this->looksLikePlanPrice($data[$key] ?? null)) {
+                $data[$key] = '';
+            }
+        }
+
         foreach ($dataServiceToggleKeys as $toggleKey) {
             $data[$toggleKey] = $request->boolean($toggleKey) ? '1' : '0';
         }
@@ -269,5 +276,15 @@ class SettingsController extends Controller
         settings_flush_cache();
 
         return back()->with('success', 'Settings updated successfully!');
+    }
+
+    private function looksLikePlanPrice(mixed $value): bool
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return false;
+        }
+
+        return (bool) preg_match('/^(?:\x{20A6}|N|NGN)?\s*\d+(?:[,.]\d+)?\s*(?:naira)?$/iu', $value);
     }
 }

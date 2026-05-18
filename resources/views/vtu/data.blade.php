@@ -15,8 +15,6 @@
             'glo_sme' => '/networks/glo.png',
             'etisalat_data' => '/networks/9mobile.png',
         ];
-
-        $markupData = (float) setting('markup_data', 0);
     @endphp
 
     <div class="mx-auto max-w-4xl space-y-5 sm:space-y-6">
@@ -45,7 +43,6 @@
                     <select id="plan" name="plan" required disabled class="input-field mt-2">
                         <option value="">Loading plans...</option>
                     </select>
-                    <div class="mt-2 text-xs text-slate-500">Service charge: &#8358;{{ number_format($markupData, 2) }}</div>
                 </div>
 
                 <div class="grid gap-5 md:grid-cols-2">
@@ -101,7 +98,6 @@
         (function () {
             const serviceId = @json($serviceSlug);
             const serviceLabel = @json($serviceLabel);
-            const markupData = Number(@json($markupData));
 
             const planSelect = document.getElementById('plan');
             const phoneInput = document.getElementById('phone');
@@ -182,7 +178,7 @@
                     return;
                 }
                 amountInput.value = base;
-                payTotalText.textContent = '₦' + Number(base + markupData).toLocaleString();
+                payTotalText.textContent = '₦' + Number(base).toLocaleString();
             });
 
             function notify(type, message) {
@@ -262,7 +258,7 @@
                     service: 'Data',
                     network: serviceLabel,
                     customer: phone,
-                    amount: '₦' + Number(baseAmount + markupData).toLocaleString(),
+                    amount: '₦' + Number(baseAmount).toLocaleString(),
                     extra: planLabel,
                 }, 'dataPurchaseForm');
             });

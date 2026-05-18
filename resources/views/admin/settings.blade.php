@@ -32,6 +32,7 @@
                             <a href="#group-maintenance-overlay" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Maintenance Overlay</a>
                             <a href="#group-catalog" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Service Catalog</a>
                             <a href="#group-data-defaults" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Data Defaults</a>
+                            <a href="#group-data-pricing" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Data Pricing</a>
                             <a href="#group-wallet" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Wallet</a>
                             <a href="#group-referral" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Referral</a>
                             <a href="#group-provider" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Provider</a>
@@ -411,6 +412,26 @@
                 </div>
             </div>
 
+            {{-- Data Plan Pricing --}}
+            <div id="group-data-pricing" class="scroll-mt-44">
+                <div class="text-lg font-extrabold">Data Plan Selling Prices</div>
+                <div class="text-xs text-white/50 mt-1">
+                    Format: <code>service_id|plan_id|selling_price</code>. Leave a plan out to display the exact GSUBZ price.
+                </div>
+
+                <div class="grid grid-cols-1 gap-4 mt-3">
+                    <div>
+                        <label class="text-sm font-bold text-white/80">Plan Price Overrides</label>
+                        <textarea name="data_plan_price_overrides" rows="8"
+                                  class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white"
+                                  placeholder="mtn_awoof|452|250&#10;mtn_awoof|453|600&#10;mtn_sme|PLAN_CODE|1200">{{ old('data_plan_price_overrides', $settings['data_plan_price_overrides'] ?? '') }}</textarea>
+                        <div class="text-xs text-white/50 mt-1">
+                            Customers see and pay the selling price. Provider purchases still use the original GSUBZ price.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {{-- Wallet Funding --}}
             <div id="group-wallet" class="scroll-mt-44">
                 <div class="text-lg font-extrabold">Wallet Funding</div>
@@ -611,7 +632,7 @@
             {{-- Service ID Overrides --}}
             <div id="group-service-map" class="scroll-mt-44">
                 <div class="text-lg font-extrabold">Service ID Overrides</div>
-                <div class="text-xs text-white/50 mt-1">Leave blank to use the default service ID in code.</div>
+                <div class="text-xs text-white/50 mt-1">Leave blank to use the default service ID in code. These fields are provider service IDs, not plan prices.</div>
 
                 @php
                     $airtimeMap = [
@@ -698,6 +719,7 @@
 
                     <div class="rounded-2xl border border-white/10 p-4">
                         <div class="font-bold text-white/80">Data</div>
+                        <div class="text-xs text-white/50 mt-1">For Awoof, keep this as <code>mtn_awoof</code> or blank. Set customer profit under Customer Markup.</div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
                             @foreach($dataMap as $slug => $label)
                                 @php $key = 'service_map_' . $slug; @endphp
@@ -793,10 +815,11 @@
                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
                     </div>
                     <div>
-                        <label class="text-sm font-bold text-white/80">Data Markup</label>
+                        <label class="text-sm font-bold text-white/80">Data Markup (Legacy)</label>
                         <input type="number" step="0.01" name="markup_data"
                                value="{{ old('markup_data', $settings['markup_data'] ?? '0') }}"
                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
+                        <div class="text-xs text-white/50 mt-1">Use Data Plan Selling Prices for customer data prices.</div>
                     </div>
                     <div>
                         <label class="text-sm font-bold text-white/80">Cable Markup</label>
