@@ -25,6 +25,7 @@ class SettingsController extends Controller
             ->toArray();
 
         $pricingServiceGroups = $this->pricingServiceGroups();
+        $priceSyncSummary = $this->syncProviderPlanPrices();
         $pricingServiceSlugs = collect($pricingServiceGroups)->flatMap(fn ($services) => array_keys($services))->values();
         $provider = $this->planPrices->currentProvider();
         $providerPlanPrices = ProviderPlanPrice::query()
@@ -36,7 +37,7 @@ class SettingsController extends Controller
             ->get()
             ->groupBy('service_slug');
 
-        return view('admin.settings', compact('settings', 'pricingServiceGroups', 'providerPlanPrices', 'provider'));
+        return view('admin.settings', compact('settings', 'pricingServiceGroups', 'providerPlanPrices', 'provider', 'priceSyncSummary'));
     }
 
     public function update(Request $request)
@@ -306,34 +307,48 @@ class SettingsController extends Controller
 
     public function syncProviderPrices()
     {
+        $summary = $this->syncProviderPlanPrices();
+
+        if (!empty($summary['failed_services'])) {
+            return back()->with(
+                'error',
+                'Synced '.$summary['synced_plans'].' plans, but these services could not be loaded from GSUBZ: '.implode(', ', $summary['failed_services'])
+            );
+        }
+
+        return back()->with('success', 'GSUBZ price list synced successfully. '.$summary['synced_plans'].' plans are available for pricing.');
+    }
+
+    private function syncProviderPlanPrices(): array
+    {
         $syncedPlans = 0;
         $failedServices = [];
         $provider = $this->planPrices->currentProvider();
 
         foreach ($this->pricingServiceGroups() as $services) {
             foreach (array_keys($services) as $serviceSlug) {
-                $providerServiceId = $this->planPrices->providerServiceId($serviceSlug, $provider);
-                $resp = $this->gsubz->plans($providerServiceId);
+                try {
+                    $providerServiceId = $this->planPrices->providerServiceId($serviceSlug, $provider);
+                    $resp = $this->gsubz->plans($providerServiceId);
 
-                if (!($resp['ok'] ?? false) || !is_array($resp['plans'] ?? null)) {
+                    if (!($resp['ok'] ?? false) || !is_array($resp['plans'] ?? null)) {
+                        $failedServices[] = $serviceSlug;
+                        continue;
+                    }
+
+                    $syncedPlans += $this->planPrices
+                        ->syncPlans($serviceSlug, $resp['plans'], $providerServiceId, $provider)
+                        ->count();
+                } catch (\Throwable $e) {
                     $failedServices[] = $serviceSlug;
-                    continue;
                 }
-
-                $syncedPlans += $this->planPrices
-                    ->syncPlans($serviceSlug, $resp['plans'], $providerServiceId, $provider)
-                    ->count();
             }
         }
 
-        if (!empty($failedServices)) {
-            return back()->with(
-                'error',
-                'Synced '.$syncedPlans.' plans, but these services could not be loaded from GSUBZ: '.implode(', ', $failedServices)
-            );
-        }
-
-        return back()->with('success', 'GSUBZ price list synced successfully. '.$syncedPlans.' plans are available for pricing.');
+        return [
+            'synced_plans' => $syncedPlans,
+            'failed_services' => array_values(array_unique($failedServices)),
+        ];
     }
 
     private function updateProviderPlanPrices(array $submittedPlanPrices): void

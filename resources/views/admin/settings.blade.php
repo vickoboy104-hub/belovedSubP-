@@ -417,8 +417,16 @@
                     <div>
                         <div class="text-lg font-extrabold">Website Selling Prices</div>
                         <div class="text-xs text-white/50 mt-1">
-                            GSUBZ prices are stored as hidden provider costs. Customers only see the website selling price.
+                            GSUBZ prices refresh automatically when this page opens. Customers only see the website selling price.
                         </div>
+                        @if(!empty($priceSyncSummary ?? null))
+                            <div class="text-xs text-white/45 mt-2">
+                                Last auto-refresh: {{ (int) ($priceSyncSummary['synced_plans'] ?? 0) }} plans loaded.
+                                @if(!empty($priceSyncSummary['failed_services'] ?? []))
+                                    Could not refresh: {{ implode(', ', $priceSyncSummary['failed_services']) }}.
+                                @endif
+                            </div>
+                        @endif
                     </div>
                     <button type="submit"
                             form="syncProviderPricesForm"
