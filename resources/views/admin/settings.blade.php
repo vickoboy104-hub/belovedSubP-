@@ -417,7 +417,7 @@
                     <div>
                         <div class="text-lg font-extrabold">Website Selling Prices</div>
                         <div class="text-xs text-white/50 mt-1">
-                            GSUBZ prices refresh automatically when this page opens. Customers only see the website selling price.
+                            GSUBZ prices refresh automatically when this page opens. New GSUBZ plans are added here as editable website-price rows.
                         </div>
                         @if(!empty($priceSyncSummary ?? null))
                             <div class="text-xs text-white/45 mt-2">
@@ -455,7 +455,7 @@
 
                                         @if($rows->isEmpty())
                                             <div class="mt-3 rounded-xl border border-dashed border-white/10 px-4 py-3 text-sm text-white/55">
-                                                No GSUBZ plans stored yet. Click sync above, or open this service on the customer page once.
+                                                No GSUBZ plans stored yet. Click sync above; any new provider plans will be added here automatically.
                                             </div>
                                         @else
                                             <div class="mt-3 overflow-x-auto">
@@ -1224,7 +1224,7 @@
     <div class="page-save-overlay">
         <div class="page-save-overlay-card">
             <div class="page-save-overlay-copy">
-                Save changes from anywhere on the page. This overlay stays visible while you review the admin settings.
+                Save your admin setting changes.
             </div>
             <button type="submit"
                     form="adminSettingsForm"
@@ -1233,6 +1233,61 @@
             </button>
         </div>
     </div>
+
+    <style>
+        .page-save-overlay {
+            position: fixed;
+            right: 1.25rem;
+            bottom: 1.25rem;
+            z-index: 80;
+            width: min(360px, calc(100vw - 2rem));
+            pointer-events: none;
+        }
+
+        .page-save-overlay::before {
+            display: none;
+        }
+
+        .page-save-overlay-card {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            border: 1px solid rgba(64, 87, 93, 0.12);
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.94);
+            padding: 0.75rem;
+            box-shadow: 0 20px 44px rgba(17, 46, 110, 0.22);
+            backdrop-filter: blur(14px);
+            pointer-events: auto;
+        }
+
+        .page-save-overlay .btn-primary {
+            width: auto;
+            min-width: 138px;
+            border-radius: 14px;
+            padding-block: 0.78rem;
+        }
+
+        @media (max-width: 640px) {
+            .page-save-overlay {
+                right: 0.85rem;
+                bottom: calc(0.85rem + env(safe-area-inset-bottom));
+                width: calc(100vw - 1.7rem);
+            }
+
+            .page-save-overlay-card {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .page-save-overlay .btn-primary {
+                width: 100%;
+                min-width: 0;
+            }
+        }
+    </style>
 
     <script>
         (function () {
