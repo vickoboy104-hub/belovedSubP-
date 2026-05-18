@@ -441,7 +441,9 @@
                             <div class="font-extrabold text-white/90">{{ $groupLabel }}</div>
                             <div class="mt-4 grid grid-cols-1 gap-4">
                                 @foreach($services as $slug => $label)
-                                    @php($rows = ($providerPlanPrices[$slug] ?? collect()))
+                                    @php
+                                        $rows = $providerPlanPrices[$slug] ?? collect();
+                                    @endphp
                                     <div class="rounded-2xl border border-white/10 bg-black/10 p-4">
                                         <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                                             <div>
