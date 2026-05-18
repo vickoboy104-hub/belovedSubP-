@@ -1,5 +1,4 @@
 @php
-    $markupCable = (float) setting('markup_cable', 0);
     $icons = [
         'dstv' => asset('cable/dstv.png'),
         'gotv' => asset('cable/gotv.png'),
@@ -36,7 +35,6 @@
                 <input type="hidden" name="base_amount" id="base_amount" value="">
                 <div class="mt-2 text-sm text-slate-500">
                     Amount to pay: <span id="amountPreview" class="font-extrabold text-slate-900">&#8358;0.00</span>
-                    <span class="text-xs">(includes charges: &#8358;{{ number_format($markupCable, 2) }})</span>
                 </div>
             </div>
 
@@ -53,7 +51,6 @@
 
     <script>
         (function () {
-            const markup = Number(@json($markupCable));
             const serviceId = @json($selectedService);
             const serviceLabel = @json($selectedServiceLabel);
             const planSelect = document.getElementById('plan');
@@ -84,7 +81,7 @@
 
             function updateAmountPreview() {
                 const base = Number(baseAmountInput.value || 0);
-                amountPreview.textContent = formatNaira(base + markup);
+                amountPreview.textContent = formatNaira(base);
             }
 
             async function loadPlans() {
@@ -146,7 +143,7 @@
                     provider: serviceLabel,
                     plan: planLabel,
                     'smartcard number': customerRef,
-                    amount: formatNaira(base + markup),
+                    amount: formatNaira(base),
                 }, 'cableForm');
             });
 

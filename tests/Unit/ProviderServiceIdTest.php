@@ -3,7 +3,9 @@
 namespace Tests\Unit;
 
 use App\Http\Controllers\VtuController;
+use App\Models\ProviderPlanPrice;
 use App\Models\Setting;
+use App\Services\ProviderPlanPriceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use ReflectionClass;
 use Tests\TestCase;
@@ -40,25 +42,33 @@ class ProviderServiceIdTest extends TestCase
         $this->assertSame('mtn_sme', $this->resolveProviderServiceId('mtn_sme'));
     }
 
-    public function test_data_plan_price_override_replaces_customer_price_only(): void
+    public function test_provider_plan_prices_are_stored_hidden_and_customer_gets_selling_price(): void
     {
-        Setting::updateOrCreate(['key' => 'data_plan_price_overrides'], ['value' => "mtn_awoof|452|250\nmtn_awoof|453|600"]);
+        Setting::updateOrCreate(['key' => 'provider'], ['value' => 'gsubz']);
         settings_flush_cache();
 
-        $plans = $this->applyDataPlanSellingPrices('mtn_awoof', [
+        $service = app(ProviderPlanPriceService::class);
+        $plans = [
             ['value' => '452', 'price' => '209', 'display_name' => '1GB - 1 day'],
             ['value' => '999', 'price' => '1000', 'display_name' => '5GB - 7 days'],
-        ]);
+        ];
 
-        $this->assertSame(209.0, $plans[0]['provider_price']);
-        $this->assertSame(250.0, $plans[0]['selling_price']);
-        $this->assertSame(250.0, $plans[0]['price']);
-        $this->assertTrue($plans[0]['price_override_applied']);
+        $service->syncPlans('mtn_awoof', $plans, 'mtn_awoof', 'gsubz');
+        $stored = ProviderPlanPrice::query()->where('service_slug', 'mtn_awoof')->where('plan_id', '452')->firstOrFail();
+        $this->assertSame(209.0, (float) $stored->provider_price);
+        $this->assertSame(209.0, (float) $stored->selling_price);
 
-        $this->assertSame(1000.0, $plans[1]['provider_price']);
-        $this->assertSame(1000.0, $plans[1]['selling_price']);
-        $this->assertSame(1000.0, $plans[1]['price']);
-        $this->assertFalse($plans[1]['price_override_applied']);
+        $service->setSellingPrice($stored, 300);
+
+        $customerPlans = $service->customerPlans($plans, 'mtn_awoof', 'mtn_awoof', 'gsubz');
+        $this->assertSame(300.0, (float) $customerPlans[0]['price']);
+        $this->assertSame(300.0, (float) $customerPlans[0]['selling_price']);
+        $this->assertArrayNotHasKey('provider_price', $customerPlans[0]);
+
+        $pricing = $service->pricingForPlan('mtn_awoof', '452', $plans, 'mtn_awoof', 'gsubz');
+        $this->assertSame(209.0, $pricing['provider_price']);
+        $this->assertSame(300.0, $pricing['selling_price']);
+        $this->assertTrue($pricing['custom']);
     }
 
     private function resolveProviderServiceId(string $slug): string
@@ -70,12 +80,4 @@ class ProviderServiceIdTest extends TestCase
         return $method->invoke($controller, $slug);
     }
 
-    private function applyDataPlanSellingPrices(string $service, array $plans): array
-    {
-        $controller = app(VtuController::class);
-        $method = (new ReflectionClass($controller))->getMethod('applyDataPlanSellingPrices');
-        $method->setAccessible(true);
-
-        return $method->invoke($controller, $plans, $service);
-    }
 }

@@ -132,4 +132,5 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::post('/website-editor/reset', [WebsiteEditorController::class, 'reset'])->name('admin.website-editor.reset');
     Route::get('/settings', [SettingsController::class, 'edit'])->name('admin.settings');
     Route::post('/settings', [SettingsController::class, 'update'])->name('admin.settings.update');
+    Route::post('/settings/provider-prices/sync', [SettingsController::class, 'syncProviderPrices'])->name('admin.settings.provider-prices.sync');
 });

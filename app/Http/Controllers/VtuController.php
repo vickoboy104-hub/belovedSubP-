@@ -13,6 +13,7 @@ use App\Notifications\UserWalletActivityNotification;
 use App\Services\BvnApi;
 use App\Services\GsubzApi;
 use App\Services\NinApi;
+use App\Services\ProviderPlanPriceService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -29,6 +30,7 @@ class VtuController extends Controller
         private readonly GsubzApi $gsubz,
         private readonly NinApi $ninApi,
         private readonly BvnApi $bvnApi,
+        private readonly ProviderPlanPriceService $planPrices,
     )
     {
     }
@@ -337,7 +339,7 @@ class VtuController extends Controller
         $providerServiceId = $this->providerServiceId($serviceSlug);
 
         if (in_array($provider, ['gsubz', 'alt'], true)) {
-            $pricing = $this->resolveDataPlanPricing($serviceSlug, (string) $request->plan);
+            $pricing = $this->resolvePlanPricing($serviceSlug, (string) $request->plan);
             if ($pricing === null) {
                 return $this->respondResult(
                     request: $request,
@@ -351,7 +353,7 @@ class VtuController extends Controller
 
             $baseAmountNaira = $pricing['provider_price'];
             $sellingAmountNaira = $pricing['selling_price'];
-            $priceOverrideApplied = $pricing['override_applied'];
+            $priceOverrideApplied = $pricing['custom'];
         }
 
         $totalKobo  = $this->toKobo($sellingAmountNaira);
@@ -716,12 +718,31 @@ class VtuController extends Controller
         $provider = (string) setting('provider', 'gsubz');
 
         $baseAmountNaira = (float) $request->base_amount;
-        $markupNaira     = (float) setting('markup_cable', 0);
-        $totalNaira      = $baseAmountNaira + $markupNaira;
+        $sellingAmountNaira = $baseAmountNaira;
+        $priceOverrideApplied = false;
+        $providerServiceId = $this->providerServiceId((string) $request->service_id);
 
-        $totalKobo  = $this->toKobo($totalNaira);
+        if (in_array($provider, ['gsubz', 'alt'], true)) {
+            $pricing = $this->resolvePlanPricing((string) $request->service_id, (string) $request->plan);
+            if ($pricing === null) {
+                return $this->respondResult(
+                    request: $request,
+                    routeName: 'vtu.cable',
+                    ok: false,
+                    message: 'Selected cable plan is not available right now. Please reload the plan list and try again.',
+                    extra: $this->walletPayload($wallet),
+                    status: 422
+                );
+            }
+
+            $baseAmountNaira = $pricing['provider_price'];
+            $sellingAmountNaira = $pricing['selling_price'];
+            $priceOverrideApplied = $pricing['custom'];
+        }
+
+        $totalKobo  = $this->toKobo($sellingAmountNaira);
         [$discountPercent, $discountKobo, $payableKobo] = $this->applyDiscount($totalKobo, $user);
-        $profitKobo = $this->toKobo($markupNaira);
+        $profitKobo = max(0, $this->toKobo($sellingAmountNaira - $baseAmountNaira));
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('CAB');
@@ -755,8 +776,11 @@ class VtuController extends Controller
                     'customerID'         => $request->customer_ref,
                     'phone'              => $defaultPhone,
                     'base_amount_naira'  => $baseAmountNaira,
-                    'markup_naira'       => $markupNaira,
-                    'total_amount_naira' => $totalNaira,
+                    'provider_amount_naira' => $baseAmountNaira,
+                    'selling_amount_naira' => $sellingAmountNaira,
+                    'markup_naira'       => max(0, $sellingAmountNaira - $baseAmountNaira),
+                    'total_amount_naira' => $sellingAmountNaira,
+                    'price_override_applied' => $priceOverrideApplied,
                     'discount_percent'   => $discountPercent,
                     'discount_kobo'      => $discountKobo,
                     'discount_naira'     => $discountKobo / 100,
@@ -766,7 +790,6 @@ class VtuController extends Controller
             ]);
 
             if (in_array($provider, ['gsubz', 'alt'], true)) {
-                $providerServiceId = $this->providerServiceId($request->service_id);
                 $payload = [
                     'serviceID'  => $providerServiceId,
                     'plan'       => $request->plan,
@@ -2436,171 +2459,27 @@ class VtuController extends Controller
 
         $providerServiceId = $this->providerServiceId($serviceId);
         $resp = $this->gsubz->plans($providerServiceId);
-        $plans = $this->applyDataPlanSellingPrices($resp['plans'] ?? [], $serviceId);
+        $provider = (string) setting('provider', 'gsubz');
+        $plans = $this->planPrices->customerPlans($resp['plans'] ?? [], $serviceId, $providerServiceId, $provider);
 
         return response()->json([
             'ok'      => (bool) ($resp['ok'] ?? false),
             'plans'   => $plans,
             'message' => $resp['message'] ?? null,
-            'raw'     => $resp['raw'] ?? null,
             'service' => $providerServiceId,
         ]);
     }
 
-    private function resolveDataPlanPricing(string $serviceSlug, string $planId): ?array
+    private function resolvePlanPricing(string $serviceSlug, string $planId): ?array
     {
+        $provider = (string) setting('provider', 'gsubz');
         $providerServiceId = $this->providerServiceId($serviceSlug);
         $resp = $this->gsubz->plans($providerServiceId);
         if (!($resp['ok'] ?? false) || !is_array($resp['plans'] ?? null)) {
             return null;
         }
 
-        foreach ($this->applyDataPlanSellingPrices($resp['plans'], $serviceSlug) as $plan) {
-            if ($this->dataPlanId($plan) !== $planId) {
-                continue;
-            }
-
-            $providerPrice = $this->dataPlanProviderPrice($plan);
-            $sellingPrice = $this->dataPlanSellingPrice($plan);
-
-            if ($providerPrice <= 0 || $sellingPrice <= 0) {
-                return null;
-            }
-
-            return [
-                'provider_price' => $providerPrice,
-                'selling_price' => $sellingPrice,
-                'override_applied' => (bool) ($plan['price_override_applied'] ?? false),
-            ];
-        }
-
-        return null;
-    }
-
-    private function applyDataPlanSellingPrices(array $plans, string $serviceSlug): array
-    {
-        $overrides = $this->dataPlanPriceOverrides();
-        $serviceKey = $this->normalizePricingKey($serviceSlug);
-
-        return array_map(function ($plan) use ($overrides, $serviceKey) {
-            if (!is_array($plan)) {
-                return $plan;
-            }
-
-            $planId = $this->dataPlanId($plan);
-            $providerPrice = $this->dataPlanProviderPrice($plan);
-            $sellingPrice = $providerPrice;
-            $overrideApplied = false;
-
-            $planKey = $this->normalizePricingKey($planId);
-            if ($serviceKey !== '' && $planKey !== '' && isset($overrides[$serviceKey][$planKey])) {
-                $overridePrice = $overrides[$serviceKey][$planKey];
-                if ($overridePrice > 0) {
-                    $sellingPrice = $overridePrice;
-                    $overrideApplied = true;
-                }
-            }
-
-            $plan['provider_price'] = $providerPrice;
-            $plan['selling_price'] = $sellingPrice;
-            $plan['price'] = $sellingPrice;
-            $plan['price_override_applied'] = $overrideApplied;
-
-            return $plan;
-        }, $plans);
-    }
-
-    private function dataPlanPriceOverrides(): array
-    {
-        $raw = trim((string) setting('data_plan_price_overrides', ''));
-        if ($raw === '') {
-            return [];
-        }
-
-        $lines = preg_split('/\r\n|\r|\n/', $raw) ?: [];
-        $overrides = [];
-
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if ($line === '' || str_starts_with($line, '#')) {
-                continue;
-            }
-
-            $parts = preg_split('/\s*\|\s*/', $line, 3) ?: [];
-            if (count($parts) < 3) {
-                continue;
-            }
-
-            $service = $this->normalizePricingKey($parts[0] ?? '');
-            $plan = $this->normalizePricingKey($parts[1] ?? '');
-            $price = $this->parseMoneyAmount($parts[2] ?? '');
-
-            if ($service === '' || $plan === '' || $price === null || $price <= 0) {
-                continue;
-            }
-
-            $overrides[$service][$plan] = $price;
-        }
-
-        return $overrides;
-    }
-
-    private function dataPlanId(array $plan): string
-    {
-        foreach (['plan_id', 'planID', 'planId', 'value', 'code', 'id', 'plan'] as $key) {
-            if (array_key_exists($key, $plan) && trim((string) $plan[$key]) !== '') {
-                return trim((string) $plan[$key]);
-            }
-        }
-
-        return '';
-    }
-
-    private function dataPlanProviderPrice(array $plan): float
-    {
-        foreach (['provider_price', 'original_price', 'amount', 'plan_amount', 'planAmount', 'cost'] as $key) {
-            if (array_key_exists($key, $plan)) {
-                $amount = $this->parseMoneyAmount($plan[$key]);
-                if ($amount !== null) {
-                    return $amount;
-                }
-            }
-        }
-
-        return $this->parseMoneyAmount($plan['price'] ?? 0) ?? 0.0;
-    }
-
-    private function dataPlanSellingPrice(array $plan): float
-    {
-        foreach (['selling_price', 'price'] as $key) {
-            if (array_key_exists($key, $plan)) {
-                $amount = $this->parseMoneyAmount($plan[$key]);
-                if ($amount !== null) {
-                    return $amount;
-                }
-            }
-        }
-
-        return 0.0;
-    }
-
-    private function parseMoneyAmount(mixed $value): ?float
-    {
-        if (is_int($value) || is_float($value)) {
-            return (float) $value;
-        }
-
-        $cleaned = preg_replace('/[^\d.\-]/', '', str_replace(',', '', (string) $value));
-        if ($cleaned === null || $cleaned === '' || !is_numeric($cleaned)) {
-            return null;
-        }
-
-        return (float) $cleaned;
-    }
-
-    private function normalizePricingKey(mixed $value): string
-    {
-        return strtolower(trim((string) $value));
+        return $this->planPrices->pricingForPlan($serviceSlug, $planId, $resp['plans'], $providerServiceId, $provider);
     }
 
     private function resolveBuyAgainUrl(Order $order): string

@@ -413,103 +413,80 @@
 
             {{-- Data Plan Pricing --}}
             <div id="group-data-pricing" class="scroll-mt-44">
-                <div class="text-lg font-extrabold">Data Plan Selling Prices</div>
-                <div class="text-xs text-white/50 mt-1">
-                    Set only the plans you want to change. Plans left blank will display the exact GSUBZ price.
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <div class="text-lg font-extrabold">Website Selling Prices</div>
+                        <div class="text-xs text-white/50 mt-1">
+                            GSUBZ prices are stored as hidden provider costs. Customers only see the website selling price.
+                        </div>
+                    </div>
+                    <button type="submit"
+                            form="syncProviderPricesForm"
+                            class="rounded-xl border border-white/10 px-4 py-2.5 text-xs font-bold text-white/80 hover:bg-white/10">
+                        Sync Latest GSUBZ Prices
+                    </button>
                 </div>
 
-                @php
-                    $rawDataPlanOverrides = old('data_plan_price_overrides', $settings['data_plan_price_overrides'] ?? '');
-                    $dataPlanOverrideRows = [];
-                    foreach (preg_split('/\r\n|\r|\n/', trim((string) $rawDataPlanOverrides)) ?: [] as $line) {
-                        $line = trim($line);
-                        if ($line === '' || str_starts_with($line, '#')) {
-                            continue;
-                        }
-
-                        $parts = preg_split('/\s*\|\s*/', $line, 3);
-                        if (count($parts) < 3) {
-                            continue;
-                        }
-
-                        $service = strtolower(trim($parts[0] ?? ''));
-                        $plan = trim($parts[1] ?? '');
-                        $price = trim($parts[2] ?? '');
-
-                        if ($service === '' || $plan === '' || $price === '') {
-                            continue;
-                        }
-
-                        $dataPlanOverrideRows[$service][] = [
-                            'plan' => $plan,
-                            'price' => $price,
-                        ];
-                    }
-                @endphp
-
-                <textarea id="dataPlanPriceOverrides" name="data_plan_price_overrides" class="hidden">{{ $rawDataPlanOverrides }}</textarea>
-
-                <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-3" id="dataPricingCards">
-                    @foreach($dataServiceGroups as $networkLabel => $networkServices)
-                        @foreach($networkServices as $slug => $meta)
-                            @php
-                                $rows = $dataPlanOverrideRows[strtolower($slug)] ?? [];
-                                if (empty($rows)) {
-                                    $rows = [['plan' => '', 'price' => '']];
-                                }
-                            @endphp
-                            <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4 data-pricing-card" data-service="{{ $slug }}">
-                                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                    <div>
-                                        <div class="font-bold text-white/90">{{ $meta['label'] }}</div>
-                                        <div class="text-xs text-white/50 mt-1">{{ $slug }}</div>
-                                    </div>
-                                    <button type="button"
-                                            class="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-white/80 hover:bg-white/10"
-                                            data-add-price-row>
-                                        Add Plan
-                                    </button>
-                                </div>
-
-                                <div class="mt-4 space-y-3" data-price-rows>
-                                    @foreach($rows as $row)
-                                        <div class="grid gap-2 sm:grid-cols-[1fr_140px_42px] data-price-row">
+                <div class="mt-4 space-y-5">
+                    @foreach(($pricingServiceGroups ?? []) as $groupLabel => $services)
+                        <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                            <div class="font-extrabold text-white/90">{{ $groupLabel }}</div>
+                            <div class="mt-4 grid grid-cols-1 gap-4">
+                                @foreach($services as $slug => $label)
+                                    @php($rows = ($providerPlanPrices[$slug] ?? collect()))
+                                    <div class="rounded-2xl border border-white/10 bg-black/10 p-4">
+                                        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                                             <div>
-                                                <label class="text-[11px] font-bold uppercase tracking-wide text-white/45">Plan ID</label>
-                                                <input type="text"
-                                                       value="{{ $row['plan'] }}"
-                                                       placeholder="Example: 452"
-                                                       class="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white placeholder:text-white/30"
-                                                       data-plan-id>
+                                                <div class="font-bold text-white/85">{{ $label }}</div>
+                                                <div class="text-xs text-white/45">{{ $slug }}</div>
                                             </div>
-                                            <div>
-                                                <label class="text-[11px] font-bold uppercase tracking-wide text-white/45">Selling Price</label>
-                                                <input type="number"
-                                                       min="0"
-                                                       step="0.01"
-                                                       value="{{ $row['price'] }}"
-                                                       placeholder="250"
-                                                       class="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white placeholder:text-white/30"
-                                                       data-selling-price>
-                                            </div>
-                                            <div class="flex items-end">
-                                                <button type="button"
-                                                        class="flex h-[42px] w-[42px] items-center justify-center rounded-xl border border-white/10 text-white/70 hover:bg-white/10"
-                                                        aria-label="Remove plan price"
-                                                        data-remove-price-row>
-                                                    X
-                                                </button>
-                                            </div>
+                                            <div class="text-xs text-white/45">{{ $rows->count() }} plan{{ $rows->count() === 1 ? '' : 's' }}</div>
                                         </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endforeach
-                    @endforeach
-                </div>
 
-                <div class="text-xs text-white/50 mt-3">
-                    Customers see and pay these selling prices. Provider purchases still use the original GSUBZ prices.
+                                        @if($rows->isEmpty())
+                                            <div class="mt-3 rounded-xl border border-dashed border-white/10 px-4 py-3 text-sm text-white/55">
+                                                No GSUBZ plans stored yet. Click sync above, or open this service on the customer page once.
+                                            </div>
+                                        @else
+                                            <div class="mt-3 overflow-x-auto">
+                                                <table class="min-w-[720px] w-full text-sm">
+                                                    <thead class="text-left text-[11px] uppercase tracking-wide text-white/45">
+                                                    <tr>
+                                                        <th class="py-2 pr-3">Plan</th>
+                                                        <th class="py-2 px-3">Plan ID</th>
+                                                        <th class="py-2 px-3">GSUBZ Price</th>
+                                                        <th class="py-2 px-3">Website Price</th>
+                                                        <th class="py-2 pl-3">Synced</th>
+                                                    </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                    @foreach($rows as $priceRow)
+                                                        <tr class="border-t border-white/10">
+                                                            <td class="py-3 pr-3 text-white/80">{{ $priceRow->plan_name ?: $priceRow->plan_id }}</td>
+                                                            <td class="py-3 px-3 font-mono text-xs text-white/60">{{ $priceRow->plan_id }}</td>
+                                                            <td class="py-3 px-3 text-white/70">&#8358;{{ number_format((float) $priceRow->provider_price, 2) }}</td>
+                                                            <td class="py-3 px-3">
+                                                                <input type="number"
+                                                                       min="0"
+                                                                       step="0.01"
+                                                                       name="provider_plan_prices[{{ $priceRow->id }}][selling_price]"
+                                                                       value="{{ old('provider_plan_prices.'.$priceRow->id.'.selling_price', number_format((float) $priceRow->selling_price, 2, '.', '')) }}"
+                                                                       class="w-36 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white">
+                                                            </td>
+                                                            <td class="py-3 pl-3 text-xs text-white/50">
+                                                                {{ $priceRow->last_synced_at?->diffForHumans() ?? 'Not synced' }}
+                                                            </td>
+                                                        </tr>
+                                                    @endforeach
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
             </div>
 
@@ -1228,6 +1205,10 @@
             </div>
         </form>
 
+        <form id="syncProviderPricesForm" method="POST" action="{{ route('admin.settings.provider-prices.sync') }}" class="hidden">
+            @csrf
+        </form>
+
     </div>
 
     <div class="page-save-overlay">
@@ -1273,103 +1254,6 @@
             }
             if (faviconInput) {
                 faviconInput.addEventListener('change', () => updatePreview(faviconInput, faviconPreview, faviconPlaceholder));
-            }
-
-            const pricingTextarea = document.getElementById('dataPlanPriceOverrides');
-            const pricingCards = document.getElementById('dataPricingCards');
-            const settingsForm = document.getElementById('adminSettingsForm');
-
-            function createPricingRow(plan = '', price = '') {
-                const row = document.createElement('div');
-                row.className = 'grid gap-2 sm:grid-cols-[1fr_140px_42px] data-price-row';
-                row.innerHTML = `
-                    <div>
-                        <label class="text-[11px] font-bold uppercase tracking-wide text-white/45">Plan ID</label>
-                        <input type="text"
-                               value=""
-                               placeholder="Example: 452"
-                               class="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white placeholder:text-white/30"
-                               data-plan-id>
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-bold uppercase tracking-wide text-white/45">Selling Price</label>
-                        <input type="number"
-                               min="0"
-                               step="0.01"
-                               value=""
-                               placeholder="250"
-                               class="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white placeholder:text-white/30"
-                               data-selling-price>
-                    </div>
-                    <div class="flex items-end">
-                        <button type="button"
-                                class="flex h-[42px] w-[42px] items-center justify-center rounded-xl border border-white/10 text-white/70 hover:bg-white/10"
-                                aria-label="Remove plan price"
-                                data-remove-price-row>
-                            X
-                        </button>
-                    </div>
-                `;
-                row.querySelector('[data-plan-id]').value = plan;
-                row.querySelector('[data-selling-price]').value = price;
-                return row;
-            }
-
-            function syncPricingTextarea() {
-                if (!pricingTextarea || !pricingCards) return;
-
-                const lines = [];
-                pricingCards.querySelectorAll('.data-pricing-card').forEach(card => {
-                    const service = (card.dataset.service || '').trim();
-                    if (!service) return;
-
-                    card.querySelectorAll('.data-price-row').forEach(row => {
-                        const plan = (row.querySelector('[data-plan-id]')?.value || '').trim();
-                        const price = (row.querySelector('[data-selling-price]')?.value || '').trim();
-
-                        if (plan && price) {
-                            lines.push(`${service}|${plan}|${price}`);
-                        }
-                    });
-                });
-
-                pricingTextarea.value = lines.join('\n');
-            }
-
-            if (pricingCards) {
-                pricingCards.addEventListener('click', event => {
-                    const addButton = event.target.closest('[data-add-price-row]');
-                    const removeButton = event.target.closest('[data-remove-price-row]');
-
-                    if (addButton) {
-                        const card = addButton.closest('.data-pricing-card');
-                        const rows = card?.querySelector('[data-price-rows]');
-                        if (rows) {
-                            rows.appendChild(createPricingRow());
-                            syncPricingTextarea();
-                        }
-                        return;
-                    }
-
-                    if (removeButton) {
-                        const rows = removeButton.closest('[data-price-rows]');
-                        removeButton.closest('.data-price-row')?.remove();
-                        if (rows && rows.querySelectorAll('.data-price-row').length === 0) {
-                            rows.appendChild(createPricingRow());
-                        }
-                        syncPricingTextarea();
-                    }
-                });
-
-                pricingCards.addEventListener('input', event => {
-                    if (event.target.matches('[data-plan-id], [data-selling-price]')) {
-                        syncPricingTextarea();
-                    }
-                });
-            }
-
-            if (settingsForm) {
-                settingsForm.addEventListener('submit', syncPricingTextarea);
             }
 
         })();
