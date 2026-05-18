@@ -36,7 +36,6 @@
                             <a href="#group-wallet" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Wallet</a>
                             <a href="#group-referral" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Referral</a>
                             <a href="#group-provider" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Provider</a>
-                            <a href="#group-service-map" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Service IDs</a>
                             <a href="#group-markup" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Markup</a>
                             <a href="#group-recharge-card" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Recharge Cards</a>
                             <a href="#group-exam-prices" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Exam Prices</a>
@@ -416,19 +415,101 @@
             <div id="group-data-pricing" class="scroll-mt-44">
                 <div class="text-lg font-extrabold">Data Plan Selling Prices</div>
                 <div class="text-xs text-white/50 mt-1">
-                    Format: <code>service_id|plan_id|selling_price</code>. Leave a plan out to display the exact GSUBZ price.
+                    Set only the plans you want to change. Plans left blank will display the exact GSUBZ price.
                 </div>
 
-                <div class="grid grid-cols-1 gap-4 mt-3">
-                    <div>
-                        <label class="text-sm font-bold text-white/80">Plan Price Overrides</label>
-                        <textarea name="data_plan_price_overrides" rows="8"
-                                  class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white"
-                                  placeholder="mtn_awoof|452|250&#10;mtn_awoof|453|600&#10;mtn_sme|PLAN_CODE|1200">{{ old('data_plan_price_overrides', $settings['data_plan_price_overrides'] ?? '') }}</textarea>
-                        <div class="text-xs text-white/50 mt-1">
-                            Customers see and pay the selling price. Provider purchases still use the original GSUBZ price.
-                        </div>
-                    </div>
+                @php
+                    $rawDataPlanOverrides = old('data_plan_price_overrides', $settings['data_plan_price_overrides'] ?? '');
+                    $dataPlanOverrideRows = [];
+                    foreach (preg_split('/\r\n|\r|\n/', trim((string) $rawDataPlanOverrides)) ?: [] as $line) {
+                        $line = trim($line);
+                        if ($line === '' || str_starts_with($line, '#')) {
+                            continue;
+                        }
+
+                        $parts = preg_split('/\s*\|\s*/', $line, 3);
+                        if (count($parts) < 3) {
+                            continue;
+                        }
+
+                        $service = strtolower(trim($parts[0] ?? ''));
+                        $plan = trim($parts[1] ?? '');
+                        $price = trim($parts[2] ?? '');
+
+                        if ($service === '' || $plan === '' || $price === '') {
+                            continue;
+                        }
+
+                        $dataPlanOverrideRows[$service][] = [
+                            'plan' => $plan,
+                            'price' => $price,
+                        ];
+                    }
+                @endphp
+
+                <textarea id="dataPlanPriceOverrides" name="data_plan_price_overrides" class="hidden">{{ $rawDataPlanOverrides }}</textarea>
+
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-3" id="dataPricingCards">
+                    @foreach($dataServiceGroups as $networkLabel => $networkServices)
+                        @foreach($networkServices as $slug => $meta)
+                            @php
+                                $rows = $dataPlanOverrideRows[strtolower($slug)] ?? [];
+                                if (empty($rows)) {
+                                    $rows = [['plan' => '', 'price' => '']];
+                                }
+                            @endphp
+                            <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4 data-pricing-card" data-service="{{ $slug }}">
+                                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                    <div>
+                                        <div class="font-bold text-white/90">{{ $meta['label'] }}</div>
+                                        <div class="text-xs text-white/50 mt-1">{{ $slug }}</div>
+                                    </div>
+                                    <button type="button"
+                                            class="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-white/80 hover:bg-white/10"
+                                            data-add-price-row>
+                                        Add Plan
+                                    </button>
+                                </div>
+
+                                <div class="mt-4 space-y-3" data-price-rows>
+                                    @foreach($rows as $row)
+                                        <div class="grid gap-2 sm:grid-cols-[1fr_140px_42px] data-price-row">
+                                            <div>
+                                                <label class="text-[11px] font-bold uppercase tracking-wide text-white/45">Plan ID</label>
+                                                <input type="text"
+                                                       value="{{ $row['plan'] }}"
+                                                       placeholder="Example: 452"
+                                                       class="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white placeholder:text-white/30"
+                                                       data-plan-id>
+                                            </div>
+                                            <div>
+                                                <label class="text-[11px] font-bold uppercase tracking-wide text-white/45">Selling Price</label>
+                                                <input type="number"
+                                                       min="0"
+                                                       step="0.01"
+                                                       value="{{ $row['price'] }}"
+                                                       placeholder="250"
+                                                       class="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white placeholder:text-white/30"
+                                                       data-selling-price>
+                                            </div>
+                                            <div class="flex items-end">
+                                                <button type="button"
+                                                        class="flex h-[42px] w-[42px] items-center justify-center rounded-xl border border-white/10 text-white/70 hover:bg-white/10"
+                                                        aria-label="Remove plan price"
+                                                        data-remove-price-row>
+                                                    X
+                                                </button>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endforeach
+                    @endforeach
+                </div>
+
+                <div class="text-xs text-white/50 mt-3">
+                    Customers see and pay these selling prices. Provider purchases still use the original GSUBZ prices.
                 </div>
             </div>
 
@@ -630,7 +711,7 @@
             </div>
 
             {{-- Service ID Overrides --}}
-            <div id="group-service-map" class="scroll-mt-44">
+            <div id="group-service-map" class="hidden scroll-mt-44" aria-hidden="true">
                 <div class="text-lg font-extrabold">Service ID Overrides</div>
                 <div class="text-xs text-white/50 mt-1">Leave blank to use the default service ID in code. These fields are provider service IDs, not plan prices.</div>
 
@@ -1192,6 +1273,103 @@
             }
             if (faviconInput) {
                 faviconInput.addEventListener('change', () => updatePreview(faviconInput, faviconPreview, faviconPlaceholder));
+            }
+
+            const pricingTextarea = document.getElementById('dataPlanPriceOverrides');
+            const pricingCards = document.getElementById('dataPricingCards');
+            const settingsForm = document.getElementById('adminSettingsForm');
+
+            function createPricingRow(plan = '', price = '') {
+                const row = document.createElement('div');
+                row.className = 'grid gap-2 sm:grid-cols-[1fr_140px_42px] data-price-row';
+                row.innerHTML = `
+                    <div>
+                        <label class="text-[11px] font-bold uppercase tracking-wide text-white/45">Plan ID</label>
+                        <input type="text"
+                               value=""
+                               placeholder="Example: 452"
+                               class="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white placeholder:text-white/30"
+                               data-plan-id>
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-bold uppercase tracking-wide text-white/45">Selling Price</label>
+                        <input type="number"
+                               min="0"
+                               step="0.01"
+                               value=""
+                               placeholder="250"
+                               class="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white placeholder:text-white/30"
+                               data-selling-price>
+                    </div>
+                    <div class="flex items-end">
+                        <button type="button"
+                                class="flex h-[42px] w-[42px] items-center justify-center rounded-xl border border-white/10 text-white/70 hover:bg-white/10"
+                                aria-label="Remove plan price"
+                                data-remove-price-row>
+                            X
+                        </button>
+                    </div>
+                `;
+                row.querySelector('[data-plan-id]').value = plan;
+                row.querySelector('[data-selling-price]').value = price;
+                return row;
+            }
+
+            function syncPricingTextarea() {
+                if (!pricingTextarea || !pricingCards) return;
+
+                const lines = [];
+                pricingCards.querySelectorAll('.data-pricing-card').forEach(card => {
+                    const service = (card.dataset.service || '').trim();
+                    if (!service) return;
+
+                    card.querySelectorAll('.data-price-row').forEach(row => {
+                        const plan = (row.querySelector('[data-plan-id]')?.value || '').trim();
+                        const price = (row.querySelector('[data-selling-price]')?.value || '').trim();
+
+                        if (plan && price) {
+                            lines.push(`${service}|${plan}|${price}`);
+                        }
+                    });
+                });
+
+                pricingTextarea.value = lines.join('\n');
+            }
+
+            if (pricingCards) {
+                pricingCards.addEventListener('click', event => {
+                    const addButton = event.target.closest('[data-add-price-row]');
+                    const removeButton = event.target.closest('[data-remove-price-row]');
+
+                    if (addButton) {
+                        const card = addButton.closest('.data-pricing-card');
+                        const rows = card?.querySelector('[data-price-rows]');
+                        if (rows) {
+                            rows.appendChild(createPricingRow());
+                            syncPricingTextarea();
+                        }
+                        return;
+                    }
+
+                    if (removeButton) {
+                        const rows = removeButton.closest('[data-price-rows]');
+                        removeButton.closest('.data-price-row')?.remove();
+                        if (rows && rows.querySelectorAll('.data-price-row').length === 0) {
+                            rows.appendChild(createPricingRow());
+                        }
+                        syncPricingTextarea();
+                    }
+                });
+
+                pricingCards.addEventListener('input', event => {
+                    if (event.target.matches('[data-plan-id], [data-selling-price]')) {
+                        syncPricingTextarea();
+                    }
+                });
+            }
+
+            if (settingsForm) {
+                settingsForm.addEventListener('submit', syncPricingTextarea);
             }
 
         })();
