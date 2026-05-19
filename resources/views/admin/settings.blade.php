@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="admin-light-page mx-auto max-w-5xl space-y-5">
+    <div class="admin-light-page admin-settings-page mx-auto max-w-5xl space-y-5">
 
         <div class="rounded-3xl p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow">
             <h2 class="text-2xl font-extrabold">Admin Settings</h2>
@@ -20,7 +20,7 @@
         @endif
 
         <form id="adminSettingsForm" method="POST" action="{{ route('admin.settings.update') }}" enctype="multipart/form-data"
-              class="rounded-3xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 p-6 pb-36 space-y-6">
+              class="rounded-3xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 p-6 pb-40 space-y-6">
             @csrf
 
             <div class="space-y-8">
@@ -1221,14 +1221,14 @@
 
     </div>
 
-    <div class="page-save-overlay">
+    <div class="page-save-overlay" role="region" aria-label="Save admin settings">
         <div class="page-save-overlay-card">
             <div class="page-save-overlay-copy">
-                Save your admin setting changes.
+                Save your admin setting changes anytime.
             </div>
             <button type="submit"
                     form="adminSettingsForm"
-                    class="btn-primary">
+                    class="btn-primary page-save-overlay-button">
                 Save Settings
             </button>
         </div>
@@ -1239,7 +1239,7 @@
             position: fixed;
             right: 1.25rem;
             bottom: 1.25rem;
-            z-index: 80;
+            z-index: 9999;
             width: min(360px, calc(100vw - 2rem));
             pointer-events: none;
         }
@@ -1268,6 +1268,7 @@
             min-width: 138px;
             border-radius: 14px;
             padding-block: 0.78rem;
+            box-shadow: 0 16px 32px rgba(28, 79, 161, 0.28);
         }
 
         @media (max-width: 640px) {
@@ -1291,6 +1292,11 @@
 
     <script>
         (function () {
+            const saveOverlay = document.querySelector('.page-save-overlay');
+            if (saveOverlay && saveOverlay.parentElement !== document.body) {
+                document.body.appendChild(saveOverlay);
+            }
+
             const logoInput = document.getElementById('logoInput');
             const faviconInput = document.getElementById('faviconInput');
             const logoPreview = document.getElementById('logoPreview');

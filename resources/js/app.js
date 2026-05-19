@@ -26,6 +26,7 @@ document.body.classList.add('page-is-entering');
         '#transactionResultOverlay',
         '#transactionContinueOverlay',
         '#maintenanceOverlay',
+        '.page-save-overlay',
         '[id$="_overlay"]',
         '[id$="Overlay"]',
     ].join(',');
