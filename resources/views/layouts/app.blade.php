@@ -24,7 +24,16 @@
 
         $drawerSections = [
             [
-                'title' => 'Top Up & Bills',
+                'title' => 'Main',
+                'items' => [
+                    ['label' => 'NIN Verification Services', 'route' => 'vtu.nin'],
+                    ['label' => 'BVN Services / BVN Printout', 'route' => 'vtu.bvn'],
+                    ['label' => 'NIN Validation', 'route' => 'vtu.nin-validation'],
+                    ['label' => 'All Identity Services', 'route' => 'identity.index'],
+                ],
+            ],
+            [
+                'title' => 'Additional Services',
                 'items' => [
                     ['label' => 'Buy Data', 'route' => 'vtu.data'],
                     ['label' => 'Buy Airtime', 'route' => 'vtu.airtime'],
@@ -33,13 +42,10 @@
                     ['label' => 'Education', 'route' => 'vtu.exam'],
                     ['label' => 'Recharge PIN', 'route' => 'vtu.recharge-card'],
                     ['label' => 'Premium Apps', 'route' => 'vtu.premium-apps'],
-                    ['label' => 'NIN Services', 'route' => 'vtu.nin'],
-                    ['label' => 'BVN Services', 'route' => 'vtu.bvn'],
-                    ['label' => 'NIN Validation', 'route' => 'vtu.nin-validation'],
                 ],
             ],
             [
-                'title' => 'Finance',
+                'title' => 'Wallet & Activity',
                 'items' => [
                     ['label' => 'Fund Wallet', 'route' => 'wallet.fund'],
                     ['label' => 'Transactions', 'route' => 'wallet.transactions'],
@@ -74,24 +80,24 @@
     <x-global-loader />
 
     <div x-data="{ drawerOpen: false, profileMenuOpen: false }" class="min-h-screen">
-        <aside class="app-sidebar-surface desktop-sidebar-scroll hidden fixed left-0 top-[84px] z-30 h-[calc(100vh-84px)] w-[300px] overflow-y-auto overscroll-contain border-r p-4 pb-8 shadow-[0_22px_55px_rgba(18,31,56,0.08)] md:block">
-            <div class="app-section-muted p-4">
-                <div class="text-xs font-semibold text-slate-500">Good {{ now()->hour < 12 ? 'morning' : (now()->hour < 18 ? 'afternoon' : 'evening') }}</div>
-                <div class="mt-1 text-2xl font-extrabold text-slate-900">{{ $authUser?->name ?? 'User' }}</div>
+        <aside class="reference-sidebar desktop-sidebar-scroll hidden fixed left-0 top-[64px] z-30 h-[calc(100vh-64px)] w-[246px] overflow-y-auto overscroll-contain md:block">
+            <div class="reference-profile">
+                <div class="reference-avatar" aria-hidden="true">◯</div>
+                <div class="font-semibold">{{ $authUser?->name ?? 'User' }}</div>
+                <span class="text-xs opacity-75">User</span>
             </div>
 
-            <div class="mt-4 space-y-3">
-                <a href="{{ route('dashboard') }}" class="nav-item {{ $isRoute('dashboard') ? 'nav-item-active' : '' }}">Home</a>
+            <div class="reference-nav">
+                <a href="{{ route('dashboard') }}" class="reference-nav-link {{ $isRoute('dashboard') ? 'reference-nav-active' : '' }}">Dashboard</a>
 
                 @foreach($drawerSections as $section)
-                    <div class="app-glass-card rounded-[22px] p-2">
-                        <div class="px-3 py-3 text-sm font-extrabold text-slate-800">{{ $section['title'] }}</div>
-                        <div class="space-y-1">
+                    <div>
+                        <div class="reference-nav-heading">{{ $section['title'] }}</div>
+                        <div>
                             @foreach($section['items'] as $item)
                                 <a href="{{ route($item['route']) }}"
-                                   class="flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50/70">
+                                   class="reference-nav-link {{ $isRoute($item['route']) ? 'reference-nav-active' : '' }}">
                                     <span>{{ $item['label'] }}</span>
-                                    <span class="text-slate-400">&rsaquo;</span>
                                 </a>
                             @endforeach
                         </div>
@@ -109,11 +115,11 @@
             </div>
         </aside>
 
-        <header class="app-header-bar fixed inset-x-0 top-0 z-40">
-            <div class="flex w-full items-center justify-between gap-4 px-4 py-4 sm:px-6 md:px-8 md:py-5">
+        <header class="reference-header fixed inset-x-0 top-0 z-40">
+            <div class="flex w-full items-center justify-between gap-4 px-4 py-3 sm:px-6 md:px-8">
                 <div class="flex items-center gap-3">
                     <button type="button"
-                            class="flex h-10 w-10 items-center justify-center rounded-2xl text-white md:hidden"
+                            class="flex h-10 w-10 items-center justify-center text-white md:hidden"
                             @click="drawerOpen = true"
                             aria-label="Open menu">
                         <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
@@ -128,22 +134,10 @@
                     </a>
                 </div>
 
-                <nav class="hidden items-center justify-end gap-8 md:flex">
-                    <a href="{{ route('home') }}" class="app-topbar-link">About Us</a>
-                    <a href="{{ route('profile.edit') }}" class="app-topbar-link">Account</a>
-                    <a href="{{ $whatsApp }}" target="_blank" rel="noopener" class="app-topbar-link">Support</a>
-                </nav>
+                <a href="{{ route('download.app') }}" class="reference-install hidden sm:inline-flex">Install App</a>
 
                 <div class="flex items-center gap-2 md:hidden">
-                    <button type="button"
-                            class="mobile-topbar-icon"
-                            onclick="window.location.reload()"
-                            aria-label="Refresh page">
-                        <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 11a8 8 0 1 1-2.34-5.66"></path>
-                            <path d="M20 4v7h-7"></path>
-                        </svg>
-                    </button>
+                    <a href="{{ route('download.app') }}" class="reference-install">Install App</a>
                     <button type="button"
                             class="mobile-topbar-icon"
                             @click="profileMenuOpen = !profileMenuOpen"
@@ -176,11 +170,10 @@
 
         <aside x-show="drawerOpen"
                x-transition
-               class="app-sidebar-surface fixed left-0 top-[84px] z-[60] h-[calc(100vh-84px)] w-[86%] max-w-sm overflow-y-auto rounded-r-[30px] border-r p-4 shadow-[0_22px_55px_rgba(18,31,56,0.18)] md:w-[360px] md:max-w-[360px]">
-            <div class="mb-4 flex items-center justify-end md:justify-between">
-                <div class="hidden text-sm font-semibold text-slate-500 md:block">Navigation</div>
+               class="reference-sidebar fixed left-0 top-[64px] z-[60] h-[calc(100vh-64px)] w-[80%] max-w-[310px] overflow-y-auto md:hidden">
+            <div class="flex items-center justify-end p-2">
                 <button type="button"
-                        class="app-glass-card flex h-10 w-10 items-center justify-center rounded-2xl text-slate-600"
+                        class="flex h-10 w-10 items-center justify-center text-white"
                         @click="drawerOpen = false"
                         aria-label="Close navigation">
                     <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
@@ -190,23 +183,23 @@
                 </button>
             </div>
 
-            <div class="app-section-muted p-4">
-                <div class="text-xs font-semibold text-slate-500">Good {{ now()->hour < 12 ? 'morning' : (now()->hour < 18 ? 'afternoon' : 'evening') }}</div>
-                <div class="mt-1 text-2xl font-extrabold text-slate-900">{{ $authUser?->name ?? 'User' }}</div>
+            <div class="reference-profile">
+                <div class="reference-avatar" aria-hidden="true">◯</div>
+                <div class="font-semibold">{{ $authUser?->name ?? 'User' }}</div>
+                <span class="text-xs opacity-75">User</span>
             </div>
 
-            <div class="mt-4 space-y-3">
-                <a href="{{ route('dashboard') }}" class="nav-item {{ $isRoute('dashboard') ? 'nav-item-active' : '' }}">Home</a>
+            <div class="reference-nav">
+                <a href="{{ route('dashboard') }}" class="reference-nav-link {{ $isRoute('dashboard') ? 'reference-nav-active' : '' }}">Dashboard</a>
 
                 @foreach($drawerSections as $section)
-                    <div class="app-glass-card rounded-[22px] p-2">
-                        <div class="px-3 py-3 text-sm font-extrabold text-slate-800">{{ $section['title'] }}</div>
-                        <div class="space-y-1">
+                    <div>
+                        <div class="reference-nav-heading">{{ $section['title'] }}</div>
+                        <div>
                             @foreach($section['items'] as $item)
                                 <a href="{{ route($item['route']) }}"
-                                   class="flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50/70">
+                                   class="reference-nav-link {{ $isRoute($item['route']) ? 'reference-nav-active' : '' }}">
                                     <span>{{ $item['label'] }}</span>
-                                    <span class="text-slate-400">&rsaquo;</span>
                                 </a>
                             @endforeach
                         </div>
@@ -224,7 +217,7 @@
             </div>
         </aside>
 
-        <main class="pt-[100px] pb-6 sm:pb-8 md:ml-[300px] md:pt-[108px]">
+        <main class="pt-[64px] pb-6 sm:pb-8 md:ml-[246px]">
             <div class="app-page">
                 <x-toast />
 
