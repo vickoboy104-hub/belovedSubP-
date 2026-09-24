@@ -28,6 +28,45 @@
     --app-shadow-card: 0 24px 54px rgba(14, 31, 40, 0.12);
 }
 
+/* Identity-first service hub. The responsive tiles keep actions comfortably tappable on phones. */
+.identity-nav-label { margin: 1rem .75rem .35rem; color: #f59e0b; font-size: .7rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.identity-hero, .identity-dashboard-banner { position: relative; overflow: hidden; border-radius: 1.75rem; background: linear-gradient(125deg,#102a61 0%,#173f8a 62%,#2663bc 100%); color: white; padding: clamp(1.5rem,5vw,3rem); box-shadow: 0 18px 42px rgba(16,42,97,.18); }
+.identity-hero::after, .identity-dashboard-banner::after { content: ''; position: absolute; width: 17rem; height: 17rem; border-radius: 50%; right: -5rem; top: -8rem; border: 3rem solid rgba(255,255,255,.07); pointer-events: none; }
+.identity-eyebrow { display: inline-block; color: #ffd39a; text-transform: uppercase; letter-spacing: .12em; font-weight: 800; font-size: .72rem; }
+.identity-hero h1, .identity-dashboard-banner h2 { max-width: 42rem; margin: 1rem 0 .8rem; font-size: clamp(1.8rem,4vw,3.25rem); line-height: 1.13; letter-spacing: -.04em; font-weight: 850; }
+.identity-hero p, .identity-dashboard-banner p { max-width: 38rem; color: #dbeafe; font-size: .98rem; line-height: 1.65; }
+.identity-hero-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.7rem; }
+.identity-button { display: inline-flex; align-items: center; justify-content: center; gap: .65rem; min-height: 3rem; padding: .7rem 1.2rem; border-radius: .85rem; font-size: .9rem; font-weight: 800; transition: transform .18s ease,box-shadow .18s ease,background .18s ease; }
+.identity-button:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(0,0,0,.16); }
+.identity-button:focus-visible,.identity-tile:focus-visible,.identity-other-links a:focus-visible { outline: 3px solid #fb923c; outline-offset: 3px; }
+.identity-button-white { background: white; color: #173f8a; }
+.identity-button-outline { border: 1px solid rgba(255,255,255,.6); color: white; }
+.identity-dashboard-banner { padding: 1.5rem; }
+.identity-dashboard-banner h2 { font-size: clamp(1.5rem,3vw,2.2rem); }
+.identity-dashboard-banner .identity-button { margin-top: 1.25rem; }
+.identity-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1.15rem; }
+.identity-section-heading h2,.identity-other h2 { margin-top: .35rem; color: #122a50; font-size: clamp(1.4rem,2.8vw,2rem); font-weight: 800; letter-spacing: -.03em; }
+.identity-count { flex-shrink: 0; color: #64748b; font-size: .78rem; font-weight: 700; }
+.identity-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1rem; }
+.identity-tile { display: flex; flex-direction: column; align-items: flex-start; min-height: 14rem; padding: 1.3rem; border-radius: 1.25rem; background: white; border: 1px solid #dce5f1; box-shadow: 0 4px 16px rgba(25,60,120,.04); transition: transform .2s ease,box-shadow .2s ease,border-color .2s ease; }
+a.identity-tile:hover { transform: translateY(-4px); border-color: #7da5ed; box-shadow: 0 16px 32px rgba(23,63,138,.12); }
+.identity-tile strong { color: #172b4d; font-size: 1rem; line-height: 1.35; margin-top: 1.15rem; }
+.identity-description { color: #64748b; font-size: .84rem; line-height: 1.55; margin-top: .4rem; }
+.identity-icon { display: inline-flex; justify-content: center; align-items: center; width: 2.8rem; height: 2.8rem; border-radius: .85rem; background: #e9f0ff; color: #173f8a; font-size: 1.4rem; font-weight: 900; }
+.identity-status { align-self: flex-end; margin-top: -2.4rem; font-size: .68rem; font-weight: 800; color: #64748b; background: #f1f5f9; padding: .35rem .55rem; border-radius: 99px; }
+.identity-status-ready { color: #1d4d9d; background: #e9f0ff; }
+.identity-tile-action { margin-top: auto; padding-top: 1rem; color: #d46a10; font-weight: 800; font-size: .82rem; }
+.identity-tile-pending { background: #f8fafc; }
+.identity-other { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,2fr); gap: 2rem; padding: 1.7rem; border-radius: 1.5rem; background: #eaf1ff; }
+.identity-other p { color: #526581; font-size: .9rem; margin-top: .5rem; }
+.identity-other-links { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .7rem; }
+.identity-other-links a { display: flex; justify-content: space-between; gap: .5rem; align-items: center; border-radius: .8rem; background: white; color: #173f8a; font-size: .85rem; font-weight: 750; padding: .85rem; min-height: 3.2rem; }
+.identity-other-links a:hover { color: #b95c0a; }
+@media (max-width: 800px) { .identity-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .identity-other { grid-template-columns: 1fr; gap: 1rem; } }
+@media (max-width: 540px) { .identity-grid { gap: .7rem; } .identity-tile { padding: 1rem; min-height: 14.5rem; } .identity-status { font-size: .61rem; } .identity-other-links { grid-template-columns: repeat(2,minmax(0,1fr)); } .identity-hero-actions .identity-button { width: 100%; } }
+@media (max-width: 370px) { .identity-grid { grid-template-columns: 1fr; } .identity-tile { min-height: 11rem; } }
+@media (prefers-reduced-motion: reduce) { .identity-button,.identity-tile { transition: none; } }
+
 html,
 body {
     max-width: 100%;

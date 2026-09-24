@@ -12,11 +12,18 @@
     <div class="space-y-8">
         <section>
             <h1 class="app-page-title">Dashboard</h1>
-            <p class="app-page-subtitle">Manage your wallet, launch services quickly and track recent activity from one place.</p>
+            <p class="app-page-subtitle">Your identity services, wallet and everyday payments in one place.</p>
         </section>
 
         <section class="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_420px]">
             <div class="space-y-6">
+                <div class="identity-dashboard-banner">
+                    <span class="identity-eyebrow">Identity services</span>
+                    <h2>What would you like to do today?</h2>
+                    <p>Verify NIN or BVN, submit a validation, and find all identity services in one place.</p>
+                    <a href="{{ route('identity.index') }}" class="identity-button identity-button-white">Explore identity services <span aria-hidden="true">→</span></a>
+                </div>
+
                 <div class="app-section p-6 sm:p-8">
                     <div class="flex flex-wrap items-start justify-between gap-4">
                         <div>
@@ -53,11 +60,27 @@
                     <div class="flex items-center justify-between gap-4">
                         <div>
                             <div class="app-kicker">Quick Access</div>
-                            <h2 class="mt-2 text-2xl font-extrabold text-slate-900">Service shortcuts</h2>
+                            <h2 class="mt-2 text-2xl font-extrabold text-slate-900">Quick access</h2>
                         </div>
                     </div>
 
                     <div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                        <a href="{{ route('identity.index') }}" class="app-mini-tile">
+                            <span class="app-mini-tile-icon">✦</span>
+                            <span class="app-mini-tile-label">All identity</span>
+                        </a>
+                        <a href="{{ route('vtu.nin') }}" class="app-mini-tile">
+                            <span class="app-mini-tile-icon">🪪</span>
+                            <span class="app-mini-tile-label">Verify NIN</span>
+                        </a>
+                        <a href="{{ route('vtu.bvn') }}" class="app-mini-tile">
+                            <span class="app-mini-tile-icon text-lg font-black">BVN</span>
+                            <span class="app-mini-tile-label">Verify BVN</span>
+                        </a>
+                        <a href="{{ route('vtu.nin-validation') }}" class="app-mini-tile">
+                            <span class="app-mini-tile-icon">✓</span>
+                            <span class="app-mini-tile-label">NIN validation</span>
+                        </a>
                         <a href="{{ route('vtu.data') }}" class="app-mini-tile">
                             <span class="app-mini-tile-icon">📶</span>
                             <span class="app-mini-tile-label">Data</span>
@@ -85,14 +108,6 @@
                         <a href="{{ route('vtu.premium-apps') }}" class="app-mini-tile">
                             <span class="app-mini-tile-icon">⭐</span>
                             <span class="app-mini-tile-label">Premium Apps</span>
-                        </a>
-                        <a href="{{ route('vtu.nin') }}" class="app-mini-tile">
-                            <span class="app-mini-tile-icon">🪪</span>
-                            <span class="app-mini-tile-label">NIN</span>
-                        </a>
-                        <a href="{{ route('vtu.bvn') }}" class="app-mini-tile">
-                            <span class="app-mini-tile-icon text-lg font-black">BVN</span>
-                            <span class="app-mini-tile-label">BVN</span>
                         </a>
                         <a href="{{ route('wallet.transactions') }}" class="app-mini-tile">
                             <span class="app-mini-tile-icon">🧾</span>

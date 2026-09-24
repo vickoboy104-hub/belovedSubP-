@@ -11,7 +11,7 @@
   "prefer_related_applications": false,
   "background_color": "#0b1220",
   "theme_color": "#0b1220",
-  "description": "Fast and reliable VTU services in Nigeria.",
+  "description": "Identity verification, wallet and everyday services in Nigeria.",
   "icons": [
     {
       "src": "/icons/pwa-192x192.png",
