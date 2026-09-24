@@ -28,6 +28,14 @@
                 'items' => [
                     ['label' => 'NIN Verification Services', 'route' => 'vtu.nin'],
                     ['label' => 'BVN Services / BVN Printout', 'route' => 'vtu.bvn'],
+                    ['label' => 'Fund Wallet', 'route' => 'wallet.fund'],
+                    ['label' => 'Transactions', 'route' => 'wallet.transactions'],
+                    ['label' => 'Profile', 'route' => 'profile.edit'],
+                ],
+            ],
+            [
+                'title' => 'Identity services',
+                'items' => [
                     ['label' => 'NIN Validation', 'route' => 'vtu.nin-validation'],
                     ['label' => 'All Identity Services', 'route' => 'identity.index'],
                 ],
@@ -47,8 +55,6 @@
             [
                 'title' => 'Wallet & Activity',
                 'items' => [
-                    ['label' => 'Fund Wallet', 'route' => 'wallet.fund'],
-                    ['label' => 'Transactions', 'route' => 'wallet.transactions'],
                     ['label' => 'Orders', 'route' => 'vtu.orders'],
                 ],
             ],
@@ -166,10 +172,17 @@
 
         </header>
 
-        <div x-show="drawerOpen" x-transition.opacity class="fixed inset-0 z-50 bg-black/45 md:hidden" @click="drawerOpen = false"></div>
+        <div x-show="drawerOpen" x-transition.opacity class="fixed inset-0 z-50 bg-black/55 md:hidden" @click="drawerOpen = false"></div>
 
         <aside x-show="drawerOpen"
-               x-transition
+               x-transition:enter="transition transform duration-200 ease-out"
+               x-transition:enter-start="-translate-x-full"
+               x-transition:enter-end="translate-x-0"
+               x-transition:leave="transition transform duration-200 ease-in"
+               x-transition:leave-start="translate-x-0"
+               x-transition:leave-end="-translate-x-full"
+               @keydown.escape.window="drawerOpen = false"
+               role="dialog" aria-label="Navigation" aria-modal="true"
                class="reference-sidebar fixed left-0 top-[64px] z-[60] h-[calc(100vh-64px)] w-[80%] max-w-[310px] overflow-y-auto md:hidden">
             <div class="flex items-center justify-end p-2">
                 <button type="button"
@@ -186,6 +199,7 @@
             <div class="reference-profile">
                 <div class="reference-avatar" aria-hidden="true">◯</div>
                 <div class="font-semibold">{{ $authUser?->name ?? 'User' }}</div>
+                <div class="text-xs opacity-75">{{ $authUser?->email }}</div>
                 <span class="text-xs opacity-75">User</span>
             </div>
 
@@ -252,6 +266,9 @@
                 {{ $slot }}
             </div>
         </main>
+
+        <a href="{{ $whatsApp }}" target="_blank" rel="noopener noreferrer"
+           class="reference-whatsapp" aria-label="Contact support on WhatsApp">WhatsApp</a>
 
     </div>
 

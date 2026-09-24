@@ -29,20 +29,20 @@
     <div class="reference-dashboard">
         <section class="reference-page-banner">
             <h1>Dashboard Overview</h1>
-            <p>Identity services and everyday payments in one place.</p>
+            <span class="reference-progress" aria-label="Account setup progress">{{ auth()->user()?->email_verified_at ? '100%' : '90%' }}</span>
         </section>
 
         <div class="reference-dashboard-body">
             <section class="reference-summary-grid" aria-label="Account summary">
                 <div class="reference-summary-card">
-                    <div class="reference-card-caption">Balance (₦)</div>
+                    <div class="reference-card-caption">Balance (₦) <span class="reference-wallet-icon" aria-hidden="true">▣</span></div>
                     <strong class="reference-money">₦{{ $balanceNaira }}</strong>
                     <a href="{{ route('wallet.fund') }}" class="reference-full-button">Fund Wallet</a>
                 </div>
                 <div class="reference-summary-card reference-summary-blue">
-                    <div class="reference-card-caption">Referral Wallet <span class="reference-soon">Coming Soon</span></div>
+                    <div class="reference-card-caption">Commission <span class="reference-soon">Coming Soon</span></div>
                     <strong class="reference-money">₦{{ $referralBalanceNaira }}</strong>
-                    <span class="reference-full-button reference-light-button" aria-disabled="true">Invite &amp; Earn</span>
+                    <span class="reference-full-button reference-light-button" aria-disabled="true">Invite &amp; Earn Commission</span>
                 </div>
             </section>
 
