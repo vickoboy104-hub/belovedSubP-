@@ -23,17 +23,6 @@
             </div>
         </section>
 
-        @if(session('success'))
-            <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 break-words">
-                {{ session('success') }}
-            </div>
-        @endif
-        @if(session('error'))
-            <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 break-words">
-                {{ session('error') }}
-            </div>
-        @endif
-
         <section class="app-section p-4 sm:p-6">
             <div class="space-y-4 md:hidden">
                 @forelse($users as $u)
@@ -99,6 +88,8 @@
                         </div>
 
                         <div class="mt-4 space-y-3">
+                            <a href="{{ route('admin.users.show', $u) }}" class="btn-outline w-full justify-center">View Details</a>
+
                             <form method="POST" action="{{ route('admin.users.discount', $u) }}" class="grid grid-cols-[1fr_auto] gap-2">
                                 @csrf
                                 <input type="number" min="0" max="100" step="0.01" name="discount_percent"
@@ -152,9 +143,8 @@
                             <th class="p-4 text-left">Contact</th>
                             <th class="p-4 text-left">Virtual Account</th>
                             <th class="p-4 text-left">Role</th>
-                            <th class="p-4 text-left">Discount %</th>
+                            <th class="p-4 text-left">Discount</th>
                             <th class="p-4 text-left">Last Login</th>
-                            <th class="p-4 text-left">Actions</th>
                         </tr>
                     </thead>
 
@@ -201,15 +191,9 @@
                                 </td>
 
                                 <td class="p-4">
-                                    <form method="POST" action="{{ route('admin.users.discount', $u) }}" class="flex items-center gap-2">
-                                        @csrf
-                                        <input type="number" min="0" max="100" step="0.01" name="discount_percent"
-                                               value="{{ old('discount_percent', $u->discount_percent ?? 0) }}"
-                                               class="w-24 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm">
-                                        <button class="px-3 py-2 rounded-xl bg-[#17233d] text-white text-xs font-bold">
-                                            Update
-                                        </button>
-                                    </form>
+                                    <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                                        {{ number_format((float) ($u->discount_percent ?? 0), 2) }}%
+                                    </span>
                                 </td>
 
                                 <td class="p-4 text-slate-600">
@@ -220,45 +204,64 @@
                                         <span class="text-slate-400">No login yet</span>
                                     @endif
                                 </td>
+                            </tr>
 
-                                <td class="p-4">
-                                    <div class="flex flex-col gap-2">
-                                        <form method="POST" action="{{ route('admin.users.admin', $u) }}">
-                                            @csrf
-                                            <input type="hidden" name="is_admin" value="{{ $u->is_admin ? '0' : '1' }}">
-                                            <button class="w-full px-3 py-2 rounded-xl {{ $u->is_admin ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700' }} text-white text-xs font-bold"
-                                                    @disabled($u->id === auth()->id())>
-                                                {{ $u->is_admin ? 'Remove Admin' : 'Make Admin' }}
-                                            </button>
-                                        </form>
+                            <tr class="bg-slate-50/60">
+                                <td colspan="6" class="px-4 pb-4 pt-0">
+                                    <div class="rounded-2xl border border-slate-200 bg-white p-3">
+                                        <div class="grid gap-2 lg:grid-cols-[minmax(8rem,0.8fr)_minmax(17rem,1.4fr)_minmax(8rem,0.8fr)_minmax(10rem,0.9fr)_minmax(18rem,1.6fr)]">
+                                            <a href="{{ route('admin.users.show', $u) }}"
+                                               class="flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs font-bold text-slate-800 hover:bg-white">
+                                                View Details
+                                            </a>
 
-                                        <form method="POST"
-                                              action="{{ route('admin.users.reset-password', $u) }}"
-                                              onsubmit="return confirm('Generate a new temporary password for this user?');">
-                                            @csrf
-                                            <button class="w-full px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold">
-                                                Generate Temp Password
-                                            </button>
-                                        </form>
+                                            <form method="POST" action="{{ route('admin.users.discount', $u) }}" class="grid grid-cols-[1fr_auto] gap-2">
+                                                @csrf
+                                                <input type="number" min="0" max="100" step="0.01" name="discount_percent"
+                                                       value="{{ old('discount_percent', $u->discount_percent ?? 0) }}"
+                                                       class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
+                                                <button class="rounded-xl bg-[#17233d] px-3 py-2 text-xs font-bold text-white">
+                                                    Update %
+                                                </button>
+                                            </form>
 
-                                        <form method="POST" action="{{ route('admin.users.fund-wallet', $u) }}" class="space-y-2">
-                                            @csrf
-                                            <input type="number" name="amount" min="1" step="0.01" required
-                                                   placeholder="Fund amount (N)"
-                                                   class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-xs">
-                                            <input type="text" name="note"
-                                                   placeholder="Reason (optional)"
-                                                   class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-xs">
-                                            <button class="w-full px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">
-                                                Fund Wallet
-                                            </button>
-                                        </form>
+                                            <form method="POST" action="{{ route('admin.users.admin', $u) }}">
+                                                @csrf
+                                                <input type="hidden" name="is_admin" value="{{ $u->is_admin ? '0' : '1' }}">
+                                                <button class="flex min-h-10 w-full items-center justify-center rounded-xl px-3 py-2 text-xs font-bold text-white {{ $u->is_admin ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700' }}"
+                                                        @disabled($u->id === auth()->id())>
+                                                    {{ $u->is_admin ? 'Remove Admin' : 'Make Admin' }}
+                                                </button>
+                                            </form>
+
+                                            <form method="POST"
+                                                  action="{{ route('admin.users.reset-password', $u) }}"
+                                                  onsubmit="return confirm('Generate a new temporary password for this user?');">
+                                                @csrf
+                                                <button class="flex min-h-10 w-full items-center justify-center rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700">
+                                                    Generate Temp Password
+                                                </button>
+                                            </form>
+
+                                            <form method="POST" action="{{ route('admin.users.fund-wallet', $u) }}" class="grid gap-2 xl:grid-cols-[1fr_1fr_auto]">
+                                                @csrf
+                                                <input type="number" name="amount" min="1" step="0.01" required
+                                                       placeholder="Fund amount (N)"
+                                                       class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900">
+                                                <input type="text" name="note"
+                                                       placeholder="Reason (optional)"
+                                                       class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900">
+                                                <button class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">
+                                                    Fund Wallet
+                                                </button>
+                                            </form>
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="p-6 text-center text-slate-500">No users matched your search.</td>
+                                <td colspan="6" class="p-6 text-center text-slate-500">No users matched your search.</td>
                             </tr>
                         @endforelse
                     </tbody>

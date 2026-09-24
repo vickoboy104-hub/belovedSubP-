@@ -3,7 +3,7 @@
         $markupPremium = (float) setting('markup_premium', 0);
     @endphp
 
-    <div class="max-w-3xl space-y-5 mx-auto w-full px-4 sm:px-0">
+    <div class="legacy-themed-page max-w-3xl space-y-5 mx-auto w-full px-4 sm:px-0">
         <div class="rounded-3xl p-5 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow">
             <div class="flex items-start justify-between gap-4">
                 <div>
@@ -50,8 +50,18 @@
                     </div>
                     <div>
                         <label class="text-sm font-extrabold text-white/80">WhatsApp Number (optional)</label>
-                        <input id="whatsapp" name="whatsapp" type="text" placeholder="08012345678"
-                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white placeholder:text-white/30">
+                        <div class="contact-picker-row mt-1">
+                            <input id="whatsapp" name="whatsapp" type="tel" placeholder="08012345678"
+                                   inputmode="tel" autocomplete="tel-national" data-contact-picker-input
+                                   class="w-full px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white placeholder:text-white/30">
+                            <button type="button" class="contact-picker-btn" data-contact-picker-button data-contact-picker-target="#whatsapp" aria-label="Pick WhatsApp contact">
+                                <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+                                    <path d="M17 21v-8H7v8"></path>
+                                    <path d="M7 3v5h8"></path>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

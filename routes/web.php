@@ -43,6 +43,7 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::get('/dashboard', [VtuController::class, 'dashboard'])->name('dashboard');
 
     Route::get('/vtu/airtime', [VtuController::class, 'airtimeForm'])->name('vtu.airtime');
+    Route::get('/vtu/airtime/{service}', [VtuController::class, 'airtimeServiceForm'])->name('vtu.airtime.service');
     Route::post('/vtu/airtime/buy', [VtuController::class, 'buyAirtime'])->name('vtu.airtime.buy');
 
     Route::get('/vtu/data', [VtuController::class, 'dataForm'])->name('vtu.data');
@@ -91,6 +92,8 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
 
     Route::post('/wallet/virtual-account/assign', [VirtualAccountController::class, 'assign'])
         ->name('wallet.virtual-account.assign');
+    Route::post('/wallet/virtual-account/temporary', [VirtualAccountController::class, 'assignTemporary'])
+        ->name('wallet.virtual-account.temporary');
 
     // Wallet transactions page
     Route::get('/wallet/transactions', [WalletController::class, 'transactions'])->name('wallet.transactions');
@@ -112,10 +115,13 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::get('/', [DashboardController::class, 'index'])->name('admin.dashboard');
     Route::get('/orders', [OrdersController::class, 'index'])->name('admin.orders');
     Route::get('/users', [UsersController::class, 'index'])->name('admin.users');
+    Route::get('/users/{user}', [UsersController::class, 'show'])->name('admin.users.show');
+    Route::post('/users/{user}/profile', [UsersController::class, 'updateProfile'])->name('admin.users.profile');
     Route::post('/users/{user}/discount', [UsersController::class, 'updateDiscount'])->name('admin.users.discount');
     Route::post('/users/{user}/admin', [UsersController::class, 'updateAdmin'])->name('admin.users.admin');
     Route::post('/users/{user}/reset-password', [UsersController::class, 'resetPassword'])->name('admin.users.reset-password');
     Route::post('/users/{user}/fund-wallet', [UsersController::class, 'fundWallet'])->name('admin.users.fund-wallet');
+    Route::post('/users/{user}/adjust-wallet', [UsersController::class, 'adjustWallet'])->name('admin.users.adjust-wallet');
     Route::get('/wallet-transactions', [WalletTransactionsController::class, 'index'])->name('admin.wallet.transactions');
     Route::post('/notifications/read-all', [DashboardController::class, 'markNotificationsRead'])->name('admin.notifications.read-all');
     Route::get('/notifications', [DashboardController::class, 'notificationsIndex'])->name('admin.notifications.index');
@@ -126,4 +132,5 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::post('/website-editor/reset', [WebsiteEditorController::class, 'reset'])->name('admin.website-editor.reset');
     Route::get('/settings', [SettingsController::class, 'edit'])->name('admin.settings');
     Route::post('/settings', [SettingsController::class, 'update'])->name('admin.settings.update');
+    Route::post('/settings/provider-prices/sync', [SettingsController::class, 'syncProviderPrices'])->name('admin.settings.provider-prices.sync');
 });

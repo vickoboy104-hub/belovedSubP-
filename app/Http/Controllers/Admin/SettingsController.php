@@ -3,11 +3,20 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ProviderPlanPrice;
 use App\Models\Setting;
+use App\Services\GsubzApi;
+use App\Services\ProviderPlanPriceService;
 use Illuminate\Http\Request;
 
 class SettingsController extends Controller
 {
+    public function __construct(
+        private readonly GsubzApi $gsubz,
+        private readonly ProviderPlanPriceService $planPrices,
+    ) {
+    }
+
     public function edit()
     {
         // pull settings into a simple key => value array
@@ -15,7 +24,20 @@ class SettingsController extends Controller
             ->pluck('value', 'key')
             ->toArray();
 
-        return view('admin.settings', compact('settings'));
+        $pricingServiceGroups = $this->pricingServiceGroups();
+        $priceSyncSummary = $this->syncProviderPlanPrices();
+        $pricingServiceSlugs = collect($pricingServiceGroups)->flatMap(fn ($services) => array_keys($services))->values();
+        $provider = $this->planPrices->currentProvider();
+        $providerPlanPrices = ProviderPlanPrice::query()
+            ->where('provider', $provider)
+            ->whereIn('service_slug', $pricingServiceSlugs)
+            ->orderBy('service_slug')
+            ->orderBy('plan_name')
+            ->orderBy('plan_id')
+            ->get()
+            ->groupBy('service_slug');
+
+        return view('admin.settings', compact('settings', 'pricingServiceGroups', 'providerPlanPrices', 'provider', 'priceSyncSummary'));
     }
 
     public function update(Request $request)
@@ -126,6 +148,8 @@ class SettingsController extends Controller
             'services_premium'     => ['nullable', 'string', 'max:4000'],
 
             'wallet_funding_fee' => ['nullable', 'numeric', 'min:0'],
+            'provider_plan_prices' => ['nullable', 'array'],
+            'provider_plan_prices.*.selling_price' => ['nullable', 'numeric', 'min:0'],
 
             'referral_default_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'referral_percent_airtime' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -219,6 +243,16 @@ class SettingsController extends Controller
             'favicon'         => ['nullable', 'image', 'max:1024'],
         ], $serviceMapRules));
 
+        $submittedPlanPrices = $data['provider_plan_prices'] ?? [];
+        unset($data['provider_plan_prices']);
+        $this->updateProviderPlanPrices($submittedPlanPrices);
+
+        foreach ($serviceMapKeys as $key) {
+            if (array_key_exists($key, $data) && $this->looksLikePlanPrice($data[$key] ?? null)) {
+                $data[$key] = '';
+            }
+        }
+
         foreach ($dataServiceToggleKeys as $toggleKey) {
             $data[$toggleKey] = $request->boolean($toggleKey) ? '1' : '0';
         }
@@ -269,5 +303,110 @@ class SettingsController extends Controller
         settings_flush_cache();
 
         return back()->with('success', 'Settings updated successfully!');
+    }
+
+    public function syncProviderPrices()
+    {
+        $summary = $this->syncProviderPlanPrices();
+
+        if (!empty($summary['failed_services'])) {
+            return back()->with(
+                'error',
+                'Synced '.$summary['synced_plans'].' plans, but these services could not be loaded from GSUBZ: '.implode(', ', $summary['failed_services'])
+            );
+        }
+
+        return back()->with('success', 'GSUBZ price list synced successfully. '.$summary['synced_plans'].' plans are available for pricing.');
+    }
+
+    private function syncProviderPlanPrices(): array
+    {
+        $syncedPlans = 0;
+        $failedServices = [];
+        $provider = $this->planPrices->currentProvider();
+
+        foreach ($this->pricingServiceGroups() as $services) {
+            foreach (array_keys($services) as $serviceSlug) {
+                try {
+                    $providerServiceId = $this->planPrices->providerServiceId($serviceSlug, $provider);
+                    $resp = $this->gsubz->plans($providerServiceId);
+
+                    if (!($resp['ok'] ?? false) || !is_array($resp['plans'] ?? null)) {
+                        $failedServices[] = $serviceSlug;
+                        continue;
+                    }
+
+                    $syncedPlans += $this->planPrices
+                        ->syncPlans($serviceSlug, $resp['plans'], $providerServiceId, $provider)
+                        ->count();
+                } catch (\Throwable $e) {
+                    $failedServices[] = $serviceSlug;
+                }
+            }
+        }
+
+        return [
+            'synced_plans' => $syncedPlans,
+            'failed_services' => array_values(array_unique($failedServices)),
+        ];
+    }
+
+    private function updateProviderPlanPrices(array $submittedPlanPrices): void
+    {
+        foreach ($submittedPlanPrices as $id => $row) {
+            $planPrice = ProviderPlanPrice::query()->find($id);
+            if (!$planPrice) {
+                continue;
+            }
+
+            $sellingPrice = $this->planPrices->parseMoneyAmount($row['selling_price'] ?? null);
+            if ($sellingPrice === null || $sellingPrice <= 0) {
+                continue;
+            }
+
+            $this->planPrices->setSellingPrice($planPrice, $sellingPrice);
+        }
+    }
+
+    private function pricingServiceGroups(): array
+    {
+        return [
+            'MTN Data' => [
+                'mtn_awoof' => 'MTN Awoof Data (Cheap)',
+                'mtn_gifting' => 'MTN Data (Gifting)',
+                'mtn_sme' => 'MTN Data (SME)',
+                'mtn_cg' => 'MTN Data (Corporate)',
+                'mtn_cg_lite' => 'MTN Data (CG Lite)',
+                'mtn_coupon' => 'MTN Coupon',
+                'mtncg' => 'MTN CG',
+            ],
+            'Airtel Data' => [
+                'airtel_sme' => 'Airtel Data (SME)',
+                'airtel_cg' => 'Airtel Data (CG)',
+                'airtel_gifting' => 'Airtel Data (Gifting)',
+            ],
+            'Glo Data' => [
+                'glo_data' => 'Glo Data',
+                'glo_sme' => 'Glo Data (SME)',
+            ],
+            '9mobile Data' => [
+                'etisalat_data' => '9mobile Data',
+            ],
+            'Cable TV' => [
+                'dstv' => 'DSTV',
+                'gotv' => 'GOTV',
+                'startimes' => 'Startimes',
+            ],
+        ];
+    }
+
+    private function looksLikePlanPrice(mixed $value): bool
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return false;
+        }
+
+        return (bool) preg_match('/^(?:\x{20A6}|N|NGN)?\s*\d+(?:[,.]\d+)?\s*(?:naira)?$/iu', $value);
     }
 }

@@ -14,6 +14,8 @@ class WalletController extends Controller
     {
         $user = auth()->user();
         $wallet = $user->wallet;
+        $virtualAccountMeta = (array) ($user?->virtual_account_metadata ?? []);
+        $temporaryAccount = (array) ($virtualAccountMeta['temporary_virtual_account'] ?? []);
 
         $balanceKobo = $wallet?->balance ?? 0;
 
@@ -32,6 +34,7 @@ class WalletController extends Controller
                 'bank_name' => $user?->virtual_account_bank,
                 'assigned_at' => $user?->virtual_account_assigned_at,
             ],
+            'temporary_virtual_account' => $temporaryAccount,
         ]);
     }
 

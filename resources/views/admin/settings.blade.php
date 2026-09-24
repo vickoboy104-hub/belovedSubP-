@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="admin-light-page mx-auto max-w-5xl space-y-5">
+    <div class="admin-light-page admin-settings-page mx-auto max-w-5xl space-y-5">
 
         <div class="rounded-3xl p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow">
             <h2 class="text-2xl font-extrabold">Admin Settings</h2>
@@ -7,12 +7,6 @@
                 Control your markup, exam prices, branding, and WhatsApp support without editing code.
             </p>
         </div>
-
-        @if(session('success'))
-            <div class="p-4 rounded-2xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 text-green-700 dark:text-green-200">
-                {{ session('success') }}
-            </div>
-        @endif
 
         @if($errors->any())
             <div class="p-4 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-200">
@@ -26,7 +20,7 @@
         @endif
 
         <form id="adminSettingsForm" method="POST" action="{{ route('admin.settings.update') }}" enctype="multipart/form-data"
-              class="rounded-3xl p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 space-y-6">
+              class="rounded-3xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 p-6 pb-40 space-y-6">
             @csrf
 
             <div class="space-y-8">
@@ -38,10 +32,10 @@
                             <a href="#group-maintenance-overlay" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Maintenance Overlay</a>
                             <a href="#group-catalog" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Service Catalog</a>
                             <a href="#group-data-defaults" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Data Defaults</a>
+                            <a href="#group-data-pricing" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Data Pricing</a>
                             <a href="#group-wallet" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Wallet</a>
                             <a href="#group-referral" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Referral</a>
                             <a href="#group-provider" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Provider</a>
-                            <a href="#group-service-map" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Service IDs</a>
                             <a href="#group-markup" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Markup</a>
                             <a href="#group-recharge-card" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Recharge Cards</a>
                             <a href="#group-exam-prices" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-white/10">Exam Prices</a>
@@ -150,22 +144,13 @@
                                 @php
                                     $homePopupValue = old('home_popup_message', $settings['home_popup_message'] ?? $settings['popup_message'] ?? 'Need NIN services? Tap the WhatsApp button to chat with us.');
                                 @endphp
-                                <textarea name="home_popup_message" id="home_popup_message" class="hidden">{{ $homePopupValue }}</textarea>
-                                <div class="mt-1 rounded-2xl border border-gray-200 bg-white shadow-sm">
-                                    <div class="flex flex-wrap gap-2 border-b border-gray-200 px-3 py-3">
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="bold">Bold</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="italic">Italic</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="underline">Underline</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="justifyLeft">Left</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="justifyCenter">Center</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="home_popup_message" data-editor-command="justifyRight">Right</button>
-                                    </div>
-                                    <div id="home_popup_message_editor"
-                                         contenteditable="true"
-                                         data-editor-surface="home_popup_message"
-                                         class="min-h-[180px] w-full rounded-b-2xl px-4 py-4 text-sm leading-7 text-slate-800 focus:outline-none">{!! sanitize_popup_message_html((string) $homePopupValue) !!}</div>
-                                </div>
-                                <div class="mt-2 text-xs text-white/50">Use the toolbar to format text and align it the way you want users to see it.</div>
+                                <x-admin.popup-rich-editor
+                                    name="home_popup_message"
+                                    id="home_popup_message"
+                                    :value="$homePopupValue"
+                                    placeholder="Type the home popup message..."
+                                    helper="Use the toolbar to control bold, italic, alignment, lists, and other popup formatting."
+                                />
                             </div>
                         </div>
                     </div>
@@ -191,22 +176,13 @@
                                 @php
                                     $dashboardPopupValue = old('dashboard_popup_message', $settings['dashboard_popup_message'] ?? 'For NIN services (New enrolment, correction, printing, etc.) click the WhatsApp Support button to chat with us instantly.');
                                 @endphp
-                                <textarea name="dashboard_popup_message" id="dashboard_popup_message" class="hidden">{{ $dashboardPopupValue }}</textarea>
-                                <div class="mt-1 rounded-2xl border border-gray-200 bg-white shadow-sm">
-                                    <div class="flex flex-wrap gap-2 border-b border-gray-200 px-3 py-3">
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="bold">Bold</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="italic">Italic</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="underline">Underline</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="justifyLeft">Left</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="justifyCenter">Center</button>
-                                        <button type="button" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" data-editor-target="dashboard_popup_message" data-editor-command="justifyRight">Right</button>
-                                    </div>
-                                    <div id="dashboard_popup_message_editor"
-                                         contenteditable="true"
-                                         data-editor-surface="dashboard_popup_message"
-                                         class="min-h-[180px] w-full rounded-b-2xl px-4 py-4 text-sm leading-7 text-slate-800 focus:outline-none">{!! sanitize_popup_message_html((string) $dashboardPopupValue) !!}</div>
-                                </div>
-                                <div class="mt-2 text-xs text-white/50">Formatting here is preserved in the popup shown to users.</div>
+                                <x-admin.popup-rich-editor
+                                    name="dashboard_popup_message"
+                                    id="dashboard_popup_message"
+                                    :value="$dashboardPopupValue"
+                                    placeholder="Type the dashboard popup message..."
+                                    helper="Formatting here is preserved in the popup shown to users."
+                                />
                             </div>
                         </div>
                     </div>
@@ -435,6 +411,95 @@
                 </div>
             </div>
 
+            {{-- Data Plan Pricing --}}
+            <div id="group-data-pricing" class="scroll-mt-44">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <div class="text-lg font-extrabold">Website Selling Prices</div>
+                        <div class="text-xs text-white/50 mt-1">
+                            GSUBZ prices refresh automatically when this page opens. New GSUBZ plans are added here as editable website-price rows.
+                        </div>
+                        @if(!empty($priceSyncSummary ?? null))
+                            <div class="text-xs text-white/45 mt-2">
+                                Last auto-refresh: {{ (int) ($priceSyncSummary['synced_plans'] ?? 0) }} plans loaded.
+                                @if(!empty($priceSyncSummary['failed_services'] ?? []))
+                                    Could not refresh: {{ implode(', ', $priceSyncSummary['failed_services']) }}.
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+                    <button type="submit"
+                            form="syncProviderPricesForm"
+                            class="rounded-xl border border-white/10 px-4 py-2.5 text-xs font-bold text-white/80 hover:bg-white/10">
+                        Sync Latest GSUBZ Prices
+                    </button>
+                </div>
+
+                <div class="mt-4 space-y-5">
+                    @foreach(($pricingServiceGroups ?? []) as $groupLabel => $services)
+                        <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                            <div class="font-extrabold text-white/90">{{ $groupLabel }}</div>
+                            <div class="mt-4 grid grid-cols-1 gap-4">
+                                @foreach($services as $slug => $label)
+                                    @php
+                                        $rows = $providerPlanPrices[$slug] ?? collect();
+                                    @endphp
+                                    <div class="rounded-2xl border border-white/10 bg-black/10 p-4">
+                                        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <div class="font-bold text-white/85">{{ $label }}</div>
+                                                <div class="text-xs text-white/45">{{ $slug }}</div>
+                                            </div>
+                                            <div class="text-xs text-white/45">{{ $rows->count() }} plan{{ $rows->count() === 1 ? '' : 's' }}</div>
+                                        </div>
+
+                                        @if($rows->isEmpty())
+                                            <div class="mt-3 rounded-xl border border-dashed border-white/10 px-4 py-3 text-sm text-white/55">
+                                                No GSUBZ plans stored yet. Click sync above; any new provider plans will be added here automatically.
+                                            </div>
+                                        @else
+                                            <div class="mt-3 overflow-x-auto">
+                                                <table class="min-w-[720px] w-full text-sm">
+                                                    <thead class="text-left text-[11px] uppercase tracking-wide text-white/45">
+                                                    <tr>
+                                                        <th class="py-2 pr-3">Plan</th>
+                                                        <th class="py-2 px-3">Plan ID</th>
+                                                        <th class="py-2 px-3">GSUBZ Price</th>
+                                                        <th class="py-2 px-3">Website Price</th>
+                                                        <th class="py-2 pl-3">Synced</th>
+                                                    </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                    @foreach($rows as $priceRow)
+                                                        <tr class="border-t border-white/10">
+                                                            <td class="py-3 pr-3 text-white/80">{{ $priceRow->plan_name ?: $priceRow->plan_id }}</td>
+                                                            <td class="py-3 px-3 font-mono text-xs text-white/60">{{ $priceRow->plan_id }}</td>
+                                                            <td class="py-3 px-3 text-white/70">&#8358;{{ number_format((float) $priceRow->provider_price, 2) }}</td>
+                                                            <td class="py-3 px-3">
+                                                                <input type="number"
+                                                                       min="0"
+                                                                       step="0.01"
+                                                                       name="provider_plan_prices[{{ $priceRow->id }}][selling_price]"
+                                                                       value="{{ old('provider_plan_prices.'.$priceRow->id.'.selling_price', number_format((float) $priceRow->selling_price, 2, '.', '')) }}"
+                                                                       class="w-36 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white">
+                                                            </td>
+                                                            <td class="py-3 pl-3 text-xs text-white/50">
+                                                                {{ $priceRow->last_synced_at?->diffForHumans() ?? 'Not synced' }}
+                                                            </td>
+                                                        </tr>
+                                                    @endforeach
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
             {{-- Wallet Funding --}}
             <div id="group-wallet" class="scroll-mt-44">
                 <div class="text-lg font-extrabold">Wallet Funding</div>
@@ -633,9 +698,9 @@
             </div>
 
             {{-- Service ID Overrides --}}
-            <div id="group-service-map" class="scroll-mt-44">
+            <div id="group-service-map" class="hidden scroll-mt-44" aria-hidden="true">
                 <div class="text-lg font-extrabold">Service ID Overrides</div>
-                <div class="text-xs text-white/50 mt-1">Leave blank to use the default service ID in code.</div>
+                <div class="text-xs text-white/50 mt-1">Leave blank to use the default service ID in code. These fields are provider service IDs, not plan prices.</div>
 
                 @php
                     $airtimeMap = [
@@ -722,6 +787,7 @@
 
                     <div class="rounded-2xl border border-white/10 p-4">
                         <div class="font-bold text-white/80">Data</div>
+                        <div class="text-xs text-white/50 mt-1">For Awoof, keep this as <code>mtn_awoof</code> or blank. Set customer profit under Customer Markup.</div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
                             @foreach($dataMap as $slug => $label)
                                 @php $key = 'service_map_' . $slug; @endphp
@@ -817,10 +883,11 @@
                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
                     </div>
                     <div>
-                        <label class="text-sm font-bold text-white/80">Data Markup</label>
+                        <label class="text-sm font-bold text-white/80">Data Markup (Legacy)</label>
                         <input type="number" step="0.01" name="markup_data"
                                value="{{ old('markup_data', $settings['markup_data'] ?? '0') }}"
                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
+                        <div class="text-xs text-white/50 mt-1">Use Data Plan Selling Prices for customer data prices.</div>
                     </div>
                     <div>
                         <label class="text-sm font-bold text-white/80">Cable Markup</label>
@@ -925,19 +992,19 @@
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
                     <div>
                         <label class="text-sm font-bold text-white/80">NIN Verify Price</label>
-                        <input type="number" step="0.01" name="price_nin_verify" value="{{ old('price_nin_verify', $settings['price_nin_verify'] ?? '180') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
+                        <input type="number" step="0.01" name="price_nin_verify" value="{{ old('price_nin_verify', $settings['price_nin_verify'] ?? '250') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
                     </div>
                     <div>
                         <label class="text-sm font-bold text-white/80">NIN Slip Long Price</label>
-                        <input type="number" step="0.01" name="price_nin_slip_long" value="{{ old('price_nin_slip_long', $settings['price_nin_slip_long'] ?? '180') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
+                        <input type="number" step="0.01" name="price_nin_slip_long" value="{{ old('price_nin_slip_long', $settings['price_nin_slip_long'] ?? '300') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
                     </div>
                     <div>
                         <label class="text-sm font-bold text-white/80">NIN Slip Standard Price</label>
-                        <input type="number" step="0.01" name="price_nin_slip_standard" value="{{ old('price_nin_slip_standard', $settings['price_nin_slip_standard'] ?? '180') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
+                        <input type="number" step="0.01" name="price_nin_slip_standard" value="{{ old('price_nin_slip_standard', $settings['price_nin_slip_standard'] ?? '350') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
                     </div>
                     <div>
                         <label class="text-sm font-bold text-white/80">NIN Slip Premium Price</label>
-                        <input type="number" step="0.01" name="price_nin_slip_premium" value="{{ old('price_nin_slip_premium', $settings['price_nin_slip_premium'] ?? '180') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
+                        <input type="number" step="0.01" name="price_nin_slip_premium" value="{{ old('price_nin_slip_premium', $settings['price_nin_slip_premium'] ?? '400') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
                     </div>
                     <div>
                         <label class="text-sm font-bold text-white/80">NIN VNIN Slip Price</label>
@@ -1144,26 +1211,92 @@
                 <div class="text-xs text-white/50">
                     Review your changes, then save to apply them across the website.
                 </div>
-                <button type="submit"
-                        class="px-6 py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold transition">
-                    Save Settings
-                </button>
             </div>
             </div>
         </form>
 
+        <form id="syncProviderPricesForm" method="POST" action="{{ route('admin.settings.provider-prices.sync') }}" class="hidden">
+            @csrf
+        </form>
+
     </div>
 
-    <div class="fixed right-4 bottom-4 z-40">
-        <button type="submit"
-                form="adminSettingsForm"
-                class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold shadow-2xl border border-orange-400/30 backdrop-blur transition">
-            <span>Save Settings</span>
-        </button>
+    <div class="page-save-overlay" role="region" aria-label="Save admin settings">
+        <div class="page-save-overlay-card">
+            <div class="page-save-overlay-copy">
+                Save your admin setting changes anytime.
+            </div>
+            <button type="submit"
+                    form="adminSettingsForm"
+                    class="btn-primary page-save-overlay-button">
+                Save Settings
+            </button>
+        </div>
     </div>
+
+    <style>
+        .page-save-overlay {
+            position: fixed;
+            right: 1.25rem;
+            bottom: 1.25rem;
+            z-index: 9999;
+            width: min(360px, calc(100vw - 2rem));
+            pointer-events: none;
+        }
+
+        .page-save-overlay::before {
+            display: none;
+        }
+
+        .page-save-overlay-card {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            border: 1px solid rgba(64, 87, 93, 0.12);
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.94);
+            padding: 0.75rem;
+            box-shadow: 0 20px 44px rgba(17, 46, 110, 0.22);
+            backdrop-filter: blur(14px);
+            pointer-events: auto;
+        }
+
+        .page-save-overlay .btn-primary {
+            width: auto;
+            min-width: 138px;
+            border-radius: 14px;
+            padding-block: 0.78rem;
+            box-shadow: 0 16px 32px rgba(28, 79, 161, 0.28);
+        }
+
+        @media (max-width: 640px) {
+            .page-save-overlay {
+                right: 0.85rem;
+                bottom: calc(0.85rem + env(safe-area-inset-bottom));
+                width: calc(100vw - 1.7rem);
+            }
+
+            .page-save-overlay-card {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .page-save-overlay .btn-primary {
+                width: 100%;
+                min-width: 0;
+            }
+        }
+    </style>
 
     <script>
         (function () {
+            const saveOverlay = document.querySelector('.page-save-overlay');
+            if (saveOverlay && saveOverlay.parentElement !== document.body) {
+                document.body.appendChild(saveOverlay);
+            }
+
             const logoInput = document.getElementById('logoInput');
             const faviconInput = document.getElementById('faviconInput');
             const logoPreview = document.getElementById('logoPreview');
@@ -1194,33 +1327,6 @@
                 faviconInput.addEventListener('change', () => updatePreview(faviconInput, faviconPreview, faviconPlaceholder));
             }
 
-            document.querySelectorAll('[data-editor-command]').forEach((button) => {
-                button.addEventListener('click', () => {
-                    const targetId = button.getAttribute('data-editor-target');
-                    const command = button.getAttribute('data-editor-command');
-                    const surface = targetId ? document.querySelector(`[data-editor-surface="${targetId}"]`) : null;
-
-                    if (!surface || !command) return;
-
-                    surface.focus();
-                    document.execCommand(command, false, null);
-                    surface.dispatchEvent(new Event('input', { bubbles: true }));
-                });
-            });
-
-            document.querySelectorAll('[data-editor-surface]').forEach((surface) => {
-                const targetId = surface.getAttribute('data-editor-surface');
-                const textarea = targetId ? document.getElementById(targetId) : null;
-                if (!textarea) return;
-
-                const sync = () => {
-                    textarea.value = surface.innerHTML.trim();
-                };
-
-                surface.addEventListener('input', sync);
-                surface.addEventListener('blur', sync);
-                sync();
-            });
         })();
     </script>
 </x-app-layout>

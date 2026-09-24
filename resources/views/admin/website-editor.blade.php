@@ -12,12 +12,6 @@
             </p>
         </div>
 
-        @if(session('success'))
-            <div class="p-4 rounded-2xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 text-green-700 dark:text-green-200">
-                {{ session('success') }}
-            </div>
-        @endif
-
         @if($errors->any())
             <div class="p-4 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-200">
                 <div class="font-bold">Please fix these errors:</div>
@@ -30,7 +24,7 @@
         @endif
 
         <form id="websiteEditorForm" method="POST" action="{{ route('admin.website-editor.update') }}"
-              class="rounded-3xl p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 space-y-8">
+              class="rounded-3xl p-6 pb-36 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 space-y-8">
             @csrf
 
             <section>
@@ -117,13 +111,21 @@
                           placeholder="Example: console.log('Custom JS loaded');">{{ old('editor_custom_js', $settings['editor_custom_js'] ?? '') }}</textarea>
             </section>
 
-            <div class="flex flex-wrap items-center gap-3">
+        </form>
+
+        <div class="page-save-overlay">
+            <div class="page-save-overlay-card">
+                <div class="page-save-overlay-copy">
+                    <div class="text-sm font-extrabold text-slate-900">Website editor changes are ready</div>
+                    <p class="mt-1 text-xs text-slate-500">Save from here anytime while you scroll through the admin editor.</p>
+                </div>
                 <button type="submit"
-                        class="px-5 py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold transition">
+                        form="websiteEditorForm"
+                        class="btn-primary w-full justify-center sm:w-auto">
                     Apply Website Changes
                 </button>
             </div>
-        </form>
+        </div>
 
         <form method="POST"
               action="{{ route('admin.website-editor.reset') }}"

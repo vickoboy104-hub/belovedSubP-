@@ -17,34 +17,26 @@
         $markup = (float) setting('markup_electricity', 0);
     @endphp
 
-    <div class="mx-auto max-w-3xl space-y-8">
-        <section class="flex items-center justify-between gap-4">
+    <div class="mx-auto max-w-3xl space-y-5 sm:space-y-6">
+        <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
                 <div class="app-kicker">Electricity</div>
-                <h1 class="app-page-title mt-2 text-[2.1rem] sm:text-[2.6rem]">Pay {{ $selectedServiceLabel }}</h1>
-                <p class="app-page-subtitle">A dedicated page for {{ $selectedServiceLabel }} meter payments.</p>
+                <h1 class="app-page-title mt-2 text-[1.7rem] leading-tight sm:text-[2.3rem]">Pay {{ $selectedServiceLabel }}</h1>
             </div>
-            <a href="{{ route('vtu.electricity') }}" class="btn-outline">All Electricity Services</a>
+            <a href="{{ route('vtu.electricity') }}" class="btn-outline sm:w-auto">All Electricity Services</a>
         </section>
 
-        <section class="app-form-shell">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <div class="text-3xl font-extrabold text-slate-900">{{ $selectedServiceLabel }}</div>
-                    <p class="mt-2 text-sm leading-6 text-slate-500">Enter the meter details and amount, then continue to checkout.</p>
-                </div>
-                <div class="app-icon-ring">
+        <section class="app-form-shell space-y-4 sm:space-y-5">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <p class="max-w-xl text-sm leading-6 text-slate-500 sm:text-[0.95rem]">Enter the meter details and amount, then continue to checkout.</p>
+                <div class="app-icon-ring shrink-0">
                     <img src="{{ asset($logos[$selectedService] ?? '/electricity/electricity.png') }}" alt="{{ $selectedServiceLabel }}" class="h-10 w-10 object-contain">
                 </div>
             </div>
 
-            <form id="electricityPurchaseForm" method="POST" action="{{ route('vtu.electricity.buy') }}" class="mt-8 space-y-4">
+            <form id="electricityPurchaseForm" method="POST" action="{{ route('vtu.electricity.buy') }}" class="space-y-4">
                 @csrf
                 <input type="hidden" id="disco" name="service_id" value="{{ $selectedService }}">
-
-                <div class="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    Selected DISCO: <span class="font-extrabold text-slate-900">{{ $selectedServiceLabel }}</span>
-                </div>
 
                 <div>
                     <label class="block text-sm font-bold text-slate-700">Meter Number</label>
@@ -67,7 +59,7 @@
                     @endif
                 </div>
 
-                <button type="button" id="electricityActionBtn" class="btn-primary w-full justify-center py-4 text-base">Continue</button>
+                <button type="button" id="electricityActionBtn" class="btn-primary w-full justify-center py-3.5 text-[0.98rem]">Continue</button>
             </form>
         </section>
 

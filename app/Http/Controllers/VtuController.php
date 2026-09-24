@@ -2,19 +2,24 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\NinVerificationCache;
 use App\Models\Order;
 use App\Models\Service;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Notifications\AdminSystemAlertNotification;
 use App\Notifications\UserWalletActivityNotification;
 use App\Services\BvnApi;
 use App\Services\GsubzApi;
 use App\Services\NinApi;
+use App\Services\ProviderPlanPriceService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -25,6 +30,7 @@ class VtuController extends Controller
         private readonly GsubzApi $gsubz,
         private readonly NinApi $ninApi,
         private readonly BvnApi $bvnApi,
+        private readonly ProviderPlanPriceService $planPrices,
     )
     {
     }
@@ -77,25 +83,21 @@ class VtuController extends Controller
     // =========================================================
     public function airtimeForm()
     {
-        /**
-         * Your airtime.blade.php builds the network list itself,
-         * so this page doesn't strictly require DB services.
-         *
-         * But we still pass a safe services list in case you later use it.
-         */
-        $services = $this->parseServicesSetting('services_airtime');
-        if (empty($services)) {
-            $services = [
-                'mtn'      => 'MTN',
-                'airtel'   => 'Airtel',
-                'glo'      => 'Glo',
-                'etisalat' => '9mobile',
-            ];
-        }
+        return view('vtu.airtime-index', [
+            'services' => $this->airtimeServices(),
+        ]);
+    }
 
-        $phoneSuggestions = $this->phoneSuggestionsForUser(auth()->user(), 'airtime');
+    public function airtimeServiceForm(string $service)
+    {
+        $services = $this->airtimeServices();
+        abort_unless(array_key_exists($service, $services), 404);
 
-        return view('vtu.airtime', compact('services', 'phoneSuggestions'));
+        return view('vtu.airtime', [
+            'serviceSlug' => $service,
+            'serviceLabel' => $services[$service],
+            'phoneSuggestions' => $this->phoneSuggestionsForUser(auth()->user(), 'airtime'),
+        ]);
     }
 
     public function buyAirtime(Request $request)
@@ -318,13 +320,45 @@ class VtuController extends Controller
 
         $provider = (string) setting('provider', 'gsubz');
 
-        $baseAmountNaira = (float) $request->amount;
-        $markupNaira     = (float) setting('markup_data', 0);
-        $totalNaira      = $baseAmountNaira + $markupNaira;
+        $serviceSlug = str_replace(' ', '_', strtolower(trim((string) $request->service_id)));
+        $services = $this->dataServices();
+        if (!array_key_exists($serviceSlug, $services)) {
+            return $this->respondResult(
+                request: $request,
+                routeName: 'vtu.data',
+                ok: false,
+                message: 'Selected data service is not available.',
+                extra: $this->walletPayload($wallet),
+                status: 422
+            );
+        }
 
-        $totalKobo  = $this->toKobo($totalNaira);
+        $baseAmountNaira = (float) $request->amount;
+        $sellingAmountNaira = $baseAmountNaira;
+        $priceOverrideApplied = false;
+        $providerServiceId = $this->providerServiceId($serviceSlug);
+
+        if (in_array($provider, ['gsubz', 'alt'], true)) {
+            $pricing = $this->resolvePlanPricing($serviceSlug, (string) $request->plan);
+            if ($pricing === null) {
+                return $this->respondResult(
+                    request: $request,
+                    routeName: 'vtu.data',
+                    ok: false,
+                    message: 'Selected data plan is not available right now. Please reload the plan list and try again.',
+                    extra: $this->walletPayload($wallet),
+                    status: 422
+                );
+            }
+
+            $baseAmountNaira = $pricing['provider_price'];
+            $sellingAmountNaira = $pricing['selling_price'];
+            $priceOverrideApplied = $pricing['custom'];
+        }
+
+        $totalKobo  = $this->toKobo($sellingAmountNaira);
         [$discountPercent, $discountKobo, $payableKobo] = $this->applyDiscount($totalKobo, $user);
-        $profitKobo = $this->toKobo($markupNaira);
+        $profitKobo = max(0, $this->toKobo($sellingAmountNaira - $baseAmountNaira));
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('DATA');
@@ -338,7 +372,7 @@ class VtuController extends Controller
                 description: "Data purchase - {$request->phone}"
             );
 
-            $resolvedServiceId = $this->resolveServiceId($request->service_id, $request->service_id);
+            $resolvedServiceId = $this->resolveServiceId($serviceSlug, $serviceSlug);
 
             $order = Order::create([
                 'user_id'            => $user->id,
@@ -355,8 +389,11 @@ class VtuController extends Controller
                     'plan'               => $request->plan,
                     'phone'              => $request->phone,
                     'base_amount_naira'  => $baseAmountNaira,
-                    'markup_naira'       => $markupNaira,
-                    'total_amount_naira' => $totalNaira,
+                    'provider_amount_naira' => $baseAmountNaira,
+                    'selling_amount_naira' => $sellingAmountNaira,
+                    'markup_naira'       => max(0, $sellingAmountNaira - $baseAmountNaira),
+                    'total_amount_naira' => $sellingAmountNaira,
+                    'price_override_applied' => $priceOverrideApplied,
                     'discount_percent'   => $discountPercent,
                     'discount_kobo'      => $discountKobo,
                     'discount_naira'     => $discountKobo / 100,
@@ -366,7 +403,6 @@ class VtuController extends Controller
             ]);
 
             if (in_array($provider, ['gsubz', 'alt'], true)) {
-                $providerServiceId = $this->providerServiceId($request->service_id);
                 $payload = [
                     'serviceID' => $providerServiceId,
                     'plan'      => $request->plan,
@@ -682,12 +718,31 @@ class VtuController extends Controller
         $provider = (string) setting('provider', 'gsubz');
 
         $baseAmountNaira = (float) $request->base_amount;
-        $markupNaira     = (float) setting('markup_cable', 0);
-        $totalNaira      = $baseAmountNaira + $markupNaira;
+        $sellingAmountNaira = $baseAmountNaira;
+        $priceOverrideApplied = false;
+        $providerServiceId = $this->providerServiceId((string) $request->service_id);
 
-        $totalKobo  = $this->toKobo($totalNaira);
+        if (in_array($provider, ['gsubz', 'alt'], true)) {
+            $pricing = $this->resolvePlanPricing((string) $request->service_id, (string) $request->plan);
+            if ($pricing === null) {
+                return $this->respondResult(
+                    request: $request,
+                    routeName: 'vtu.cable',
+                    ok: false,
+                    message: 'Selected cable plan is not available right now. Please reload the plan list and try again.',
+                    extra: $this->walletPayload($wallet),
+                    status: 422
+                );
+            }
+
+            $baseAmountNaira = $pricing['provider_price'];
+            $sellingAmountNaira = $pricing['selling_price'];
+            $priceOverrideApplied = $pricing['custom'];
+        }
+
+        $totalKobo  = $this->toKobo($sellingAmountNaira);
         [$discountPercent, $discountKobo, $payableKobo] = $this->applyDiscount($totalKobo, $user);
-        $profitKobo = $this->toKobo($markupNaira);
+        $profitKobo = max(0, $this->toKobo($sellingAmountNaira - $baseAmountNaira));
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('CAB');
@@ -721,8 +776,11 @@ class VtuController extends Controller
                     'customerID'         => $request->customer_ref,
                     'phone'              => $defaultPhone,
                     'base_amount_naira'  => $baseAmountNaira,
-                    'markup_naira'       => $markupNaira,
-                    'total_amount_naira' => $totalNaira,
+                    'provider_amount_naira' => $baseAmountNaira,
+                    'selling_amount_naira' => $sellingAmountNaira,
+                    'markup_naira'       => max(0, $sellingAmountNaira - $baseAmountNaira),
+                    'total_amount_naira' => $sellingAmountNaira,
+                    'price_override_applied' => $priceOverrideApplied,
                     'discount_percent'   => $discountPercent,
                     'discount_kobo'      => $discountKobo,
                     'discount_naira'     => $discountKobo / 100,
@@ -732,7 +790,6 @@ class VtuController extends Controller
             ]);
 
             if (in_array($provider, ['gsubz', 'alt'], true)) {
-                $providerServiceId = $this->providerServiceId($request->service_id);
                 $payload = [
                     'serviceID'  => $providerServiceId,
                     'plan'       => $request->plan,
@@ -1518,6 +1575,7 @@ class VtuController extends Controller
             $resp = $this->ninApi->submitValidation($providerPayload);
             $ok = $this->ninApi->isSuccessful($resp);
             $message = $this->ninApi->message($resp);
+            $friendlyMessage = $this->friendlyNinProviderFailureMessage('validation', $resp, $message);
 
             if ($ok) {
                 $order->status = 'success';
@@ -1532,16 +1590,22 @@ class VtuController extends Controller
                 return back()->with('success', 'NIN validation submitted successfully.');
             }
 
-            // Keep pending workflow if provider is asynchronous or endpoint is not configured yet.
-            $order->status = 'pending';
-            $order->meta = array_merge($order->meta ?? [], [
-                'provider_response' => $resp,
-                'message' => $message,
-            ]);
-            $order->save();
+            if ($this->ninValidationShouldQueue($resp, $message)) {
+                $order->status = 'pending';
+                $order->meta = array_merge($order->meta ?? [], [
+                    'provider_response' => $resp,
+                    'message' => $message,
+                ]);
+                $order->save();
+                DB::commit();
+
+                return back()->with('success', 'NIN validation queued. We will keep you updated once processing completes.');
+            }
+
+            $this->markFailedAndRefund($order, $wallet, $payableKobo, $requestId, $friendlyMessage, $resp);
             DB::commit();
 
-            return back()->with('success', 'NIN validation queued. ' . $message);
+            return back()->with('error', $friendlyMessage);
         } catch (\RuntimeException $e) {
             DB::rollBack();
             return back()->with('error', $this->userFacingRuntimeFailureMessage($e));
@@ -1571,10 +1635,11 @@ class VtuController extends Controller
         }
 
         $requestId = $this->makeRequestId('NINV');
-        $priceVerifyNaira = (float) setting('price_nin_verify', 180);
+        $priceVerifyNaira = (float) setting('price_nin_verify', 250);
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
         $priceVerifyKobo = $this->toKobo($priceVerifyNaira);
+        $forceRefresh = $request->boolean('force_refresh');
 
         if (((int) $wallet->balance) < $priceVerifyKobo) {
             return response()->json([
@@ -1589,14 +1654,16 @@ class VtuController extends Controller
             $payload = $request->validate([
                 'nin' => ['required', 'digits:11'],
             ]);
-
-            $response = $this->ninApi->searchByNin((string) $payload['nin']);
+            $lookupPayload = [
+                'nin' => (string) $payload['nin'],
+            ];
         } elseif ($searchType === 'phone') {
             $payload = $request->validate([
                 'phone' => ['required', 'digits_between:10,14'],
             ]);
-
-            $response = $this->ninApi->searchByPhone((string) $payload['phone']);
+            $lookupPayload = [
+                'phone' => (string) $payload['phone'],
+            ];
         } else {
             $payload = $request->validate([
                 'firstname' => ['required', 'string', 'max:120'],
@@ -1604,20 +1671,57 @@ class VtuController extends Controller
                 'dob' => ['required', 'date_format:d-m-Y'],
                 'gender' => ['required', Rule::in(['male', 'female', 'm', 'f'])],
             ]);
+            $lookupPayload = [
+                'firstname' => (string) $payload['firstname'],
+                'lastname' => (string) $payload['lastname'],
+                'dob' => (string) $payload['dob'],
+                'gender' => (string) $payload['gender'],
+            ];
+        }
 
+        $cacheRecord = !$forceRefresh
+            ? $this->findNinVerificationCache($searchType, $lookupPayload)
+            : null;
+
+        if ($cacheRecord) {
+            $providerData = is_array($cacheRecord->provider_data) ? $cacheRecord->provider_data : [];
+            $normalized = is_array($cacheRecord->normalized_data) ? $cacheRecord->normalized_data : [];
+            if (empty($normalized) && !empty($providerData)) {
+                $normalized = $this->normalizeNinPayload($providerData);
+            }
+
+            $response = [
+                'success' => true,
+                'message' => 'Loaded from saved verification.',
+                'data' => $providerData,
+                'normalized' => $normalized,
+                'cache_hit' => true,
+                'cache_id' => $cacheRecord->id,
+                'cached_at' => optional($cacheRecord->last_verified_at)->toIso8601String(),
+            ];
+        } elseif ($searchType === 'nin') {
+            $response = $this->ninApi->searchByNin((string) $lookupPayload['nin']);
+        } elseif ($searchType === 'phone') {
+            $response = $this->ninApi->searchByPhone((string) $lookupPayload['phone']);
+        } else {
             $response = $this->ninApi->searchByDemography(
-                (string) $payload['firstname'],
-                (string) $payload['lastname'],
-                (string) $payload['dob'],
-                (string) $payload['gender'],
+                (string) $lookupPayload['firstname'],
+                (string) $lookupPayload['lastname'],
+                (string) $lookupPayload['dob'],
+                (string) $lookupPayload['gender'],
             );
         }
 
         $ok = $this->ninApi->isSuccessful($response);
         $message = $this->ninApi->message($response);
+        $friendlyMessage = $ok ? $message : $this->friendlyNinProviderFailureMessage('verification', $response, $message);
         $providerData = is_array($response['data'] ?? null) ? $response['data'] : [];
-        $normalized = $this->normalizeNinPayload($providerData);
+        $normalized = is_array($response['normalized'] ?? null) ? $response['normalized'] : $this->normalizeNinPayload($providerData);
         $orderId = null;
+        $cacheHit = (bool) ($response['cache_hit'] ?? false);
+        $cacheId = $cacheRecord?->id ?? ($response['cache_id'] ?? null);
+        $cachedAt = $response['cached_at'] ?? optional($cacheRecord?->last_verified_at)->toIso8601String();
+        $cachedAtLabel = $this->formatNinCacheTimestamp($cachedAt);
 
         if ($ok) {
             DB::beginTransaction();
@@ -1648,10 +1752,26 @@ class VtuController extends Controller
                     'normalized' => $normalized,
                     'provider_response' => $response,
                     'message' => $message,
+                    'cache_hit' => $cacheHit,
+                    'cache_id' => $cacheId,
+                    'lookup_payload' => $lookupPayload,
                 ],
             ]);
+                $cacheRecord = $this->persistNinVerificationCache(
+                    existing: $cacheRecord,
+                    searchType: $searchType,
+                    lookupPayload: $lookupPayload,
+                    providerData: $providerData,
+                    normalized: $normalized,
+                    userId: (int) $user->id,
+                    orderId: (int) $order->id,
+                    refreshTimestamp: !$cacheHit,
+                );
                 $this->awardReferralCommission($order);
                 $orderId = $order->id;
+                $cacheId = $cacheRecord?->id ?? $cacheId;
+                $cachedAt = optional($cacheRecord?->last_verified_at)->toIso8601String() ?? $cachedAt;
+                $cachedAtLabel = $this->formatNinCacheTimestamp($cachedAt);
                 DB::commit();
             } catch (\RuntimeException $e) {
                 DB::rollBack();
@@ -1673,11 +1793,16 @@ class VtuController extends Controller
 
         return response()->json([
             'ok' => $ok,
-            'message' => $message,
+            'message' => $ok ? $message : $friendlyMessage,
             'data' => $providerData,
             'normalized' => $normalized,
             'order_id' => $orderId,
             'balance_kobo' => (int) ($wallet->fresh()?->balance ?? $wallet->balance ?? 0),
+            'cache_hit' => $cacheHit,
+            'cache_id' => $cacheId,
+            'cached_at' => $cachedAt,
+            'cached_at_label' => $cachedAtLabel,
+            'force_refresh' => $forceRefresh,
             'raw' => $ok ? null : $response,
         ], $ok ? 200 : 422);
     }
@@ -1694,12 +1819,12 @@ class VtuController extends Controller
         $verificationType = (string) ($validated['verification_type'] ?? '');
         $slipType = (string) $validated['slip_type'];
         $priceMapNaira = [
-            'long_slip' => (float) setting('price_nin_slip_long', 180),
-            'standard_slip' => (float) setting('price_nin_slip_standard', 180),
-            'premium_slip' => (float) setting('price_nin_slip_premium', 180),
+            'long_slip' => (float) setting('price_nin_slip_long', 300),
+            'standard_slip' => (float) setting('price_nin_slip_standard', 350),
+            'premium_slip' => (float) setting('price_nin_slip_premium', 400),
             'vnin_slip' => (float) setting('price_nin_slip_vnin', 180),
         ];
-        $basePriceNaira = (float) ($priceMapNaira[$slipType] ?? 180);
+        $basePriceNaira = (float) ($priceMapNaira[$slipType] ?? 300);
         $markupNaira = (float) setting('markup_nin_print', 0);
         $totalNaira = $basePriceNaira + $markupNaira;
         $totalKobo = $this->toKobo($totalNaira);
@@ -1891,7 +2016,7 @@ class VtuController extends Controller
 
         return response()->json([
             'ok' => $ok,
-            'message' => $message,
+            'message' => $ok ? $message : $this->friendlyNinProviderFailureMessage('slip print', $response, $message),
             'data' => array_merge($responseData, [
                 'slip_type' => $slipType,
                 'normalized' => $normalized,
@@ -2313,8 +2438,9 @@ class VtuController extends Controller
             ->firstOrFail();
 
         [$balanceBeforeKobo, $balanceAfterKobo] = $this->resolveOrderBalances($order, $user?->wallet);
+        $buyAgainUrl = $this->resolveBuyAgainUrl($order);
 
-        return view('vtu.receipt', compact('order', 'balanceBeforeKobo', 'balanceAfterKobo'));
+        return view('vtu.receipt', compact('order', 'balanceBeforeKobo', 'balanceAfterKobo', 'buyAgainUrl'));
     }
 
     // =========================================================
@@ -2333,14 +2459,157 @@ class VtuController extends Controller
 
         $providerServiceId = $this->providerServiceId($serviceId);
         $resp = $this->gsubz->plans($providerServiceId);
+        $provider = (string) setting('provider', 'gsubz');
+        $plans = $this->planPrices->customerPlans($resp['plans'] ?? [], $serviceId, $providerServiceId, $provider);
 
         return response()->json([
             'ok'      => (bool) ($resp['ok'] ?? false),
-            'plans'   => $resp['plans'] ?? [],
+            'plans'   => $plans,
             'message' => $resp['message'] ?? null,
-            'raw'     => $resp['raw'] ?? null,
             'service' => $providerServiceId,
         ]);
+    }
+
+    private function resolvePlanPricing(string $serviceSlug, string $planId): ?array
+    {
+        $provider = (string) setting('provider', 'gsubz');
+        $providerServiceId = $this->providerServiceId($serviceSlug);
+        $resp = $this->gsubz->plans($providerServiceId);
+        if (!($resp['ok'] ?? false) || !is_array($resp['plans'] ?? null)) {
+            return null;
+        }
+
+        return $this->planPrices->pricingForPlan($serviceSlug, $planId, $resp['plans'], $providerServiceId, $provider);
+    }
+
+    private function resolveBuyAgainUrl(Order $order): string
+    {
+        $meta = is_array($order->meta) ? $order->meta : [];
+        $type = (string) ($meta['type'] ?? '');
+        $service = $order->service_id ? Service::query()->find($order->service_id) : null;
+        $serviceSlug = trim((string) ($service?->slug ?? ($meta['service_id'] ?? '')));
+
+        return match ($type) {
+            'airtime' => $serviceSlug !== '' ? route('vtu.airtime.service', $serviceSlug) : route('vtu.airtime'),
+            'data' => $serviceSlug !== '' ? route('vtu.data.service', $serviceSlug) : route('vtu.data'),
+            'cable' => $serviceSlug !== '' ? route('vtu.cable.service', $serviceSlug) : route('vtu.cable'),
+            'electricity' => $serviceSlug !== '' ? route('vtu.electricity.service', $serviceSlug) : route('vtu.electricity'),
+            'exam' => $serviceSlug !== '' ? route('vtu.exam.service', $serviceSlug) : route('vtu.exam'),
+            'premium' => route('vtu.premium-apps'),
+            'recharge_card' => route('vtu.recharge-card'),
+            'nin' => route('vtu.nin'),
+            'nin_validation' => route('vtu.nin-validation'),
+            'bvn' => route('vtu.bvn'),
+            default => route('dashboard'),
+        };
+    }
+
+    private function friendlyNinProviderFailureMessage(string $action, array $response, ?string $fallbackMessage = null): string
+    {
+        if ($this->ninProviderWalletIssueDetected($response)) {
+            $this->notifyAdminsAboutNinProviderWalletIssue($action, $response);
+
+            return 'NIN service is temporarily unavailable right now. Please try again shortly or contact support.';
+        }
+
+        $message = trim((string) ($fallbackMessage ?: $this->ninApi->message($response)));
+
+        return $message !== ''
+            ? $message
+            : 'NIN service is temporarily unavailable right now. Please try again shortly or contact support.';
+    }
+
+    private function ninValidationShouldQueue(array $response, ?string $message = null): bool
+    {
+        $raw = strtolower($this->flattenFailurePayload($response).' '.trim((string) $message));
+
+        if ($this->ninProviderWalletIssueDetected($response)) {
+            return false;
+        }
+
+        return str_contains($raw, 'pending')
+            || str_contains($raw, 'queued')
+            || str_contains($raw, 'queue')
+            || str_contains($raw, 'processing')
+            || str_contains($raw, 'submitted');
+    }
+
+    private function ninProviderWalletIssueDetected(array $response): bool
+    {
+        $raw = strtolower($this->flattenFailurePayload($response));
+
+        return (str_contains($raw, 'insufficient') && (
+            str_contains($raw, 'fund')
+            || str_contains($raw, 'wallet')
+            || str_contains($raw, 'balance')
+            || str_contains($raw, 'credit')
+        ))
+            || str_contains($raw, 'low balance')
+            || str_contains($raw, 'not enough balance')
+            || str_contains($raw, 'wallet is empty')
+            || str_contains($raw, 'no fund');
+    }
+
+    private function flattenFailurePayload(array $response): string
+    {
+        $parts = [
+            $response['message'] ?? null,
+            $response['error'] ?? null,
+            $response['status'] ?? null,
+            data_get($response, 'response.message'),
+            data_get($response, 'response.error'),
+            data_get($response, 'response.status'),
+        ];
+
+        $responseBody = $response['response'] ?? null;
+        if (is_array($responseBody)) {
+            $encoded = json_encode($responseBody, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if ($encoded !== false) {
+                $parts[] = $encoded;
+            }
+        } elseif (is_string($responseBody)) {
+            $parts[] = $responseBody;
+        }
+
+        return implode(' ', array_filter(array_map(
+            static fn ($value) => is_scalar($value) ? trim((string) $value) : null,
+            $parts
+        )));
+    }
+
+    private function notifyAdminsAboutNinProviderWalletIssue(string $action, array $response): void
+    {
+        $fingerprint = 'nin-provider-wallet-alert:'.md5($action.'|'.$this->flattenFailurePayload($response));
+        if (Cache::has($fingerprint)) {
+            return;
+        }
+
+        Cache::put($fingerprint, true, now()->addMinutes(20));
+
+        try {
+            $admins = User::query()->where('is_admin', true)->get();
+            if ($admins->isEmpty()) {
+                return;
+            }
+
+            Notification::send($admins, new AdminSystemAlertNotification(
+                title: 'URGENT: NIN provider wallet needs funding',
+                message: 'A NIN '.$action.' request failed because the provider wallet appears empty or underfunded. Please fund the NIN provider wallet immediately.',
+                severity: 'critical',
+                url: url('/admin'),
+                payload: [
+                    'type' => 'nin_provider_wallet',
+                    'action' => $action,
+                    'severity' => 'critical',
+                    'provider_message' => trim((string) ($response['message'] ?? $response['error'] ?? '')),
+                ],
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Failed to notify admins about NIN provider wallet issue.', [
+                'action' => $action,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -2782,6 +3051,306 @@ class VtuController extends Controller
         ];
     }
 
+    private function ninVerificationCacheEnabled(): bool
+    {
+        static $exists = null;
+
+        if ($exists === null) {
+            try {
+                $exists = Schema::hasTable('nin_verification_caches');
+            } catch (\Throwable $e) {
+                $exists = false;
+            }
+        }
+
+        return $exists;
+    }
+
+    private function findNinVerificationCache(string $searchType, array $lookupPayload): ?NinVerificationCache
+    {
+        if (!$this->ninVerificationCacheEnabled()) {
+            return null;
+        }
+
+        if ($searchType === 'nin') {
+            $ninKey = $this->normalizeNinLookupKey((string) ($lookupPayload['nin'] ?? ''));
+            if ($ninKey === '') {
+                return null;
+            }
+
+            return NinVerificationCache::query()
+                ->where(function ($query) use ($ninKey) {
+                    $query->where('lookup_nin', $ninKey)
+                        ->orWhere('resolved_nin', $ninKey);
+                })
+                ->orderByDesc('last_verified_at')
+                ->first();
+        }
+
+        if ($searchType === 'phone') {
+            $phoneKeys = $this->possibleNinPhoneLookupKeys((string) ($lookupPayload['phone'] ?? ''));
+            if (empty($phoneKeys)) {
+                return null;
+            }
+
+            return NinVerificationCache::query()
+                ->where(function ($query) use ($phoneKeys) {
+                    $query->whereIn('lookup_phone', $phoneKeys)
+                        ->orWhereIn('resolved_phone', $phoneKeys);
+                })
+                ->orderByDesc('last_verified_at')
+                ->first();
+        }
+
+        $demoKey = $this->buildNinDemoLookupKey(
+            (string) ($lookupPayload['firstname'] ?? ''),
+            (string) ($lookupPayload['lastname'] ?? ''),
+            (string) ($lookupPayload['dob'] ?? ''),
+            (string) ($lookupPayload['gender'] ?? '')
+        );
+
+        if ($demoKey === '') {
+            return null;
+        }
+
+        return NinVerificationCache::query()
+            ->where('lookup_demo', $demoKey)
+            ->orderByDesc('last_verified_at')
+            ->first();
+    }
+
+    private function persistNinVerificationCache(
+        ?NinVerificationCache $existing,
+        string $searchType,
+        array $lookupPayload,
+        array $providerData,
+        array $normalized,
+        int $userId,
+        int $orderId,
+        bool $refreshTimestamp
+    ): ?NinVerificationCache {
+        if (!$this->ninVerificationCacheEnabled()) {
+            return null;
+        }
+
+        $cache = $existing ?: $this->findExistingNinVerificationCacheForWrite($searchType, $lookupPayload, $normalized);
+        if (!$cache) {
+            $cache = new NinVerificationCache();
+        }
+
+        $lookupNin = $this->normalizeNinLookupKey((string) ($lookupPayload['nin'] ?? ''));
+        $lookupPhoneCandidates = $this->possibleNinPhoneLookupKeys((string) ($lookupPayload['phone'] ?? ''));
+        $lookupDemo = $searchType === 'demo'
+            ? $this->buildNinDemoLookupKey(
+                (string) ($lookupPayload['firstname'] ?? ''),
+                (string) ($lookupPayload['lastname'] ?? ''),
+                (string) ($lookupPayload['dob'] ?? ''),
+                (string) ($lookupPayload['gender'] ?? '')
+            )
+            : '';
+        $resolvedNin = $this->normalizeNinLookupKey((string) ($normalized['nin'] ?? ''));
+        $resolvedPhoneCandidates = $this->possibleNinPhoneLookupKeys((string) ($normalized['phone_number'] ?? ''));
+        $resolvedDemo = $this->buildNinDemoLookupKey(
+            (string) ($normalized['first_name'] ?? ''),
+            (string) ($normalized['last_name'] ?? ''),
+            (string) ($normalized['birthdate'] ?? ''),
+            (string) ($normalized['gender'] ?? '')
+        );
+
+        if ($lookupNin !== '' && blank($cache->lookup_nin)) {
+            $cache->lookup_nin = $lookupNin;
+        }
+
+        if (!empty($lookupPhoneCandidates) && blank($cache->lookup_phone)) {
+            $cache->lookup_phone = $lookupPhoneCandidates[0];
+        }
+
+        if ($lookupDemo !== '') {
+            $cache->lookup_demo = $lookupDemo;
+        } elseif ($resolvedDemo !== '' && blank($cache->lookup_demo)) {
+            $cache->lookup_demo = $resolvedDemo;
+        }
+
+        if ($resolvedNin !== '') {
+            $cache->resolved_nin = $resolvedNin;
+        }
+
+        if (!empty($resolvedPhoneCandidates)) {
+            $cache->resolved_phone = $resolvedPhoneCandidates[0];
+        }
+
+        $cache->source_lookup_type = $searchType;
+        $cache->source_payload = $lookupPayload;
+        $cache->normalized_data = $normalized;
+        $cache->provider_data = $providerData;
+
+        if (!$cache->exists || !$cache->first_verified_by_user_id) {
+            $cache->first_verified_by_user_id = $userId;
+        }
+
+        $cache->last_verified_by_user_id = $userId;
+        $cache->last_order_id = $orderId;
+
+        if ($refreshTimestamp || !$cache->last_verified_at) {
+            $cache->last_verified_at = now();
+        }
+
+        $cache->save();
+
+        return $cache;
+    }
+
+    private function findExistingNinVerificationCacheForWrite(string $searchType, array $lookupPayload, array $normalized): ?NinVerificationCache
+    {
+        if (!$this->ninVerificationCacheEnabled()) {
+            return null;
+        }
+
+        $ninKeys = array_values(array_unique(array_filter([
+            $this->normalizeNinLookupKey((string) ($lookupPayload['nin'] ?? '')),
+            $this->normalizeNinLookupKey((string) ($normalized['nin'] ?? '')),
+        ])));
+        $phoneKeys = array_values(array_unique(array_filter(array_merge(
+            $this->possibleNinPhoneLookupKeys((string) ($lookupPayload['phone'] ?? '')),
+            $this->possibleNinPhoneLookupKeys((string) ($normalized['phone_number'] ?? ''))
+        ))));
+        $demoKeys = array_values(array_unique(array_filter([
+            $searchType === 'demo'
+                ? $this->buildNinDemoLookupKey(
+                    (string) ($lookupPayload['firstname'] ?? ''),
+                    (string) ($lookupPayload['lastname'] ?? ''),
+                    (string) ($lookupPayload['dob'] ?? ''),
+                    (string) ($lookupPayload['gender'] ?? '')
+                )
+                : '',
+            $this->buildNinDemoLookupKey(
+                (string) ($normalized['first_name'] ?? ''),
+                (string) ($normalized['last_name'] ?? ''),
+                (string) ($normalized['birthdate'] ?? ''),
+                (string) ($normalized['gender'] ?? '')
+            ),
+        ])));
+
+        if (empty($ninKeys) && empty($phoneKeys) && empty($demoKeys)) {
+            return null;
+        }
+
+        return NinVerificationCache::query()
+            ->where(function ($query) use ($ninKeys, $phoneKeys, $demoKeys) {
+                if (!empty($ninKeys)) {
+                    $query->orWhereIn('lookup_nin', $ninKeys)
+                        ->orWhereIn('resolved_nin', $ninKeys);
+                }
+
+                if (!empty($phoneKeys)) {
+                    $query->orWhereIn('lookup_phone', $phoneKeys)
+                        ->orWhereIn('resolved_phone', $phoneKeys);
+                }
+
+                if (!empty($demoKeys)) {
+                    $query->orWhereIn('lookup_demo', $demoKeys);
+                }
+            })
+            ->orderByDesc('last_verified_at')
+            ->first();
+    }
+
+    private function normalizeNinLookupKey(string $value): string
+    {
+        return preg_replace('/\D+/', '', $value) ?? '';
+    }
+
+    private function possibleNinPhoneLookupKeys(string $value): array
+    {
+        $digits = preg_replace('/\D+/', '', $value) ?? '';
+        if ($digits === '') {
+            return [];
+        }
+
+        $variants = [$digits];
+
+        if (str_starts_with($digits, '234') && strlen($digits) === 13) {
+            $variants[] = '0' . substr($digits, 3);
+            $variants[] = substr($digits, 3);
+        }
+
+        if (str_starts_with($digits, '0') && strlen($digits) === 11) {
+            $variants[] = substr($digits, 1);
+            $variants[] = '234' . substr($digits, 1);
+        }
+
+        if (strlen($digits) === 10) {
+            $variants[] = '0' . $digits;
+            $variants[] = '234' . $digits;
+        }
+
+        return array_values(array_unique(array_filter($variants)));
+    }
+
+    private function buildNinDemoLookupKey(string $firstname, string $lastname, string $dob, string $gender): string
+    {
+        $first = Str::lower(trim($firstname));
+        $last = Str::lower(trim($lastname));
+        $date = $this->normalizeNinDateKey($dob);
+        $genderKey = $this->normalizeNinGenderKey($gender);
+
+        if ($first === '' || $last === '' || $date === '' || $genderKey === '') {
+            return '';
+        }
+
+        return implode('|', [$first, $last, $date, $genderKey]);
+    }
+
+    private function normalizeNinGenderKey(string $gender): string
+    {
+        $value = Str::lower(trim($gender));
+
+        return match ($value) {
+            'male', 'm' => 'm',
+            'female', 'f' => 'f',
+            default => '',
+        };
+    }
+
+    private function normalizeNinDateKey(string $value): string
+    {
+        $date = trim($value);
+        if ($date === '') {
+            return '';
+        }
+
+        if (preg_match('/^\d{2}-\d{2}-\d{4}$/', $date)) {
+            return $date;
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            try {
+                return Carbon::createFromFormat('Y-m-d', $date)->format('d-m-Y');
+            } catch (\Throwable $e) {
+                return $date;
+            }
+        }
+
+        try {
+            return Carbon::parse($date)->format('d-m-Y');
+        } catch (\Throwable $e) {
+            return $date;
+        }
+    }
+
+    private function formatNinCacheTimestamp(?string $timestamp): ?string
+    {
+        if (!$timestamp) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($timestamp)->format('d M Y, h:i A');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     private function normalizeBvnPayload(array $payload): array
     {
         $lookup = [];
@@ -2935,6 +3504,21 @@ class VtuController extends Controller
         }
 
         return $orderedServices;
+    }
+
+    private function airtimeServices(): array
+    {
+        $services = $this->parseServicesSetting('services_airtime');
+        if (!empty($services)) {
+            return $services;
+        }
+
+        return [
+            'mtn' => 'MTN Airtime',
+            'airtel' => 'Airtel Airtime',
+            'glo' => 'Glo Airtime',
+            'etisalat' => '9mobile Airtime',
+        ];
     }
 
     private function cableServices(): array
@@ -3383,19 +3967,38 @@ class VtuController extends Controller
         }
 
         $profileMap = $this->parseServiceMapProfile('service_map_profile_' . $provider);
-        if (array_key_exists($slug, $profileMap) && trim((string) $profileMap[$slug]) !== '') {
-            return trim((string) $profileMap[$slug]);
+        if (array_key_exists($slug, $profileMap)) {
+            $profileServiceId = $this->usableProviderServiceId($profileMap[$slug]);
+            if ($profileServiceId !== null) {
+                return $profileServiceId;
+            }
         }
 
         $providerSpecificKey = 'service_map_' . $provider . '_' . $slug;
-        $providerSpecific = trim((string) setting($providerSpecificKey, ''));
-        if ($providerSpecific !== '') {
+        $providerSpecific = $this->usableProviderServiceId(setting($providerSpecificKey, ''));
+        if ($providerSpecific !== null) {
             return $providerSpecific;
         }
 
         $legacyKey = 'service_map_' . $slug;
-        $legacy = trim((string) setting($legacyKey, ''));
-        return $legacy !== '' ? $legacy : $slug;
+        $legacy = $this->usableProviderServiceId(setting($legacyKey, ''));
+        return $legacy !== null ? $legacy : $slug;
+    }
+
+    private function usableProviderServiceId(mixed $value): ?string
+    {
+        $serviceId = trim((string) $value);
+        if ($serviceId === '') {
+            return null;
+        }
+
+        // Admin service-map fields are provider service codes, not plan prices.
+        // If a price is saved there by mistake, falling back to the local slug keeps plan lookups alive.
+        if (preg_match('/^(?:\x{20A6}|N|NGN)?\s*\d+(?:[,.]\d+)?\s*(?:naira)?$/iu', $serviceId)) {
+            return null;
+        }
+
+        return $serviceId;
     }
 
     private function parseServiceMapProfile(string $key): array

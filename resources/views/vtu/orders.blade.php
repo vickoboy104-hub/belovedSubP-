@@ -25,7 +25,7 @@
                             : ($status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700');
                     @endphp
                     <article class="app-record-card">
-                        <div class="flex items-start justify-between gap-4">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                                 <div class="text-lg font-extrabold capitalize text-slate-900">{{ str_replace('_', ' ', $type) }}</div>
                                 <div class="mt-1 text-sm text-slate-500">ID: {{ $o->customer_ref }}</div>

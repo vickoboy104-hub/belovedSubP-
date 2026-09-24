@@ -34,6 +34,7 @@
                     ['label' => 'Recharge PIN', 'route' => 'vtu.recharge-card'],
                     ['label' => 'Premium Apps', 'route' => 'vtu.premium-apps'],
                     ['label' => 'NIN Services', 'route' => 'vtu.nin'],
+                    ['label' => 'BVN Services', 'route' => 'vtu.bvn'],
                     ['label' => 'NIN Validation', 'route' => 'vtu.nin-validation'],
                 ],
             ],
@@ -59,7 +60,7 @@
     @endif
 
     <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="theme-color" content="#17233d">
+    <meta name="theme-color" content="#173f8a">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="{{ $siteName }}">
@@ -68,12 +69,12 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#eef4fb_100%)] text-slate-900">
+<body class="app-shell-bg min-h-screen text-slate-900">
     <x-maintenance-overlay />
     <x-global-loader />
 
     <div x-data="{ drawerOpen: false, profileMenuOpen: false }" class="min-h-screen">
-        <aside class="desktop-sidebar-scroll hidden fixed left-0 top-[84px] z-30 h-[calc(100vh-84px)] w-[300px] overflow-y-auto overscroll-contain border-r border-slate-200 bg-[linear-gradient(180deg,#f8fbff_0%,#edf4fb_100%)] p-4 pb-8 shadow-[0_22px_55px_rgba(18,31,56,0.08)] md:block">
+        <aside class="app-sidebar-surface desktop-sidebar-scroll hidden fixed left-0 top-[84px] z-30 h-[calc(100vh-84px)] w-[300px] overflow-y-auto overscroll-contain border-r p-4 pb-8 shadow-[0_22px_55px_rgba(18,31,56,0.08)] md:block">
             <div class="app-section-muted p-4">
                 <div class="text-xs font-semibold text-slate-500">Good {{ now()->hour < 12 ? 'morning' : (now()->hour < 18 ? 'afternoon' : 'evening') }}</div>
                 <div class="mt-1 text-2xl font-extrabold text-slate-900">{{ $authUser?->name ?? 'User' }}</div>
@@ -83,14 +84,14 @@
                 <a href="{{ route('dashboard') }}" class="nav-item {{ $isRoute('dashboard') ? 'nav-item-active' : '' }}">Home</a>
 
                 @foreach($drawerSections as $section)
-                    <div class="rounded-[22px] border border-slate-200 bg-white p-2 shadow-[0_10px_28px_rgba(18,31,56,0.05)]">
+                    <div class="app-glass-card rounded-[22px] p-2">
                         <div class="px-3 py-3 text-sm font-extrabold text-slate-800">{{ $section['title'] }}</div>
                         <div class="space-y-1">
                             @foreach($section['items'] as $item)
                                 <a href="{{ route($item['route']) }}"
-                                   class="flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                                   class="flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50/70">
                                     <span>{{ $item['label'] }}</span>
-                                    <span class="text-slate-300">›</span>
+                                    <span class="text-slate-400">&rsaquo;</span>
                                 </a>
                             @endforeach
                         </div>
@@ -108,7 +109,7 @@
             </div>
         </aside>
 
-        <header class="fixed inset-x-0 top-0 z-40 bg-[#17233d] text-white shadow-[0_12px_30px_rgba(16,26,49,0.18)]">
+        <header class="app-header-bar fixed inset-x-0 top-0 z-40">
             <div class="flex w-full items-center justify-between gap-4 px-4 py-4 sm:px-6 md:px-8 md:py-5">
                 <div class="flex items-center gap-3">
                     <button type="button"
@@ -159,7 +160,7 @@
 
             <div x-show="profileMenuOpen"
                  x-transition
-                 class="absolute right-4 top-[calc(100%-0.25rem)] z-50 w-52 overflow-hidden rounded-[22px] border border-slate-200 bg-white p-2 text-slate-800 shadow-[0_22px_55px_rgba(18,31,56,0.18)] md:hidden"
+                 class="app-glass-card absolute right-4 top-[calc(100%-0.25rem)] z-50 w-52 overflow-hidden rounded-[22px] p-2 text-slate-800 md:hidden"
                  @click="profileMenuOpen = false">
                 <a href="{{ route('profile.edit') }}" class="mobile-profile-menu-item">Profile</a>
                 <a href="{{ route('profile.edit') }}#security-settings" class="mobile-profile-menu-item">Settings</a>
@@ -175,11 +176,11 @@
 
         <aside x-show="drawerOpen"
                x-transition
-               class="fixed left-0 top-[84px] z-[60] h-[calc(100vh-84px)] w-[86%] max-w-sm overflow-y-auto rounded-r-[30px] border-r border-slate-200 bg-[linear-gradient(180deg,#f8fbff_0%,#edf4fb_100%)] p-4 shadow-[0_22px_55px_rgba(18,31,56,0.18)] md:w-[360px] md:max-w-[360px]">
+               class="app-sidebar-surface fixed left-0 top-[84px] z-[60] h-[calc(100vh-84px)] w-[86%] max-w-sm overflow-y-auto rounded-r-[30px] border-r p-4 shadow-[0_22px_55px_rgba(18,31,56,0.18)] md:w-[360px] md:max-w-[360px]">
             <div class="mb-4 flex items-center justify-end md:justify-between">
                 <div class="hidden text-sm font-semibold text-slate-500 md:block">Navigation</div>
                 <button type="button"
-                        class="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        class="app-glass-card flex h-10 w-10 items-center justify-center rounded-2xl text-slate-600"
                         @click="drawerOpen = false"
                         aria-label="Close navigation">
                     <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
@@ -198,14 +199,14 @@
                 <a href="{{ route('dashboard') }}" class="nav-item {{ $isRoute('dashboard') ? 'nav-item-active' : '' }}">Home</a>
 
                 @foreach($drawerSections as $section)
-                    <div class="rounded-[22px] border border-slate-200 bg-white p-2 shadow-[0_10px_28px_rgba(18,31,56,0.05)]">
+                    <div class="app-glass-card rounded-[22px] p-2">
                         <div class="px-3 py-3 text-sm font-extrabold text-slate-800">{{ $section['title'] }}</div>
                         <div class="space-y-1">
                             @foreach($section['items'] as $item)
                                 <a href="{{ route($item['route']) }}"
-                                   class="flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                                   class="flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50/70">
                                     <span>{{ $item['label'] }}</span>
-                                    <span class="text-slate-300">›</span>
+                                    <span class="text-slate-400">&rsaquo;</span>
                                 </a>
                             @endforeach
                         </div>
@@ -227,31 +228,29 @@
             <div class="app-page">
                 <x-toast />
 
-                <div id="transactionResultOverlay" class="fixed inset-0 z-[96] hidden items-center justify-center px-4">
-                    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true"></div>
-                    <div class="relative w-full max-w-md overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_22px_55px_rgba(18,31,56,0.18)]">
-                        <div class="p-8 text-center">
-                            <div id="transactionResultIconWrap" class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200">
+                <div id="transactionResultOverlay" class="app-modal-overlay fixed inset-0 z-[96] hidden items-center justify-center px-4">
+                    <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
+                        <div class="p-5 text-center">
+                            <div id="transactionResultIconWrap" class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200">
                                 <div id="transactionResultIcon"></div>
                             </div>
-                            <div id="transactionResultTitle" class="mt-4 text-2xl font-extrabold text-slate-900">Status</div>
-                            <div id="transactionResultMessage" class="mt-2 text-sm text-slate-500">Message</div>
-                            <div class="mt-6 flex items-center justify-center">
-                                <button type="button" id="transactionResultOk" class="btn-primary min-w-[140px]">Okay</button>
+                            <div id="transactionResultTitle" class="mt-3 text-xl font-extrabold text-slate-950">Status</div>
+                            <div id="transactionResultMessage" class="mt-2 text-sm leading-6 text-slate-700">Message</div>
+                            <div class="mt-5 flex items-center justify-center">
+                                <button type="button" id="transactionResultOk" class="app-modal-btn app-modal-btn-warm min-w-[112px]">Okay</button>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div id="transactionContinueOverlay" class="fixed inset-0 z-[95] hidden items-center justify-center px-4">
-                    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true"></div>
-                    <div class="relative w-full max-w-xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_22px_55px_rgba(18,31,56,0.18)]">
-                        <div class="p-8 text-center">
-                            <div class="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-extrabold uppercase tracking-wide text-emerald-700">
+                <div id="transactionContinueOverlay" class="app-modal-overlay fixed inset-0 z-[95] hidden items-center justify-center px-4">
+                    <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
+                        <div class="p-5 text-center">
+                            <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-extrabold uppercase tracking-wide text-emerald-800">
                                 Transaction Successful
                             </div>
-                            <div class="mt-5 flex items-center justify-center">
-                                <button type="button" id="transactionContinueBtn" class="btn-primary min-w-[170px]">Continue</button>
+                            <div class="mt-4 flex items-center justify-center">
+                                <button type="button" id="transactionContinueBtn" class="app-modal-btn app-modal-btn-success min-w-[132px]">Continue</button>
                             </div>
                         </div>
                     </div>
@@ -288,7 +287,7 @@
             wrap.className = 'fixed inset-0 z-[85] flex items-center justify-center px-4';
             wrap.innerHTML = `
                 <div class="absolute inset-0 bg-black/45 backdrop-blur-sm" aria-hidden="true"></div>
-                <div class="relative w-full max-w-md overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_22px_55px_rgba(18,31,56,0.18)]">
+                <div class="app-glass-card relative w-full max-w-md overflow-hidden rounded-[28px]">
                     <div class="p-6">
                         <div class="flex items-start justify-between gap-3">
                             <div>
@@ -305,6 +304,40 @@
                         </div>
                         <div class="mt-6 flex items-center justify-end">
                             <button type="button" onclick="closeFlashToast()" class="btn-primary min-w-[120px]">OK</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(wrap);
+            setTimeout(closeFlashToast, 8000);
+        }
+
+        function showFlashToast(type, message) {
+            const ok = type === 'success';
+            const safeMessage = escapeToastHtml(message || '');
+            closeFlashToast();
+
+            const wrap = document.createElement('div');
+            wrap.id = 'flashToast';
+            wrap.className = 'app-modal-overlay fixed inset-0 z-[85] flex items-center justify-center px-4';
+            wrap.innerHTML = `
+                <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
+                    <div class="p-5">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <div class="text-lg font-extrabold text-slate-950">${ok ? 'Success' : 'Failed'}</div>
+                                <div class="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-600">Transaction status</div>
+                            </div>
+                            <button type="button" onclick="closeFlashToast()" class="app-modal-close">
+                                &times;
+                            </button>
+                        </div>
+                        <div class="mt-4 rounded-2xl border ${ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'} p-4 text-sm font-semibold leading-6">
+                            ${safeMessage}
+                        </div>
+                        <div class="mt-5 flex items-center justify-end">
+                            <button type="button" onclick="closeFlashToast()" class="app-modal-btn app-modal-btn-warm min-w-[96px]">OK</button>
                         </div>
                     </div>
                 </div>
@@ -332,6 +365,9 @@
 
         function showOverlay(el) {
             if (!el) return;
+            if (typeof window.promoteViewportLayer === 'function') {
+                window.promoteViewportLayer(el);
+            }
             el.classList.remove('hidden');
             el.classList.add('flex');
         }

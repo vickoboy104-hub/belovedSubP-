@@ -21,7 +21,7 @@
                     <div class="flex flex-wrap items-start justify-between gap-4">
                         <div>
                             <div class="app-kicker">Available Balance</div>
-                            <div class="mt-3 text-4xl font-extrabold text-slate-900">&#8358;{{ $balanceNaira }}</div>
+                            <div class="amount-fit mt-3 text-4xl font-extrabold text-slate-900">&#8358;{{ $balanceNaira }}</div>
                             <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
                                 Fund your wallet by transfer or checkout and use it across data, airtime, utility bills and identity services.
                             </p>
@@ -40,7 +40,7 @@
                         </div>
                         <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
                             <div class="text-xs font-semibold text-slate-500">Account Number</div>
-                            <div class="mt-2 text-sm font-extrabold tracking-wide text-slate-900">{{ $authUser?->virtual_account_number ?: '-' }}</div>
+                            <div class="numeric-fit mt-2 text-sm font-extrabold tracking-wide text-slate-900">{{ $authUser?->virtual_account_number ?: '-' }}</div>
                         </div>
                         <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
                             <div class="text-xs font-semibold text-slate-500">Account Name</div>
@@ -89,6 +89,10 @@
                         <a href="{{ route('vtu.nin') }}" class="app-mini-tile">
                             <span class="app-mini-tile-icon">🪪</span>
                             <span class="app-mini-tile-label">NIN</span>
+                        </a>
+                        <a href="{{ route('vtu.bvn') }}" class="app-mini-tile">
+                            <span class="app-mini-tile-icon text-lg font-black">BVN</span>
+                            <span class="app-mini-tile-label">BVN</span>
                         </a>
                         <a href="{{ route('wallet.transactions') }}" class="app-mini-tile">
                             <span class="app-mini-tile-icon">🧾</span>
@@ -197,11 +201,11 @@
             <div class="space-y-6">
                 <div class="app-section-muted p-6">
                     <div class="app-kicker">Referral Wallet</div>
-                    <div class="mt-3 text-3xl font-extrabold text-slate-900">&#8358;{{ $referralBalanceNaira }}</div>
+                    <div class="amount-fit mt-3 text-3xl font-extrabold text-slate-900">&#8358;{{ $referralBalanceNaira }}</div>
                     <div class="mt-4 grid grid-cols-2 gap-3">
                         <div class="rounded-[20px] border border-slate-200 bg-white p-4">
                             <div class="text-xs text-slate-500">Total Earned</div>
-                            <div class="mt-2 text-lg font-extrabold text-slate-900">&#8358;{{ $referralTotalNaira }}</div>
+                            <div class="amount-fit mt-2 text-lg font-extrabold text-slate-900">&#8358;{{ $referralTotalNaira }}</div>
                         </div>
                         <div class="rounded-[20px] border border-slate-200 bg-white p-4">
                             <div class="text-xs text-slate-500">Active Referrals</div>

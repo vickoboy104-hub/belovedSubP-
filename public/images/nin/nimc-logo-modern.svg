@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 86" role="img" aria-labelledby="title desc">
+  <title id="title">NIMC Logo</title>
+  <desc id="desc">Stylized green Nimc wordmark with soft gray swooshes.</desc>
+  <defs>
+    <linearGradient id="swoosh" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#c7ccd1"/>
+      <stop offset="100%" stop-color="#8f979f"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke="url(#swoosh)" stroke-linecap="round">
+    <path d="M176 10c20 9 31 29 27 47" stroke-width="3.4"/>
+    <path d="M34 72C16 63 7 47 10 28" stroke-width="2.6" opacity=".72"/>
+    <path d="M183 14c-2 22-13 41-34 54" stroke-width="1.6" opacity=".55"/>
+  </g>
+  <text x="18" y="60" fill="#08a651" font-family="Georgia, 'Times New Roman', serif" font-size="58" font-style="italic" font-weight="700">Nimc</text>
+  <ellipse cx="97" cy="16" rx="6.2" ry="6.2" fill="#f7b419"/>
+  <path d="M94 11l6 4-6 4-6-4z" fill="#f0c94a" opacity=".65"/>
+</svg>

@@ -86,6 +86,7 @@
                 <a href="{{ route('vtu.recharge-card') }}" class="nav-item">Recharge PIN</a>
                 <a href="{{ route('vtu.premium-apps') }}" class="nav-item">Premium Apps</a>
                 <a href="{{ route('vtu.nin') }}" class="nav-item">NIN Services</a>
+                <a href="{{ route('vtu.bvn') }}" class="nav-item">BVN Services</a>
                 <a href="{{ route('vtu.nin-validation') }}" class="nav-item">NIN Validation</a>
                 <a href="{{ route('vtu.orders') }}" class="nav-item">My Orders</a>
 
@@ -156,6 +157,7 @@
                 <a href="{{ route('vtu.recharge-card') }}" class="nav-item" @click="open=false">Recharge PIN</a>
                 <a href="{{ route('vtu.premium-apps') }}" class="nav-item" @click="open=false">Premium Apps</a>
                 <a href="{{ route('vtu.nin') }}" class="nav-item" @click="open=false">NIN Services</a>
+                <a href="{{ route('vtu.bvn') }}" class="nav-item" @click="open=false">BVN Services</a>
                 <a href="{{ route('vtu.nin-validation') }}" class="nav-item" @click="open=false">NIN Validation</a>
                 <a href="{{ route('vtu.orders') }}" class="nav-item" @click="open=false">My Orders</a>
 

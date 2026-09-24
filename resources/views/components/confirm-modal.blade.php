@@ -118,6 +118,9 @@
     }
 
     function showOverlay(overlay){
+        if (typeof window.promoteViewportLayer === 'function') {
+            window.promoteViewportLayer(overlay);
+        }
         overlay.classList.remove('hidden');
         overlay.classList.add('flex');
     }

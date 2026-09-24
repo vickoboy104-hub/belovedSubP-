@@ -59,7 +59,7 @@
                         <div class="app-record-grid">
                             <div>
                                 <div class="app-record-label">Amount</div>
-                                <div class="app-record-value">&#8358;{{ number_format(($t->amount ?? 0) / 100, 2) }}</div>
+                                <div class="app-record-value amount-fit">&#8358;{{ number_format(($t->amount ?? 0) / 100, 2) }}</div>
                             </div>
                             <div>
                                 <div class="app-record-label">Channel</div>
@@ -104,7 +104,7 @@
                                     <div class="text-xs text-slate-500">{{ $t->wallet?->user?->email ?? '-' }}</div>
                                 </td>
                                 <td class="p-4">{{ strtoupper($t->type ?? '-') }}</td>
-                                <td class="p-4 font-bold text-slate-900">&#8358;{{ number_format(($t->amount ?? 0) / 100, 2) }}</td>
+                                <td class="p-4 font-bold text-slate-900 amount-fit">&#8358;{{ number_format(($t->amount ?? 0) / 100, 2) }}</td>
                                 <td class="p-4">
                                     <span class="px-3 py-1 rounded-xl text-xs font-bold
                                         @if($t->status === 'success') bg-emerald-50 text-emerald-700
@@ -116,7 +116,7 @@
                                 </td>
                                 <td class="p-4">{{ $t->channel ?? '-' }}</td>
                                 <td class="p-4 text-xs text-slate-500">{{ $t->description ?? '-' }}</td>
-                                <td class="p-4 text-xs text-slate-500">{{ $t->reference ?? '-' }}</td>
+                                <td class="p-4 text-xs text-slate-500 table-token">{{ $t->reference ?? '-' }}</td>
                             </tr>
                         @endforeach
                     </tbody>

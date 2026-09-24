@@ -111,6 +111,7 @@
                 <a href="{{ route('vtu.recharge-card') }}" class="nav-item">Recharge PIN</a>
                 <a href="{{ route('vtu.premium-apps') }}" class="nav-item">Premium Apps</a>
                 <a href="{{ route('vtu.nin') }}" class="nav-item">NIN Services</a>
+                <a href="{{ route('vtu.bvn') }}" class="nav-item">BVN Services</a>
                 <a href="{{ route('vtu.nin-validation') }}" class="nav-item">NIN Validation</a>
             </div>
 
@@ -186,18 +187,17 @@
         <main class="p-4 sm:p-6 lg:p-8">
             <x-global-loader />
             <x-toast />
-            <div id="transactionResultOverlay" class="fixed inset-0 z-[96] hidden items-center justify-center px-4">
-                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true"></div>
-                <div class="relative w-full max-w-md rounded-3xl border border-white/15 bg-[#0b1220]/95 shadow-2xl overflow-hidden toast-pop">
-                    <div class="p-8 text-center">
-                        <div id="transactionResultIconWrap" class="mx-auto w-16 h-16 rounded-2xl border border-white/10 flex items-center justify-center">
+            <div id="transactionResultOverlay" class="app-modal-overlay fixed inset-0 z-[96] hidden items-center justify-center px-4">
+                <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
+                    <div class="p-5 text-center">
+                        <div id="transactionResultIconWrap" class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200">
                             <div id="transactionResultIcon"></div>
                         </div>
-                        <div id="transactionResultTitle" class="mt-4 text-2xl font-extrabold text-white">Status</div>
-                        <div id="transactionResultMessage" class="mt-2 text-white/70 text-sm">Message</div>
-                        <div class="mt-6 flex items-center justify-center gap-3">
+                        <div id="transactionResultTitle" class="mt-3 text-xl font-extrabold text-slate-950">Status</div>
+                        <div id="transactionResultMessage" class="mt-2 text-sm leading-6 text-slate-700">Message</div>
+                        <div class="mt-5 flex items-center justify-center gap-3">
                             <button type="button" id="transactionResultOk"
-                                    class="px-6 py-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/10 font-extrabold text-white transition">
+                                    class="app-modal-btn app-modal-btn-warm min-w-[112px]">
                                 Okay
                             </button>
                         </div>
@@ -205,16 +205,15 @@
                 </div>
             </div>
 
-            <div id="transactionContinueOverlay" class="fixed inset-0 z-[95] hidden items-center justify-center px-4">
-                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true"></div>
-                <div class="relative w-full max-w-xl rounded-3xl border border-white/15 bg-white/10 shadow-2xl overflow-hidden toast-pop">
-                    <div class="p-8 text-center">
-                        <div class="px-4 py-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/25 text-emerald-200 font-extrabold uppercase tracking-wide">
+            <div id="transactionContinueOverlay" class="app-modal-overlay fixed inset-0 z-[95] hidden items-center justify-center px-4">
+                <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
+                    <div class="p-5 text-center">
+                        <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-extrabold uppercase tracking-wide text-emerald-800">
                             Transaction Successful
                         </div>
-                        <div class="mt-5 flex items-center justify-center">
+                        <div class="mt-4 flex items-center justify-center">
                             <button type="button" id="transactionContinueBtn"
-                                    class="px-8 py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold shadow-lg transition">
+                                    class="app-modal-btn app-modal-btn-success min-w-[132px]">
                                 Continue
                             </button>
                         </div>
@@ -283,35 +282,34 @@
 
         const wrap = document.createElement('div');
         wrap.id = 'flashToast';
-        wrap.className = 'fixed inset-0 z-[85] flex items-center justify-center px-4';
+        wrap.className = 'app-modal-overlay fixed inset-0 z-[85] flex items-center justify-center px-4';
         wrap.innerHTML = `
-            <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true"></div>
-            <div class="relative w-full max-w-md rounded-3xl border border-white/15 bg-white/10 shadow-2xl overflow-hidden toast-pop">
-                <div class="p-6">
+            <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
+                <div class="p-5">
                     <div class="flex items-start justify-between gap-3">
                         <div class="flex items-start gap-3">
-                            <div class="toast-icon ${safeType === 'success' ? 'toast-icon-success text-emerald-200' : 'toast-icon-error text-red-200'}">
+                            <div class="toast-icon ${safeType === 'success' ? 'toast-icon-success text-emerald-700' : 'toast-icon-error text-red-700'}">
                                 ${icon}
                             </div>
                             <div>
-                                <div class="text-xl font-extrabold text-white">${label}</div>
-                                <div class="text-white/70 text-sm mt-1">Transaction status</div>
+                                <div class="text-lg font-extrabold text-slate-950">${label}</div>
+                                <div class="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-600">Transaction status</div>
                             </div>
                         </div>
                         <button type="button" onclick="closeFlashToast()"
-                                class="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/10 flex items-center justify-center text-white/80">
-                            X
+                                class="app-modal-close">
+                            &times;
                         </button>
                     </div>
-                    <div class="mt-4 rounded-2xl p-4 border ${safeType === 'success' ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-100' : 'border-red-500/25 bg-red-500/10 text-red-100'}">
+                    <div class="mt-4 rounded-2xl border ${safeType === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-red-200 bg-red-50 text-red-800'} p-4 text-sm font-semibold leading-6">
                         ${safeMessage}
                     </div>
-                    <div class="mt-4 h-1 rounded-full bg-white/10 overflow-hidden">
-                        <div class="toast-progress ${safeType === 'success' ? 'bg-emerald-400/70' : 'bg-red-400/70'}"></div>
+                    <div class="mt-4 h-1 overflow-hidden rounded-full bg-slate-200">
+                        <div class="toast-progress ${safeType === 'success' ? 'bg-emerald-500' : 'bg-red-500'}"></div>
                     </div>
-                    <div class="mt-6 flex items-center justify-end gap-3">
+                    <div class="mt-5 flex items-center justify-end gap-3">
                         <button type="button" onclick="closeFlashToast()"
-                                class="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/10 font-extrabold text-white transition">
+                                class="app-modal-btn app-modal-btn-warm min-w-[96px]">
                             OK
                         </button>
                     </div>
@@ -346,6 +344,9 @@
 
     function showOverlay(el) {
         if (!el) return;
+        if (typeof window.promoteViewportLayer === 'function') {
+            window.promoteViewportLayer(el);
+        }
         el.classList.remove('hidden');
         el.classList.add('flex');
     }
@@ -456,4 +457,3 @@
 
 </body>
 </html>
-
