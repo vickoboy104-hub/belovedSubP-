@@ -64,7 +64,7 @@
             </section>
 
             <section aria-labelledby="everyday-title">
-                <h2 class="reference-section-title" id="everyday-title">Additional services</h2>
+                <h2 class="reference-section-title" id="everyday-title">Subscriptions &amp; Payment Services</h2>
                 <div class="reference-tile-grid">
                     @foreach($everydayTiles as $tile)
                         <a href="{{ route($tile['route']) }}" class="reference-service-tile">

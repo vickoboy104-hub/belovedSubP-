@@ -106,5 +106,7 @@
         @endif
     </main>
 
+    <x-whatsapp-support :href="$whatsApp" />
+
 </body>
 </html>

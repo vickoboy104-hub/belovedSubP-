@@ -25,7 +25,7 @@
         <a href="{{ route('wallet.transactions') }}" class="nav-item">Transactions</a>
 
         <div class="pt-3 mt-3 border-t border-gray-200 dark:border-white/10 space-y-2">
-            <div class="identity-nav-label">More services</div>
+            <div class="identity-nav-label">Subscriptions &amp; Payment Services</div>
             <a href="{{ route('vtu.airtime') }}" class="nav-item">Buy Airtime</a>
             <a href="{{ route('vtu.data') }}" class="nav-item">Buy Data</a>
             <a href="{{ route('vtu.cable') }}" class="nav-item">Cable TV</a>

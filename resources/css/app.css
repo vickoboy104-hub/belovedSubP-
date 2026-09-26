@@ -549,13 +549,16 @@ button {
     }
 
     .btn-primary {
-        @apply inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold text-white;
-        background: linear-gradient(135deg, #1c4fa1 0%, #e09a41 100%);
-        box-shadow: 0 14px 28px rgba(28, 79, 161, 0.2);
+        @apply inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-bold text-white;
+        background: #173f74;
+        box-shadow: 0 6px 15px rgba(17, 45, 87, .18);
+        transition: transform .25s ease, background-color .25s ease, box-shadow .25s ease;
     }
 
     .btn-primary:hover {
-        background: linear-gradient(135deg, #173f8a 0%, #cb8433 100%);
+        background: #b45012;
+        box-shadow: 0 10px 22px rgba(17, 45, 87, .2);
+        transform: translateY(-2px);
     }
 
     .btn-soft {
@@ -1649,6 +1652,68 @@ body::before, body::after { display: none; }
 .reference-service-content #ninSubmitBtn:hover { background: #225697; }
 .reference-service-content #refreshReportsBtn { background: #ae4c10; color: white; }
 @media (max-width: 767px) { .reference-service-content { margin-top: -2.8rem; padding-inline: .5rem; } }
+/* Shared customer actions and support control. */
+.btn-primary:focus-visible, .reference-full-button:focus-visible,
+.reference-whatsapp:focus-visible, .reference-nav-link:focus-visible {
+    outline: 3px solid #c46617;
+    outline-offset: 3px;
+}
+.btn-primary:disabled, .btn-primary[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: .55;
+    transform: none;
+    box-shadow: none;
+}
+.reference-full-button { transition: background-color .25s ease, transform .25s ease, box-shadow .25s ease; }
+a.reference-full-button:hover { background: #b45012; color: white; transform: translateY(-2px); box-shadow: 0 8px 16px rgba(17,45,87,.16); }
+.reference-whatsapp {
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    width: 3.5rem;
+    height: 3.5rem;
+    font-size: initial;
+    background: #19a653;
+    isolation: isolate;
+}
+.reference-whatsapp svg { width: 1.85rem; height: 1.85rem; fill: none; stroke: white; }
+.reference-whatsapp::before {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border: 2px solid rgba(25,166,83,.6);
+    border-radius: 50%;
+    animation: support-pulse 2.8s ease-out infinite;
+    pointer-events: none;
+    z-index: -1;
+}
+@keyframes support-pulse { 0%, 45% { transform: scale(.85); opacity: .65; } 85%, 100% { transform: scale(1.3); opacity: 0; } }
+.reference-whatsapp-tooltip {
+    position: absolute;
+    right: calc(100% + .75rem);
+    top: 50%;
+    transform: translate(6px,-50%);
+    padding: .55rem .75rem;
+    border-radius: .45rem;
+    background: #123461;
+    color: white;
+    font-size: .78rem;
+    font-weight: 700;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+}
+.reference-whatsapp:hover .reference-whatsapp-tooltip,
+.reference-whatsapp:focus-visible .reference-whatsapp-tooltip { opacity: 1; transform: translate(0,-50%); }
+@media (max-width: 767px) {
+    .reference-whatsapp { right: max(.85rem, env(safe-area-inset-right)); bottom: max(.85rem, env(safe-area-inset-bottom)); }
+    .reference-whatsapp-tooltip { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .reference-whatsapp::before { animation: none; opacity: .3; transform: none; }
+    .reference-whatsapp, .reference-whatsapp-tooltip, .btn-primary, .reference-full-button { transition: none; }
+    .btn-primary:hover, a.reference-full-button:hover, .reference-whatsapp:hover { transform: none; }
+}
 @media (max-width: 767px) {
     .reference-page-banner, .reference-page-banner.reference-shared-banner { min-height: 218px; padding: 2rem 2rem 4.4rem; background-position: 60% center; }
     .reference-home-intro { grid-template-columns: 1fr; margin: -1rem -1rem 0; gap: 0; }

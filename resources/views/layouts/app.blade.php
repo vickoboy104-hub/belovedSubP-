@@ -9,7 +9,7 @@
         $siteName = setting('site_name', config('app.name', 'VTU Platform'));
         $siteLogo = setting('logo_url', setting('site_logo', ''));
         $siteFavicon = setting('favicon_url', setting('site_favicon', ''));
-        $whatsApp = 'https://wa.me/2347046246332';
+        $whatsApp = setting('whatsapp_link', 'https://wa.me/2348165587119');
         $authUser = auth()->user();
         $walletKobo = (int) ($authUser?->wallet->balance ?? 0);
 
@@ -40,24 +40,16 @@
 
         $drawerSections = [
             [
-                'title' => 'Main',
+                'title' => 'Identity Services',
                 'items' => [
                     ['label' => 'NIN Verification Services', 'route' => 'vtu.nin'],
                     ['label' => 'BVN Services / BVN Printout', 'route' => 'vtu.bvn'],
-                    ['label' => 'Fund Wallet', 'route' => 'wallet.fund'],
-                    ['label' => 'Transactions', 'route' => 'wallet.transactions'],
-                    ['label' => 'Profile', 'route' => 'profile.edit'],
-                ],
-            ],
-            [
-                'title' => 'Identity services',
-                'items' => [
                     ['label' => 'NIN Validation', 'route' => 'vtu.nin-validation'],
                     ['label' => 'All Identity Services', 'route' => 'identity.index'],
                 ],
             ],
             [
-                'title' => 'Additional Services',
+                'title' => 'Subscriptions & Payment Services',
                 'items' => [
                     ['label' => 'Buy Data', 'route' => 'vtu.data'],
                     ['label' => 'Buy Airtime', 'route' => 'vtu.airtime'],
@@ -71,7 +63,17 @@
             [
                 'title' => 'Wallet & Activity',
                 'items' => [
+                    ['label' => 'Fund Wallet', 'route' => 'wallet.fund'],
+                    ['label' => 'Transactions', 'route' => 'wallet.transactions'],
                     ['label' => 'Orders', 'route' => 'vtu.orders'],
+                    ['label' => 'Profile', 'route' => 'profile.edit'],
+                ],
+            ],
+            [
+                'title' => 'Support',
+                'items' => [
+                    ['label' => 'Help Centre', 'route' => 'support.bot'],
+                    ['label' => 'WhatsApp Support', 'route' => null],
                 ],
             ],
         ];
@@ -120,8 +122,9 @@
                         <div class="reference-nav-heading">{{ $section['title'] }}</div>
                         <div>
                             @foreach($section['items'] as $item)
-                                <a href="{{ route($item['route']) }}"
-                                   class="reference-nav-link {{ $isRoute($item['route']) ? 'reference-nav-active' : '' }}">
+                                <a href="{{ $item['route'] ? route($item['route']) : $whatsApp }}"
+                                   @unless($item['route']) target="_blank" rel="noopener noreferrer" @endunless
+                                   class="reference-nav-link {{ $item['route'] && $isRoute($item['route']) ? 'reference-nav-active' : '' }}">
                                     <span>{{ $item['label'] }}</span>
                                 </a>
                             @endforeach
@@ -230,8 +233,9 @@
                         <div class="reference-nav-heading">{{ $section['title'] }}</div>
                         <div>
                             @foreach($section['items'] as $item)
-                                <a href="{{ route($item['route']) }}"
-                                   class="reference-nav-link {{ $isRoute($item['route']) ? 'reference-nav-active' : '' }}">
+                                <a href="{{ $item['route'] ? route($item['route']) : $whatsApp }}"
+                                   @unless($item['route']) target="_blank" rel="noopener noreferrer" @endunless
+                                   class="reference-nav-link {{ $item['route'] && $isRoute($item['route']) ? 'reference-nav-active' : '' }}">
                                     <span>{{ $item['label'] }}</span>
                                 </a>
                             @endforeach
@@ -294,8 +298,7 @@
             </div>
         </main>
 
-        <a href="{{ $whatsApp }}" target="_blank" rel="noopener noreferrer"
-           class="reference-whatsapp" aria-label="Contact support on WhatsApp">WhatsApp</a>
+        <x-whatsapp-support :href="$whatsApp" />
 
     </div>
 
