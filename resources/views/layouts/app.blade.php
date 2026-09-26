@@ -9,7 +9,7 @@
         $siteName = setting('site_name', config('app.name', 'VTU Platform'));
         $siteLogo = setting('logo_url', setting('site_logo', ''));
         $siteFavicon = setting('favicon_url', setting('site_favicon', ''));
-        $whatsApp = 'https://wa.me/2347046246332';
+        $whatsApp = setting('whatsapp_link', 'https://wa.me/2348165587119');
         $authUser = auth()->user();
         $walletKobo = (int) ($authUser?->wallet->balance ?? 0);
 
@@ -22,9 +22,34 @@
 
         $isRoute = fn (string $pattern) => request()->routeIs($pattern);
 
+        $pageTitle = match (true) {
+            request()->routeIs('vtu.nin*') => 'Verify NIN',
+            request()->routeIs('vtu.bvn*') => 'BVN Services',
+            request()->routeIs('wallet.fund*') => 'Fund Wallet',
+            request()->routeIs('wallet.transactions*') => 'Funding History',
+            request()->routeIs('vtu.orders*', 'vtu.receipt*') => 'Transactions',
+            request()->routeIs('vtu.data*') => 'Buy Data',
+            request()->routeIs('vtu.airtime*') => 'Buy Airtime',
+            request()->routeIs('vtu.cable*') => 'Pay TV Bill',
+            request()->routeIs('vtu.electricity*') => 'Pay Electricity Bill',
+            request()->routeIs('vtu.exam*') => 'Education',
+            request()->routeIs('profile.*') => 'Profile',
+            request()->routeIs('admin.*') => 'Admin',
+            default => 'Services',
+        };
+
         $drawerSections = [
             [
-                'title' => 'Top Up & Bills',
+                'title' => 'Identity Services',
+                'items' => [
+                    ['label' => 'NIN Verification Services', 'route' => 'vtu.nin'],
+                    ['label' => 'BVN Services / BVN Printout', 'route' => 'vtu.bvn'],
+                    ['label' => 'NIN Validation', 'route' => 'vtu.nin-validation'],
+                    ['label' => 'All Identity Services', 'route' => 'identity.index'],
+                ],
+            ],
+            [
+                'title' => 'Subscriptions & Payment Services',
                 'items' => [
                     ['label' => 'Buy Data', 'route' => 'vtu.data'],
                     ['label' => 'Buy Airtime', 'route' => 'vtu.airtime'],
@@ -33,17 +58,22 @@
                     ['label' => 'Education', 'route' => 'vtu.exam'],
                     ['label' => 'Recharge PIN', 'route' => 'vtu.recharge-card'],
                     ['label' => 'Premium Apps', 'route' => 'vtu.premium-apps'],
-                    ['label' => 'NIN Services', 'route' => 'vtu.nin'],
-                    ['label' => 'BVN Services', 'route' => 'vtu.bvn'],
-                    ['label' => 'NIN Validation', 'route' => 'vtu.nin-validation'],
                 ],
             ],
             [
-                'title' => 'Finance',
+                'title' => 'Wallet & Activity',
                 'items' => [
                     ['label' => 'Fund Wallet', 'route' => 'wallet.fund'],
                     ['label' => 'Transactions', 'route' => 'wallet.transactions'],
                     ['label' => 'Orders', 'route' => 'vtu.orders'],
+                    ['label' => 'Profile', 'route' => 'profile.edit'],
+                ],
+            ],
+            [
+                'title' => 'Support',
+                'items' => [
+                    ['label' => 'Help Centre', 'route' => 'support.bot'],
+                    ['label' => 'WhatsApp Support', 'route' => null],
                 ],
             ],
         ];
@@ -73,25 +103,29 @@
     <x-maintenance-overlay />
     <x-global-loader />
 
-    <div x-data="{ drawerOpen: false, profileMenuOpen: false }" class="min-h-screen">
-        <aside class="app-sidebar-surface desktop-sidebar-scroll hidden fixed left-0 top-[84px] z-30 h-[calc(100vh-84px)] w-[300px] overflow-y-auto overscroll-contain border-r p-4 pb-8 shadow-[0_22px_55px_rgba(18,31,56,0.08)] md:block">
-            <div class="app-section-muted p-4">
-                <div class="text-xs font-semibold text-slate-500">Good {{ now()->hour < 12 ? 'morning' : (now()->hour < 18 ? 'afternoon' : 'evening') }}</div>
-                <div class="mt-1 text-2xl font-extrabold text-slate-900">{{ $authUser?->name ?? 'User' }}</div>
+    <div x-data="{ drawerOpen: false, desktopNavOpen: true, profileMenuOpen: false }" :class="{ 'desktop-nav-collapsed': !desktopNavOpen }" class="reference-app-shell min-h-screen">
+        <a href="{{ route('dashboard') }}" class="reference-sidebar-brand hidden md:flex" aria-label="{{ $siteName }} dashboard">
+            <img src="{{ $logoUrl }}" alt="{{ $siteName }} logo" class="h-10 w-auto max-w-[170px] object-contain">
+        </a>
+        <aside id="desktop-navigation" class="reference-sidebar desktop-sidebar-scroll hidden fixed left-0 top-[64px] z-30 h-[calc(100vh-64px)] w-[246px] overflow-y-auto overscroll-contain md:block" :aria-hidden="!desktopNavOpen" :inert="!desktopNavOpen">
+            <div class="reference-profile">
+                <div class="reference-avatar" aria-hidden="true">◯</div>
+                <div class="font-semibold">{{ $authUser?->name ?? 'User' }}</div>
+                <span class="text-xs opacity-75">User</span>
             </div>
 
-            <div class="mt-4 space-y-3">
-                <a href="{{ route('dashboard') }}" class="nav-item {{ $isRoute('dashboard') ? 'nav-item-active' : '' }}">Home</a>
+            <div class="reference-nav">
+                <a href="{{ route('dashboard') }}" class="reference-nav-link {{ $isRoute('dashboard') ? 'reference-nav-active' : '' }}">Dashboard</a>
 
                 @foreach($drawerSections as $section)
-                    <div class="app-glass-card rounded-[22px] p-2">
-                        <div class="px-3 py-3 text-sm font-extrabold text-slate-800">{{ $section['title'] }}</div>
-                        <div class="space-y-1">
+                    <div>
+                        <div class="reference-nav-heading">{{ $section['title'] }}</div>
+                        <div>
                             @foreach($section['items'] as $item)
-                                <a href="{{ route($item['route']) }}"
-                                   class="flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50/70">
+                                <a href="{{ $item['route'] ? route($item['route']) : $whatsApp }}"
+                                   @unless($item['route']) target="_blank" rel="noopener noreferrer" @endunless
+                                   class="reference-nav-link {{ $item['route'] && $isRoute($item['route']) ? 'reference-nav-active' : '' }}">
                                     <span>{{ $item['label'] }}</span>
-                                    <span class="text-slate-400">&rsaquo;</span>
                                 </a>
                             @endforeach
                         </div>
@@ -109,13 +143,13 @@
             </div>
         </aside>
 
-        <header class="app-header-bar fixed inset-x-0 top-0 z-40">
-            <div class="flex w-full items-center justify-between gap-4 px-4 py-4 sm:px-6 md:px-8 md:py-5">
+        <header class="reference-header fixed top-0 right-0 left-0 z-40">
+            <div class="flex w-full items-center justify-between gap-4 px-4 py-3 sm:px-6 md:px-8">
                 <div class="flex items-center gap-3">
                     <button type="button"
-                            class="flex h-10 w-10 items-center justify-center rounded-2xl text-white md:hidden"
-                            @click="drawerOpen = true"
-                            aria-label="Open menu">
+                            class="flex h-10 w-10 items-center justify-center text-white"
+                            @click="window.innerWidth >= 768 ? desktopNavOpen = !desktopNavOpen : drawerOpen = true"
+                            aria-label="Toggle navigation" :aria-controls="window.innerWidth >= 768 ? 'desktop-navigation' : 'mobile-navigation'" :aria-expanded="window.innerWidth >= 768 ? desktopNavOpen : drawerOpen">
                         <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M4 7h16"></path>
                             <path d="M4 12h16"></path>
@@ -123,27 +157,15 @@
                         </svg>
                     </button>
 
-                    <a href="{{ route('dashboard') }}" class="flex items-center gap-3">
+                    <a href="{{ route('dashboard') }}" class="flex items-center gap-3 md:hidden">
                         <img src="{{ $logoUrl }}" alt="{{ $siteName }} logo" class="h-8 w-auto max-w-[156px] object-contain sm:h-10 sm:max-w-[180px]">
                     </a>
                 </div>
 
-                <nav class="hidden items-center justify-end gap-8 md:flex">
-                    <a href="{{ route('home') }}" class="app-topbar-link">About Us</a>
-                    <a href="{{ route('profile.edit') }}" class="app-topbar-link">Account</a>
-                    <a href="{{ $whatsApp }}" target="_blank" rel="noopener" class="app-topbar-link">Support</a>
-                </nav>
+                <a href="{{ route('download.app') }}" class="reference-install hidden sm:inline-flex">Install App</a>
 
                 <div class="flex items-center gap-2 md:hidden">
-                    <button type="button"
-                            class="mobile-topbar-icon"
-                            onclick="window.location.reload()"
-                            aria-label="Refresh page">
-                        <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 11a8 8 0 1 1-2.34-5.66"></path>
-                            <path d="M20 4v7h-7"></path>
-                        </svg>
-                    </button>
+                    <a href="{{ route('download.app') }}" class="reference-install">Install App</a>
                     <button type="button"
                             class="mobile-topbar-icon"
                             @click="profileMenuOpen = !profileMenuOpen"
@@ -172,15 +194,21 @@
 
         </header>
 
-        <div x-show="drawerOpen" x-transition.opacity class="fixed inset-0 z-50 bg-black/45 md:hidden" @click="drawerOpen = false"></div>
+        <div x-show="drawerOpen" x-transition:enter="transition-opacity duration-500 ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity duration-500 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 bg-black/55 md:hidden" @click="drawerOpen = false"></div>
 
-        <aside x-show="drawerOpen"
-               x-transition
-               class="app-sidebar-surface fixed left-0 top-[84px] z-[60] h-[calc(100vh-84px)] w-[86%] max-w-sm overflow-y-auto rounded-r-[30px] border-r p-4 shadow-[0_22px_55px_rgba(18,31,56,0.18)] md:w-[360px] md:max-w-[360px]">
-            <div class="mb-4 flex items-center justify-end md:justify-between">
-                <div class="hidden text-sm font-semibold text-slate-500 md:block">Navigation</div>
+        <aside id="mobile-navigation" x-show="drawerOpen"
+               x-transition:enter="transition transform duration-[650ms] ease-out"
+               x-transition:enter-start="-translate-x-full"
+               x-transition:enter-end="translate-x-0"
+               x-transition:leave="transition transform duration-[650ms] ease-in"
+               x-transition:leave-start="translate-x-0"
+               x-transition:leave-end="-translate-x-full"
+               @keydown.escape.window="drawerOpen = false"
+               role="dialog" aria-label="Navigation" aria-modal="true"
+               class="reference-sidebar fixed left-0 top-[64px] z-[60] h-[calc(100vh-64px)] w-[80%] max-w-[310px] overflow-y-auto md:hidden">
+            <div class="flex items-center justify-end p-2">
                 <button type="button"
-                        class="app-glass-card flex h-10 w-10 items-center justify-center rounded-2xl text-slate-600"
+                        class="flex h-10 w-10 items-center justify-center text-white"
                         @click="drawerOpen = false"
                         aria-label="Close navigation">
                     <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
@@ -190,23 +218,25 @@
                 </button>
             </div>
 
-            <div class="app-section-muted p-4">
-                <div class="text-xs font-semibold text-slate-500">Good {{ now()->hour < 12 ? 'morning' : (now()->hour < 18 ? 'afternoon' : 'evening') }}</div>
-                <div class="mt-1 text-2xl font-extrabold text-slate-900">{{ $authUser?->name ?? 'User' }}</div>
+            <div class="reference-profile">
+                <div class="reference-avatar" aria-hidden="true">◯</div>
+                <div class="font-semibold">{{ $authUser?->name ?? 'User' }}</div>
+                <div class="text-xs opacity-75">{{ $authUser?->email }}</div>
+                <span class="text-xs opacity-75">User</span>
             </div>
 
-            <div class="mt-4 space-y-3">
-                <a href="{{ route('dashboard') }}" class="nav-item {{ $isRoute('dashboard') ? 'nav-item-active' : '' }}">Home</a>
+            <div class="reference-nav">
+                <a href="{{ route('dashboard') }}" class="reference-nav-link {{ $isRoute('dashboard') ? 'reference-nav-active' : '' }}">Dashboard</a>
 
                 @foreach($drawerSections as $section)
-                    <div class="app-glass-card rounded-[22px] p-2">
-                        <div class="px-3 py-3 text-sm font-extrabold text-slate-800">{{ $section['title'] }}</div>
-                        <div class="space-y-1">
+                    <div>
+                        <div class="reference-nav-heading">{{ $section['title'] }}</div>
+                        <div>
                             @foreach($section['items'] as $item)
-                                <a href="{{ route($item['route']) }}"
-                                   class="flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50/70">
+                                <a href="{{ $item['route'] ? route($item['route']) : $whatsApp }}"
+                                   @unless($item['route']) target="_blank" rel="noopener noreferrer" @endunless
+                                   class="reference-nav-link {{ $item['route'] && $isRoute($item['route']) ? 'reference-nav-active' : '' }}">
                                     <span>{{ $item['label'] }}</span>
-                                    <span class="text-slate-400">&rsaquo;</span>
                                 </a>
                             @endforeach
                         </div>
@@ -224,9 +254,17 @@
             </div>
         </aside>
 
-        <main class="pt-[100px] pb-6 sm:pb-8 md:ml-[300px] md:pt-[108px]">
+        <main class="reference-main pt-[64px] pb-6 sm:pb-8">
             <div class="app-page">
                 <x-toast />
+
+                @unless(request()->routeIs('dashboard', 'identity.index'))
+                    <section class="reference-page-banner reference-shared-banner" aria-label="Page heading">
+                        <p class="reference-breadcrumb"><a href="{{ route('dashboard') }}">Dashboard</a> / {{ $pageTitle }}</p>
+                        <h1>{{ $pageTitle }}</h1>
+                        <span class="reference-progress" data-device-battery role="status" aria-live="polite">Checking battery…</span>
+                    </section>
+                @endunless
 
                 <div id="transactionResultOverlay" class="app-modal-overlay fixed inset-0 z-[96] hidden items-center justify-center px-4">
                     <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
@@ -259,6 +297,8 @@
                 {{ $slot }}
             </div>
         </main>
+
+        <x-whatsapp-support :href="$whatsApp" />
 
     </div>
 

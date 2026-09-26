@@ -59,22 +59,10 @@
         }
     </style>
 
-    <div class="legacy-themed-page mx-auto w-full max-w-5xl space-y-5 px-4 sm:px-0">
-        <div class="rounded-3xl border border-gray-200 bg-white p-5 card-glow dark:border-white/10 dark:bg-white/5">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <h2 class="text-2xl font-extrabold text-gray-900 dark:text-white">NIN Verification & Direct Slip Print</h2>
-                    <p class="mt-1 text-sm text-gray-600 dark:text-white/60">
-                        Verify the NIN record once, then print Standard, Premium, or Long Slip directly from the verified result.
-                    </p>
-                </div>
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl border border-gray-200 bg-black/5 text-xl dark:border-white/10 dark:bg-white/10">
-                    ID
-                </div>
-            </div>
-        </div>
-
+    <div class="legacy-themed-page reference-service-content mx-auto w-full max-w-5xl space-y-5 px-4 sm:px-0">
         <div class="rounded-3xl border border-gray-200 bg-white p-5 sm:p-6 dark:border-white/10 dark:bg-white/5">
+            <h2 class="reference-form-heading">Verify / Print NIN Slip</h2>
+            <p class="reference-form-intro">Verify the NIN record once, then print a Standard, Premium, or Long Slip from the verified result.</p>
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <div class="text-lg font-extrabold text-gray-900 dark:text-white">Verify Identity Record</div>

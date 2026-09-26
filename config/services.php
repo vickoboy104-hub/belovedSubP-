@@ -53,6 +53,11 @@ return [
         'base' => env('ALT_PROVIDER_BASE_URL', ''),
     ],
 
+    'jhtech' => [
+        'enabled' => env('JHTECH_ENABLED', false),
+        'key' => env('JHTECH_API_KEY', ''),
+    ],
+
     'nin' => [
         'key' => env('NIN_API_KEY', ''),
         'base' => env('NIN_BASE_URL', 'https://confirmident.com.ng/api'),

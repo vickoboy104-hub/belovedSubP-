@@ -41,6 +41,7 @@ require __DIR__.'/auth.php';
 Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
 
     Route::get('/dashboard', [VtuController::class, 'dashboard'])->name('dashboard');
+    Route::view('/identity', 'identity.index')->name('identity.index');
 
     Route::get('/vtu/airtime', [VtuController::class, 'airtimeForm'])->name('vtu.airtime');
     Route::get('/vtu/airtime/{service}', [VtuController::class, 'airtimeServiceForm'])->name('vtu.airtime.service');

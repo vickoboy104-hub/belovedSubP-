@@ -2,6 +2,36 @@ import './bootstrap';
 
 import Alpine from 'alpinejs';
 
+// The Battery Status API is available only in some secure-context browsers.
+// Never show a guessed percentage when the device declines to expose it.
+async function showDeviceBattery() {
+    const badges = document.querySelectorAll('[data-device-battery]');
+    if (!badges.length) return;
+
+    const setText = (value) => badges.forEach((badge) => { badge.textContent = value; });
+    if (!window.isSecureContext || typeof navigator.getBattery !== 'function') {
+        setText('Battery unavailable');
+        return;
+    }
+
+    try {
+        const battery = await navigator.getBattery();
+        const refresh = () => {
+            const level = Number(battery.level);
+            setText(Number.isFinite(level) && level >= 0 && level <= 1
+                ? `▰ ${Math.round(level * 100)}%${battery.charging ? ' · Charging' : ''}`
+                : 'Battery unavailable');
+        };
+        refresh();
+        battery.addEventListener('levelchange', refresh);
+        battery.addEventListener('chargingchange', refresh);
+    } catch (_error) {
+        setText('Battery unavailable');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', showDeviceBattery);
+
 window.Alpine = Alpine;
 document.body.classList.add('page-is-entering');
 
