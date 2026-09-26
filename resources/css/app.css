@@ -1611,6 +1611,35 @@ body::before, body::after { display: none; }
 .reference-nav-active { border-left: 3px solid #bd590e; }
 .reference-home-quick .app-service-card { border-radius: .45rem; }
 [x-cloak] { display: none !important; }
+
+/* Keep the desktop brand rail, blue top bar, sidebar and page on one motion curve. */
+.reference-sidebar-brand { position: fixed; top: 0; left: 0; z-index: 41; width: 246px; height: 64px; align-items: center; padding: 0 1rem; background: #123461; border-right: 1px solid rgba(255,255,255,.1); transition: transform .7s cubic-bezier(.22,1,.36,1); }
+@media (min-width: 768px) {
+    .reference-app-shell .reference-header { left: 246px; transition: left .7s cubic-bezier(.22,1,.36,1); }
+    .reference-app-shell .reference-main { margin-left: 246px; transition: margin-left .7s cubic-bezier(.22,1,.36,1); }
+    .reference-app-shell #desktop-navigation { transition: transform .7s cubic-bezier(.22,1,.36,1); }
+    .reference-app-shell.desktop-nav-collapsed .reference-sidebar-brand,
+    .reference-app-shell.desktop-nav-collapsed #desktop-navigation { transform: translateX(-100%); }
+    .reference-app-shell.desktop-nav-collapsed .reference-header { left: 0; }
+    .reference-app-shell.desktop-nav-collapsed .reference-main { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .reference-app-shell .reference-header, .reference-app-shell .reference-main,
+    .reference-app-shell #desktop-navigation, .reference-sidebar-brand { transition-duration: .01ms; }
+}
+
+/* Auth pages carry the same blue and orange language as the dashboard. */
+.reference-auth-page .app-form-shell { border-radius: .55rem; box-shadow: 0 12px 32px rgba(16,43,82,.1); }
+.reference-auth-page .app-form-shell h1 { color: #123461; }
+.reference-auth-page .app-form-shell a:not(.btn-primary) { color: #173f74; }
+.reference-auth-page .app-form-shell a:not(.btn-primary):hover { color: #ae4c10; }
+.reference-auth-page .app-form-shell button[type="submit"] { background: #173f74; color: white; }
+.reference-auth-page .app-form-shell button[type="submit"]:hover { background: #225697; }
+.reference-auth-page .app-accent-panel { min-height: 510px; }
+.reference-auth-page .app-accent-panel h2 { color: white; }
+.legacy-themed-page button[type="submit"][class*="bg-blue"],
+.legacy-themed-page button[type="submit"][class*="bg-orange"],
+.legacy-themed-page a[class*="bg-blue"], .legacy-themed-page a[class*="bg-orange"] { color: white; }
 @media (max-width: 767px) {
     .reference-page-banner, .reference-page-banner.reference-shared-banner { min-height: 218px; padding: 2rem 2rem 4.4rem; background-position: 60% center; }
     .reference-home-intro { grid-template-columns: 1fr; margin: -1rem -1rem 0; gap: 0; }

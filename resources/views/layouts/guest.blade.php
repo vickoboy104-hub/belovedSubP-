@@ -69,7 +69,7 @@
             </nav>
             <a href="{{ route('download.app') }}" class="reference-install md:hidden">Install App</a>
         </div>
-        <nav x-cloak x-show="menuOpen" x-transition.opacity id="guest-mobile-menu" class="reference-guest-drawer md:hidden" aria-label="Mobile navigation">
+        <nav x-cloak x-show="menuOpen" x-transition:enter="transition duration-500 ease-out" x-transition:enter-start="opacity-0 -translate-y-3" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition duration-500 ease-in" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 -translate-y-3" id="guest-mobile-menu" class="reference-guest-drawer md:hidden" aria-label="Mobile navigation">
             <a href="{{ route('home') }}">Home</a>
             @auth
                 <a href="{{ route('dashboard') }}">Dashboard</a>
@@ -81,7 +81,7 @@
         </nav>
     </header>
 
-    <main class="{{ $isAuthPage ? 'pt-[88px] pb-8 sm:pt-[100px] sm:pb-14' : 'pt-[76px] pb-10 sm:pt-[90px] sm:pb-14' }}">
+    <main class="{{ $isAuthPage ? 'reference-auth-page pt-[88px] pb-8 sm:pt-[100px] sm:pb-14' : 'pt-[76px] pb-10 sm:pt-[90px] sm:pb-14' }}">
         @if($isAuthPage)
             <div class="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[420px_minmax(0,1fr)] lg:items-stretch">
                 <section class="app-form-shell self-start">
@@ -94,9 +94,9 @@
                 <section class="app-accent-panel hidden rounded-[20px] p-10 text-white lg:flex lg:flex-col lg:justify-center">
                     <div class="mx-auto max-w-xl text-center">
                         <div class="text-lg font-bold">Welcome to {{ $siteName }}</div>
-                        <h2 class="mt-4 text-4xl font-extrabold leading-tight">Your one-stop digital marketplace for data, airtime, bills payment and more</h2>
+                        <h2 class="mt-4 text-4xl font-extrabold leading-tight">Identity services, payments and more in one place</h2>
                         <p class="mt-5 text-base leading-8 text-white/90">
-                            A clean, mobile-first experience for wallet funding, top-up services, utilities, education and account management.
+                            Verify NIN and BVN, fund your wallet, manage your account and access everyday services from your phone.
                         </p>
                     </div>
                 </section>

@@ -101,8 +101,11 @@
     <x-maintenance-overlay />
     <x-global-loader />
 
-    <div x-data="{ drawerOpen: false, desktopNavOpen: true, profileMenuOpen: false }" class="min-h-screen">
-        <aside x-show="desktopNavOpen" class="reference-sidebar desktop-sidebar-scroll hidden fixed left-0 top-[64px] z-30 h-[calc(100vh-64px)] w-[246px] overflow-y-auto overscroll-contain md:block">
+    <div x-data="{ drawerOpen: false, desktopNavOpen: true, profileMenuOpen: false }" :class="{ 'desktop-nav-collapsed': !desktopNavOpen }" class="reference-app-shell min-h-screen">
+        <a href="{{ route('dashboard') }}" class="reference-sidebar-brand hidden md:flex" aria-label="{{ $siteName }} dashboard">
+            <img src="{{ $logoUrl }}" alt="{{ $siteName }} logo" class="h-10 w-auto max-w-[170px] object-contain">
+        </a>
+        <aside id="desktop-navigation" class="reference-sidebar desktop-sidebar-scroll hidden fixed left-0 top-[64px] z-30 h-[calc(100vh-64px)] w-[246px] overflow-y-auto overscroll-contain md:block" :aria-hidden="!desktopNavOpen" :inert="!desktopNavOpen">
             <div class="reference-profile">
                 <div class="reference-avatar" aria-hidden="true">◯</div>
                 <div class="font-semibold">{{ $authUser?->name ?? 'User' }}</div>
@@ -137,13 +140,13 @@
             </div>
         </aside>
 
-        <header class="reference-header fixed inset-x-0 top-0 z-40">
+        <header class="reference-header fixed top-0 right-0 left-0 z-40">
             <div class="flex w-full items-center justify-between gap-4 px-4 py-3 sm:px-6 md:px-8">
                 <div class="flex items-center gap-3">
                     <button type="button"
                             class="flex h-10 w-10 items-center justify-center text-white"
                             @click="window.innerWidth >= 768 ? desktopNavOpen = !desktopNavOpen : drawerOpen = true"
-                            aria-label="Toggle navigation" :aria-expanded="window.innerWidth >= 768 ? desktopNavOpen : drawerOpen">
+                            aria-label="Toggle navigation" :aria-controls="window.innerWidth >= 768 ? 'desktop-navigation' : 'mobile-navigation'" :aria-expanded="window.innerWidth >= 768 ? desktopNavOpen : drawerOpen">
                         <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M4 7h16"></path>
                             <path d="M4 12h16"></path>
@@ -151,7 +154,7 @@
                         </svg>
                     </button>
 
-                    <a href="{{ route('dashboard') }}" class="flex items-center gap-3">
+                    <a href="{{ route('dashboard') }}" class="flex items-center gap-3 md:hidden">
                         <img src="{{ $logoUrl }}" alt="{{ $siteName }} logo" class="h-8 w-auto max-w-[156px] object-contain sm:h-10 sm:max-w-[180px]">
                     </a>
                 </div>
@@ -188,13 +191,13 @@
 
         </header>
 
-        <div x-show="drawerOpen" x-transition.opacity class="fixed inset-0 z-50 bg-black/55 md:hidden" @click="drawerOpen = false"></div>
+        <div x-show="drawerOpen" x-transition:enter="transition-opacity duration-500 ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity duration-500 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 bg-black/55 md:hidden" @click="drawerOpen = false"></div>
 
-        <aside x-show="drawerOpen"
-               x-transition:enter="transition transform duration-200 ease-out"
+        <aside id="mobile-navigation" x-show="drawerOpen"
+               x-transition:enter="transition transform duration-[650ms] ease-out"
                x-transition:enter-start="-translate-x-full"
                x-transition:enter-end="translate-x-0"
-               x-transition:leave="transition transform duration-200 ease-in"
+               x-transition:leave="transition transform duration-[650ms] ease-in"
                x-transition:leave-start="translate-x-0"
                x-transition:leave-end="-translate-x-full"
                @keydown.escape.window="drawerOpen = false"
@@ -247,7 +250,7 @@
             </div>
         </aside>
 
-        <main class="pt-[64px] pb-6 sm:pb-8" :class="desktopNavOpen ? 'md:ml-[246px]' : ''">
+        <main class="reference-main pt-[64px] pb-6 sm:pb-8">
             <div class="app-page">
                 <x-toast />
 
