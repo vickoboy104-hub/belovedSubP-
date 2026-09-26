@@ -29,7 +29,7 @@
     <div class="reference-dashboard">
         <section class="reference-page-banner">
             <h1>Dashboard Overview</h1>
-            <span class="reference-progress" aria-label="Account setup progress">{{ auth()->user()?->email_verified_at ? '100%' : '90%' }}</span>
+            <span class="reference-progress" data-device-battery role="status" aria-live="polite">Checking battery…</span>
         </section>
 
         <div class="reference-dashboard-body">

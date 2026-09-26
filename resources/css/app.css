@@ -1529,3 +1529,71 @@ a.reference-service-tile:hover { transform: translateY(-3px); box-shadow: 0 10px
     .reference-dashboard-body > section:nth-child(2) > .reference-section-title { margin-top: .7rem; }
 }
 @media (max-width: 360px) { .reference-dashboard-body { padding-left: 1rem; padding-right: 1rem; } }
+
+/* Shared BelovedSubP visual system: deep blue, white and dark orange. */
+:root {
+    --brand-navy: #112d57;
+    --brand-navy-strong: #0c2347;
+    --brand-ink: #193e72;
+    --brand-accent: #bd590e;
+    --brand-mist: #f3f6fb;
+    --brand-line: #d7dfeb;
+    --brand-text: #18263b;
+    --brand-muted: #617189;
+    --brand-white: #ffffff;
+    --surface-deep: #e9eff8;
+    --surface-base: #f4f7fc;
+    --surface-card: #ffffff;
+    --surface-soft: #f9fbfe;
+    --surface-muted: #eaf0f9;
+}
+html, body, .app-shell-bg { background: #f5f7fb; color: #18263b; }
+body::before, body::after { display: none; }
+.app-header-bar, .reference-header { background: #123461; color: white; box-shadow: 0 3px 14px rgba(12,35,71,.13); }
+.app-soft-panel, .app-section-muted, .app-sidebar-surface { background: #f0f4fb; border-color: #dce4f0; }
+.app-glass-card, .app-section, .app-form-shell, .app-form-card, .app-service-card, .app-stat { background: #fff; border-color: #dfe5ee; }
+.app-accent-panel { background: linear-gradient(90deg,rgba(12,35,71,.93),rgba(17,49,92,.78)),url('/images/office-team.webp') center/cover; }
+.app-chip { color: #173b6b; background: #e9eff8; }
+.app-stat { border-radius: .5rem; }
+.app-divider { background: linear-gradient(90deg,#112d57,#bd590e 60%,#e7ebf1); }
+.reference-sidebar { background: #fff; }
+.reference-profile, .reference-summary-blue { background: #153a6c; }
+.reference-page-banner, .reference-page-banner.reference-shared-banner, .identity-hero, .identity-dashboard-banner {
+    color: white;
+    background: linear-gradient(90deg,rgba(11,37,78,.96),rgba(18,55,105,.82)),url('/images/office-team.webp') center center/cover;
+}
+.reference-page-banner { min-height: 220px; padding: 2rem 2rem 4rem; }
+.reference-breadcrumb { font-size: .8rem; color: #dce8f9; margin-bottom: .7rem; }
+.reference-breadcrumb a:hover { color: #ffb36d; }
+.reference-page-banner .reference-progress { color: white; }
+.reference-shared-banner { margin: -1rem -1.1rem 1.3rem; }
+.reference-menu-toggle { display: grid; place-items: center; flex: none; min-width: 44px; height: 44px; color: white; }
+.reference-guest-drawer { padding: .4rem 1rem 1rem; background: #fff; box-shadow: 0 12px 25px rgba(12,35,71,.18); }
+.reference-guest-drawer a { display: block; padding: .85rem 1rem; color: #193e72; font-weight: 700; border-bottom: 1px solid #e9eef5; }
+.reference-home-intro { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(270px,.7fr); align-items: center; gap: 1.5rem; margin: -1rem -1rem 0; }
+.reference-home-hero { min-height: 540px; display: flex; flex-direction: column; justify-content: center; padding: clamp(2rem,5vw,4rem); color: white; background: linear-gradient(90deg,rgba(9,32,68,.97),rgba(16,54,105,.83)),url('/images/office-team.webp') center/cover; }
+.reference-home-hero h1 { font-size: clamp(2rem,4.7vw,3.8rem); font-weight: 800; letter-spacing: -.045em; line-height: 1.12; }
+.reference-home-hero p { color: #e3edff; line-height: 1.65; font-size: clamp(.9rem,1.3vw,1.08rem); }
+.reference-home-eyebrow { color: #ffc28d; font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .14em; }
+.reference-home-hero .btn-primary { background: #b84d0d; color: white; }
+.reference-home-hero .btn-outline { border-color: #f5f7fb; color: white; background: transparent; }
+.reference-home-hero .btn-soft { background: white; color: #123461; }
+.reference-home-hero .app-stat { background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.25); box-shadow: none; }
+.reference-home-hero .app-stat-value, .reference-home-hero .app-stat p { color: white; }
+.reference-home-quick { background: white; border: 1px solid #dfe5ee; border-radius: .35rem; box-shadow: 0 12px 34px rgba(16,45,88,.12); }
+.reference-service-tile { border-radius: .55rem; }
+.reference-tile-icon { background: #173f74; }
+.reference-soon { color: white; }
+.identity-tile, .identity-other-links a { border-radius: .55rem; }
+.identity-other { background: #e9f0fa; }
+.reference-whatsapp { background: #21bf5b; }
+[x-cloak] { display: none !important; }
+@media (max-width: 767px) {
+    .reference-page-banner, .reference-page-banner.reference-shared-banner { min-height: 218px; padding: 2rem 2rem 4.4rem; background-position: 60% center; }
+    .reference-home-intro { grid-template-columns: 1fr; margin: -1rem -1rem 0; gap: 0; }
+    .reference-home-hero { min-height: 450px; padding: 2.5rem 1.5rem 4rem; background-position: 65% center; }
+    .reference-home-quick { margin: -1.5rem 1rem 0; position: relative; z-index: 1; }
+}
+@media print {
+    .reference-shared-banner, .reference-whatsapp { display: none !important; }
+}

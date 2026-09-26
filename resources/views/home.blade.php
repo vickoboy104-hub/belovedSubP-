@@ -14,15 +14,17 @@
             <x-nin-marquee :message="$homeMarquee" />
         @endif
 
-        <section class="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_420px] lg:items-center">
-            <div class="space-y-6">
-                <div class="app-chip">Identity services and everyday payments</div>
+        <section class="reference-home-intro">
+            <div class="reference-home-hero space-y-6">
+                <div class="reference-home-eyebrow">Identity services • Wallet • Payments</div>
                 <div>
-                    <h1 class="app-page-title max-w-3xl">Your identity services, all in one place.</h1>
-                    <p class="app-page-subtitle max-w-2xl">
+                    <h1 class="max-w-3xl">Verify your identity in seconds.</h1>
+                    <p class="max-w-2xl">
                         Verify NIN and BVN, request NIN validation, and manage your wallet in a simple mobile experience. Data, airtime, bills and more are here too.
                     </p>
                 </div>
+
+                <span class="reference-progress" data-device-battery role="status" aria-live="polite">Checking battery…</span>
 
                 <div class="flex flex-wrap gap-3">
                     @auth
@@ -54,7 +56,7 @@
                 </div>
             </div>
 
-            <div class="app-section-muted relative overflow-hidden p-6 sm:p-8">
+            <div class="reference-home-quick relative overflow-hidden p-6 sm:p-8">
                 <div class="flex items-center justify-between">
                     <div>
                         <div class="app-kicker">Quick Access</div>

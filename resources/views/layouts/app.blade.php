@@ -22,6 +22,22 @@
 
         $isRoute = fn (string $pattern) => request()->routeIs($pattern);
 
+        $pageTitle = match (true) {
+            request()->routeIs('vtu.nin*') => 'Verify NIN',
+            request()->routeIs('vtu.bvn*') => 'BVN Services',
+            request()->routeIs('wallet.fund*') => 'Fund Wallet',
+            request()->routeIs('wallet.transactions*') => 'Funding History',
+            request()->routeIs('vtu.orders*', 'vtu.receipt*') => 'Transactions',
+            request()->routeIs('vtu.data*') => 'Buy Data',
+            request()->routeIs('vtu.airtime*') => 'Buy Airtime',
+            request()->routeIs('vtu.cable*') => 'Pay TV Bill',
+            request()->routeIs('vtu.electricity*') => 'Pay Electricity Bill',
+            request()->routeIs('vtu.exam*') => 'Education',
+            request()->routeIs('profile.*') => 'Profile',
+            request()->routeIs('admin.*') => 'Admin',
+            default => 'Services',
+        };
+
         $drawerSections = [
             [
                 'title' => 'Main',
@@ -85,8 +101,8 @@
     <x-maintenance-overlay />
     <x-global-loader />
 
-    <div x-data="{ drawerOpen: false, profileMenuOpen: false }" class="min-h-screen">
-        <aside class="reference-sidebar desktop-sidebar-scroll hidden fixed left-0 top-[64px] z-30 h-[calc(100vh-64px)] w-[246px] overflow-y-auto overscroll-contain md:block">
+    <div x-data="{ drawerOpen: false, desktopNavOpen: true, profileMenuOpen: false }" class="min-h-screen">
+        <aside x-show="desktopNavOpen" class="reference-sidebar desktop-sidebar-scroll hidden fixed left-0 top-[64px] z-30 h-[calc(100vh-64px)] w-[246px] overflow-y-auto overscroll-contain md:block">
             <div class="reference-profile">
                 <div class="reference-avatar" aria-hidden="true">◯</div>
                 <div class="font-semibold">{{ $authUser?->name ?? 'User' }}</div>
@@ -125,9 +141,9 @@
             <div class="flex w-full items-center justify-between gap-4 px-4 py-3 sm:px-6 md:px-8">
                 <div class="flex items-center gap-3">
                     <button type="button"
-                            class="flex h-10 w-10 items-center justify-center text-white md:hidden"
-                            @click="drawerOpen = true"
-                            aria-label="Open menu">
+                            class="flex h-10 w-10 items-center justify-center text-white"
+                            @click="window.innerWidth >= 768 ? desktopNavOpen = !desktopNavOpen : drawerOpen = true"
+                            aria-label="Toggle navigation" :aria-expanded="window.innerWidth >= 768 ? desktopNavOpen : drawerOpen">
                         <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M4 7h16"></path>
                             <path d="M4 12h16"></path>
@@ -231,9 +247,17 @@
             </div>
         </aside>
 
-        <main class="pt-[64px] pb-6 sm:pb-8 md:ml-[246px]">
+        <main class="pt-[64px] pb-6 sm:pb-8" :class="desktopNavOpen ? 'md:ml-[246px]' : ''">
             <div class="app-page">
                 <x-toast />
+
+                @unless(request()->routeIs('dashboard', 'identity.index'))
+                    <section class="reference-page-banner reference-shared-banner" aria-label="Page heading">
+                        <p class="reference-breadcrumb"><a href="{{ route('dashboard') }}">Dashboard</a> / {{ $pageTitle }}</p>
+                        <h1>{{ $pageTitle }}</h1>
+                        <span class="reference-progress" data-device-battery role="status" aria-live="polite">Checking battery…</span>
+                    </section>
+                @endunless
 
                 <div id="transactionResultOverlay" class="app-modal-overlay fixed inset-0 z-[96] hidden items-center justify-center px-4">
                     <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
