@@ -1587,6 +1587,29 @@ body::before, body::after { display: none; }
 .identity-tile, .identity-other-links a { border-radius: .55rem; }
 .identity-other { background: #e9f0fa; }
 .reference-whatsapp { background: #21bf5b; }
+.legacy-themed-page > :is(.rounded-3xl,.app-section,.card), .app-form-card, .app-form-shell, .app-section, .app-section-muted {
+    border-color: #dee5ee;
+    border-radius: .65rem;
+    background-color: #fff;
+    box-shadow: 0 5px 17px rgba(13,39,79,.06);
+}
+.legacy-themed-page input, .legacy-themed-page select, .legacy-themed-page textarea,
+.input-field, .app-form-shell input, .app-form-shell select {
+    border-color: #cbd6e4;
+    background-color: #fff;
+    color: #1b2e48;
+}
+.legacy-themed-page input:focus-visible, .legacy-themed-page select:focus-visible,
+.input-field:focus-visible, .reference-menu-toggle:focus-visible,
+.reference-header button:focus-visible, .reference-guest-drawer a:focus-visible {
+    outline: 3px solid #c46617;
+    outline-offset: 2px;
+}
+.legacy-themed-page button[type="submit"], .app-form-shell button[type="submit"] { border-radius: .4rem; }
+.legacy-themed-page .bg-orange-600, .legacy-themed-page .hover\:bg-orange-700:hover { background-color: #b45012; }
+.legacy-themed-page .bg-blue-700, .legacy-themed-page .hover\:bg-blue-800:hover { background-color: #173f74; }
+.reference-nav-active { border-left: 3px solid #bd590e; }
+.reference-home-quick .app-service-card { border-radius: .45rem; }
 [x-cloak] { display: none !important; }
 @media (max-width: 767px) {
     .reference-page-banner, .reference-page-banner.reference-shared-banner { min-height: 218px; padding: 2rem 2rem 4.4rem; background-position: 60% center; }

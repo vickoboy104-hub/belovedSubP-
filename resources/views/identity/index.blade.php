@@ -15,6 +15,7 @@
             <span class="identity-eyebrow">BelovedSubP • Identity services</span>
             <h1>Everything you need for identity services.</h1>
             <p>Choose a service, complete a focused request, and follow its result from your account. Your existing wallet and orders remain in one place.</p>
+            <span class="reference-progress" data-device-battery role="status" aria-live="polite">Checking battery…</span>
             <div class="identity-hero-actions">
                 <a href="{{ route('vtu.nin') }}" class="identity-button identity-button-white">Verify NIN <span aria-hidden="true">→</span></a>
                 <a href="{{ route('vtu.orders') }}" class="identity-button identity-button-outline">View activity</a>
