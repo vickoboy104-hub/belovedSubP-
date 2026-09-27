@@ -1692,6 +1692,9 @@ body::before, body::after { display: none; }
 .reference-auth-page .app-form-shell input[type="checkbox"] { min-width: 20px; min-height: 20px; accent-color: #173f74; }
 .reference-auth-page .app-form-shell :is(input,button,a):focus-visible { outline: 3px solid #b45012; outline-offset: 2px; }
 .reference-auth-page .app-form-shell button[type="submit"] { min-height: 44px; }
+.reference-drawer-close { border-radius: .45rem; color: #173f74; background: #e9f0fa; }
+.reference-drawer-close:hover { background: #dbe7f8; }
+.reference-drawer-close:focus-visible { outline: 3px solid #b45012; outline-offset: 2px; }
 @media (max-width: 767px) {
     .reference-auth-page { background: linear-gradient(180deg,rgba(12,35,71,.91),rgba(18,55,105,.83)) top/100% 165px no-repeat, #f5f7fb; }
     .reference-auth-page .reference-auth-layout { gap: 0; }

@@ -103,7 +103,10 @@
     <x-maintenance-overlay />
     <x-global-loader />
 
-    <div x-data="{ drawerOpen: false, desktopNavOpen: true, profileMenuOpen: false }" :class="{ 'desktop-nav-collapsed': !desktopNavOpen }" class="reference-app-shell min-h-screen">
+    <div x-data="{ drawerOpen: false, desktopNavOpen: true, profileMenuOpen: false }"
+         x-effect="document.body.style.overflow = drawerOpen ? 'hidden' : ''"
+         @resize.window="if (window.innerWidth >= 768) drawerOpen = false"
+         :class="{ 'desktop-nav-collapsed': !desktopNavOpen }" class="reference-app-shell min-h-screen">
         <a href="{{ route('dashboard') }}" class="reference-sidebar-brand hidden md:flex" aria-label="{{ $siteName }} dashboard">
             <img src="{{ $logoUrl }}" alt="{{ $siteName }} logo" class="h-10 w-auto max-w-[170px] object-contain">
         </a>
@@ -147,8 +150,8 @@
             <div class="flex w-full items-center justify-between gap-4 px-4 py-3 sm:px-6 md:px-8">
                 <div class="flex items-center gap-3">
                     <button type="button"
-                            class="flex h-10 w-10 items-center justify-center text-white"
-                            @click="window.innerWidth >= 768 ? desktopNavOpen = !desktopNavOpen : drawerOpen = true"
+                            class="flex h-11 w-11 items-center justify-center text-white"
+                            @click="window.innerWidth >= 768 ? desktopNavOpen = !desktopNavOpen : (drawerOpen = true, profileMenuOpen = false)"
                             aria-label="Toggle navigation" :aria-controls="window.innerWidth >= 768 ? 'desktop-navigation' : 'mobile-navigation'" :aria-expanded="window.innerWidth >= 768 ? desktopNavOpen : drawerOpen">
                         <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M4 7h16"></path>
@@ -162,15 +165,15 @@
                     </a>
                 </div>
 
-                <a href="{{ route('download.app') }}" class="reference-install hidden sm:inline-flex">Install App</a>
+                <a href="{{ route('download.app') }}" class="reference-install hidden md:inline-flex">Install app</a>
 
                 <div class="flex items-center gap-2 md:hidden">
-                    <a href="{{ route('download.app') }}" class="reference-install">Install App</a>
+                    <a href="{{ route('download.app') }}" class="reference-install">Install app</a>
                     <button type="button"
                             class="mobile-topbar-icon"
-                            @click="profileMenuOpen = !profileMenuOpen"
+                            @click="profileMenuOpen = !profileMenuOpen; drawerOpen = false"
                             @click.outside="profileMenuOpen = false"
-                            aria-label="Open profile menu">
+                            aria-label="Open profile menu" :aria-expanded="profileMenuOpen">
                         <svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor">
                             <circle cx="12" cy="5" r="1.8"></circle>
                             <circle cx="12" cy="12" r="1.8"></circle>
@@ -180,7 +183,7 @@
                 </div>
             </div>
 
-            <div x-show="profileMenuOpen"
+            <div x-cloak x-show="profileMenuOpen"
                  x-transition
                  class="app-glass-card absolute right-4 top-[calc(100%-0.25rem)] z-50 w-52 overflow-hidden rounded-[22px] p-2 text-slate-800 md:hidden"
                  @click="profileMenuOpen = false">
@@ -194,21 +197,22 @@
 
         </header>
 
-        <div x-show="drawerOpen" x-transition:enter="transition-opacity duration-500 ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity duration-500 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 bg-black/55 md:hidden" @click="drawerOpen = false"></div>
+        <div x-cloak x-show="drawerOpen" x-transition:enter="transition-opacity duration-500 ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity duration-500 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-x-0 bottom-0 top-[64px] z-50 bg-black/55 md:hidden" @click="drawerOpen = false"></div>
 
-        <aside id="mobile-navigation" x-show="drawerOpen"
+        <aside id="mobile-navigation" x-cloak x-show="drawerOpen"
                x-transition:enter="transition transform duration-[650ms] ease-out"
                x-transition:enter-start="-translate-x-full"
                x-transition:enter-end="translate-x-0"
                x-transition:leave="transition transform duration-[650ms] ease-in"
                x-transition:leave-start="translate-x-0"
                x-transition:leave-end="-translate-x-full"
-               @keydown.escape.window="drawerOpen = false"
+               @keydown.escape.window="drawerOpen = false; profileMenuOpen = false"
+               :aria-hidden="!drawerOpen" :inert="!drawerOpen"
                role="dialog" aria-label="Navigation" aria-modal="true"
                class="reference-sidebar fixed left-0 top-[64px] z-[60] h-[calc(100vh-64px)] w-[80%] max-w-[310px] overflow-y-auto md:hidden">
             <div class="flex items-center justify-end p-2">
                 <button type="button"
-                        class="flex h-10 w-10 items-center justify-center text-white"
+                        class="reference-drawer-close flex h-11 w-11 items-center justify-center"
                         @click="drawerOpen = false"
                         aria-label="Close navigation">
                     <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
