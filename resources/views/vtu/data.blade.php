@@ -17,7 +17,7 @@
         ];
     @endphp
 
-    <div class="mx-auto max-w-4xl space-y-5 sm:space-y-6">
+    <div class="reference-flow-page mx-auto max-w-4xl space-y-5 sm:space-y-6">
         <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
                 <div class="app-kicker">Data Subscription</div>

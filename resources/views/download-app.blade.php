@@ -11,7 +11,7 @@
                 Open identity services, wallet and everyday payments from your home screen. On supported Android browsers, installation does not need an APK.
             </p>
 
-            <button type="button" id="installBelovedApp" hidden class="identity-button mt-6 border-0 bg-blue-700 text-white hover:bg-blue-800">Install from browser</button>
+            <button type="button" id="installBelovedApp" hidden class="btn-primary mt-6">Install from browser</button>
             <div class="mt-6 rounded-2xl bg-blue-50 p-5 text-sm leading-7 text-slate-700">
                 <strong class="text-blue-900">On Android Chrome</strong><br>
                 Tap the browser menu (⋮), then choose <strong>Install app</strong> or <strong>Add to Home screen</strong>. Open your new icon to use the site like an app.
@@ -48,8 +48,8 @@
                     Download {{ $versionLabel }}
                 </a>
             @else
-                <div class="mt-6 rounded-2xl p-4 border border-amber-500/20 bg-amber-500/10 text-amber-100">
-                    App file is not uploaded yet.
+                <div class="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                    You can install from your browser using the instructions above. No APK is needed.
                 </div>
             @endif
         </div>

@@ -9,8 +9,8 @@
   "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait",
   "prefer_related_applications": false,
-  "background_color": "#0b1220",
-  "theme_color": "#0b1220",
+  "background_color": "#f5f7fb",
+  "theme_color": "#123461",
   "description": "Identity verification, wallet and everyday services in Nigeria.",
   "icons": [
     {

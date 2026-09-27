@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="max-w-4xl mx-auto w-full px-4 sm:px-0 space-y-5">
+    <div class="reference-flow-page max-w-4xl mx-auto w-full px-4 sm:px-0 space-y-5">
         <div class="rounded-3xl p-5 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow">
             <div class="flex items-start justify-between gap-4">
                 <div>

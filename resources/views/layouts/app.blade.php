@@ -90,7 +90,7 @@
     @endif
 
     <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="theme-color" content="#173f8a">
+    <meta name="theme-color" content="#123461">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="{{ $siteName }}">

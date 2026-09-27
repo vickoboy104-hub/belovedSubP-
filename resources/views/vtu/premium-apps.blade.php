@@ -3,7 +3,7 @@
         $markupPremium = (float) setting('markup_premium', 0);
     @endphp
 
-    <div class="legacy-themed-page max-w-3xl space-y-5 mx-auto w-full px-4 sm:px-0">
+    <div class="legacy-themed-page reference-flow-page max-w-3xl space-y-5 mx-auto w-full px-4 sm:px-0">
         <div class="rounded-3xl p-5 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow">
             <div class="flex items-start justify-between gap-4">
                 <div>

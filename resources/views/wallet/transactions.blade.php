@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="mx-auto max-w-5xl space-y-6">
+    <div class="reference-flow-page mx-auto max-w-5xl space-y-6">
         <section class="app-section p-6 sm:p-8">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>

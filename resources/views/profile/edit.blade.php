@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="mx-auto max-w-5xl space-y-8">
+    <div class="reference-flow-page mx-auto max-w-5xl space-y-8">
         <section>
             <h1 class="app-page-title">My Profile</h1>
             <div class="app-divider mt-4"></div>

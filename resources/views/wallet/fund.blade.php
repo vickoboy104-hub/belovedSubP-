@@ -31,7 +31,7 @@
         $temporaryExpectedCredit = max(0, $temporaryAmount - (float) ($funding_fee_naira ?? 0));
     @endphp
 
-    <div class="mx-auto max-w-5xl space-y-5">
+    <div class="reference-flow-page mx-auto max-w-5xl space-y-5">
         <section class="app-section p-5 sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>

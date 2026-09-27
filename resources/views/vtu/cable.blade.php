@@ -7,7 +7,7 @@
 @endphp
 
 <x-app-layout>
-    <div class="mx-auto max-w-3xl space-y-5 sm:space-y-6">
+    <div class="reference-flow-page mx-auto max-w-3xl space-y-5 sm:space-y-6">
         <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
                 <div class="app-kicker">Cable Subscription</div>

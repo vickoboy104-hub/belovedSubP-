@@ -1652,6 +1652,38 @@ body::before, body::after { display: none; }
 .reference-service-content #ninSubmitBtn:hover { background: #225697; }
 .reference-service-content #refreshReportsBtn { background: #ae4c10; color: white; }
 @media (max-width: 767px) { .reference-service-content { margin-top: -2.8rem; padding-inline: .5rem; } }
+/* Shared service flow: page context sits above the form, as on the reference. */
+.reference-flow-page { position: relative; margin-top: -2.7rem; padding-bottom: 1.5rem; min-width: 0; }
+.reference-flow-page > :first-child {
+    position: relative;
+    background: #fff;
+    border: 1px solid #dfe5ee;
+    border-top: 3px solid #b45012;
+    border-radius: .6rem;
+    padding: 1.3rem clamp(1rem,3vw,1.7rem);
+    box-shadow: 0 9px 24px rgba(12,35,71,.12);
+}
+.reference-flow-page > :first-child :is(h1,h2) { color: #173f74; }
+.reference-flow-page .app-form-shell,
+.reference-flow-page .app-section,
+.reference-flow-page.legacy-themed-page > .rounded-3xl { border-radius: .6rem; }
+.reference-flow-page :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),select,textarea) {
+    min-height: 44px;
+    max-width: 100%;
+}
+.reference-flow-page label[class*="text-white"] { color: #34445d; }
+.reference-flow-page #amountToPay { color: #173f74; }
+.reference-flow-page :is(.app-form-shell,.legacy-themed-page) :is(input,select,textarea):focus-visible,
+.reference-flow-page > form :is(input,select,textarea):focus-visible {
+    outline: 2px solid #b45012;
+    outline-offset: 2px;
+}
+@media (max-width: 767px) {
+    .reference-flow-page { margin-top: -2rem; padding-inline: .35rem; }
+    .reference-flow-page > :first-child { padding: 1rem; }
+    .reference-flow-page :is(.btn-primary, button[type="submit"]) { min-height: 44px; }
+}
+@media print { .reference-flow-page { margin-top: 0; } .reference-flow-page > :first-child { box-shadow: none; } }
 /* Shared customer actions and support control. */
 .btn-primary:focus-visible, .reference-full-button:focus-visible,
 .reference-whatsapp:focus-visible, .reference-nav-link:focus-visible {
