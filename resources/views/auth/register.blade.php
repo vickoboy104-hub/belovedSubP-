@@ -1,8 +1,8 @@
 <x-guest-layout>
     <div class="space-y-8">
         <div>
-            <h1 class="text-4xl font-extrabold tracking-tight text-slate-900">Create Account</h1>
-            <p class="mt-3 text-lg leading-8 text-slate-500">Set up your profile and start using your wallet, bills and VTU services in one place.</p>
+            <h1 class="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">Create an account</h1>
+            <p class="mt-3 text-base leading-7 text-slate-600">Get started with identity services, your wallet and everyday payments.</p>
         </div>
 
         <form method="POST" action="{{ route('register', absolute: false) }}" class="space-y-5">
@@ -10,7 +10,7 @@
             <input type="hidden" name="ref" value="{{ old('ref', $referralCode ?? '') }}">
 
             @if(!empty(old('ref', $referralCode ?? '')))
-                <div class="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                <div class="rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
                     Referral code applied: <span class="font-bold">{{ old('ref', $referralCode ?? '') }}</span>
                 </div>
             @endif
@@ -89,7 +89,7 @@
         <p class="text-center text-base text-slate-600">
             Already have an account?
             <a href="{{ route('login', absolute: false) }}" class="font-bold text-slate-900 hover:underline">
-                Login
+                Sign in
             </a>
         </p>
     </div>

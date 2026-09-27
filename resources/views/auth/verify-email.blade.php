@@ -1,30 +1,30 @@
 <x-guest-layout>
     <div class="space-y-6">
 
-        <h2 class="text-2xl font-extrabold text-white">Verify Your Email âœ…</h2>
+        <h1 class="text-3xl font-extrabold text-slate-900">Verify your email</h1>
 
-        <p class="text-white/60 text-sm">
+        <p class="text-slate-600 text-sm leading-6">
             Thanks for signing up! Please verify your email address by clicking the link we sent.
-            If you didnâ€™t receive the email, we can send another one.
+            If you didn't receive it, you can request another link.
         </p>
 
         @if (session('status') == 'verification-link-sent')
-            <div class="p-3 rounded-xl bg-white/5 border border-white/10 text-orange-300 text-sm">
+            <div role="status" class="p-3 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-800 text-sm">
                 A new verification link has been sent to your email address.
             </div>
         @endif
 
-        <div class="flex items-center justify-between gap-3">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <form method="POST" action="{{ route('verification.send') }}">
                 @csrf
-                <x-primary-button>
+                <x-primary-button class="w-full justify-center py-3 sm:w-auto">
                     {{ __('Resend Email') }}
                 </x-primary-button>
             </form>
 
             <form method="POST" action="{{ route('logout', absolute: false) }}">
                 @csrf
-                <button class="btn-soft" type="submit">
+                <button class="btn-soft min-h-11 w-full sm:w-auto" type="submit">
                     Logout
                 </button>
             </form>
@@ -32,4 +32,3 @@
 
     </div>
 </x-guest-layout>
-

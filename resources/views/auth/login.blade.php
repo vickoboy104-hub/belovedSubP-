@@ -1,7 +1,7 @@
 <x-guest-layout>
     <div class="space-y-8">
         <div>
-            <h1 class="text-4xl font-extrabold tracking-tight text-slate-900">Welcome Back</h1>
+            <h1 class="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">Welcome back</h1>
             <p class="mt-3 text-base leading-7 text-slate-500">Sign in to access your identity services and wallet.</p>
         </div>
 
@@ -48,7 +48,7 @@
                 @if(Route::has('password.request'))
                     <a class="text-sm font-semibold text-slate-700 hover:text-slate-900"
                        href="{{ route('password.request', absolute: false) }}">
-                        Forgot Password?
+                        Forgot password?
                     </a>
                 @endif
             </div>
@@ -61,7 +61,7 @@
         <p class="text-center text-base text-slate-600">
             Don't have an account yet?
             <a href="{{ route('register', absolute: false) }}" class="font-bold text-slate-900 hover:underline">
-                Sign Up Now
+                Create an account
             </a>
         </p>
     </div>

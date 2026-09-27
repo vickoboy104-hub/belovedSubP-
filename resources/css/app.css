@@ -1684,6 +1684,19 @@ body::before, body::after { display: none; }
     .reference-flow-page :is(.btn-primary, button[type="submit"]) { min-height: 44px; }
 }
 @media print { .reference-flow-page { margin-top: 0; } .reference-flow-page > :first-child { box-shadow: none; } }
+
+/* Match account screens to the shared white form and blue photo header on small devices. */
+.reference-auth-page .reference-auth-layout { align-items: start; }
+.reference-auth-page .app-form-shell { border-top: 4px solid #b45012; }
+.reference-auth-page .app-form-shell :is(input:not([type="checkbox"]),select) { min-height: 44px; }
+.reference-auth-page .app-form-shell input[type="checkbox"] { min-width: 20px; min-height: 20px; accent-color: #173f74; }
+.reference-auth-page .app-form-shell :is(input,button,a):focus-visible { outline: 3px solid #b45012; outline-offset: 2px; }
+.reference-auth-page .app-form-shell button[type="submit"] { min-height: 44px; }
+@media (max-width: 767px) {
+    .reference-auth-page { background: linear-gradient(180deg,rgba(12,35,71,.91),rgba(18,55,105,.83)) top/100% 165px no-repeat, #f5f7fb; }
+    .reference-auth-page .reference-auth-layout { gap: 0; }
+    .reference-auth-page .app-form-shell { padding: 1.3rem; }
+}
 /* Shared customer actions and support control. */
 .btn-primary:focus-visible, .reference-full-button:focus-visible,
 .reference-whatsapp:focus-visible, .reference-nav-link:focus-visible {

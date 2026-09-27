@@ -67,7 +67,7 @@
                     @endif
                 @endauth
             </nav>
-            <a href="{{ route('download.app') }}" class="reference-install md:hidden">Install App</a>
+            <a href="{{ route('download.app') }}" class="reference-install md:hidden">Install app</a>
         </div>
         <nav x-cloak x-show="menuOpen" x-transition:enter="transition duration-500 ease-out" x-transition:enter-start="opacity-0 -translate-y-3" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition duration-500 ease-in" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 -translate-y-3" id="guest-mobile-menu" class="reference-guest-drawer md:hidden" aria-label="Mobile navigation">
             <a href="{{ route('home') }}">Home</a>
@@ -77,13 +77,13 @@
                 <a href="{{ route('login') }}">Login</a>
                 @if(Route::has('register'))<a href="{{ route('register') }}">Register</a>@endif
             @endauth
-            <a href="{{ route('download.app') }}">Install App</a>
+            <a href="{{ route('download.app') }}">Install app</a>
         </nav>
     </header>
 
     <main class="{{ $isAuthPage ? 'reference-auth-page pt-[88px] pb-8 sm:pt-[100px] sm:pb-14' : 'pt-[76px] pb-10 sm:pt-[90px] sm:pb-14' }}">
         @if($isAuthPage)
-            <div class="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[420px_minmax(0,1fr)] lg:items-stretch">
+            <div class="reference-auth-layout mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[420px_minmax(0,1fr)] lg:items-stretch">
                 <section class="app-form-shell self-start">
                     <div class="mb-8 flex justify-center lg:justify-start">
                         <img src="{{ $logoUrl }}" alt="{{ $siteName }} logo" class="h-14 w-auto object-contain">
