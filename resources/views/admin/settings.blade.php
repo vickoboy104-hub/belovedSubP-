@@ -568,6 +568,42 @@
                 <div class="text-xs text-gray-500 mt-1">
                     Switch active provider and keep separate credentials and service-ID maps for each provider profile.
                 </div>
+
+                @php
+                    // Resolved exactly the way App\Services\GsubzApi resolves it at runtime.
+                    $activeProvider = trim((string) setting('provider', 'gsubz'));
+                    $activeProviderKey = $activeProvider === 'alt'
+                        ? trim((string) setting('provider_alt_api_key', config('services.alt.key', '')))
+                        : trim((string) setting('provider_gsubz_api_key', config('services.gsubz.key', '')));
+
+                    $missingIntegrations = [];
+                    if ($activeProvider !== 'mock' && $activeProviderKey === '') {
+                        $missingIntegrations[] = ($activeProvider === 'alt' ? 'Alternative API' : 'GSUBZ')
+                            .' key — airtime, data, cable, electricity, exam and premium apps';
+                    }
+                    if (trim((string) setting('nin_api_key', config('services.nin.key', ''))) === '') {
+                        $missingIntegrations[] = 'NIN key — NIN search, print, reports and validation';
+                    }
+                    if (trim((string) setting('bvn_api_key', config('services.bvn.key', ''))) === '') {
+                        $missingIntegrations[] = 'BVN key — BVN verify and retrieve';
+                    }
+                    if (trim((string) config('services.flutterwave.secret_key', '')) === '') {
+                        $missingIntegrations[] = 'Flutterwave secret key — wallet funding and virtual accounts';
+                    }
+                @endphp
+                @if ($missingIntegrations !== [])
+                    <div class="mt-3 rounded-2xl border px-4 py-3 text-sm" style="border-color:#e8b48f;background:#fdf3ec;color:#8a3d0b;">
+                        <strong>These services cannot run yet</strong> because no key is saved for them:
+                        <ul class="mt-2 list-disc space-y-1 pl-5">
+                            @foreach ($missingIntegrations as $missing)
+                                <li>{{ $missing }}</li>
+                            @endforeach
+                        </ul>
+                        <p class="mt-2">Keys are read from this page only — never from the browser. Choose
+                            <strong>Mock (Test Mode)</strong> above to rehearse orders without a provider.</p>
+                    </div>
+                @endif
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
                     <div>
                         <label class="text-sm font-bold text-gray-800/80">Active Provider</label>

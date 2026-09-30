@@ -3850,6 +3850,10 @@ class VtuController extends Controller
 
     private function userFacingProviderFailureMessage(string $providerMessage, array $resp = []): string
     {
+        if (!empty($resp['unconfigured'])) {
+            return 'Airtime and data purchases are temporarily unavailable: no provider API key is configured.';
+        }
+
         $raw = strtolower(trim(implode(' ', array_filter([
             $providerMessage,
             (string) ($resp['api_response'] ?? ''),

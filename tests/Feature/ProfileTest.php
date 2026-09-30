@@ -117,11 +117,15 @@ class ProfileTest extends TestCase
 
         $this->assertNull($user->fresh()->avatar);
 
-        $oversize = $this->noisyPng(900);
+        $oversize = $this->oversizedPng(900, 2 * 1024 * 1024 + 1);
         $this->assertGreaterThan(
             2 * 1024 * 1024,
             (int) filesize($oversize),
             'The fixture has to be genuinely over the 2 MB cap or this test proves nothing.'
+        );
+        $this->assertNotNull(
+            getimagesize($oversize),
+            'A padded file that is no longer a decodable image would fail the image rule, not the size rule.'
         );
 
         $this->actingAs($user)->patch('/profile', [
@@ -135,9 +139,10 @@ class ProfileTest extends TestCase
     }
 
     /**
-     * A real PNG the validator can decode. Random pixels keep it above the size cap.
+     * A real PNG the validator can decode, padded with bytes after IEND so the
+     * size is deterministic rather than dependent on how well noise compresses.
      */
-    private function noisyPng(int $side): string
+    private function oversizedPng(int $side, int $minimumBytes): string
     {
         $path = tempnam(sys_get_temp_dir(), 'avatar-').'.png';
         $image = imagecreatetruecolor($side, $side);
@@ -155,6 +160,12 @@ class ProfileTest extends TestCase
 
         imagepng($image, $path);
         imagedestroy($image);
+
+        $handle = fopen($path, 'ab');
+        while (filesize($path) < $minimumBytes) {
+            fwrite($handle, random_bytes(65_536));
+        }
+        fclose($handle);
 
         return $path;
     }
