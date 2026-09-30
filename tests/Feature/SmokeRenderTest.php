@@ -12,6 +12,19 @@ class SmokeRenderTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_both_layouts_open_with_the_boot_splash(): void
+    {
+        $user = User::factory()->create();
+
+        foreach ([['/', null], ['/dashboard', $user]] as [$path, $actingAs]) {
+            $request = $actingAs ? $this->actingAs($actingAs) : $this;
+            $html = $request->get($path)->assertOk()->getContent();
+
+            $this->assertStringContainsString('id="appSplash"', $html, $path.' has no splash markup');
+            $this->assertStringContainsString("classList.add('splash-active')", $html, $path.' never arms the splash');
+        }
+    }
+
     public function test_every_get_page_route_renders_without_server_error(): void
     {
         // /admin/settings refreshes provider prices on open; keep it off the network.

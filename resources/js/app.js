@@ -46,6 +46,33 @@ document.body.classList.add('page-is-entering');
 
 
 // ==============================
+// BOOT SPLASH
+// ==============================
+(function () {
+    // The markup adds .splash-active before first paint; this is the only thing
+    // that takes it away, so it also runs on a timer in case 'load' never fires.
+    const html = document.documentElement;
+    let dismissed = false;
+
+    const dismiss = () => {
+        if (dismissed) return;
+        dismissed = true;
+        clearTimeout(failSafe);
+        window.removeEventListener('load', dismiss);
+        html.classList.remove('splash-active');
+    };
+
+    const failSafe = setTimeout(dismiss, 2500);
+
+    if (document.readyState === 'complete') {
+        dismiss();
+    } else {
+        window.addEventListener('load', dismiss);
+    }
+})();
+
+
+// ==============================
 // VIEWPORT LAYERS
 // ==============================
 (function () {

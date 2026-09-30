@@ -45,6 +45,7 @@
 </head>
 <body class="app-shell-bg min-h-screen text-slate-900">
     <x-maintenance-overlay />
+    <x-app-splash :logo="$logoUrl" :name="$siteName" />
     <x-global-loader />
 
     <header x-data="{ menuOpen: false }" class="app-header-bar fixed inset-x-0 top-0 z-40">

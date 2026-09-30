@@ -1970,3 +1970,32 @@ img.reference-avatar { display: block; object-fit: cover; background: #153a6c; }
 /* Signed-in dashboard greets the user by face, not just by name. */
 .reference-hero-user { display: inline-flex; align-items: center; gap: .6rem; margin-top: 1rem; padding: .3rem .95rem .3rem .3rem; border-radius: 2rem; background: rgba(255,255,255,.15); color: #fff; font-size: .85rem; font-weight: 700; }
 .reference-hero-avatar { width: 2.5rem; height: 2.5rem; margin: 0; font-size: 1rem; background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.45); }
+
+/* Boot splash, modelled on the SPARKTECH loading screen: brand mark inside a
+   spinning ring over the navy gradient. It only paints while <html> carries
+   .splash-active, so a browser with JS switched off never sees it. */
+.reference-splash { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 1.5rem; text-align: center; color: #fff; background: radial-gradient(1100px 620px at 12% -8%, rgba(255,255,255,.1), transparent 60%), radial-gradient(900px 560px at 108% 12%, rgba(42,90,160,.55), transparent 55%), linear-gradient(160deg, #153d77 0%, #0f2c57 55%, #0a1f3d 100%); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .34s ease, visibility .34s ease; }
+html.splash-active .reference-splash { opacity: 1; visibility: visible; pointer-events: auto; }
+.reference-splash-loader { position: relative; display: grid; place-items: center; width: 92px; height: 92px; }
+.reference-splash-ring { position: absolute; inset: 0; border: 4px solid rgba(255,255,255,.25); border-top-color: #fff; border-radius: 50%; animation: referenceSplashSpin 1s linear infinite; }
+.reference-splash-logo { position: relative; z-index: 1; width: 60px; height: 60px; border-radius: 50%; object-fit: cover; background: rgba(255,255,255,.92); }
+.reference-splash-caption { display: block; margin-top: 1.25rem; }
+.reference-splash-loading { display: block; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+.reference-splash-app { display: block; margin-top: .35rem; font-size: 1rem; font-weight: 800; letter-spacing: .3px; }
+@keyframes referenceSplashSpin { to { transform: rotate(360deg); } }
+
+/* Auth panels rise in sequence, the way the SPARKTECH login card does. */
+.reference-auth-page .app-form-shell { animation: fadeInUp .5s ease both; }
+.reference-auth-page .app-accent-panel { animation: fadeInUp .55s .05s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+    .reference-splash { transition: none; }
+    .reference-splash-ring { animation: none; }
+    .reference-auth-page .app-form-shell,
+    .reference-auth-page .app-accent-panel { animation: none; }
+}
+
+/* Loading placeholders, ported from the SPARKTECH wave skeletons. */
+.reference-skeleton-wave { background-color: #cfdcee; -webkit-mask-image: linear-gradient(130deg, #000 55%, rgba(0, 0, 0, .8) 75%, #000 95%); mask-image: linear-gradient(130deg, #000 55%, rgba(0, 0, 0, .8) 75%, #000 95%); -webkit-mask-size: 200% 100%; mask-size: 200% 100%; animation: referenceSkeletonWave 2s linear infinite; }
+@keyframes referenceSkeletonWave { to { -webkit-mask-position: -200% 0; mask-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .reference-skeleton-wave { animation: none; } }

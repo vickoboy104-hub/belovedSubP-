@@ -77,8 +77,10 @@
                     </div>
                 </div>
 
-                <div id="planLoader" class="rounded-2xl bg-slate-50 px-4 py-2.5 text-xs font-medium text-slate-600">
-                    Loading plans from provider...
+                <div id="planLoader" class="space-y-2 rounded-2xl bg-slate-50 px-4 py-3">
+                    <p class="text-xs font-medium text-slate-600">Loading plans from provider...</p>
+                    <span class="reference-skeleton-wave block h-3 w-full rounded-full" aria-hidden="true"></span>
+                    <span class="reference-skeleton-wave block h-3 w-4/5 rounded-full" aria-hidden="true"></span>
                 </div>
 
                 <button type="button" id="dataActionBtn" class="btn-primary w-full justify-center py-3.5 text-[0.98rem]">

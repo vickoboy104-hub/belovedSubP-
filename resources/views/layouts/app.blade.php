@@ -106,6 +106,7 @@
 </head>
 <body class="app-shell-bg min-h-screen text-slate-900">
     <x-maintenance-overlay />
+    <x-app-splash :logo="$logoUrl" :name="$siteName" />
     <x-global-loader />
 
     <div x-data="{ drawerOpen: false, desktopNavOpen: true, profileMenuOpen: false }"
