@@ -11,9 +11,9 @@
         <p>{{ $subtitle }}</p>
     @endif
 
+    {{ $slot }}
+
     @if($battery)
         <span class="reference-progress" data-device-battery role="status" aria-live="polite">Checking battery…</span>
     @endif
-
-    {{ $slot }}
 </section>

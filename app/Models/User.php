@@ -26,6 +26,7 @@ class User extends Authenticatable
         'first_name',
         'last_name',
         'phone',
+        'avatar',
         'flutterwave_bvn',
         'flutterwave_nin',
         'email',
@@ -106,6 +107,37 @@ class User extends Authenticatable
     public function referralLink(): string
     {
         return route('referral.visit', ['code' => $this->ensureReferralCode()]);
+    }
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        $path = trim((string) $this->avatar);
+
+        if ($path === '') {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        return asset('storage/'.$path);
+    }
+
+    public function getInitialsAttribute(): string
+    {
+        $first = trim((string) $this->first_name);
+        $last = trim((string) $this->last_name);
+
+        if ($first === '' && $last === '') {
+            $parts = preg_split('/\s+/', trim((string) $this->name), 2) ?: [];
+            $first = $parts[0] ?? '';
+            $last = $parts[1] ?? '';
+        }
+
+        $initials = mb_strtoupper(mb_substr($first, 0, 1).mb_substr($last, 0, 1));
+
+        return $initials !== '' ? $initials : mb_strtoupper(mb_substr(trim((string) $this->email), 0, 1));
     }
 
 }

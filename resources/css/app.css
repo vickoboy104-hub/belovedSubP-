@@ -1949,3 +1949,24 @@ a.reference-full-button:hover { background: #b45012; color: white; transform: tr
 .\!bg-emerald-600, .\!bg-emerald-700 { background-color: #067a55 !important; }
 .bg-amber-50\/70 { background-color: rgba(253, 244, 233, .7); }
 .border-amber-300\/40 { border-color: rgba(240, 213, 180, .8); }
+
+/* Sidebar / drawer identity block: the avatar now comes from the user's own photo,
+   so it needs to crop to the circle instead of letterboxing. */
+.reference-profile-link { display: block; color: inherit; text-decoration: none; border-radius: .55rem; padding: .35rem 0; transition: background .22s ease, transform .22s ease; }
+.reference-profile-link:hover { background: rgba(255,255,255,.09); transform: translateY(-1px); }
+img.reference-avatar { display: block; object-fit: cover; background: #153a6c; }
+
+/* Profile photo picker. The preview is a local blob until the form saves, so the
+   circle reacts on tap and never shows a broken image while choosing. */
+.avatar-picker { display: flex; align-items: center; gap: 1rem; }
+.avatar-picker-target { position: relative; display: block; flex: none; width: 5.6rem; height: 5.6rem; overflow: hidden; border-radius: 50%; background: #e2ecfb; color: #173f74; border: 2px solid #cbd6e4; cursor: pointer; transition: transform .25s cubic-bezier(.22,.61,.36,1), box-shadow .25s ease, border-color .25s ease; -webkit-tap-highlight-color: transparent; }
+.avatar-picker-target:hover, .avatar-picker-target:focus-within { transform: scale(1.04); border-color: #b45012; box-shadow: 0 10px 22px rgba(17,45,87,.18); }
+.avatar-picker-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.avatar-picker-initials { position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.6rem; font-weight: 800; }
+.avatar-picker-badge { position: absolute; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; gap: .3rem; overflow: hidden; padding: .34rem .2rem; background: rgba(17,45,87,.78); color: #fff; font-size: .58rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; text-overflow: ellipsis; }
+.avatar-picker-meta { min-width: 0; }
+.avatar-picker-clear { margin-top: .55rem; color: #b3261e; font-size: .78rem; font-weight: 700; text-decoration: underline; }
+
+/* Signed-in dashboard greets the user by face, not just by name. */
+.reference-hero-user { display: inline-flex; align-items: center; gap: .6rem; margin-top: 1rem; padding: .3rem .95rem .3rem .3rem; border-radius: 2rem; background: rgba(255,255,255,.15); color: #fff; font-size: .85rem; font-weight: 700; }
+.reference-hero-avatar { width: 2.5rem; height: 2.5rem; margin: 0; font-size: 1rem; background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.45); }

@@ -33,7 +33,12 @@
     @endphp
 
     <div class="reference-dashboard">
-        <x-page-hero title="Dashboard Overview" />
+        <x-page-hero title="Dashboard Overview">
+            <div class="reference-hero-user">
+                <x-avatar :user="$dashUser" class="reference-hero-avatar" />
+                <span>{{ $dashUser?->first_name ?: 'Welcome back' }}</span>
+            </div>
+        </x-page-hero>
 
         <div class="reference-dashboard-body">
             <section class="reference-summary-grid" aria-label="Account summary">

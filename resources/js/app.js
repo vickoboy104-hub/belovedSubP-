@@ -816,4 +816,29 @@ document.body.classList.add('page-is-entering');
     scheduleGuide();
 })();
 
+Alpine.data('avatarPicker', ({ current = '', initials = '', name = 'Your' } = {}) => ({
+    current: current || '',
+    preview: current || '',
+    initials: initials || '',
+    name: name || 'Your',
+    fileName: '',
+    pick(file) {
+        if (!file) {
+            this.clear();
+            return;
+        }
+        if (this.preview.startsWith('blob:')) URL.revokeObjectURL(this.preview);
+        this.fileName = file.name;
+        this.preview = URL.createObjectURL(file);
+    },
+    clear() {
+        if (this.preview.startsWith('blob:')) URL.revokeObjectURL(this.preview);
+        this.fileName = '';
+        this.preview = this.current;
+        // The picker is used through an x-data expression, so Alpine's $el magic is
+        // not attached to `this`; the input is addressed directly.
+        document.getElementById('image').value = '';
+    },
+}));
+
 Alpine.start();

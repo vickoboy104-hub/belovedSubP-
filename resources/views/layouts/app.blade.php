@@ -117,9 +117,11 @@
         </a>
         <aside id="desktop-navigation" class="reference-sidebar desktop-sidebar-scroll hidden fixed left-0 top-[64px] z-30 h-[calc(100vh-64px)] w-[246px] overflow-y-auto overscroll-contain md:block" :aria-hidden="!desktopNavOpen" :inert="!desktopNavOpen">
             <div class="reference-profile">
-                <div class="reference-avatar" aria-hidden="true">◯</div>
-                <div class="font-semibold">{{ $authUser?->name ?? 'User' }}</div>
-                <span class="text-xs opacity-75">User</span>
+                <a href="{{ route('profile.edit') }}" class="reference-profile-link">
+                    <x-avatar :user="$authUser" />
+                    <span class="block font-semibold">{{ $authUser?->name ?? 'User' }}</span>
+                    <span class="block text-xs opacity-75">User</span>
+                </a>
             </div>
 
             <div class="reference-nav">
@@ -204,10 +206,12 @@
             </div>
 
             <div class="reference-profile">
-                <div class="reference-avatar" aria-hidden="true">◯</div>
-                <div class="font-semibold">{{ $authUser?->name ?? 'User' }}</div>
-                <div class="text-xs opacity-75">{{ $authUser?->email }}</div>
-                <span class="text-xs opacity-75">User</span>
+                <a href="{{ route('profile.edit') }}" class="reference-profile-link">
+                    <x-avatar :user="$authUser" />
+                    <span class="block font-semibold">{{ $authUser?->name ?? 'User' }}</span>
+                    <span class="block text-xs opacity-75">{{ $authUser?->email }}</span>
+                    <span class="block text-xs opacity-75 mt-1">Edit profile</span>
+                </a>
             </div>
 
             <div class="reference-nav">
