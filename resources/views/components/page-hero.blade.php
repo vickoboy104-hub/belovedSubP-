@@ -11,9 +11,13 @@
         <p>{{ $subtitle }}</p>
     @endif
 
-    {{ $slot }}
+    @if($slot->isNotEmpty() || $battery)
+        <div class="reference-hero-foot">
+            {{ $slot }}
 
-    @if($battery)
-        <span class="reference-progress" data-device-battery role="status" aria-live="polite">Checking battery…</span>
+            @if($battery)
+                <span class="reference-progress" data-device-battery role="status" aria-live="polite">Checking battery…</span>
+            @endif
+        </div>
     @endif
 </section>

@@ -397,42 +397,6 @@ button {
     animation: idleGuideTargetPulse 1.8s ease-in-out infinite;
 }
 
-.tech-loader-core {
-    width: 22px;
-    height: 22px;
-    border-radius: 999px;
-    border: 3px solid rgba(36, 79, 155, 0.16);
-    border-top-color: rgba(23, 63, 138, 0.98);
-    border-right-color: rgba(66, 121, 228, 0.84);
-    animation: techSpin 0.9s linear infinite;
-    box-shadow: 0 0 14px rgba(23, 63, 138, 0.2);
-}
-
-.tech-loader-bar {
-    display: block;
-    height: 4px;
-    flex: 1;
-    border-radius: 999px;
-    background: linear-gradient(90deg, rgba(23,63,138,0.08), rgba(23,63,138,0.9), rgba(66,121,228,0.5));
-    background-size: 200% 100%;
-    animation: techSweep 1.3s ease-in-out infinite;
-}
-
-.tech-loader-bar:nth-child(2) { animation-delay: 0.12s; }
-.tech-loader-bar:nth-child(3) { animation-delay: 0.24s; }
-.tech-loader-bar:nth-child(4) { animation-delay: 0.36s; }
-
-@keyframes techSpin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-@keyframes techSweep {
-    0% { background-position: 200% 0; opacity: 0.45; }
-    50% { background-position: 100% 0; opacity: 1; }
-    100% { background-position: 0% 0; opacity: 0.45; }
-}
-
 .card-glow {
     box-shadow: var(--app-shadow-card);
 }
@@ -1971,18 +1935,35 @@ img.reference-avatar { display: block; object-fit: cover; background: #153a6c; }
 .reference-hero-user { display: inline-flex; align-items: center; gap: .6rem; margin-top: 1rem; padding: .3rem .95rem .3rem .3rem; border-radius: 2rem; background: rgba(255,255,255,.15); color: #fff; font-size: .85rem; font-weight: 700; }
 .reference-hero-avatar { width: 2.5rem; height: 2.5rem; margin: 0; font-size: 1rem; background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.45); }
 
-/* Boot splash, modelled on the SPARKTECH loading screen: brand mark inside a
-   spinning ring over the navy gradient. It only paints while <html> carries
+/* One aligned foot row under the heading: identity or action on the left,
+   battery on the right, instead of three stacked blocks with mismatched gaps. */
+.reference-hero-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .65rem; margin-top: 1.15rem; }
+.reference-hero-foot > * { margin-top: 0; }
+
+/* The one loading visual, shared by the boot splash and the page-transition
+   loader: brand mark inside a white ring with a dark orange counter-arc.
+   Transform-only animation, so it stays cheap on low-end Android. */
+.reference-brand-stack { display: flex; flex-direction: column; align-items: center; color: #fff; text-align: center; }
+.reference-brand-loader { position: relative; display: grid; place-items: center; width: 92px; height: 92px; }
+.reference-brand-ring { position: absolute; inset: 0; border: 4px solid rgba(255,255,255,.22); border-top-color: #fff; border-radius: 50%; animation: referenceBrandSpin 1s linear infinite; }
+.reference-brand-ring-accent { position: absolute; inset: -9px; border: 3px solid transparent; border-right-color: #bd590e; border-bottom-color: rgba(189,89,14,.55); border-radius: 50%; animation: referenceBrandSpin 2.2s linear infinite reverse; }
+.reference-brand-mark { position: relative; z-index: 1; width: 60px; height: 60px; border-radius: 50%; object-fit: cover; background: rgba(255,255,255,.92); box-shadow: 0 0 0 4px rgba(255,255,255,.12); }
+.reference-brand-caption { display: block; margin-top: 1.25rem; }
+.reference-brand-loading { display: block; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; opacity: .82; }
+.reference-brand-name { display: block; margin-top: .35rem; font-size: 1rem; font-weight: 800; letter-spacing: .3px; }
+@keyframes referenceBrandSpin { to { transform: rotate(360deg); } }
+
+/* Boot splash over the navy gradient. It only paints while <html> carries
    .splash-active, so a browser with JS switched off never sees it. */
-.reference-splash { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 1.5rem; text-align: center; color: #fff; background: radial-gradient(1100px 620px at 12% -8%, rgba(255,255,255,.1), transparent 60%), radial-gradient(900px 560px at 108% 12%, rgba(42,90,160,.55), transparent 55%), linear-gradient(160deg, #153d77 0%, #0f2c57 55%, #0a1f3d 100%); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .34s ease, visibility .34s ease; }
+.reference-splash { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 1.5rem; background: radial-gradient(1100px 620px at 12% -8%, rgba(255,255,255,.1), transparent 60%), radial-gradient(900px 560px at 108% 12%, rgba(42,90,160,.55), transparent 55%), linear-gradient(160deg, #153d77 0%, #0f2c57 55%, #0a1f3d 100%); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .34s ease, visibility .34s ease; }
 html.splash-active .reference-splash { opacity: 1; visibility: visible; pointer-events: auto; }
-.reference-splash-loader { position: relative; display: grid; place-items: center; width: 92px; height: 92px; }
-.reference-splash-ring { position: absolute; inset: 0; border: 4px solid rgba(255,255,255,.25); border-top-color: #fff; border-radius: 50%; animation: referenceSplashSpin 1s linear infinite; }
-.reference-splash-logo { position: relative; z-index: 1; width: 60px; height: 60px; border-radius: 50%; object-fit: cover; background: rgba(255,255,255,.92); }
-.reference-splash-caption { display: block; margin-top: 1.25rem; }
-.reference-splash-loading { display: block; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
-.reference-splash-app { display: block; margin-top: .35rem; font-size: 1rem; font-weight: 800; letter-spacing: .3px; }
-@keyframes referenceSplashSpin { to { transform: rotate(360deg); } }
+
+/* Page-transition loader: same brand mark, on a veil dark enough to keep the
+   white caption legible without a blur filter (blurs cost frames on mobile). */
+.reference-loader-veil { position: absolute; inset: 0; background: linear-gradient(160deg, rgba(21,61,119,.9), rgba(10,31,61,.92)); }
+.reference-loader-body { position: relative; z-index: 1; }
+.reference-loader-body .reference-brand-loader { width: 76px; height: 76px; }
+.reference-loader-body .reference-brand-mark { width: 50px; height: 50px; }
 
 /* Auth panels rise in sequence, the way the SPARKTECH login card does. */
 .reference-auth-page .app-form-shell { animation: fadeInUp .5s ease both; }
@@ -1990,7 +1971,8 @@ html.splash-active .reference-splash { opacity: 1; visibility: visible; pointer-
 
 @media (prefers-reduced-motion: reduce) {
     .reference-splash { transition: none; }
-    .reference-splash-ring { animation: none; }
+    .reference-brand-ring,
+    .reference-brand-ring-accent { animation: none; }
     .reference-auth-page .app-form-shell,
     .reference-auth-page .app-accent-panel { animation: none; }
 }

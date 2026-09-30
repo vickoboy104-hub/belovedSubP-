@@ -21,6 +21,10 @@
         } elseif (!str_starts_with($logoUrl, 'http://') && !str_starts_with($logoUrl, 'https://') && !str_starts_with($logoUrl, '/')) {
             $logoUrl = asset($logoUrl);
         }
+
+        // The splash and the page loader paint before anything else, so they use the
+        // 20 KB square mark unless the admin has uploaded a logo of their own.
+        $brandMark = trim((string) $siteLogo) !== '' ? $logoUrl : asset('images/logo-mark.webp');
     @endphp
 
     <title>{{ $siteName }}</title>
@@ -40,13 +44,14 @@
     <meta name="apple-mobile-web-app-title" content="{{ $siteName }}">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="apple-touch-icon" href="/icons/pwa-192x192.png">
+    <link rel="preload" as="image" href="{{ $brandMark }}">
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="app-shell-bg min-h-screen text-slate-900">
     <x-maintenance-overlay />
-    <x-app-splash :logo="$logoUrl" :name="$siteName" />
-    <x-global-loader />
+    <x-app-splash :logo="$brandMark" :name="$siteName" />
+    <x-global-loader :logo="$brandMark" :name="$siteName" />
 
     <header x-data="{ menuOpen: false }" class="app-header-bar fixed inset-x-0 top-0 z-40">
         <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">

@@ -20,6 +20,10 @@
             $logoUrl = asset($logoUrl);
         }
 
+        // The splash and the page loader paint before anything else, so they use the
+        // 20 KB square mark unless the admin has uploaded a logo of their own.
+        $brandMark = trim((string) $siteLogo) !== '' ? $logoUrl : asset('images/logo-mark.webp');
+
         $pageTitle = match (true) {
             request()->routeIs('vtu.nin*') => 'Verify NIN',
             request()->routeIs('vtu.bvn*') => 'BVN Services',
@@ -101,13 +105,14 @@
     <meta name="apple-mobile-web-app-title" content="{{ $siteName }}">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="apple-touch-icon" href="/icons/pwa-192x192.png">
+    <link rel="preload" as="image" href="{{ $brandMark }}">
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="app-shell-bg min-h-screen text-slate-900">
     <x-maintenance-overlay />
-    <x-app-splash :logo="$logoUrl" :name="$siteName" />
-    <x-global-loader />
+    <x-app-splash :logo="$brandMark" :name="$siteName" />
+    <x-global-loader :logo="$brandMark" :name="$siteName" />
 
     <div x-data="{ drawerOpen: false, desktopNavOpen: true, profileMenuOpen: false }"
          x-effect="document.body.style.overflow = drawerOpen ? 'hidden' : ''"
