@@ -42,10 +42,7 @@ class VtuController extends Controller
     {
         $user = auth()->user();
 
-        if ($user && trim((string) $user->referral_code) === '') {
-            $user->referral_code = $this->generateUniqueReferralCode();
-            $user->save();
-        }
+        $user?->ensureReferralCode();
 
         $walletBalanceKobo = (int) ($user?->wallet?->balance ?? 0);
         $recentOrders = Order::where('user_id', $user->id)->latest()->take(10)->get();
@@ -2339,13 +2336,6 @@ class VtuController extends Controller
     // =========================================================
     // TRANSACTIONS + ORDERS
     // =========================================================
-    public function transactions()
-    {
-        $user = auth()->user();
-        $orders = Order::where('user_id', $user->id)->latest()->paginate(20);
-        return view('vtu.transactions', compact('orders'));
-    }
-
     public function orders()
     {
         $user = auth()->user();
@@ -3856,15 +3846,6 @@ class VtuController extends Controller
             ->where('type', 'credit')
             ->where('status', 'success')
             ->exists();
-    }
-
-    private function generateUniqueReferralCode(): string
-    {
-        do {
-            $candidate = Str::upper(Str::random(8));
-        } while (User::query()->where('referral_code', $candidate)->exists());
-
-        return $candidate;
     }
 
     private function userFacingProviderFailureMessage(string $providerMessage, array $resp = []): string

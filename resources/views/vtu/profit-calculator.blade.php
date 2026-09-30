@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="max-w-4xl mx-auto w-full px-4 sm:px-0 space-y-5">
+    <div class="legacy-themed-page reference-flow-page max-w-4xl mx-auto w-full px-4 sm:px-0 space-y-5">
         <div class="rounded-3xl p-5 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow">
             <h2 class="text-2xl font-extrabold">&#128200; Profit Calculator</h2>
             <p class="text-sm text-gray-600 dark:text-white/60 mt-1">

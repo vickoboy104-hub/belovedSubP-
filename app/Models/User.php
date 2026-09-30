@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
@@ -87,6 +88,24 @@ class User extends Authenticatable
     public function referrals(): HasMany
     {
         return $this->hasMany(self::class, 'referred_by_user_id');
+    }
+
+    public function ensureReferralCode(): string
+    {
+        if (trim((string) $this->referral_code) === '') {
+            do {
+                $candidate = Str::upper(Str::random(8));
+            } while (static::query()->where('referral_code', $candidate)->exists());
+
+            $this->forceFill(['referral_code' => $candidate])->save();
+        }
+
+        return (string) $this->referral_code;
+    }
+
+    public function referralLink(): string
+    {
+        return route('referral.visit', ['code' => $this->ensureReferralCode()]);
     }
 
 }

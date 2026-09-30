@@ -3,10 +3,152 @@
 namespace App\Services;
 
 use App\Models\ProviderPlanPrice;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class ProviderPlanPriceService
 {
+    public function __construct(
+        private readonly GsubzApi $gsubzApi,
+    ) {
+    }
+
+    /**
+     * Provider services whose plan catalogue is priced on this platform.
+     *
+     * @return array<string, array<string, string>>
+     */
+    public function pricingServiceGroups(): array
+    {
+        return [
+            'MTN Data' => [
+                'mtn_awoof' => 'MTN Awoof Data (Cheap)',
+                'mtn_gifting' => 'MTN Data (Gifting)',
+                'mtn_sme' => 'MTN Data (SME)',
+                'mtn_cg' => 'MTN Data (Corporate)',
+                'mtn_cg_lite' => 'MTN Data (CG Lite)',
+                'mtn_coupon' => 'MTN Coupon',
+                'mtncg' => 'MTN CG',
+            ],
+            'Airtel Data' => [
+                'airtel_sme' => 'Airtel Data (SME)',
+                'airtel_cg' => 'Airtel Data (CG)',
+                'airtel_gifting' => 'Airtel Data (Gifting)',
+            ],
+            'Glo Data' => [
+                'glo_data' => 'Glo Data',
+                'glo_sme' => 'Glo Data (SME)',
+            ],
+            '9mobile Data' => [
+                'etisalat_data' => '9mobile Data',
+            ],
+            'Cable TV' => [
+                'dstv' => 'DSTV',
+                'gotv' => 'GOTV',
+                'startimes' => 'Startimes',
+            ],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function pricingServiceSlugs(): array
+    {
+        return collect($this->pricingServiceGroups())
+            ->flatMap(fn (array $services) => array_keys($services))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Refresh the provider price list so website prices track the provider.
+     *
+     * $limit bounds how many services are fetched. Each service is one HTTP
+     * round trip, so a page-triggered refresh must pass a small budget while a
+     * scheduled or manually requested sweep passes 0 for "all of them".
+     *
+     * @return array{synced_plans:int, failed_services:list<string>, attempted_services:list<string>, stale:int}
+     */
+    public function syncProviderPrices(int $limit = 0, int $timeout = 30, int $retries = 2, int $budgetSeconds = 0): array
+    {
+        $provider = $this->currentProvider();
+        $slugs = $this->stalestServiceSlugs($limit, $provider);
+
+        $syncedPlans = 0;
+        $failedServices = [];
+        $attempted = [];
+        $deadline = $budgetSeconds > 0 ? microtime(true) + $budgetSeconds : null;
+
+        foreach ($slugs as $serviceSlug) {
+            if ($deadline !== null && microtime(true) >= $deadline) {
+                break;
+            }
+
+            $attempted[] = $serviceSlug;
+
+            try {
+                $providerServiceId = $this->providerServiceId($serviceSlug, $provider);
+                $resp = $this->gsubzApi->plans($providerServiceId, $timeout, $retries);
+
+                if (!($resp['ok'] ?? false) || !is_array($resp['plans'] ?? null)) {
+                    $failedServices[] = $serviceSlug;
+                    continue;
+                }
+
+                $syncedPlans += $this->syncPlans($serviceSlug, $resp['plans'], $providerServiceId, $provider)->count();
+            } catch (\Throwable $e) {
+                $failedServices[] = $serviceSlug;
+            }
+        }
+
+        return [
+            'synced_plans' => $syncedPlans,
+            'failed_services' => array_values(array_unique($failedServices)),
+            'attempted_services' => $attempted,
+            'stale' => max(0, count($this->pricingServiceSlugs()) - count($attempted)),
+        ];
+    }
+
+    /**
+     * Services ordered by how out of date their stored price list is, so a
+     * bounded refresh always spends its budget on the worst offenders.
+     *
+     * @return list<string>
+     */
+    private function stalestServiceSlugs(int $limit, string $provider): array
+    {
+        $lastSynced = ProviderPlanPrice::query()
+            ->where('provider', $provider)
+            ->whereIn('service_slug', $this->pricingServiceSlugs())
+            ->selectRaw('service_slug, MIN(last_synced_at) AS oldest_sync')
+            ->groupBy('service_slug')
+            ->pluck('oldest_sync', 'service_slug');
+
+        $slugs = $this->pricingServiceSlugs();
+
+        usort($slugs, static function (string $a, string $b) use ($lastSynced): int {
+            // MIN() bypasses the model cast, so the raw driver value can be a string.
+            $at = isset($lastSynced[$a]) ? Carbon::parse($lastSynced[$a]) : null;
+            $bt = isset($lastSynced[$b]) ? Carbon::parse($lastSynced[$b]) : null;
+
+            // Never synced at all goes first.
+            if ($at === null && $bt === null) {
+                return 0;
+            }
+            if ($at === null) {
+                return -1;
+            }
+            if ($bt === null) {
+                return 1;
+            }
+
+            return $at->getTimestamp() <=> $bt->getTimestamp();
+        });
+
+        return $limit > 0 ? array_slice($slugs, 0, $limit) : $slugs;
+    }
+
     public function currentProvider(): string
     {
         $provider = trim((string) setting('provider', 'gsubz'));

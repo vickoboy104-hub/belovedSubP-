@@ -17,11 +17,12 @@
         ];
     @endphp
 
-    <div class="mx-auto max-w-6xl space-y-8"
+    <div class="reference-flow-page mx-auto max-w-6xl space-y-5"
          id="dataServiceIndex"
          data-awoof-check-url="{{ route('gsubz.plans', ['service' => 'mtn_awoof']) }}">
-        <section>
-            <h1 class="app-page-title text-[2.1rem] sm:text-[2.6rem]">Buy Data Subscription</h1>
+        <section class="app-section p-6 sm:p-8">
+            <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">Buy Data Subscription</h1>
+            <p class="app-page-subtitle">Select a data provider to see available plans.</p>
             <div class="app-divider mt-4"></div>
         </section>
 

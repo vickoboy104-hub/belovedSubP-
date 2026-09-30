@@ -51,6 +51,34 @@ if (!function_exists('setting')) {
     }
 }
 
+if (!function_exists('site_name')) {
+    // The admin can save a blank site name, which would otherwise leave pages
+    // titled with the host's default rather than the brand.
+    function site_name(): string
+    {
+        $stored = trim((string) setting('site_name'));
+        if ($stored !== '') {
+            return $stored;
+        }
+
+        return trim((string) config('app.name', 'BelovedSubP'));
+    }
+}
+
+if (!function_exists('whatsapp_link')) {
+    // Single source for the support number: Admin > Settings wins, and this
+    // fallback is the only place the literal is written.
+    function whatsapp_link(): string
+    {
+        $stored = trim((string) setting('whatsapp_link'));
+        if ($stored !== '') {
+            return $stored;
+        }
+
+        return 'https://wa.me/2347046246332';
+    }
+}
+
 if (!function_exists('sanitize_popup_message_html')) {
     function sanitize_popup_message_html(?string $html): string
     {

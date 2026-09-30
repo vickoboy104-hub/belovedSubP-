@@ -100,6 +100,7 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::get('/wallet/transactions', [WalletController::class, 'transactions'])->name('wallet.transactions');
 
     Route::get('/ajax/gsubz/plans', [VtuController::class, 'gsubzPlans'])->name('gsubz.plans');
+    Route::get('/referral', [ReferralController::class, 'index'])->name('referral.index');
     Route::post('/referral/link/generate', [ReferralController::class, 'generate'])->name('referral.generate');
     Route::post('/referral/withdraw', [ReferralController::class, 'withdraw'])->name('referral.withdraw');
     Route::post('/notifications/read-all', [VtuController::class, 'markUserNotificationsRead'])->name('notifications.read-all');

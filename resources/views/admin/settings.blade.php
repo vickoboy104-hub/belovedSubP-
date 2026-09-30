@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="admin-light-page admin-settings-page mx-auto max-w-5xl space-y-5">
+    <div class="reference-flow-page admin-light-page admin-settings-page mx-auto max-w-5xl space-y-5">
 
         <div class="rounded-3xl p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow">
             <h2 class="text-2xl font-extrabold">Admin Settings</h2>
@@ -58,9 +58,9 @@
                     </div>
                     <div>
                         <label class="text-sm font-bold text-white/80">WhatsApp Link</label>
-                        <input name="whatsapp_link" value="{{ old('whatsapp_link', $settings['whatsapp_link'] ?? 'https://wa.me/2348165587119') }}"
+                        <input name="whatsapp_link" value="{{ old('whatsapp_link', $settings['whatsapp_link'] ?? whatsapp_link()) }}"
                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
-                        <div class="text-xs text-white/50 mt-1">Example: https://wa.me/2348165587119</div>
+                        <div class="text-xs text-white/50 mt-1">Example: https://wa.me/2348000000000</div>
                     </div>
                     <div>
                         <label class="text-sm font-bold text-white/80">WhatsApp Channel Link</label>
@@ -417,16 +417,8 @@
                     <div>
                         <div class="text-lg font-extrabold">Website Selling Prices</div>
                         <div class="text-xs text-white/50 mt-1">
-                            GSUBZ prices refresh automatically when this page opens. New GSUBZ plans are added here as editable website-price rows.
+                            Every plan a customer opens is fetched from GSUBZ and its price recorded, and the price is re-checked at checkout, so selling prices follow the provider. Editing a value here marks that plan as custom and keeps your price. Use sync to pull the whole catalogue now, including services nobody has browsed recently.
                         </div>
-                        @if(!empty($priceSyncSummary ?? null))
-                            <div class="text-xs text-white/45 mt-2">
-                                Last auto-refresh: {{ (int) ($priceSyncSummary['synced_plans'] ?? 0) }} plans loaded.
-                                @if(!empty($priceSyncSummary['failed_services'] ?? []))
-                                    Could not refresh: {{ implode(', ', $priceSyncSummary['failed_services']) }}.
-                                @endif
-                            </div>
-                        @endif
                     </div>
                     <button type="submit"
                             form="syncProviderPricesForm"

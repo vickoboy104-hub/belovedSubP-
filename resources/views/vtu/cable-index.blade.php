@@ -1,7 +1,8 @@
 <x-app-layout>
-    <div class="mx-auto max-w-5xl space-y-8">
-        <section>
-            <h1 class="app-page-title text-[2.1rem] sm:text-[2.6rem]">Cable Subscription</h1>
+    <div class="reference-flow-page mx-auto max-w-5xl space-y-5">
+        <section class="app-section p-6 sm:p-8">
+            <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">Cable Subscription</h1>
+            <p class="app-page-subtitle">Select your pay-TV provider to continue.</p>
             <div class="app-divider mt-4"></div>
         </section>
 

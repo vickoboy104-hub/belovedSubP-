@@ -6,10 +6,10 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     @php
-        $siteName = setting('site_name', config('app.name', 'VTU Platform'));
+        $siteName = site_name();
         $siteLogo = setting('logo_url', setting('site_logo', ''));
         $siteFavicon = setting('favicon_url', setting('site_favicon', ''));
-        $whatsApp = setting('whatsapp_link', 'https://wa.me/2348165587119');
+        $whatsApp = whatsapp_link();
         $authUser = auth()->user();
         $walletKobo = (int) ($authUser?->wallet->balance ?? 0);
 
@@ -20,19 +20,23 @@
             $logoUrl = asset($logoUrl);
         }
 
-        $isRoute = fn (string $pattern) => request()->routeIs($pattern);
-
         $pageTitle = match (true) {
             request()->routeIs('vtu.nin*') => 'Verify NIN',
             request()->routeIs('vtu.bvn*') => 'BVN Services',
             request()->routeIs('wallet.fund*') => 'Fund Wallet',
             request()->routeIs('wallet.transactions*') => 'Funding History',
+            request()->routeIs('referral.*') => 'Invite & Earn',
             request()->routeIs('vtu.orders*', 'vtu.receipt*') => 'Transactions',
             request()->routeIs('vtu.data*') => 'Buy Data',
             request()->routeIs('vtu.airtime*') => 'Buy Airtime',
             request()->routeIs('vtu.cable*') => 'Pay TV Bill',
             request()->routeIs('vtu.electricity*') => 'Pay Electricity Bill',
             request()->routeIs('vtu.exam*') => 'Education',
+            request()->routeIs('vtu.recharge-card*') => 'Recharge PIN',
+            request()->routeIs('vtu.premium-apps*') => 'Premium Apps',
+            request()->routeIs('vtu.profit-calculator*') => 'Profit Calculator',
+            request()->routeIs('notifications.*') => 'Notifications',
+            request()->routeIs('support.chat*') => 'Support Chat',
             request()->routeIs('profile.*') => 'Profile',
             request()->routeIs('admin.*') => 'Admin',
             default => 'Services',
@@ -64,6 +68,7 @@
                 'title' => 'Wallet & Activity',
                 'items' => [
                     ['label' => 'Fund Wallet', 'route' => 'wallet.fund'],
+                    ['label' => 'Invite & Earn', 'route' => 'referral.index'],
                     ['label' => 'Transactions', 'route' => 'wallet.transactions'],
                     ['label' => 'Orders', 'route' => 'vtu.orders'],
                     ['label' => 'Profile', 'route' => 'profile.edit'],
@@ -118,31 +123,7 @@
             </div>
 
             <div class="reference-nav">
-                <a href="{{ route('dashboard') }}" class="reference-nav-link {{ $isRoute('dashboard') ? 'reference-nav-active' : '' }}">Dashboard</a>
-
-                @foreach($drawerSections as $section)
-                    <div>
-                        <div class="reference-nav-heading">{{ $section['title'] }}</div>
-                        <div>
-                            @foreach($section['items'] as $item)
-                                <a href="{{ $item['route'] ? route($item['route']) : $whatsApp }}"
-                                   @unless($item['route']) target="_blank" rel="noopener noreferrer" @endunless
-                                   class="reference-nav-link {{ $item['route'] && $isRoute($item['route']) ? 'reference-nav-active' : '' }}">
-                                    <span>{{ $item['label'] }}</span>
-                                </a>
-                            @endforeach
-                        </div>
-                    </div>
-                @endforeach
-
-                @if(($authUser?->is_admin ?? false) && Route::has('admin.dashboard'))
-                    <a href="{{ route('admin.dashboard') }}" class="nav-item">Admin Panel</a>
-                @endif
-
-                <form method="POST" action="{{ route('logout', absolute: false) }}">
-                    @csrf
-                    <button type="submit" class="nav-item w-full text-left">Logout</button>
-                </form>
+                <x-nav-sections :sections="$drawerSections" :support-url="$whatsApp" />
             </div>
         </aside>
 
@@ -230,31 +211,7 @@
             </div>
 
             <div class="reference-nav">
-                <a href="{{ route('dashboard') }}" class="reference-nav-link {{ $isRoute('dashboard') ? 'reference-nav-active' : '' }}">Dashboard</a>
-
-                @foreach($drawerSections as $section)
-                    <div>
-                        <div class="reference-nav-heading">{{ $section['title'] }}</div>
-                        <div>
-                            @foreach($section['items'] as $item)
-                                <a href="{{ $item['route'] ? route($item['route']) : $whatsApp }}"
-                                   @unless($item['route']) target="_blank" rel="noopener noreferrer" @endunless
-                                   class="reference-nav-link {{ $item['route'] && $isRoute($item['route']) ? 'reference-nav-active' : '' }}">
-                                    <span>{{ $item['label'] }}</span>
-                                </a>
-                            @endforeach
-                        </div>
-                    </div>
-                @endforeach
-
-                @if(($authUser?->is_admin ?? false) && Route::has('admin.dashboard'))
-                    <a href="{{ route('admin.dashboard') }}" class="nav-item">Admin Panel</a>
-                @endif
-
-                <form method="POST" action="{{ route('logout', absolute: false) }}">
-                    @csrf
-                    <button type="submit" class="nav-item w-full text-left">Logout</button>
-                </form>
+                <x-nav-sections :sections="$drawerSections" :support-url="$whatsApp" />
             </div>
         </aside>
 
@@ -263,11 +220,7 @@
                 <x-toast />
 
                 @unless(request()->routeIs('dashboard', 'identity.index'))
-                    <section class="reference-page-banner reference-shared-banner" aria-label="Page heading">
-                        <p class="reference-breadcrumb"><a href="{{ route('dashboard') }}">Dashboard</a> / {{ $pageTitle }}</p>
-                        <h1>{{ $pageTitle }}</h1>
-                        <span class="reference-progress" data-device-battery role="status" aria-live="polite">Checking battery…</span>
-                    </section>
+                    <x-page-hero :title="$pageTitle" class="reference-shared-banner" />
                 @endunless
 
                 <div id="transactionResultOverlay" class="app-modal-overlay fixed inset-0 z-[96] hidden items-center justify-center px-4">
@@ -319,42 +272,6 @@
         function closeFlashToast() {
             const el = document.getElementById('flashToast');
             if (el) el.remove();
-        }
-
-        function showFlashToast(type, message) {
-            const ok = type === 'success';
-            const safeMessage = escapeToastHtml(message || '');
-            closeFlashToast();
-
-            const wrap = document.createElement('div');
-            wrap.id = 'flashToast';
-            wrap.className = 'fixed inset-0 z-[85] flex items-center justify-center px-4';
-            wrap.innerHTML = `
-                <div class="absolute inset-0 bg-black/45 backdrop-blur-sm" aria-hidden="true"></div>
-                <div class="app-glass-card relative w-full max-w-md overflow-hidden rounded-[28px]">
-                    <div class="p-6">
-                        <div class="flex items-start justify-between gap-3">
-                            <div>
-                                <div class="text-xl font-extrabold text-slate-900">${ok ? 'Success' : 'Failed'}</div>
-                                <div class="mt-1 text-sm text-slate-500">Transaction status</div>
-                            </div>
-                            <button type="button" onclick="closeFlashToast()"
-                                    class="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-500">
-                                ×
-                            </button>
-                        </div>
-                        <div class="mt-4 rounded-2xl ${ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'} p-4 text-sm font-semibold">
-                            ${safeMessage}
-                        </div>
-                        <div class="mt-6 flex items-center justify-end">
-                            <button type="button" onclick="closeFlashToast()" class="btn-primary min-w-[120px]">OK</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            document.body.appendChild(wrap);
-            setTimeout(closeFlashToast, 8000);
         }
 
         function showFlashToast(type, message) {

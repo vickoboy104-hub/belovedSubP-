@@ -247,6 +247,52 @@ document.body.classList.add('page-is-entering');
 })();
 
 // ==============================
+// FORM SUBMIT FEEDBACK
+// ==============================
+// Locks a form to one submission so a double tap cannot send two wallet or bill
+// payments, and shows a spinner on the button that was pressed.
+(function () {
+    const LOCK = 'data-submit-locked';
+
+    const release = (form) => {
+        if (!form || !form.hasAttribute(LOCK)) return;
+        form.removeAttribute(LOCK);
+        form.querySelectorAll('.btn-loading').forEach((button) => {
+            button.classList.remove('btn-loading');
+            button.removeAttribute('aria-busy');
+        });
+    };
+
+    const releaseAll = () => {
+        document.querySelectorAll('form[' + LOCK + ']').forEach(release);
+    };
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement)) return;
+
+        // A page script owns this submission (fetch/Ajax); it manages its own state.
+        if (event.defaultPrevented) return;
+
+        if (form.hasAttribute(LOCK)) {
+            event.preventDefault();
+            return;
+        }
+
+        const submitter = event.submitter;
+        if (!(submitter instanceof HTMLButtonElement) && !(submitter instanceof HTMLInputElement)) return;
+
+        form.setAttribute(LOCK, '1');
+        submitter.classList.add('btn-loading');
+        submitter.setAttribute('aria-busy', 'true');
+    });
+
+    // Back/forward cache restores the page with the button still spinning.
+    window.addEventListener('pageshow', releaseAll);
+    window.addEventListener('pagehide', releaseAll);
+})();
+
+// ==============================
 // CONTACT PICKER
 // ==============================
 (function () {

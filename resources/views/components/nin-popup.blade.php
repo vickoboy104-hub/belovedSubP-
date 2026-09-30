@@ -5,7 +5,7 @@
 ])
 
 @php
-    $whatsApp = setting('whatsapp_link', 'https://wa.me/2348165587119');
+    $whatsApp = whatsapp_link();
     $whatsAppChannel = setting('whatsapp_channel_link', '');
     $messageHtml = sanitize_popup_message_html((string) $message);
 @endphp

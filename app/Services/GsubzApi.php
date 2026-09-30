@@ -37,13 +37,13 @@ class GsubzApi
         }
     }
 
-    public function plans(string $serviceId): array
+    public function plans(string $serviceId, int $timeout = 30, int $retries = 2): array
     {
         try {
             $url = $this->baseUrl . '/api/plans';
 
-            $resp = Http::timeout(30)
-                ->retry(2, 300)
+            $resp = Http::timeout($timeout)
+                ->retry($retries, 300)
                 ->acceptJson()
                 ->get($url, ['service' => $serviceId])
                 ->throw()

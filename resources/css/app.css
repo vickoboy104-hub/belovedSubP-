@@ -5,25 +5,6 @@
 @tailwind utilities;
 
 :root {
-    --brand-navy: #173f8a;
-    --brand-navy-strong: #102a61;
-    --brand-ink: #244f9b;
-    --brand-mist: #edf2eb;
-    --brand-line: #c9d5ca;
-    --brand-text: #1d2f35;
-    --brand-muted: #64767c;
-    --brand-accent: #e09a41;
-    --brand-white: #f6f3ec;
-    --brand-success: #1f8f66;
-    --brand-danger: #c45752;
-    --brand-warning: #d5a43e;
-    --surface-deep: #dce7e0;
-    --surface-base: #e9efe7;
-    --surface-card: rgba(248, 243, 234, 0.88);
-    --surface-soft: rgba(236, 242, 233, 0.82);
-    --surface-muted: rgba(220, 231, 224, 0.9);
-    --app-radius-lg: 20px;
-    --app-radius-xl: 26px;
     --app-shadow-soft: 0 18px 40px rgba(18, 37, 46, 0.1);
     --app-shadow-card: 0 24px 54px rgba(14, 31, 40, 0.12);
 }
@@ -52,7 +33,7 @@
 a.identity-tile:hover { transform: translateY(-4px); border-color: #7da5ed; box-shadow: 0 16px 32px rgba(23,63,138,.12); }
 .identity-tile strong { color: #172b4d; font-size: 1rem; line-height: 1.35; margin-top: 1.15rem; }
 .identity-description { color: #64748b; font-size: .84rem; line-height: 1.55; margin-top: .4rem; }
-.identity-icon { display: inline-flex; justify-content: center; align-items: center; width: 2.8rem; height: 2.8rem; border-radius: .85rem; background: #e9f0ff; color: #173f8a; font-size: 1.4rem; font-weight: 900; }
+.identity-icon { display: grid; place-items: center; width: 2.8rem; height: 2.8rem; border-radius: 50%; background: #173f74; color: #fff; font-size: 1.4rem; font-weight: 900; }
 .identity-status { align-self: flex-end; margin-top: -2.4rem; font-size: .68rem; font-weight: 800; color: #64748b; background: #f1f5f9; padding: .35rem .55rem; border-radius: 99px; }
 .identity-status-ready { color: #1d4d9d; background: #e9f0ff; }
 .identity-tile-action { margin-top: auto; padding-top: 1rem; color: #d46a10; font-weight: 800; font-size: .82rem; }
@@ -1694,6 +1675,24 @@ body::before, body::after { display: none; }
 .reference-auth-page .app-form-shell button[type="submit"] { min-height: 44px; }
 .reference-drawer-close { border-radius: .45rem; color: #173f74; background: #e9f0fa; }
 .reference-drawer-close:hover { background: #dbe7f8; }
+
+/* Corner badge on service tiles, matching the reference "New" marker. */
+.reference-service-tile { position: relative; }
+.reference-tile-badge { position: absolute; top: .5rem; right: .5rem; padding: .15rem .45rem; border-radius: .35rem; background: #d9363e; color: #fff; font-size: .58rem; font-weight: 800; letter-spacing: .02em; }
+
+/* Dashboard summary cards must float over the blue hero, not sit below it. */
+.reference-dashboard .reference-page-banner { padding-bottom: 5.5rem; }
+.reference-dashboard .reference-dashboard-body { margin-top: -4.25rem; }
+.reference-dashboard .reference-summary-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.reference-money-compact { font-size: clamp(1.05rem,1.6vw,1.35rem); letter-spacing: .04em; }
+.reference-account-bank { display: block; margin-top: auto; color: #617189; font-size: .72rem; font-weight: 700; }
+@media (max-width: 900px) {
+    .reference-dashboard .reference-summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 720px) {
+    .reference-dashboard .reference-summary-grid { grid-template-columns: 1fr; }
+    .reference-dashboard .reference-dashboard-body { margin-top: -3.5rem; }
+}
 .reference-drawer-close:focus-visible { outline: 3px solid #b45012; outline-offset: 2px; }
 @media (max-width: 767px) {
     .reference-auth-page { background: linear-gradient(180deg,rgba(12,35,71,.91),rgba(18,55,105,.83)) top/100% 165px no-repeat, #f5f7fb; }
@@ -1712,6 +1711,26 @@ body::before, body::after { display: none; }
     transform: none;
     box-shadow: none;
 }
+/* In-progress state driven by the form-submit handler in app.js. */
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+    color: transparent !important;
+    cursor: progress;
+}
+.btn-loading::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .45);
+    border-top-color: #fff;
+    animation: btn-spin .7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
 .reference-full-button { transition: background-color .25s ease, transform .25s ease, box-shadow .25s ease; }
 a.reference-full-button:hover { background: #b45012; color: white; transform: translateY(-2px); box-shadow: 0 8px 16px rgba(17,45,87,.16); }
 .reference-whatsapp {
@@ -1761,6 +1780,7 @@ a.reference-full-button:hover { background: #b45012; color: white; transform: tr
     .reference-whatsapp::before { animation: none; opacity: .3; transform: none; }
     .reference-whatsapp, .reference-whatsapp-tooltip, .btn-primary, .reference-full-button { transition: none; }
     .btn-primary:hover, a.reference-full-button:hover, .reference-whatsapp:hover { transform: none; }
+    .btn-loading::after { animation-duration: 1.6s; }
 }
 @media (max-width: 767px) {
     .reference-page-banner, .reference-page-banner.reference-shared-banner { min-height: 218px; padding: 2rem 2rem 4.4rem; background-position: 60% center; }

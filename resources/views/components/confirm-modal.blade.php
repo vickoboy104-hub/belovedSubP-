@@ -1,4 +1,4 @@
-﻿@props([
+@props([
     'id' => 'confirmModal',
     'title' => 'Confirm Transaction',
     'confirmText' => 'Confirm & Proceed',
@@ -6,7 +6,7 @@
 ])
 
 @php
-    $whatsapp = $whatsapp ?: setting('whatsapp_link', 'https://wa.me/2348165587119');
+    $whatsapp = $whatsapp ?: whatsapp_link();
 @endphp
 
 <div id="{{ $id }}_overlay"

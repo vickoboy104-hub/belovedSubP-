@@ -8,7 +8,7 @@
         $criticalAdminNotification = $criticalAdminNotifications->first();
     @endphp
 
-    <div class="mx-auto max-w-6xl space-y-6">
+    <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
         <section class="app-section p-6 sm:p-8">
             <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">Admin Dashboard</h1>
             <p class="app-page-subtitle">Monitor users, orders, funding, profits, notifications, and system activity.</p>

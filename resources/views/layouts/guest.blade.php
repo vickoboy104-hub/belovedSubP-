@@ -6,10 +6,10 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     @php
-        $siteName = setting('site_name', config('app.name', 'VTU Platform'));
+        $siteName = site_name();
         $siteLogo = setting('logo_url', setting('site_logo', ''));
         $siteFavicon = setting('favicon_url', setting('site_favicon', ''));
-        $whatsApp = setting('whatsapp_link', 'https://wa.me/2348165587119');
+        $whatsApp = whatsapp_link();
         $isAuthPage = request()->routeIs('login')
             || request()->routeIs('register')
             || request()->routeIs('password.*')

@@ -21,6 +21,7 @@ class RegistrationTest extends TestCase
         $response = $this->post('/register', [
             'first_name' => 'Test',
             'last_name' => 'User',
+            'phone' => '08031234567',
             'email' => 'test@example.com',
             'password' => 'password',
             'password_confirmation' => 'password',
@@ -28,5 +29,35 @@ class RegistrationTest extends TestCase
 
         $this->assertAuthenticated();
         $response->assertRedirect(route('dashboard', absolute: false));
+        $this->assertSame('08031234567', \App\Models\User::where('email', 'test@example.com')->value('phone'));
+    }
+
+    public function test_registration_requires_a_phone_number(): void
+    {
+        $response = $this->post('/register', [
+            'first_name' => 'Test',
+            'last_name' => 'User',
+            'email' => 'test@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ]);
+
+        $response->assertSessionHasErrors('phone');
+        $this->assertGuest();
+    }
+
+    public function test_registration_rejects_a_malformed_phone_number(): void
+    {
+        $response = $this->post('/register', [
+            'first_name' => 'Test',
+            'last_name' => 'User',
+            'phone' => 'not-a-phone',
+            'email' => 'test@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ]);
+
+        $response->assertSessionHasErrors('phone');
+        $this->assertGuest();
     }
 }

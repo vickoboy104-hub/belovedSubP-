@@ -1,4 +1,4 @@
-﻿<x-app-layout>
+<x-app-layout>
     @php
         $resolveInlineImage = static function (array $relativePaths): ?string {
             foreach ($relativePaths as $relativePath) {

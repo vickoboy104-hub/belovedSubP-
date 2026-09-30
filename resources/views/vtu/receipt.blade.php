@@ -12,8 +12,8 @@
         $token = $meta['token'] ?? null;
         $pin = $meta['pin'] ?? null;
 
-        $siteName = setting('site_name', config('app.name', 'VTU Platform'));
-        $support = setting('whatsapp_link', 'https://wa.me/2348165587119');
+        $siteName = site_name();
+        $support = whatsapp_link();
         $providerLabel = 'BelovedSubP-G';
     @endphp
 

@@ -9,7 +9,7 @@
         $walletBalanceKobo = (int) ($wallet?->balance ?? 0);
     @endphp
 
-    <div class="mx-auto max-w-6xl space-y-6">
+    <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
         <section class="app-section p-6 sm:p-8">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>

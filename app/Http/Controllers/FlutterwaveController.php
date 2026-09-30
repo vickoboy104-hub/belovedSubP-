@@ -74,7 +74,7 @@ class FlutterwaveController extends Controller
                     'phonenumber' => (string) ($user->phone ?? ''),
                 ],
                 'customizations' => [
-                    'title' => (string) setting('site_name', config('app.name', 'BelovedSubP')),
+                    'title' => site_name(),
                     'description' => 'Wallet funding',
                 ],
                 'meta' => [

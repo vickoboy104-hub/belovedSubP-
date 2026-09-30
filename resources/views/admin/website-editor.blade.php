@@ -3,7 +3,7 @@
         Website Editor
     </x-slot>
 
-    <div class="admin-light-page max-w-5xl mx-auto space-y-6">
+    <div class="reference-flow-page admin-light-page max-w-5xl mx-auto space-y-6">
         <div class="rounded-3xl p-6 border border-red-400/30 bg-red-500/10">
             <div class="text-xl font-extrabold text-red-200">Danger Zone</div>
             <p class="text-sm text-red-100/90 mt-2">

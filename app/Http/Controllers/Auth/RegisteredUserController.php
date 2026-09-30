@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 use Illuminate\View\View;
 
@@ -46,9 +45,13 @@ class RegisteredUserController extends Controller
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
+            'phone' => ['required', 'string', 'max:20', 'regex:/^\+?[0-9]{10,15}$/'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'ref' => ['nullable', 'string', 'max:32'],
+        ], [
+            'phone.required' => 'Your phone number is required.',
+            'phone.regex' => 'Enter a valid phone number, e.g. 08031234567 or +2348031234567.',
         ]);
 
         $firstName = trim((string) $validated['first_name']);
@@ -60,6 +63,10 @@ class RegisteredUserController extends Controller
             'password' => Hash::make((string) $validated['password']),
         ];
 
+        if (Schema::hasColumn('users', 'phone')) {
+            $attributes['phone'] = preg_replace('/\s+/', '', (string) $validated['phone']);
+        }
+
         if (Schema::hasColumn('users', 'first_name')) {
             $attributes['first_name'] = $firstName;
         }
@@ -68,22 +75,22 @@ class RegisteredUserController extends Controller
             $attributes['last_name'] = $lastName;
         }
 
-        if (Schema::hasColumn('users', 'referral_code')) {
-            $attributes['referral_code'] = $this->generateUniqueReferralCode();
-        }
-
         $incomingReferralCode = strtoupper(trim((string) ($validated['ref'] ?? $request->session()->get('referral_code', ''))));
+        $referrer = null;
         if ($incomingReferralCode !== '' && Schema::hasColumn('users', 'referred_by_user_id')) {
             $referrer = User::query()
                 ->where('referral_code', $incomingReferralCode)
                 ->first();
+        }
 
-            if ($referrer) {
-                $attributes['referred_by_user_id'] = (int) $referrer->id;
-            }
+        if ($referrer) {
+            $attributes['referred_by_user_id'] = (int) $referrer->id;
         }
 
         $user = User::create($attributes);
+        if (Schema::hasColumn('users', 'referral_code')) {
+            $user->ensureReferralCode();
+        }
         $request->session()->forget('referral_code');
 
         $this->notifyAdminsOfActivity('registration', $user, $request);
@@ -92,16 +99,13 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        return redirect(route('dashboard', absolute: false));
-    }
+        $redirect = redirect(route('dashboard', absolute: false));
 
-    private function generateUniqueReferralCode(): string
-    {
-        do {
-            $code = Str::upper(Str::random(8));
-        } while (User::query()->where('referral_code', $code)->exists());
+        if ($incomingReferralCode !== '' && !$referrer) {
+            $redirect->withErrors(['ref' => 'That referral code was not recognised, so your account was created without a referrer.']);
+        }
 
-        return $code;
+        return $redirect;
     }
 
     private function notifyAdminsOfActivity(string $activity, User $actor, Request $request): void

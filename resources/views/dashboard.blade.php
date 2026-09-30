@@ -2,7 +2,11 @@
     @php
         $balanceNaira = number_format(((int) ($walletBalanceKobo ?? 0)) / 100, 2);
         $referralBalanceNaira = number_format(((int) ($referralBalanceKobo ?? 0)) / 100, 2);
-        $serviceTiles = [
+        $dashUser = auth()->user();
+        $accountNumber = trim((string) ($dashUser?->paystack_dva_account_number ?? ''));
+        $accountBank = trim((string) ($dashUser?->virtual_account_bank ?? ''));
+
+        $identityTiles = [
             ['name' => 'NIN Verification', 'route' => 'vtu.nin', 'icon' => '◉'],
             ['name' => 'Print NIN Slip', 'route' => 'vtu.nin', 'icon' => '▣'],
             ['name' => 'BVN Verification', 'route' => 'vtu.bvn', 'icon' => '◉'],
@@ -11,10 +15,6 @@
             ['name' => 'IPE Clearance', 'route' => null, 'icon' => '⌕'],
             ['name' => 'Personalization', 'route' => null, 'icon' => '◇'],
             ['name' => 'NIN Modification', 'route' => null, 'icon' => '✎'],
-            ['name' => 'Fund Wallet', 'route' => 'wallet.fund', 'icon' => '₦'],
-            ['name' => 'Transactions', 'route' => 'wallet.transactions', 'icon' => '↗'],
-            ['name' => 'Orders', 'route' => 'vtu.orders', 'icon' => '☷'],
-            ['name' => 'All Services', 'route' => 'identity.index', 'icon' => '⊞'],
         ];
         $everydayTiles = [
             ['name' => 'Data', 'route' => 'vtu.data', 'icon' => '▥'],
@@ -24,13 +24,16 @@
             ['name' => 'Education', 'route' => 'vtu.exam', 'icon' => '▤'],
             ['name' => 'Premium Apps', 'route' => 'vtu.premium-apps', 'icon' => '★'],
         ];
+        $walletTiles = [
+            ['name' => 'Fund Wallet', 'route' => 'wallet.fund', 'icon' => '₦'],
+            ['name' => 'Transactions', 'route' => 'wallet.transactions', 'icon' => '↗'],
+            ['name' => 'Orders', 'route' => 'vtu.orders', 'icon' => '☷'],
+            ['name' => 'All Services', 'route' => 'identity.index', 'icon' => '⊞'],
+        ];
     @endphp
 
     <div class="reference-dashboard">
-        <section class="reference-page-banner">
-            <h1>Dashboard Overview</h1>
-            <span class="reference-progress" data-device-battery role="status" aria-live="polite">Checking battery…</span>
-        </section>
+        <x-page-hero title="Dashboard Overview" />
 
         <div class="reference-dashboard-body">
             <section class="reference-summary-grid" aria-label="Account summary">
@@ -40,25 +43,30 @@
                     <a href="{{ route('wallet.fund') }}" class="reference-full-button">Fund Wallet</a>
                 </div>
                 <div class="reference-summary-card reference-summary-blue">
-                    <div class="reference-card-caption">Commission <span class="reference-soon">Coming Soon</span></div>
+                    <div class="reference-card-caption">Commission (₦)</div>
                     <strong class="reference-money">₦{{ $referralBalanceNaira }}</strong>
-                    <span class="reference-full-button reference-light-button" aria-disabled="true">Invite &amp; Earn Commission</span>
+                    <a href="{{ route('referral.index') }}" class="reference-full-button reference-light-button">Invite &amp; Earn Commission</a>
+                </div>
+                <div class="reference-summary-card">
+                    <div class="reference-card-caption">Account Number <span class="reference-wallet-icon" aria-hidden="true">▤</span></div>
+                    @if($accountNumber !== '')
+                        <strong class="reference-money reference-money-compact">{{ $accountNumber }}</strong>
+                        <span class="reference-account-bank">{{ $accountBank !== '' ? $accountBank : 'Assigned bank' }}</span>
+                    @else
+                        <strong class="reference-money reference-money-compact">Not generated</strong>
+                        <a href="{{ route('wallet.fund') }}" class="reference-full-button">Generate Account</a>
+                    @endif
                 </div>
             </section>
 
             <section aria-labelledby="identity-title">
                 <h2 class="reference-section-title" id="identity-title">Identity services</h2>
                 <div class="reference-tile-grid">
-                    @foreach($serviceTiles as $tile)
-                        @if($tile['route'])
-                            <a href="{{ route($tile['route']) }}" class="reference-service-tile">
-                        @else
-                            <div class="reference-service-tile reference-service-pending" aria-label="{{ $tile['name'] }} coming soon">
-                        @endif
-                            <span class="reference-tile-icon" aria-hidden="true">{{ $tile['icon'] }}</span>
-                            <strong>{{ $tile['name'] }}</strong>
-                            @unless($tile['route'])<small>Coming soon</small>@endunless
-                        @if($tile['route'])</a>@else</div>@endif
+                    @foreach($identityTiles as $tile)
+                        <x-service-tile :label="$tile['name']"
+                                         :href="$tile['route'] ? route($tile['route']) : null"
+                                         :icon="$tile['icon']"
+                                         :pending="$tile['route'] === null" />
                     @endforeach
                 </div>
             </section>
@@ -67,10 +75,16 @@
                 <h2 class="reference-section-title" id="everyday-title">Subscriptions &amp; Payment Services</h2>
                 <div class="reference-tile-grid">
                     @foreach($everydayTiles as $tile)
-                        <a href="{{ route($tile['route']) }}" class="reference-service-tile">
-                            <span class="reference-tile-icon" aria-hidden="true">{{ $tile['icon'] }}</span>
-                            <strong>{{ $tile['name'] }}</strong>
-                        </a>
+                        <x-service-tile :label="$tile['name']" :href="route($tile['route'])" :icon="$tile['icon']" />
+                    @endforeach
+                </div>
+            </section>
+
+            <section aria-labelledby="wallet-title">
+                <h2 class="reference-section-title" id="wallet-title">Wallet &amp; Activity</h2>
+                <div class="reference-tile-grid">
+                    @foreach($walletTiles as $tile)
+                        <x-service-tile :label="$tile['name']" :href="route($tile['route'])" :icon="$tile['icon']" />
                     @endforeach
                 </div>
             </section>

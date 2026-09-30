@@ -45,6 +45,22 @@
             </div>
 
             <div>
+                <x-input-label for="phone" value="Phone Number" />
+                <x-text-input id="phone"
+                              class="block mt-1 w-full"
+                              type="tel"
+                              name="phone"
+                              inputmode="tel"
+                              maxlength="20"
+                              :value="old('phone')"
+                              required
+                              autocomplete="tel"
+                              placeholder="08031234567" />
+                <p class="mt-1 text-xs text-slate-500">Used for wallet top-ups, bills and transaction alerts.</p>
+                <x-input-error :messages="$errors->get('phone')" class="mt-2 text-sm text-rose-600" />
+            </div>
+
+            <div>
                 <x-input-label for="email" value="Email Address" />
                 <x-text-input id="email"
                               class="block mt-1 w-full"
