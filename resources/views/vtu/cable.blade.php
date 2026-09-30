@@ -7,15 +7,11 @@
 @endphp
 
 <x-app-layout>
-    <div class="reference-flow-page mx-auto max-w-3xl space-y-5 sm:space-y-6">
-        <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <div class="app-kicker">Cable Subscription</div>
-                <h1 class="app-page-title mt-2 text-[1.7rem] leading-tight sm:text-[2.3rem]">Buy {{ $selectedServiceLabel }}</h1>
-            </div>
-            <a href="{{ route('vtu.cable') }}" class="btn-outline sm:w-auto">All Cable Services</a>
-        </section>
+    <x-page-hero class="reference-shared-banner" title="Buy {{ $selectedServiceLabel }}">
+        <a href="{{ route('vtu.cable') }}" class="reference-hero-action">All Cable Services</a>
+    </x-page-hero>
 
+    <div class="reference-flow-page mx-auto max-w-3xl space-y-5 sm:space-y-6">
         <form id="cableForm" method="POST" action="{{ route('vtu.cable.buy') }}" class="app-form-shell space-y-4 sm:space-y-5">
             @csrf
             <input type="hidden" name="service_id" id="service_id" value="{{ $selectedService }}">

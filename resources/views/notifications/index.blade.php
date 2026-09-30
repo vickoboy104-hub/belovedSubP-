@@ -1,21 +1,14 @@
 <x-app-layout>
-    <div class="reference-flow-page mx-auto max-w-4xl space-y-5">
-        <section class="app-section p-6 sm:p-8">
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">Notifications</h1>
-                    <p class="app-page-subtitle">You have {{ (int) $unreadCount }} unread messages.</p>
-                </div>
-                @if($unreadCount > 0)
-                    <form method="POST" action="{{ route('notifications.read-all') }}">
-                        @csrf
-                        <button class="btn-primary">Mark All Read</button>
-                    </form>
-                @endif
-            </div>
-            <div class="app-divider mt-4"></div>
-        </section>
+    <x-page-hero class="reference-shared-banner" title="Notifications" subtitle="{{ (int) $unreadCount }} unread.">
+        @if($unreadCount > 0)
+            <form method="POST" action="{{ route('notifications.read-all') }}">
+                @csrf
+                <button type="submit" class="reference-hero-action">Mark All Read</button>
+            </form>
+        @endif
+    </x-page-hero>
 
+    <div class="reference-flow-page mx-auto max-w-4xl space-y-5">
         <section class="app-section p-4 sm:p-6">
             <div class="space-y-3">
                 @forelse($notifications as $notification)

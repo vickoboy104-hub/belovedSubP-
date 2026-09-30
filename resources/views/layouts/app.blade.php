@@ -84,7 +84,7 @@
         ];
     @endphp
 
-    <title>{{ $siteName }}</title>
+    <title>{{ $pageTitle }} · {{ $siteName }}</title>
 
     @if(!empty($siteFavicon))
         <link rel="icon" href="{{ $siteFavicon }}">
@@ -218,10 +218,6 @@
         <main class="reference-main pt-[64px] pb-6 sm:pb-8">
             <div class="app-page">
                 <x-toast />
-
-                @unless(request()->routeIs('dashboard', 'identity.index'))
-                    <x-page-hero :title="$pageTitle" class="reference-shared-banner" />
-                @endunless
 
                 <div id="transactionResultOverlay" class="app-modal-overlay fixed inset-0 z-[96] hidden items-center justify-center px-4">
                     <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">

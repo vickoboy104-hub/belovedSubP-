@@ -5,23 +5,11 @@
         $validationMarkup = (float) setting('markup_nin_validation', 0);
     @endphp
 
-    <div class="reference-flow-page mx-auto max-w-5xl space-y-5">
-        <section class="app-section p-5 sm:p-6">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <div class="app-kicker">NIN Validation</div>
-                    <h1 class="app-page-title mt-2 text-[1.7rem] sm:text-[2.2rem]">Submit Validation Request</h1>
-                    <p class="mt-2 text-sm text-slate-500">Confirm the request first, then your wallet is charged once the validation request is sent.</p>
-                </div>
-                <div class="app-icon-ring shrink-0">
-                    <svg viewBox="0 0 24 24" class="h-8 w-8 text-slate-700" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M9 12l2 2 4-4"></path>
-                        <path d="M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4z"></path>
-                    </svg>
-                </div>
-            </div>
-        </section>
+    <x-page-hero class="reference-shared-banner" title="NIN Validation" subtitle="Confirm the request first, then your wallet is charged once the validation request is sent.">
+        <a href="{{ route('vtu.nin') }}" class="reference-hero-action">All NIN Services</a>
+    </x-page-hero>
 
+    <div class="reference-flow-page mx-auto max-w-5xl space-y-5">
         @if($errors->any())
             <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
                 <div class="font-bold">Please fix these errors:</div>

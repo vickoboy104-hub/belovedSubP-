@@ -1,15 +1,11 @@
 <x-app-layout>
+    <x-page-hero class="reference-shared-banner" title="Wallet Transactions" subtitle="Credits, debits, funding requests and refunds." />
+
     <div class="reference-flow-page mx-auto max-w-5xl space-y-6">
         <section class="app-section p-6 sm:p-8">
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">Wallet Transactions</h1>
-                    <p class="app-page-subtitle">Credits, debits, funding requests, and refunds.</p>
-                </div>
-                <div class="rounded-[22px] border border-slate-200 bg-slate-50 px-5 py-4 text-left sm:text-right">
-                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Balance</div>
-                    <div class="amount-fit mt-2 text-2xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
-                </div>
+            <div class="rounded-[22px] w-fit sm:ml-auto border border-slate-200 bg-slate-50 px-5 py-4 text-left sm:text-right">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Balance</div>
+                <div class="amount-fit mt-2 text-2xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
             </div>
 
             <div class="mt-5 flex flex-col gap-3 sm:flex-row">

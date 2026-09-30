@@ -16,33 +16,21 @@
         }
     </style>
 
-    <div class="legacy-themed-page reference-flow-page max-w-5xl mx-auto w-full px-4 sm:px-0 space-y-5 bvn-print-wrap">
-        <div class="rounded-3xl p-5 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <h2 class="text-2xl font-extrabold">&#128274; BVN Services</h2>
-                    <p class="text-sm text-gray-600 dark:text-white/60 mt-1">
-                        Verify BVN instantly, submit retrieve workflow, and print your result after success.
-                    </p>
-                </div>
-                <div class="w-12 h-12 rounded-2xl bg-black/5 dark:bg-white/10 border border-white/10 flex items-center justify-center text-xl">
-                    &#129534;
-                </div>
-            </div>
-        </div>
+    <x-page-hero class="reference-shared-banner" title="BVN Services" subtitle="Verify a BVN instantly, submit a retrieval request, and print the result once it succeeds." />
 
+    <div class="reference-flow-page max-w-5xl mx-auto w-full px-4 sm:px-0 space-y-5 bvn-print-wrap">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div class="rounded-3xl p-5 sm:p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5">
+            <div class="rounded-3xl p-5 sm:p-6 border border-gray-200 bg-white">
                 <h3 class="text-lg font-extrabold">Instant BVN Verification</h3>
-                <p class="text-xs text-gray-600 dark:text-white/60 mt-1">
+                <p class="text-xs text-gray-600 mt-1">
                     Charge: N{{ number_format($priceVerify + $markup, 2) }} per verification.
                 </p>
                 <form id="bvnVerifyForm" class="mt-4 space-y-4">
                     @csrf
                     <div>
-                        <label class="text-sm font-bold text-gray-700 dark:text-white/80">Enter BVN</label>
+                        <label class="text-sm font-bold text-gray-700">Enter BVN</label>
                         <input type="text" name="bvn" maxlength="11" required
-                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white"
+                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900"
                                placeholder="11-digit BVN">
                     </div>
                     <button type="submit"
@@ -52,17 +40,17 @@
                 </form>
             </div>
 
-            <div class="rounded-3xl p-5 sm:p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5">
+            <div class="rounded-3xl p-5 sm:p-6 border border-gray-200 bg-white">
                 <h3 class="text-lg font-extrabold">BVN Retrieval Workflow</h3>
-                <p class="text-xs text-gray-600 dark:text-white/60 mt-1">
+                <p class="text-xs text-gray-600 mt-1">
                     Phone retrieval: N{{ number_format($priceRetrievePhone + $markup, 2) }} | BMS retrieval: N{{ number_format($priceRetrieveBms + $markup, 2) }}
                 </p>
                 <form id="bvnRetrieveForm" class="mt-4 space-y-4">
                     @csrf
                     <div>
-                        <label class="text-sm font-bold text-gray-700 dark:text-white/80">Retrieve Type</label>
+                        <label class="text-sm font-bold text-gray-700">Retrieve Type</label>
                         <select id="retrieve_type" name="retrieve_type" required
-                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white">
+                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                             <option value="">Choose type</option>
                             <option value="phone">Using Phone Number</option>
                             <option value="bms">Using BMS Ticket</option>
@@ -77,16 +65,15 @@
             </div>
         </div>
 
-        <div id="bvnResultCard" class="hidden rounded-3xl p-5 sm:p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5">
+        <div id="bvnResultCard" class="hidden rounded-3xl p-5 sm:p-6 border border-gray-200 bg-white">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h3 class="text-xl font-extrabold">BVN Result</h3>
-                    <p id="bvnResultMessage" class="text-sm mt-1 text-gray-600 dark:text-white/60"></p>
+                    <p id="bvnResultMessage" class="text-sm mt-1 text-gray-600"></p>
                 </div>
                 <div class="flex items-center gap-2 no-print">
                     <span id="bvnStatusBadge" class="px-3 py-1 rounded-full text-xs font-semibold border"></span>
-                    <button type="button" onclick="window.print()"
-                            class="px-3 py-2 rounded-xl bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15 border border-black/10 dark:border-white/10 text-xs font-bold">
+                    <button type="button" onclick="window.print()" class="reference-quiet-button">
                         Print / Save PDF
                     </button>
                 </div>
@@ -94,7 +81,7 @@
 
             <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
                 <div class="sm:col-span-1">
-                    <img id="bvnFaceImage" class="hidden w-40 h-40 object-cover rounded-2xl border border-gray-200 dark:border-white/10" alt="BVN photo">
+                    <img id="bvnFaceImage" class="hidden w-40 h-40 object-cover rounded-2xl border border-gray-200" alt="BVN photo">
                 </div>
                 <div class="sm:col-span-2">
                     <div class="text-2xl font-black" id="bvnName">-</div>
@@ -166,8 +153,8 @@
 
             function detailsRow(label, value) {
                 return `
-                    <div class="rounded-2xl p-3 border border-gray-200 dark:border-white/10">
-                        <div class="text-xs text-gray-500 dark:text-white/50 uppercase">${esc(label)}</div>
+                    <div class="rounded-2xl p-3 border border-gray-200">
+                        <div class="text-xs text-gray-500 uppercase">${esc(label)}</div>
                         <div class="font-semibold break-all">${esc(val(value))}</div>
                     </div>
                 `;
@@ -220,10 +207,10 @@
                 if (retrieveType.value === 'phone') {
                     retrieveFields.innerHTML = `
                         <div>
-                            <label class="text-sm font-bold text-gray-700 dark:text-white/80">Phone Number</label>
+                            <label class="text-sm font-bold text-gray-700">Phone Number</label>
                             <div class="contact-picker-row mt-1">
                                 <input type="tel" name="phone" required inputmode="tel" autocomplete="tel-national" data-contact-picker-input
-                                       class="w-full px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white"
+                                       class="w-full px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900"
                                        placeholder="Phone registered with BVN">
                                 <button type="button" class="contact-picker-btn" data-contact-picker-button data-contact-picker-target="#bvnRetrieveForm input[name='phone']" aria-label="Pick phone contact">
                                     <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
@@ -244,21 +231,21 @@
                 if (retrieveType.value === 'bms') {
                     retrieveFields.innerHTML = `
                         <div>
-                            <label class="text-sm font-bold text-gray-700 dark:text-white/80">BMS Ticket</label>
+                            <label class="text-sm font-bold text-gray-700">BMS Ticket</label>
                             <input type="text" name="bms_no" required
-                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white"
+                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900"
                                    placeholder="Enter BMS ticket">
                         </div>
                         <div>
-                            <label class="text-sm font-bold text-gray-700 dark:text-white/80">Ticket ID</label>
+                            <label class="text-sm font-bold text-gray-700">Ticket ID</label>
                             <input type="text" name="ticket_id" required
-                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white"
+                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900"
                                    placeholder="Enter full ticket ID">
                         </div>
                         <div>
-                            <label class="text-sm font-bold text-gray-700 dark:text-white/80">Agent Code (Optional)</label>
+                            <label class="text-sm font-bold text-gray-700">Agent Code (Optional)</label>
                             <input type="text" name="agent_code"
-                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white"
+                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900"
                                    placeholder="Agent code">
                         </div>
                     `;

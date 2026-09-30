@@ -1,26 +1,21 @@
 <x-app-layout>
+    <x-page-hero class="reference-shared-banner" title="User Accounts" subtitle="Manage users, profile data, discounts, and recovery access." />
+
     <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
         <section class="app-section p-6 sm:p-8">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                    <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">User Accounts</h1>
-                    <p class="app-page-subtitle">Manage users, profile data, discounts, and recovery access.</p>
+            <form method="GET" action="{{ route('admin.users') }}" class="w-full lg:max-w-md">
+                <div class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
+                    <input type="text"
+                           name="search"
+                           value="{{ $search ?? '' }}"
+                           placeholder="Search email, phone, or username"
+                           class="input-field">
+                    <button class="btn-primary justify-center">Search</button>
+                    @if(!empty($search))
+                        <a href="{{ route('admin.users') }}" class="btn-outline justify-center">Clear</a>
+                    @endif
                 </div>
-
-                <form method="GET" action="{{ route('admin.users') }}" class="w-full lg:max-w-md">
-                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
-                        <input type="text"
-                               name="search"
-                               value="{{ $search ?? '' }}"
-                               placeholder="Search email, phone, or username"
-                               class="input-field">
-                        <button class="btn-primary justify-center">Search</button>
-                        @if(!empty($search))
-                            <a href="{{ route('admin.users') }}" class="btn-outline justify-center">Clear</a>
-                        @endif
-                    </div>
-                </form>
-            </div>
+            </form>
         </section>
 
         <section class="app-section p-4 sm:p-6">

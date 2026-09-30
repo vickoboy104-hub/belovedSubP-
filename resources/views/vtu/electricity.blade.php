@@ -17,15 +17,11 @@
         $markup = (float) setting('markup_electricity', 0);
     @endphp
 
-    <div class="reference-flow-page mx-auto max-w-3xl space-y-5 sm:space-y-6">
-        <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <div class="app-kicker">Electricity</div>
-                <h1 class="app-page-title mt-2 text-[1.7rem] leading-tight sm:text-[2.3rem]">Pay {{ $selectedServiceLabel }}</h1>
-            </div>
-            <a href="{{ route('vtu.electricity') }}" class="btn-outline sm:w-auto">All Electricity Services</a>
-        </section>
+    <x-page-hero class="reference-shared-banner" title="Pay {{ $selectedServiceLabel }}">
+        <a href="{{ route('vtu.electricity') }}" class="reference-hero-action">All Electricity Services</a>
+    </x-page-hero>
 
+    <div class="reference-flow-page mx-auto max-w-3xl space-y-5 sm:space-y-6">
         <section class="app-form-shell space-y-4 sm:space-y-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <p class="max-w-xl text-sm leading-6 text-slate-500 sm:text-[0.95rem]">Enter the meter details and amount, then continue to checkout.</p>

@@ -8,12 +8,9 @@
         $criticalAdminNotification = $criticalAdminNotifications->first();
     @endphp
 
-    <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
-        <section class="app-section p-6 sm:p-8">
-            <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">Admin Dashboard</h1>
-            <p class="app-page-subtitle">Monitor users, orders, funding, profits, notifications, and system activity.</p>
-        </section>
+    <x-page-hero class="reference-shared-banner" title="Admin Dashboard" subtitle="Monitor users, orders, funding, profits, notifications, and system activity." />
 
+    <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
         @if($criticalAdminNotification)
             <section class="rounded-3xl border border-rose-200 bg-rose-50 p-5 shadow-[0_18px_48px_rgba(190,24,93,0.12)]">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -115,24 +112,24 @@
             <a href="{{ route('admin.settings') }}" class="btn-outline justify-center">Settings</a>
             <button type="button"
                     id="openWebsiteEditorWarning"
-                    class="rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white hover:bg-rose-700">
+                    class="btn-outline justify-center">
                 Website Editor
             </button>
         </section>
 
         <div id="websiteEditorWarningOverlay" class="fixed inset-0 z-[92] hidden items-center justify-center px-4">
             <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
-            <div class="relative w-full max-w-lg rounded-3xl border border-red-500/30 bg-[#1a0f14] shadow-2xl overflow-hidden">
+            <div class="relative w-full max-w-lg rounded-2xl border border-rose-200 bg-white shadow-2xl overflow-hidden">
                 <div class="p-6">
-                    <div class="text-red-300 font-extrabold text-xl">Warning: High Impact Area</div>
-                    <p class="text-red-100/90 text-sm mt-3">
+                    <div class="text-rose-700 font-extrabold text-xl">Warning: High Impact Area</div>
+                    <p class="text-rose-800 text-sm mt-3">
                         Any change in Website Editor affects the live website immediately.
                         Do not continue unless you are sure.
                     </p>
                     <div class="mt-6 flex flex-wrap justify-end gap-3">
                         <button type="button"
                                 id="closeWebsiteEditorWarning"
-                                class="px-4 py-2 rounded-xl border border-white/15 text-white hover:bg-white/10">
+                                class="reference-quiet-button">
                             Cancel
                         </button>
                         <a href="{{ route('admin.website-editor') }}"

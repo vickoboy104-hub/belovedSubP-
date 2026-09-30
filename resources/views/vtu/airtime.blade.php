@@ -10,15 +10,11 @@
         $markupAirtime = (float) setting('markup_airtime', 0);
     @endphp
 
-    <div class="reference-flow-page mx-auto max-w-4xl space-y-5 sm:space-y-6">
-        <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <div class="app-kicker">Airtime Purchase</div>
-                <h1 class="app-page-title mt-2 text-[1.7rem] leading-tight sm:text-[2.3rem]">Buy {{ $serviceLabel }}</h1>
-            </div>
-            <a href="{{ route('vtu.airtime') }}" class="btn-outline sm:w-auto">All Airtime Services</a>
-        </section>
+    <x-page-hero class="reference-shared-banner" title="Buy {{ $serviceLabel }}">
+        <a href="{{ route('vtu.airtime') }}" class="reference-hero-action">All Airtime Services</a>
+    </x-page-hero>
 
+    <div class="reference-flow-page mx-auto max-w-4xl space-y-5 sm:space-y-6">
         <section class="app-form-shell space-y-5 sm:space-y-6">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <p class="max-w-xl text-sm leading-6 text-slate-500 sm:text-[0.95rem]">Enter the phone number, choose the amount, and continue with wallet checkout.</p>

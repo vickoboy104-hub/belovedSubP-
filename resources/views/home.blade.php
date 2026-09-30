@@ -109,10 +109,7 @@
         </section>
 
         <section class="space-y-4">
-            <div>
-                <div class="app-page-title text-[2rem] sm:text-[2.4rem]">Services</div>
-                <div class="app-divider mt-4 w-full max-w-6xl"></div>
-            </div>
+            <h2 class="reference-section-title">Services</h2>
 
             <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <a href="{{ route('vtu.data') }}" class="app-service-card block">
@@ -177,12 +174,12 @@
             <div class="app-section p-6 sm:p-8">
                 <div class="app-kicker">Helpful Guides</div>
                 <div class="mt-4 grid gap-3">
-                    <a href="{{ route('guides.cheap-data') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">How to Buy Cheap Data in Nigeria</a>
-                    <a href="{{ route('guides.fund-wallet') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">How to Fund Your VTU Wallet</a>
-                    <a href="{{ route('guides.electricity-bills') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">How to Buy Electricity Bills Online</a>
-                    <a href="{{ route('guides.nin-services') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">NIN Services Guide</a>
-                    <a href="{{ route('guides.education-services') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">Education Services Guide</a>
-                    <a href="{{ route('guides.premium-apps') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">Premium Apps Guide</a>
+                    <a href="{{ route('guides.cheap-data') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-[#eaf1ff]">How to Buy Cheap Data in Nigeria</a>
+                    <a href="{{ route('guides.fund-wallet') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-[#eaf1ff]">How to Fund Your VTU Wallet</a>
+                    <a href="{{ route('guides.electricity-bills') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-[#eaf1ff]">How to Buy Electricity Bills Online</a>
+                    <a href="{{ route('guides.nin-services') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-[#eaf1ff]">NIN Services Guide</a>
+                    <a href="{{ route('guides.education-services') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-[#eaf1ff]">Education Services Guide</a>
+                    <a href="{{ route('guides.premium-apps') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-[#eaf1ff]">Premium Apps Guide</a>
                 </div>
             </div>
         </section>

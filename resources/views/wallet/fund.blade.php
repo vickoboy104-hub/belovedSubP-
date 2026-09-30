@@ -31,19 +31,14 @@
         $temporaryExpectedCredit = max(0, $temporaryAmount - (float) ($funding_fee_naira ?? 0));
     @endphp
 
+    <x-page-hero class="reference-shared-banner" title="Fund Wallet" subtitle="Use checkout, a one-time transfer account, or your permanent transfer account." />
+
     <div class="reference-flow-page mx-auto max-w-5xl space-y-5">
         <section class="app-section p-5 sm:p-6">
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                    <div class="app-kicker">Wallet Funding</div>
-                    <h1 class="app-page-title mt-2 text-[1.8rem] sm:text-[2.2rem]">Fund Wallet</h1>
-                    <p class="mt-2 text-sm text-slate-500">Use checkout, a one-time transfer account, or your permanent transfer account.</p>
-                </div>
-                <div class="rounded-[24px] border border-slate-200 bg-slate-50 px-5 py-4">
-                    <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Balance</div>
-                    <div class="amount-fit mt-1 text-3xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
-                    <div class="mt-1 text-xs text-slate-500">Flutterwave deposit fee: &#8358;{{ number_format((float) ($funding_fee_naira ?? 0), 2) }}</div>
-                </div>
+            <div class="rounded-[24px] w-fit sm:ml-auto border border-slate-200 bg-slate-50 px-5 py-4">
+                <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Balance</div>
+                <div class="amount-fit mt-1 text-3xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
+                <div class="mt-1 text-xs text-slate-500">Flutterwave deposit fee: &#8358;{{ number_format((float) ($funding_fee_naira ?? 0), 2) }}</div>
             </div>
         </section>
 

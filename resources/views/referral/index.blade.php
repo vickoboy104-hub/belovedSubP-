@@ -11,7 +11,7 @@
     @endphp
 
     <div class="reference-dashboard">
-        <x-page-hero title="Invite &amp; Earn" subtitle="Share your link. When someone buys with it, you earn a percentage of their spend." />
+        <x-page-hero title="Invite & Earn" subtitle="Share your link. When someone buys with it, you earn a percentage of their spend." />
 
         <div class="reference-dashboard-body space-y-5">
             @unless($systemEnabled)
@@ -71,11 +71,10 @@
 
                 <div class="mt-3 flex flex-col gap-2 sm:flex-row">
                     <a href="{{ $whatsAppShareLink }}" target="_blank" rel="noopener noreferrer"
-                       class="inline-flex items-center justify-center rounded-xl bg-[#128C7E] px-4 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#0f6f65]">
+                       class="inline-flex items-center justify-center rounded-xl bg-[#21bf5b] px-4 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#1aa54c]">
                         Share on WhatsApp
                     </a>
-                    <a href="/r/{{ $referralCode }}"
-                       class="inline-flex items-center justify-center rounded-xl border border-black/10 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-black/5">
+                    <a href="/r/{{ $referralCode }}" class="reference-quiet-button">
                         Open my link
                     </a>
                 </div>

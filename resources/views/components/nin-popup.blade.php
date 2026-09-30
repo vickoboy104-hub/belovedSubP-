@@ -29,7 +29,7 @@
         </div>
 
         <div class="space-y-4 p-4">
-            <div class="popup-rich-content rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm leading-6 text-slate-800">
+            <div class="popup-rich-content rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800">
                 {!! $messageHtml !== '' ? $messageHtml : nl2br(e((string) $message)) !!}
             </div>
 

@@ -13,7 +13,7 @@
 @endphp
 
 <div id="ninMarqueeWrapper"
-     class="overflow-hidden rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5">
+     class="overflow-hidden rounded-xl border border-gray-200 bg-white">
     <div id="ninMarquee"
          class="whitespace-nowrap py-2 px-4 text-sm font-medium nin-marquee-track"
          style="--nin-marquee-duration: {{ rtrim(rtrim(number_format($marqueeSpeedSeconds, 2, '.', ''), '0'), '.') }}s;">

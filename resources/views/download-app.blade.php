@@ -4,13 +4,10 @@
         $versionLabel = trim((string) setting('app_latest_version', setting('app_download_version', 'Android APK')));
     @endphp
 
-    <div class="max-w-3xl mx-auto px-4 py-10">
-        <div class="rounded-3xl p-6 sm:p-8 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5">
-            <h1 class="text-3xl font-extrabold">Install BelovedSubP on your phone</h1>
-            <p class="mt-2 text-sm text-gray-600 dark:text-white/60">
-                Open identity services, wallet and everyday payments from your home screen. On supported Android browsers, installation does not need an APK.
-            </p>
+    <div class="reference-guide-page max-w-3xl mx-auto px-4 py-10 space-y-6">
+        <x-page-hero class="reference-guest-banner" title="Install BelovedSubP on your phone" subtitle="Open identity services, wallet and everyday payments from your home screen. On supported Android browsers, installation does not need an APK." :battery="false" />
 
+        <div class="rounded-3xl p-6 sm:p-8 border border-gray-200 bg-white">
             <button type="button" id="installBelovedApp" hidden class="btn-primary mt-6">Install from browser</button>
             <div class="mt-6 rounded-2xl bg-blue-50 p-5 text-sm leading-7 text-slate-700">
                 <strong class="text-blue-900">On Android Chrome</strong><br>

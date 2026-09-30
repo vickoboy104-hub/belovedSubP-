@@ -1,19 +1,17 @@
 <x-app-layout>
-    <x-slot name="header">
-        Website Editor
-    </x-slot>
+    <x-page-hero class="reference-shared-banner" title="Website Editor" subtitle="Changes here affect your live layout, colours and behaviour immediately." />
 
     <div class="reference-flow-page admin-light-page max-w-5xl mx-auto space-y-6">
-        <div class="rounded-3xl p-6 border border-red-400/30 bg-red-500/10">
-            <div class="text-xl font-extrabold text-red-200">Danger Zone</div>
-            <p class="text-sm text-red-100/90 mt-2">
+        <div class="app-section border-rose-200 bg-rose-50 p-6">
+            <h2 class="text-lg font-extrabold text-rose-700">Danger Zone</h2>
+            <p class="mt-2 text-sm leading-6 text-rose-800">
                 Changes here immediately affect your live website layout, colors, and behavior.
                 Only proceed if you understand the impact.
             </p>
         </div>
 
         @if($errors->any())
-            <div class="p-4 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-200">
+            <div class="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700">
                 <div class="font-bold">Please fix these errors:</div>
                 <ul class="list-disc ml-5 mt-2">
                     @foreach($errors->all() as $e)
@@ -24,12 +22,12 @@
         @endif
 
         <form id="websiteEditorForm" method="POST" action="{{ route('admin.website-editor.update') }}"
-              class="rounded-3xl p-6 pb-36 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 space-y-8">
+              class="app-section p-6 pb-36 space-y-8">
             @csrf
 
             <section>
                 <h3 class="text-lg font-extrabold">Feature Toggles</h3>
-                <p class="text-sm text-white/60 mt-1">Turn sections on/off without touching code.</p>
+                <p class="text-sm text-slate-500 mt-1">Turn sections on/off without touching code.</p>
 
                 <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     @php
@@ -52,9 +50,9 @@
                             $default = '1';
                             $checked = old($key, $settings[$key] ?? $default) === '1';
                         @endphp
-                        <label class="flex items-center gap-2 rounded-2xl border border-white/10 bg-black/10 p-3">
+                        <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                             <input type="checkbox" name="{{ $key }}" value="1" @checked($checked)
-                                   class="w-5 h-5 rounded border-white/20 bg-black/30">
+                                   class="w-5 h-5 rounded border-gray-300 bg-white">
                             <span class="text-xs sm:text-sm font-semibold leading-tight">{{ $label }}</span>
                         </label>
                     @endforeach
@@ -63,7 +61,7 @@
 
             <section>
                 <h3 class="text-lg font-extrabold">Theme Colors</h3>
-                <p class="text-sm text-white/60 mt-1">Global colors for buttons, links, surfaces and header.</p>
+                <p class="text-sm text-slate-500 mt-1">Global colors for buttons, links, surfaces and header.</p>
 
                 <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     @php
@@ -81,14 +79,14 @@
                         @php
                             $value = old($key, $settings[$key] ?? $meta['default']);
                         @endphp
-                        <div class="rounded-2xl border border-white/10 bg-black/10 p-4">
-                            <label class="text-sm font-bold text-white/80">{{ $meta['label'] }}</label>
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <label class="text-sm font-bold text-slate-700">{{ $meta['label'] }}</label>
                             <div class="mt-2 flex items-center gap-3">
                                 <input type="color" value="{{ $value }}"
                                        oninput="document.getElementById('{{ $key }}').value = this.value"
-                                       class="w-12 h-10 rounded-lg border border-white/20 bg-transparent p-0">
+                                       class="w-12 h-10 rounded-lg border border-gray-300 bg-transparent p-0">
                                 <input id="{{ $key }}" name="{{ $key }}" value="{{ $value }}"
-                                       class="flex-1 px-3 py-2 rounded-xl bg-black/20 border border-white/10 text-white">
+                                       class="flex-1 px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900">
                             </div>
                         </div>
                     @endforeach
@@ -97,17 +95,17 @@
 
             <section>
                 <h3 class="text-lg font-extrabold">Custom CSS</h3>
-                <p class="text-sm text-white/60 mt-1">Use this for deep style/structure overrides.</p>
+                <p class="text-sm text-slate-500 mt-1">Use this for deep style/structure overrides.</p>
                 <textarea name="editor_custom_css" rows="10"
-                          class="w-full mt-3 px-4 py-3 rounded-2xl bg-black/20 border border-white/10 text-white font-mono text-xs"
+                          class="w-full mt-3 px-4 py-3 rounded-xl bg-white border border-gray-300 text-gray-900 font-mono text-xs"
                           placeholder="Example: .card { border-radius: 24px !important; }">{{ old('editor_custom_css', $settings['editor_custom_css'] ?? '') }}</textarea>
             </section>
 
             <section>
                 <h3 class="text-lg font-extrabold">Custom JavaScript</h3>
-                <p class="text-sm text-white/60 mt-1">Advanced behavior changes. Use carefully.</p>
+                <p class="text-sm text-slate-500 mt-1">Advanced behavior changes. Use carefully.</p>
                 <textarea name="editor_custom_js" rows="8"
-                          class="w-full mt-3 px-4 py-3 rounded-2xl bg-black/20 border border-white/10 text-white font-mono text-xs"
+                          class="w-full mt-3 px-4 py-3 rounded-xl bg-white border border-gray-300 text-gray-900 font-mono text-xs"
                           placeholder="Example: console.log('Custom JS loaded');">{{ old('editor_custom_js', $settings['editor_custom_js'] ?? '') }}</textarea>
             </section>
 
@@ -129,16 +127,16 @@
 
         <form method="POST"
               action="{{ route('admin.website-editor.reset') }}"
-              class="rounded-3xl p-6 border border-red-500/25 bg-red-500/10"
+              class="app-section border-rose-200 bg-rose-50 p-6"
               onsubmit="return confirm('Reset all Website Editor changes to default?');">
             @csrf
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h3 class="text-lg font-extrabold text-red-200">Reset Editor Settings</h3>
-                    <p class="text-sm text-red-100/90 mt-1">This removes all customizations made from Website Editor.</p>
+                    <h3 class="text-lg font-extrabold text-rose-700">Reset Editor Settings</h3>
+                    <p class="text-sm text-rose-800 mt-1">This removes all customizations made from Website Editor.</p>
                 </div>
                 <button type="submit"
-                        class="px-5 py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-extrabold transition">
+                        class="px-5 py-3 bg-red-600 hover:bg-red-700 text-white font-extrabold transition">
                     Reset to Default
                 </button>
             </div>

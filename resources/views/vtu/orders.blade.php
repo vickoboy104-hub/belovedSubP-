@@ -1,11 +1,7 @@
 <x-app-layout>
-    <div class="reference-flow-page mx-auto max-w-5xl space-y-6">
-        <section class="app-section p-6 sm:p-8">
-            <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">Transactions</h1>
-            <p class="app-page-subtitle">The below table contains payment history of all transactions.</p>
-            <div class="app-divider mt-4"></div>
-        </section>
+    <x-page-hero class="reference-shared-banner" title="Transactions" subtitle="Every purchase you made, newest first." />
 
+    <div class="reference-flow-page mx-auto max-w-5xl space-y-6">
         <section class="app-section p-4 sm:p-6">
             <div class="space-y-4 md:hidden">
                 @forelse($orders as $o)

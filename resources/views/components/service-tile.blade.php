@@ -2,6 +2,7 @@
     'label' => null,
     'href' => null,
     'icon' => null,
+    'image' => null,
     'badge' => null,
     'pending' => false,
 ])
@@ -18,7 +19,13 @@
     @if($badge)
         <span class="reference-tile-badge">{{ $badge }}</span>
     @endif
-    <span class="reference-tile-icon" aria-hidden="true">{{ $icon }}</span>
+    @if($image)
+        <span class="reference-tile-icon reference-tile-icon-image" aria-hidden="true">
+            <img src="{{ $image }}" alt="" loading="lazy">
+        </span>
+    @else
+        <span class="reference-tile-icon" aria-hidden="true">{{ $icon }}</span>
+    @endif
     <strong>{{ $label }}</strong>
     @if($pending || !$href)
         <small>Coming soon</small>
