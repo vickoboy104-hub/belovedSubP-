@@ -79,6 +79,35 @@ if (!function_exists('whatsapp_link')) {
     }
 }
 
+if (!function_exists('site_themes')) {
+    // One registry for every skin the admin can pick. The key is what lands on
+    // <html data-theme="...">, so CSS and this list must agree on the slug.
+    function site_themes(): array
+    {
+        return [
+            'navy' => [
+                'name' => 'Classic Navy',
+                'summary' => 'Deep blue, white and a dark orange accent. The look the site shipped with.',
+                'swatches' => ['#112d57', '#173f74', '#ffffff', '#bd590e'],
+            ],
+            'ember' => [
+                'name' => 'Ember Sunrise',
+                'summary' => 'The same blue, but every plain blue surface mixes through into dark orange.',
+                'swatches' => ['#1b3f74', '#2a5c9e', '#f4ece1', '#c25c0f'],
+            ],
+        ];
+    }
+}
+
+if (!function_exists('site_theme')) {
+    function site_theme(): string
+    {
+        $stored = trim((string) setting('site_theme'));
+
+        return array_key_exists($stored, site_themes()) ? $stored : 'navy';
+    }
+}
+
 if (!function_exists('sanitize_popup_message_html')) {
     function sanitize_popup_message_html(?string $html): string
     {

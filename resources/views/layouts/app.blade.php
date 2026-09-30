@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-theme="{{ site_theme() }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -189,6 +189,7 @@
         <div x-cloak x-show="drawerOpen" x-transition:enter="transition-opacity duration-500 ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity duration-500 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-x-0 bottom-0 top-[64px] z-50 bg-black/55 md:hidden" @click="drawerOpen = false"></div>
 
         <aside id="mobile-navigation" x-cloak x-show="drawerOpen"
+               :class="{ 'drawer-is-open': drawerOpen }"
                x-transition:enter="transition transform duration-[650ms] ease-out"
                x-transition:enter-start="-translate-x-full"
                x-transition:enter-end="translate-x-0"

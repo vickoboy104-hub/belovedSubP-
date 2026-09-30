@@ -73,6 +73,120 @@ document.body.classList.add('page-is-entering');
 
 
 // ==============================
+// HERO GREETING
+// ==============================
+(function () {
+    // The dashboard says "Welcome back" the moment you land, then settles into
+    // the time of day. Only the arrival copy is server rendered.
+    const el = document.querySelector('[data-hero-greeting]');
+    if (!el) return;
+
+    const name = (el.dataset.heroGreeting || '').trim();
+    if (!name) return;
+
+    const phrase = (hour) => {
+        if (hour >= 5 && hour < 12) return 'Good morning';
+        if (hour >= 12 && hour < 17) return 'Good afternoon';
+        return 'Good evening';
+    };
+
+    setTimeout(() => {
+        el.textContent = `${phrase(new Date().getHours())}, ${name}`;
+        el.classList.add('is-swapped');
+    }, 10000);
+})();
+
+
+// ==============================
+// SCROLL REVEALS
+// ==============================
+(function () {
+    const html = document.documentElement;
+
+    if (!('IntersectionObserver' in window) ||
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return;
+    }
+
+    // Only the grids of repeated cards, so long lists stay readable and the
+    // page never looks like it is still arriving.
+    const cards = '.reference-summary-card, .reference-service-tile, .identity-tile, .app-service-card, .reference-order-row';
+    const targets = Array.prototype.slice.call(document.querySelectorAll(cards), 0, 30);
+    if (targets.length < 2) return;
+
+    html.classList.add('motion-ready');
+
+    targets.forEach((el, index) => {
+        el.style.setProperty('--motion-delay', Math.min(index * 55, 330) + 'ms');
+        el.setAttribute('data-motion', 'reveal');
+    });
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            entry.target.classList.add('is-revealed');
+            observer.unobserve(entry.target);
+        });
+    }, { rootMargin: '0px 0px -4% 0px', threshold: 0.06 });
+
+    targets.forEach((el) => observer.observe(el));
+
+    // A backgrounded tab never reports an intersection, so anything already on
+    // screen is released on a timer rather than staying invisible.
+    setTimeout(() => {
+        const view = window.innerHeight || 800;
+        targets.forEach((el) => {
+            if (el.classList.contains('is-revealed')) return;
+            if (el.getBoundingClientRect().top < view) el.classList.add('is-revealed');
+        });
+    }, 1200);
+})();
+
+
+// ==============================
+// MONEY COUNT-UP
+// ==============================
+(function () {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const figures = Array.prototype.slice.call(document.querySelectorAll('.reference-money'), 0, 4);
+
+    const animate = (el) => {
+        const original = el.textContent;
+        const match = original.match(/^([^\d]*)([\d,]+(?:\.\d+)?)(.*)$/s);
+        if (!match) return;
+
+        const value = parseFloat(match[2].replace(/,/g, ''));
+        if (!isFinite(value) || value < 1) return;
+
+        const decimals = (match[2].split('.')[1] || '').length;
+        const started = performance.now();
+        const duration = 850;
+
+        const step = (now) => {
+            const progress = Math.min((now - started) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const current = (value * eased).toFixed(decimals);
+            el.textContent = match[1] + Number(current).toLocaleString('en-NG', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals,
+            }) + match[3];
+
+            if (progress < 1) {
+                requestAnimationFrame(step);
+            } else {
+                el.textContent = original;
+            }
+        };
+
+        requestAnimationFrame(step);
+    };
+
+    figures.forEach(animate);
+})();
+
+
+// ==============================
 // VIEWPORT LAYERS
 // ==============================
 (function () {

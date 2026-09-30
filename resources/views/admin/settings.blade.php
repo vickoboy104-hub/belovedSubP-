@@ -22,6 +22,7 @@
                     <div class="rounded-2xl border border-gray-200 bg-slate-50 p-2">
                         <nav class="flex gap-1 overflow-x-auto whitespace-nowrap text-[11px] sm:text-xs">
                             <a href="#group-branding" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Branding</a>
+                            <a href="#group-appearance" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Appearance</a>
                             <a href="#group-announcements" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Announcements</a>
                             <a href="#group-maintenance-overlay" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Maintenance Overlay</a>
                             <a href="#group-catalog" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Service Catalog</a>
@@ -100,6 +101,40 @@
                             <div class="text-xs text-gray-500">Preview</div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {{-- Appearance / colour theme --}}
+            <div id="group-appearance" class="scroll-mt-44">
+                <div class="text-lg font-extrabold">Appearance</div>
+                <div class="text-xs text-gray-500 mt-1">Pick the colours the whole site wears. Both themes are already built, so switching is instant once you save — nothing else about the site changes.</div>
+
+                @php
+                    $activeTheme = old('site_theme', $settings['site_theme'] ?? 'navy');
+                    if (!array_key_exists($activeTheme, site_themes())) {
+                        $activeTheme = 'navy';
+                    }
+                @endphp
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+                    @foreach(site_themes() as $themeKey => $theme)
+                        <label class="relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-4 transition has-[:checked]:border-orange-500 has-[:checked]:ring-2 has-[:checked]:ring-orange-500/30 border-gray-300 bg-white">
+                            <input type="radio" name="site_theme" value="{{ $themeKey }}" class="sr-only"
+                                   @checked($activeTheme === $themeKey)>
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-sm font-extrabold text-gray-900">{{ $theme['name'] }}</span>
+                                @if($activeTheme === $themeKey)
+                                    <span class="rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-bold text-orange-700">In use</span>
+                                @endif
+                            </div>
+                            <div class="flex gap-1.5" aria-hidden="true">
+                                @foreach($theme['swatches'] as $swatch)
+                                    <span class="h-7 w-7 rounded-full border border-gray-200" style="background: {{ $swatch }}"></span>
+                                @endforeach
+                            </div>
+                            <div class="text-xs text-gray-600">{{ $theme['summary'] }}</div>
+                        </label>
+                    @endforeach
                 </div>
             </div>
 

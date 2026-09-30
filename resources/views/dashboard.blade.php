@@ -36,7 +36,7 @@
         <x-page-hero title="Dashboard Overview">
             <div class="reference-hero-user">
                 <x-avatar :user="$dashUser" class="reference-hero-avatar" />
-                <span>{{ $dashUser?->first_name ?: 'Welcome back' }}</span>
+                <span class="reference-hero-greet" data-hero-greeting="{{ $dashUser?->first_name }}">{{ $dashUser?->first_name ? 'Welcome back, '.$dashUser->first_name : 'Welcome back' }}</span>
             </div>
         </x-page-hero>
 

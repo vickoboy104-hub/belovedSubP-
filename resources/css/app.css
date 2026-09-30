@@ -1939,6 +1939,8 @@ img.reference-avatar { display: block; object-fit: cover; background: #153a6c; }
    battery on the right, instead of three stacked blocks with mismatched gaps. */
 .reference-hero-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .65rem; margin-top: 1.15rem; }
 .reference-hero-foot > * { margin-top: 0; }
+.reference-hero-greet.is-swapped { animation: heroGreetSwap .55s cubic-bezier(.22,.61,.36,1) both; }
+@keyframes heroGreetSwap { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 
 /* The one loading visual, shared by the boot splash and the page-transition
    loader: brand mark inside a white ring with a dark orange counter-arc.
@@ -1981,3 +1983,208 @@ html.splash-active .reference-splash { opacity: 1; visibility: visible; pointer-
 .reference-skeleton-wave { background-color: #cfdcee; -webkit-mask-image: linear-gradient(130deg, #000 55%, rgba(0, 0, 0, .8) 75%, #000 95%); mask-image: linear-gradient(130deg, #000 55%, rgba(0, 0, 0, .8) 75%, #000 95%); -webkit-mask-size: 200% 100%; mask-size: 200% 100%; animation: referenceSkeletonWave 2s linear infinite; }
 @keyframes referenceSkeletonWave { to { -webkit-mask-position: -200% 0; mask-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .reference-skeleton-wave { animation: none; } }
+
+/* ==========================================================================
+   MOTION — scroll reveals, press feedback, staggered drawer links.
+   Transform and opacity only, so the compositor does the work, and all of it
+   disappears for visitors who ask their device for reduced motion.
+   ========================================================================== */
+html.motion-ready [data-motion="reveal"] { opacity: 0; transform: translateY(14px); transition: opacity .44s ease var(--motion-delay, 0ms), transform .44s cubic-bezier(.22, .61, .36, 1) var(--motion-delay, 0ms); }
+html.motion-ready [data-motion="reveal"].is-revealed { opacity: 1; transform: none; }
+
+/* Tap targets answer the press on phones, where there is no hover to give feedback. */
+.btn-primary,
+.reference-full-button,
+.reference-quiet-button,
+.reference-hero-action,
+.reference-service-tile,
+.reference-tile,
+.reference-nav-link,
+.reference-install,
+.mobile-topbar-icon,
+.reference-menu-toggle { transition: transform .16s cubic-bezier(.22, .61, .36, 1), box-shadow .2s ease, background-color .18s ease, color .18s ease; }
+
+.btn-primary:active,
+.reference-full-button:active,
+.reference-quiet-button:active,
+.reference-hero-action:active,
+.reference-service-tile:active,
+.reference-tile:active,
+.reference-nav-link:active,
+.reference-install:active,
+.mobile-topbar-icon:active { transform: translateY(1px) scale(.984); }
+
+@media (hover: hover) {
+    a.reference-service-tile:hover,
+    .reference-tile:hover,
+    .reference-summary-card:hover,
+    .app-service-card:hover { transform: translateY(-4px); }
+}
+
+/* The drawer panel already slides; the links behind it now follow in sequence. */
+.drawer-is-open .reference-nav-link { animation: drawerLinkRise .38s cubic-bezier(.22, .61, .36, 1) both; }
+.drawer-is-open .reference-nav-link:nth-child(2) { animation-delay: .045s; }
+.drawer-is-open .reference-nav-link:nth-child(3) { animation-delay: .09s; }
+.drawer-is-open .reference-nav-link:nth-child(4) { animation-delay: .135s; }
+.drawer-is-open .reference-nav-link:nth-child(n+5) { animation-delay: .18s; }
+@keyframes drawerLinkRise { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+    html.motion-ready [data-motion="reveal"] { opacity: 1; transform: none; transition: none; }
+    .drawer-is-open .reference-nav-link { animation: none; }
+    .reference-hero-greet.is-swapped { animation: none; }
+    .btn-primary:active,
+    .reference-full-button:active,
+    .reference-service-tile:active,
+    .reference-tile:active,
+    .reference-nav-link:active { transform: none; }
+}
+
+/* ==========================================================================
+   EMBER THEME — the second skin the admin picks in Settings.
+   Blue still leads everywhere; what changes is that every plain blue surface
+   now runs into dark orange instead of stopping at flat navy. Nothing here
+   paints unless <html> carries data-theme="ember", so Classic Navy is left
+   exactly as it ships today.
+   ========================================================================== */
+html[data-theme="ember"] {
+    --brand-navy: #1b3f74;
+    --brand-navy-strong: #123059;
+    --brand-ink: #22508c;
+    --brand-accent: #c25c0f;
+    --brand-mist: #f7efe5;
+    --brand-line: #e8dccb;
+    --brand-text: #23201c;
+    --brand-muted: #7c6b58;
+    --surface-deep: #f2e6d7;
+    --surface-base: #fbf6ef;
+    --surface-card: #ffffff;
+    --surface-soft: #fdf9f3;
+    --surface-muted: #f6ece0;
+    --ember-header: linear-gradient(100deg, #16325c 0%, #22508c 54%, #a44a0c 122%);
+    --ember-button: linear-gradient(120deg, #1e4a86 0%, #2a5c9e 62%, #c25c0f 134%);
+    --ember-button-quiet: linear-gradient(120deg, #123059 0%, #1e4a86 60%, #a44a0c 128%);
+    --ember-icon: linear-gradient(142deg, #22508c 8%, #d0691a 96%);
+    --ember-rule: linear-gradient(90deg, #1b3f74, #c25c0f 56%, #f4e6d6);
+}
+
+html[data-theme="ember"] body,
+html[data-theme="ember"] .app-shell-bg { background: linear-gradient(180deg, #fdf9f3 0%, #f6ece0 100%); color: var(--brand-text); }
+html[data-theme="ember"] .app-header-bar,
+html[data-theme="ember"] .reference-header { background: var(--ember-header); }
+html[data-theme="ember"] .reference-sidebar { background: #fffdf9; border-right-color: var(--brand-line); }
+html[data-theme="ember"] .reference-profile { background: var(--ember-header); }
+html[data-theme="ember"] .reference-nav-link { color: #4a4033; }
+html[data-theme="ember"] .reference-nav-link:hover,
+html[data-theme="ember"] .reference-nav-active { color: var(--brand-navy); background: var(--surface-muted); }
+
+/* Banners keep the office photo but drop the orange into the wash. */
+html[data-theme="ember"] .reference-page-banner,
+html[data-theme="ember"] .reference-shared-banner,
+html[data-theme="ember"] .identity-hero,
+html[data-theme="ember"] .identity-dashboard-banner { background: linear-gradient(96deg, rgba(20, 52, 100, .95), rgba(164, 74, 12, .7)), url('/images/office-team.webp') center/cover; }
+html[data-theme="ember"] .reference-home-hero { background: linear-gradient(92deg, rgba(18, 48, 92, .96), rgba(180, 84, 16, .78)), url('/images/office-team.webp') center/cover; }
+html[data-theme="ember"] .app-accent-panel { background: linear-gradient(92deg, rgba(18, 48, 92, .94), rgba(164, 74, 12, .72)), url('/images/office-team.webp') center/cover; }
+html[data-theme="ember"] .app-divider { background: var(--ember-rule); }
+
+/* Every solid blue button becomes a blue-to-ember sweep. */
+html[data-theme="ember"] .btn-primary,
+html[data-theme="ember"] .reference-full-button,
+html[data-theme="ember"] .reference-quiet-button,
+html[data-theme="ember"] .reference-hero-action,
+html[data-theme="ember"] .bg-blue-700,
+html[data-theme="ember"] .bg-blue-600,
+html[data-theme="ember"] .legacy-themed-page [class*="bg-blue-700"],
+html[data-theme="ember"] .admin-light-page [class*="bg-blue"],
+html[data-theme="ember"] .reference-auth-page .app-form-shell button[type="submit"],
+html[data-theme="ember"] .reference-service-content #ninSubmitBtn,
+html[data-theme="ember"] :is(button, a, input[type="submit"], .btn-primary):is(.bg-blue-500, .bg-blue-600, .bg-blue-700, .bg-blue-800, .bg-blue-900, .bg-indigo-500, .bg-indigo-600, .bg-indigo-700, .bg-sky-600, .bg-sky-700)[class*="bg-"] {
+    background: var(--ember-button) !important;
+    border-color: transparent;
+}
+html[data-theme="ember"] .btn-primary:hover,
+html[data-theme="ember"] .reference-full-button:hover,
+html[data-theme="ember"] a.reference-full-button:hover,
+html[data-theme="ember"] .reference-auth-page .app-form-shell button[type="submit"]:hover,
+html[data-theme="ember"] .reference-service-content #ninSubmitBtn:hover,
+html[data-theme="ember"] .legacy-themed-page [class*="bg-blue-700"]:hover,
+html[data-theme="ember"] .hover\:bg-blue-800:hover,
+html[data-theme="ember"] .hover\:bg-blue-700:hover,
+html[data-theme="ember"] :is(button, a, input[type="submit"], .btn-primary):is(.bg-blue-700, .bg-blue-800, .bg-blue-900, .bg-indigo-700, .bg-sky-700)[class*="bg-"]:hover {
+    background: var(--ember-button-quiet) !important;
+}
+html[data-theme="ember"] .reference-light-button { background: #fff; color: var(--brand-navy); }
+html[data-theme="ember"] .reference-light-button:hover { background: var(--surface-muted); }
+html[data-theme="ember"] .identity-button-white { background: #fff; color: var(--brand-ink); }
+html[data-theme="ember"] .btn-soft,
+html[data-theme="ember"] .reference-home-hero .btn-soft { background: var(--surface-muted); color: var(--brand-navy); }
+html[data-theme="ember"] .btn-outline:hover { background: var(--surface-muted); color: var(--brand-navy-strong); }
+html[data-theme="ember"] .reference-drawer-close { background: var(--surface-muted); color: var(--brand-ink); }
+
+/* Circular service icons, avatars and stat tiles. */
+html[data-theme="ember"] .identity-icon,
+html[data-theme="ember"] .reference-tile-icon,
+html[data-theme="ember"] .reference-wallet-icon,
+html[data-theme="ember"] img.reference-avatar,
+html[data-theme="ember"] .avatar-picker-target { background: var(--ember-icon); color: #fff; }
+html[data-theme="ember"] .avatar-picker-target { border-color: var(--brand-line); }
+html[data-theme="ember"] .app-balance-card,
+html[data-theme="ember"] .reference-summary-blue { background: linear-gradient(180deg, #2a5c9e 0%, #b4540f 138%); border-color: transparent; }
+html[data-theme="ember"] .reference-progress { border-color: rgba(255, 255, 255, .42); }
+
+/* Surfaces that were pale blue go warm cream instead. */
+html[data-theme="ember"] .app-soft-panel,
+html[data-theme="ember"] .app-section-muted,
+html[data-theme="ember"] .app-sidebar-surface,
+html[data-theme="ember"] .identity-other,
+html[data-theme="ember"] .nav-item-active,
+html[data-theme="ember"] .nav-item:hover,
+html[data-theme="ember"] .app-chip { background: var(--surface-muted); }
+html[data-theme="ember"] .app-chip,
+html[data-theme="ember"] .reference-guest-drawer a { color: var(--brand-navy); }
+html[data-theme="ember"] .reference-guest-drawer a { border-bottom-color: var(--brand-line); }
+html[data-theme="ember"] .identity-status { background: var(--surface-deep); color: var(--brand-muted); }
+html[data-theme="ember"] .identity-status-ready { background: #fbeadb; color: var(--brand-accent); }
+html[data-theme="ember"] .identity-eyebrow { color: #ffcf9a; }
+
+/* Cards and inputs keep white paper but take warm edges. */
+html[data-theme="ember"] .app-glass-card,
+html[data-theme="ember"] .app-section,
+html[data-theme="ember"] .app-form-shell,
+html[data-theme="ember"] .app-form-card,
+html[data-theme="ember"] .app-service-card,
+html[data-theme="ember"] .app-stat,
+html[data-theme="ember"] .reference-service-tile,
+html[data-theme="ember"] .reference-summary-card,
+html[data-theme="ember"] .identity-tile,
+html[data-theme="ember"] .reference-home-quick,
+html[data-theme="ember"] .reference-recent,
+html[data-theme="ember"] .nav-item { border-color: var(--brand-line); }
+
+/* Headings stay blue; only the muted greys pick up a warm cast. */
+html[data-theme="ember"] .reference-section-title,
+html[data-theme="ember"] .identity-section-heading h2,
+html[data-theme="ember"] .identity-other h2,
+html[data-theme="ember"] .identity-tile strong,
+html[data-theme="ember"] .reference-form-heading,
+html[data-theme="ember"] .reference-guide-page h2,
+html[data-theme="ember"] .reference-flow-page > :first-child :is(h1, h2),
+html[data-theme="ember"] .reference-auth-page .app-form-shell h1,
+html[data-theme="ember"] .reference-auth-page .app-form-shell a:not(.btn-primary),
+html[data-theme="ember"] .reference-recent > div a,
+html[data-theme="ember"] .identity-other-links a,
+html[data-theme="ember"] .reference-flow-page #amountToPay { color: var(--brand-navy); }
+html[data-theme="ember"] .reference-service-tile,
+html[data-theme="ember"] .reference-order-row span { color: #3b3229; }
+html[data-theme="ember"] .input-field { color: var(--brand-text); }
+html[data-theme="ember"] .identity-tile-action,
+html[data-theme="ember"] .identity-nav-label,
+html[data-theme="ember"] .reference-breadcrumb a:hover { color: var(--brand-accent); }
+html[data-theme="ember"] .legacy-themed-page input[type="checkbox"],
+html[data-theme="ember"] .admin-light-page input[type="checkbox"],
+html[data-theme="ember"] .reference-auth-page .app-form-shell input[type="checkbox"] { accent-color: var(--brand-accent); }
+
+/* The boot splash and the page loader follow the active skin. */
+html[data-theme="ember"] .reference-splash { background: radial-gradient(1100px 620px at 12% -8%, rgba(255, 255, 255, .12), transparent 60%), radial-gradient(900px 560px at 108% 14%, rgba(194, 92, 15, .5), transparent 55%), linear-gradient(160deg, #1e4a86 0%, #123059 52%, #6d3208 118%); }
+html[data-theme="ember"] .reference-loader-veil { background: linear-gradient(160deg, rgba(30, 74, 134, .9), rgba(109, 50, 8, .9)); }
+html[data-theme="ember"] .reference-auth-page { background: linear-gradient(180deg, rgba(18, 48, 92, .92), rgba(150, 68, 12, .82)) top/100% 165px no-repeat, #fbf6ef; }

@@ -127,6 +127,7 @@ class SettingsController extends Controller
             'whatsapp_link'         => ['nullable', 'string', 'max:255'],
             'whatsapp_channel_link' => ['nullable', 'string', 'max:255'],
             'provider'              => ['nullable', 'string', 'in:gsubz,alt,mock'],
+            'site_theme'            => ['nullable', 'string', 'in:' . implode(',', array_keys(site_themes()))],
 
             'home_marquee_message'      => ['nullable', 'string', 'max:500'],
             'home_popup_message'        => ['nullable', 'string', 'max:5000'],
