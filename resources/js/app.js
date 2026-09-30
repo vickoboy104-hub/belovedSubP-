@@ -982,4 +982,91 @@ Alpine.data('avatarPicker', ({ current = '', initials = '', name = 'Your' } = {}
     },
 }));
 
+// ==============================
+// ADMIN OVERLAY NAVIGATION
+// ==============================
+(function () {
+    const root = document.getElementById('adminQuickNav');
+    if (!root) return;
+
+    const panel = root.querySelector('.admin-quick-nav-panel');
+    const toggle = root.querySelector('.admin-quick-nav-toggle');
+    const backdrop = root.querySelector('.admin-quick-nav-backdrop');
+    const closeBtn = root.querySelector('.admin-quick-nav-close');
+    const sectionHost = document.getElementById('adminQuickNavSections');
+    const sectionList = sectionHost ? sectionHost.querySelector('nav') : null;
+
+    function isOpen() {
+        return root.classList.contains('is-open');
+    }
+
+    function setOpen(open) {
+        root.classList.toggle('is-open', open);
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) {
+            panel.querySelector('a')?.focus({ preventScroll: true });
+        } else {
+            toggle.focus({ preventScroll: true });
+        }
+    }
+
+    toggle.addEventListener('click', () => setOpen(!isOpen()));
+    closeBtn.addEventListener('click', () => setOpen(false));
+    backdrop.addEventListener('click', () => setOpen(false));
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && isOpen()) setOpen(false);
+    });
+
+    // The settings list is read off the page itself, so adding a settings group
+    // never means keeping a second list of anchors in sync.
+    const sectionLinks = new Map();
+    if (sectionList) {
+        document.querySelectorAll('#adminSettingsForm [id^="group-"]').forEach((group) => {
+            if (group.classList.contains('hidden')) return;
+            const heading = group.querySelector('.text-lg.font-extrabold');
+            const label = (heading ? heading.textContent : group.id).trim();
+            if (!label) return;
+
+            const link = document.createElement('a');
+            link.href = '#' + group.id;
+            link.className = 'admin-quick-nav-link';
+
+            const text = document.createElement('span');
+            text.textContent = label;
+            link.appendChild(text);
+
+            link.addEventListener('click', () => setOpen(false));
+            sectionList.appendChild(link);
+            sectionLinks.set(group, link);
+        });
+
+        if (sectionList.childElementCount > 0) sectionHost.classList.remove('hidden');
+    }
+
+    function syncSections() {
+        sectionLinks.forEach((link, group) => {
+            link.style.display = group.style.display === 'none' ? 'none' : '';
+        });
+
+        let current = null;
+        sectionLinks.forEach((link) => {
+            if (link.style.display === 'none') return;
+            const group = document.querySelector(link.getAttribute('href'));
+            if (group && group.getBoundingClientRect().top <= 220) current = link;
+        });
+        sectionLinks.forEach((link) => link.classList.toggle('is-active', link === current));
+    }
+
+    let lastSync = 0;
+    window.addEventListener('scroll', () => {
+        const now = Date.now();
+        if (now - lastSync < 90) return;
+        lastSync = now;
+        syncSections();
+    }, { passive: true });
+
+    document.addEventListener('admin-settings-filtered', syncSections);
+    syncSections();
+})();
+
 Alpine.start();

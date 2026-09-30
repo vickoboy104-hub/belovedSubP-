@@ -238,6 +238,8 @@ class SettingsController extends Controller
             'social_whatsapp_url' => ['nullable', 'string', 'max:255'],
 
             'logo'            => ['nullable', 'image', 'max:2048'],
+            'login_logo'      => ['nullable', 'image', 'max:2048'],
+            'loader_logo'     => ['nullable', 'image', 'max:2048'],
             'favicon'         => ['nullable', 'image', 'max:1024'],
         ], $serviceMapRules));
 
@@ -274,19 +276,22 @@ class SettingsController extends Controller
             $data['dashboard_popup_message'] = sanitize_popup_message_html((string) $data['dashboard_popup_message']);
         }
 
-        // handle uploads (store and save URL in settings)
-        if ($request->hasFile('logo')) {
-            $path = $request->file('logo')->store('site', 'public');
-            $data['logo_url'] = '/storage/' . ltrim($path, '/');
-        }
+        // Each logo lives in its own setting so an admin can give the dashboard,
+        // the login page, the loading animation and the tab icon different art.
+        $uploadKeys = [
+            'logo' => 'logo_url',
+            'login_logo' => 'login_logo_url',
+            'loader_logo' => 'loader_logo_url',
+            'favicon' => 'favicon_url',
+        ];
 
-        if ($request->hasFile('favicon')) {
-            $path = $request->file('favicon')->store('site', 'public');
-            $data['favicon_url'] = '/storage/' . ltrim($path, '/');
+        foreach ($uploadKeys as $field => $settingKey) {
+            if ($request->hasFile($field)) {
+                $path = $request->file($field)->store('site', 'public');
+                $data[$settingKey] = '/storage/' . ltrim($path, '/');
+            }
+            unset($data[$field]);
         }
-
-        // remove file objects
-        unset($data['logo'], $data['favicon']);
 
         foreach ($data as $key => $value) {
             // Skip nulls if you like; or allow saving empty string

@@ -19,8 +19,24 @@
 
             <div class="space-y-8">
                 <div class="sticky top-24 z-20 -mx-1 px-1">
-                    <div class="rounded-2xl border border-gray-200 bg-slate-50 p-2">
-                        <nav class="flex gap-1 overflow-x-auto whitespace-nowrap text-[11px] sm:text-xs">
+                    <div class="rounded-2xl border border-gray-200 bg-slate-50 p-2 space-y-2">
+                        <div class="flex items-center gap-2">
+                            <div class="relative flex-1">
+                                <label class="sr-only" for="settingsSearch">Search settings on this page</label>
+                                <svg viewBox="0 0 24 24" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <circle cx="11" cy="11" r="7"></circle>
+                                    <path d="m20 20-3.2-3.2"></path>
+                                </svg>
+                                <input id="settingsSearch" type="search" autocomplete="off" spellcheck="false"
+                                       placeholder="Search settings…"
+                                       class="w-full rounded-xl border border-gray-300 bg-white py-2.5 pl-9 pr-9 text-sm text-gray-900 placeholder:text-gray-400">
+                                <button type="button" id="settingsSearchClear"
+                                        class="absolute right-1.5 top-1/2 hidden h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-lg leading-none text-gray-500 hover:bg-gray-100"
+                                        aria-label="Clear settings search">&times;</button>
+                            </div>
+                            <span id="settingsSearchCount" class="w-24 shrink-0 text-right text-[11px] font-bold text-gray-600"></span>
+                        </div>
+                        <nav id="settingsSectionNav" class="flex gap-1 overflow-x-auto whitespace-nowrap text-[11px] sm:text-xs">
                             <a href="#group-branding" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Branding</a>
                             <a href="#group-appearance" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Appearance</a>
                             <a href="#group-announcements" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Announcements</a>
@@ -40,6 +56,10 @@
                             <a href="#group-error-codes" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Error Codes</a>
                         </nav>
                     </div>
+                </div>
+
+                <div id="settingsSearchEmpty" class="hidden rounded-2xl border border-gray-200 bg-slate-50 p-5 text-center text-sm font-semibold text-gray-600">
+                    No settings match that search. Try a shorter word, or clear the box to see everything again.
                 </div>
 
             {{-- Branding --}}
@@ -63,44 +83,40 @@
                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                         <div class="text-xs text-gray-500 mt-1">Example: https://whatsapp.com/channel/XXXXXXXXXXX</div>
                     </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">Logo (PNG)</label>
-                        <input type="file" name="logo" accept="image/*"
-                               id="logoInput"
-                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                        @if(!empty($settings['logo_url']))
-                            <div class="mt-2 text-xs text-gray-500">Current: <span class="font-bold">{{ $settings['logo_url'] }}</span></div>
-                        @endif
-                        <div class="mt-3 flex items-center gap-3">
-                            <div class="w-14 h-14 rounded-2xl bg-slate-100 border border-gray-200 overflow-hidden flex items-center justify-center">
-                                <img id="logoPreview"
-                                     src="{{ $settings['logo_url'] ?? '' }}"
-                                     class="w-full h-full object-cover {{ empty($settings['logo_url']) ? 'hidden' : '' }}"
-                                     alt="Logo preview">
-                                <span id="logoPlaceholder" class="text-xs text-gray-500 {{ empty($settings['logo_url']) ? '' : 'hidden' }}">No logo</span>
+                    @php
+                        // Every brand image has its own slot so the loading animation can
+                        // never be forced to reuse the wordmark shown in the header.
+                        $brandSlots = [
+                            ['field' => 'logo', 'key' => 'logo_url', 'label' => 'Site logo (PNG)', 'box' => 'w-14 h-14', 'hint' => 'Signed-in pages: header, sidebar and dashboard.', 'none' => 'No logo'],
+                            ['field' => 'login_logo', 'key' => 'login_logo_url', 'label' => 'Login page logo (PNG)', 'box' => 'w-14 h-14', 'hint' => 'Login, register and password pages. Left empty, those pages use the site logo.', 'none' => 'Uses site logo'],
+                            ['field' => 'loader_logo', 'key' => 'loader_logo_url', 'label' => 'Loading animation logo', 'box' => 'w-12 h-12', 'hint' => 'The square mark inside the splash and page loader. Upload a square image — it never falls back to the site logo.', 'none' => 'Built-in mark'],
+                            ['field' => 'favicon', 'key' => 'favicon_url', 'label' => 'Favicon (PNG/ICO)', 'box' => 'w-10 h-10', 'hint' => 'Browser tab icon and the saved home-screen icon.', 'none' => 'No icon'],
+                        ];
+                    @endphp
+                    @foreach($brandSlots as $slot)
+                        @php $current = logo_asset_url($slot['key']); @endphp
+                        <div>
+                            <label class="text-sm font-bold text-gray-800/80">{{ $slot['label'] }}</label>
+                            <input type="file" name="{{ $slot['field'] }}" accept="image/*"
+                                   id="{{ $slot['field'] }}Input"
+                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                            <div class="text-xs text-gray-500 mt-1">{{ $slot['hint'] }}</div>
+                            @if(!empty($settings[$slot['key']] ?? null))
+                                <div class="mt-2 text-xs text-gray-500">Current: <span class="font-bold">{{ $settings[$slot['key']] }}</span></div>
+                            @endif
+                            <div class="mt-3 flex items-center gap-3">
+                                <div class="{{ $slot['box'] }} rounded-2xl bg-slate-100 border border-gray-200 overflow-hidden flex items-center justify-center">
+                                    <img id="{{ $slot['field'] }}Preview"
+                                         src="{{ $current }}"
+                                         class="w-full h-full object-cover {{ $current === '' ? 'hidden' : '' }}"
+                                         alt="{{ $slot['label'] }} preview">
+                                    <span id="{{ $slot['field'] }}Placeholder"
+                                          class="text-[10px] text-gray-500 text-center px-1 {{ $current === '' ? '' : 'hidden' }}">{{ $slot['none'] }}</span>
+                                </div>
+                                <div class="text-xs text-gray-500">Preview</div>
                             </div>
-                            <div class="text-xs text-gray-500">Preview</div>
                         </div>
-                    </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">Favicon (PNG/ICO)</label>
-                        <input type="file" name="favicon" accept="image/*"
-                               id="faviconInput"
-                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                        @if(!empty($settings['favicon_url']))
-                            <div class="mt-2 text-xs text-gray-500">Current: <span class="font-bold">{{ $settings['favicon_url'] }}</span></div>
-                        @endif
-                        <div class="mt-3 flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-slate-100 border border-gray-200 overflow-hidden flex items-center justify-center">
-                                <img id="faviconPreview"
-                                     src="{{ $settings['favicon_url'] ?? '' }}"
-                                     class="w-full h-full object-cover {{ empty($settings['favicon_url']) ? 'hidden' : '' }}"
-                                     alt="Favicon preview">
-                                <span id="faviconPlaceholder" class="text-xs text-gray-500 {{ empty($settings['favicon_url']) ? '' : 'hidden' }}">No icon</span>
-                            </div>
-                            <div class="text-xs text-gray-500">Preview</div>
-                        </div>
-                    </div>
+                    @endforeach
                 </div>
             </div>
 
@@ -1354,36 +1370,155 @@
                 document.body.appendChild(saveOverlay);
             }
 
-            const logoInput = document.getElementById('logoInput');
-            const faviconInput = document.getElementById('faviconInput');
-            const logoPreview = document.getElementById('logoPreview');
-            const faviconPreview = document.getElementById('faviconPreview');
-            const logoPlaceholder = document.getElementById('logoPlaceholder');
-            const faviconPlaceholder = document.getElementById('faviconPlaceholder');
-
-            function updatePreview(input, img, placeholder) {
-                const file = input?.files?.[0];
+            document.querySelectorAll('#adminSettingsForm input[type="file"]').forEach((input) => {
+                const img = document.getElementById(input.id.replace(/Input$/, 'Preview'));
+                const placeholder = document.getElementById(input.id.replace(/Input$/, 'Placeholder'));
                 if (!img || !placeholder) return;
 
-                if (!file) return;
-                if (!file.type || !file.type.startsWith('image/')) return;
+                input.addEventListener('change', () => {
+                    const file = input.files?.[0];
+                    if (!file || !file.type?.startsWith('image/')) return;
 
-                const reader = new FileReader();
-                reader.onload = () => {
-                    img.src = reader.result;
-                    img.classList.remove('hidden');
-                    placeholder.classList.add('hidden');
-                };
-                reader.readAsDataURL(file);
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        img.src = reader.result;
+                        img.classList.remove('hidden');
+                        placeholder.classList.add('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                });
+            });
+
+        })();
+    </script>
+
+    <script>
+        (function () {
+            const search = document.getElementById('settingsSearch');
+            const form = document.getElementById('adminSettingsForm');
+            if (!search || !form) return;
+
+            const clear = document.getElementById('settingsSearchClear');
+            const counter = document.getElementById('settingsSearchCount');
+            const empty = document.getElementById('settingsSearchEmpty');
+            const chips = Array.from(document.querySelectorAll('#settingsSectionNav a[href^="#group-"]'));
+
+            const depthOf = (el) => {
+                let depth = 0;
+                while ((el = el.parentElement)) depth++;
+                return depth;
+            };
+
+            // One unit = one labelled setting. A setting can be wrapped by a bigger
+            // unit (a table inside a panel), so parents are tracked and only hidden
+            // once every setting inside them is hidden too.
+            const sections = Array.from(form.querySelectorAll('[id^="group-"]'))
+                .filter((group) => !group.classList.contains('hidden'))
+                .map((group) => {
+                    const heading = group.querySelector('.text-lg.font-extrabold, h2, h3');
+                    const found = new Set();
+
+                    group.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach((field) => {
+                        const unit = field.closest('label') || field.closest('tr')
+                            || field.closest('li') || field.closest('div') || field.parentElement;
+                        if (unit && unit !== group) found.add(unit);
+                    });
+
+                    const units = Array.from(found).map((el) => ({
+                        el,
+                        text: [
+                            el.textContent,
+                            ...Array.from(el.querySelectorAll('input, select, textarea')).map((f) => f.name + ' ' + f.placeholder),
+                            ...Array.from(el.querySelectorAll('option')).map((o) => o.textContent),
+                        ].join(' ').toLowerCase().replace(/\s+/g, ' ').trim(),
+                        children: [],
+                        leaf: true,
+                        show: true,
+                        depth: depthOf(el),
+                    }));
+
+                    const byEl = new Map(units.map((unit) => [unit.el, unit]));
+                    units.forEach((unit) => {
+                        let parent = unit.el.parentElement;
+                        while (parent && parent !== group) {
+                            if (byEl.has(parent)) {
+                                byEl.get(parent).children.push(unit);
+                                byEl.get(parent).leaf = false;
+                                break;
+                            }
+                            parent = parent.parentElement;
+                        }
+                    });
+
+                    units.sort((a, b) => b.depth - a.depth);
+
+                    return {
+                        group,
+                        units,
+                        leafCount: units.filter((unit) => unit.leaf).length,
+                        text: (heading ? heading.textContent + ' ' + group.id.replace('group-', '') : group.id).toLowerCase(),
+                    };
+                });
+
+            const totalLeaves = sections.reduce((sum, section) => sum + section.leafCount, 0);
+
+            function apply(rawQuery) {
+                const query = rawQuery.trim().toLowerCase();
+
+                if (query === '') {
+                    sections.forEach((section) => {
+                        section.group.style.removeProperty('display');
+                        section.units.forEach((unit) => unit.el.style.removeProperty('display'));
+                    });
+                    chips.forEach((chip) => chip.style.removeProperty('display'));
+                    counter.textContent = '';
+                    empty.classList.add('hidden');
+                    clear.classList.add('hidden');
+                    clear.classList.remove('flex');
+                    document.dispatchEvent(new CustomEvent('admin-settings-filtered'));
+                    return;
+                }
+
+                let visible = 0;
+
+                sections.forEach((section) => {
+                    const sectionMatched = section.text.includes(query);
+
+                    section.units.forEach((unit) => {
+                        unit.show = sectionMatched
+                            || unit.text.includes(query)
+                            || unit.children.some((child) => child.show);
+                        unit.el.style.display = unit.show ? '' : 'none';
+                        if (unit.leaf && unit.show) visible++;
+                    });
+
+                    const shown = section.units.some((unit) => unit.show)
+                        || (section.units.length === 0 && sectionMatched);
+                    section.group.style.display = shown ? '' : 'none';
+
+                    const chip = chips.find((link) => link.getAttribute('href') === '#' + section.group.id);
+                    if (chip) chip.style.display = shown ? '' : 'none';
+                });
+
+                counter.textContent = visible + ' of ' + totalLeaves;
+                empty.classList.toggle('hidden', visible !== 0);
+                clear.classList.remove('hidden');
+                clear.classList.add('flex');
+                document.dispatchEvent(new CustomEvent('admin-settings-filtered'));
             }
 
-            if (logoInput) {
-                logoInput.addEventListener('change', () => updatePreview(logoInput, logoPreview, logoPlaceholder));
-            }
-            if (faviconInput) {
-                faviconInput.addEventListener('change', () => updatePreview(faviconInput, faviconPreview, faviconPlaceholder));
-            }
-
+            search.addEventListener('input', () => apply(search.value));
+            clear.addEventListener('click', () => {
+                search.value = '';
+                apply('');
+                search.focus();
+            });
+            search.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    search.value = '';
+                    apply('');
+                }
+            });
         })();
     </script>
 </x-app-layout>

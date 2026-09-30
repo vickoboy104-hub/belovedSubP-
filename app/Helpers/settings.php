@@ -108,6 +108,54 @@ if (!function_exists('site_theme')) {
     }
 }
 
+if (!function_exists('logo_asset_url')) {
+    // Settings store whatever the admin typed or uploaded, so every logo URL is
+    // normalised the same way: absolute stays, relative gets the app origin.
+    function logo_asset_url(string $key, string $fallbackKey = '', string $default = ''): string
+    {
+        $raw = trim((string) setting($key, setting($fallbackKey, '')));
+
+        if ($raw === '') {
+            return $default;
+        }
+
+        if (str_starts_with($raw, 'http://') || str_starts_with($raw, 'https://') || str_starts_with($raw, '/')) {
+            return $raw;
+        }
+
+        return asset($raw);
+    }
+}
+
+if (!function_exists('site_logo_url')) {
+    function site_logo_url(): string
+    {
+        return logo_asset_url('logo_url', 'site_logo', asset('images/logo.png'));
+    }
+}
+
+if (!function_exists('site_login_logo_url')) {
+    // Login, register and the public pages. Falls back to the site logo so an
+    // admin who only uploaded one logo still gets it everywhere it belongs.
+    function site_login_logo_url(): string
+    {
+        return logo_asset_url('login_logo_url') !== ''
+            ? logo_asset_url('login_logo_url')
+            : site_logo_url();
+    }
+}
+
+if (!function_exists('site_loader_logo_url')) {
+    // The boot splash and the page-transition loader. This deliberately never
+    // falls back to the site logo: the loading mark is its own square asset.
+    function site_loader_logo_url(): string
+    {
+        return logo_asset_url('loader_logo_url') !== ''
+            ? logo_asset_url('loader_logo_url')
+            : asset('images/logo-mark.webp');
+    }
+}
+
 if (!function_exists('sanitize_popup_message_html')) {
     function sanitize_popup_message_html(?string $html): string
     {

@@ -7,22 +7,15 @@
 
     @php
         $siteName = site_name();
-        $siteLogo = setting('logo_url', setting('site_logo', ''));
         $siteFavicon = setting('favicon_url', setting('site_favicon', ''));
         $whatsApp = whatsapp_link();
         $authUser = auth()->user();
         $walletKobo = (int) ($authUser?->wallet->balance ?? 0);
 
-        $logoUrl = trim((string) $siteLogo);
-        if ($logoUrl === '') {
-            $logoUrl = asset('images/logo.png');
-        } elseif (!str_starts_with($logoUrl, 'http://') && !str_starts_with($logoUrl, 'https://') && !str_starts_with($logoUrl, '/')) {
-            $logoUrl = asset($logoUrl);
-        }
-
-        // The splash and the page loader paint before anything else, so they use the
-        // 20 KB square mark unless the admin has uploaded a logo of their own.
-        $brandMark = trim((string) $siteLogo) !== '' ? $logoUrl : asset('images/logo-mark.webp');
+        // Signed-in pages wear the site logo; the splash and page loader always
+        // wear the separate square mark the admin uploads for them.
+        $logoUrl = site_logo_url();
+        $brandMark = site_loader_logo_url();
 
         $pageTitle = match (true) {
             request()->routeIs('vtu.nin*') => 'Verify NIN',
@@ -261,6 +254,10 @@
                 {{ $slot }}
             </div>
         </main>
+
+        @if(request()->routeIs('admin.*') && ($authUser?->is_admin ?? false))
+            <x-admin-quick-nav />
+        @endif
 
         <x-whatsapp-support :href="$whatsApp" />
 
