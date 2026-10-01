@@ -16,18 +16,18 @@
                         $isUnread = is_null($notification->read_at);
                         $data = $notification->data ?? [];
                     @endphp
-                    <article class="rounded-[22px] border p-4 {{ $isUnread ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-slate-50' }}">
+                    <article class="app-note-card {{ $isUnread ? 'is-unread' : '' }}">
                         <div class="flex items-start justify-between gap-3">
                             <div class="font-bold text-sm text-slate-900">{{ $data['title'] ?? 'Notification' }}</div>
                             @if($isUnread)
-                                <span class="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-bold text-slate-900">Unread</span>
+                                <span class="app-flag app-flag-unread">Unread</span>
                             @endif
                         </div>
                         <div class="mt-2 text-sm leading-6 text-slate-600">{{ $data['message'] ?? '' }}</div>
-                        <div class="mt-2 text-xs text-slate-400">{{ optional($notification->created_at)->format('d M Y, h:ia') }}</div>
+                        <div class="mt-2 text-xs opacity-70">{{ optional($notification->created_at)->format('d M Y, h:ia') }}</div>
                     </article>
                 @empty
-                    <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No notifications yet.</div>
+                    <div class="app-note-card text-sm opacity-70">No notifications yet.</div>
                 @endforelse
             </div>
 

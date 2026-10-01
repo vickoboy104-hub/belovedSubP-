@@ -96,17 +96,19 @@
                             <form method="POST" action="{{ route('admin.users.admin', $u) }}">
                                 @csrf
                                 <input type="hidden" name="is_admin" value="{{ $u->is_admin ? '0' : '1' }}">
-                                <button class="btn-primary w-full justify-center {{ $u->is_admin ? '!bg-rose-600 hover:!bg-rose-700' : '!bg-blue-600 hover:!bg-blue-700' }}"
+                                <button class="{{ $u->is_admin ? 'btn-danger' : 'btn-primary' }} w-full justify-center"
                                         @disabled($u->id === auth()->id())>
                                     {{ $u->is_admin ? 'Remove Admin' : 'Make Admin' }}
                                 </button>
                             </form>
 
                             <form method="POST"
+                                  id="resetPasswordForm-{{ $u->id }}"
                                   action="{{ route('admin.users.reset-password', $u) }}"
-                                  onsubmit="return confirm('Generate a new temporary password for this user?');">
+                                  data-confirm-sheet="confirmTempPassword"
+                                  data-confirm-details='{"Action":"Generate a temporary password","Effect":"This user must set a new one at the next sign-in."}'>
                                 @csrf
-                                <button class="btn-primary w-full justify-center !bg-amber-600 hover:!bg-amber-700">
+                                <button class="btn-outline w-full justify-center">
                                     Generate Temp Password
                                 </button>
                             </form>
@@ -119,7 +121,7 @@
                                 <input type="text" name="note"
                                        placeholder="Reason (optional)"
                                        class="input-field">
-                                <button class="btn-primary w-full justify-center !bg-emerald-600 hover:!bg-emerald-700">
+                                <button class="btn-primary w-full justify-center">
                                     Fund Wallet
                                 </button>
                             </form>
@@ -223,17 +225,19 @@
                                             <form method="POST" action="{{ route('admin.users.admin', $u) }}">
                                                 @csrf
                                                 <input type="hidden" name="is_admin" value="{{ $u->is_admin ? '0' : '1' }}">
-                                                <button class="flex min-h-10 w-full items-center justify-center rounded-xl px-3 py-2 text-xs font-bold text-white {{ $u->is_admin ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700' }}"
+                                                <button class="{{ $u->is_admin ? 'btn-danger' : 'btn-primary' }} w-full justify-center px-3 py-2 text-xs"
                                                         @disabled($u->id === auth()->id())>
                                                     {{ $u->is_admin ? 'Remove Admin' : 'Make Admin' }}
                                                 </button>
                                             </form>
 
                                             <form method="POST"
+                                                  id="resetPasswordTableForm-{{ $u->id }}"
                                                   action="{{ route('admin.users.reset-password', $u) }}"
-                                                  onsubmit="return confirm('Generate a new temporary password for this user?');">
+                                                  data-confirm-sheet="confirmTempPassword"
+                                                  data-confirm-details='{"Action":"Generate a temporary password","Effect":"This user must set a new one at the next sign-in."}'>
                                                 @csrf
-                                                <button class="flex min-h-10 w-full items-center justify-center rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700">
+                                                <button class="btn-outline w-full justify-center px-3 py-2 text-xs">
                                                     Generate Temp Password
                                                 </button>
                                             </form>
@@ -246,7 +250,7 @@
                                                 <input type="text" name="note"
                                                        placeholder="Reason (optional)"
                                                        class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900">
-                                                <button class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">
+                                                <button class="btn-primary px-3 py-2 text-xs">
                                                     Fund Wallet
                                                 </button>
                                             </form>
@@ -268,4 +272,6 @@
             </div>
         </section>
     </div>
+
+    <x-confirm-modal id="confirmTempPassword" title="Confirm Password Reset" confirmText="Generate Password" />
 </x-app-layout>

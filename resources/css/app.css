@@ -158,10 +158,8 @@ button {
     max-height: min(82vh, 620px);
     overflow: auto;
     border-radius: 22px;
-    border: 1px solid rgba(222, 229, 238, 0.16);
-    background:
-        radial-gradient(circle at top right, rgba(189, 89, 14, 0.14), transparent 30%),
-        linear-gradient(180deg, rgba(248, 251, 255, 0.98) 0%, rgba(231, 238, 231, 0.98) 100%);
+    border: 1px solid var(--brand-line);
+    background: linear-gradient(180deg, var(--surface-soft) 0%, var(--surface-base) 100%);
     color: var(--brand-text);
     box-shadow: 0 24px 60px rgba(18, 31, 56, 0.26);
     animation: appModalPanelIn 220ms cubic-bezier(.2, .8, .2, 1) both;
@@ -171,6 +169,170 @@ button {
     max-width: 25.5rem;
 }
 
+/* One unread/critical language for notification lists and the admin dashboard,
+   so an unread item stops being a random amber box. */
+.app-note-card {
+    border: 1px solid var(--brand-line);
+    border-radius: 22px;
+    background: var(--surface-card);
+    color: var(--brand-text);
+    padding: 1rem;
+}
+
+.app-note-card.is-unread {
+    border-color: var(--brand-accent);
+    background: var(--surface-soft);
+    box-shadow: inset 3px 0 0 var(--brand-accent);
+}
+
+.app-note-card.is-critical {
+    border-color: #e6b3b3;
+    background: #fdf3f3;
+    box-shadow: inset 3px 0 0 #b42318;
+}
+
+.app-flag {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.28rem 0.7rem;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.app-flag-unread {
+    background: var(--surface-muted);
+    color: var(--brand-navy);
+}
+
+.app-flag-critical {
+    background: #fbe2e2;
+    color: #9b1c1c;
+}
+
+/* Result tone inside a flash popup. Kept as a class rather than Tailwind
+   utilities so the Blade flash and the JS flash share one definition. */
+.app-flag-tone-success {
+    border-color: #bfe3cd;
+    background: #f1faf4;
+    color: #145c33;
+}
+
+.app-flag-tone-error {
+    border-color: #f0c4c4;
+    background: #fdf2f2;
+    color: #961c1c;
+}
+
+html[data-theme="ember"] .app-flag-tone-success { border-color: #c6dcbd; background: #f3f8ee; color: #3f6320; }
+html[data-theme="ember"] .app-flag-tone-error { border-color: #e3b8ac; background: #fdf1ec; color: #9c2b14; }
+
+/* Result icon chip. Class-driven because JS swaps it at runtime, and an inline
+   style would outrank the tone classes it is meant to pick up. */
+.app-result-icon {
+    border-color: var(--brand-line);
+    color: var(--brand-muted);
+}
+
+.app-result-icon.is-success {
+    border-color: #bfe3cd;
+    background: #f1faf4;
+    color: #145c33;
+}
+
+.app-result-icon.is-error {
+    border-color: #f0c4c4;
+    background: #fdf2f2;
+    color: #961c1c;
+}
+
+/* Transaction confirm sheet. Its rows are injected by JS, so every colour it
+   needs has to live in a class rather than in Tailwind utilities. */
+.app-confirm-modal {
+    max-width: 30rem;
+}
+
+.app-confirm-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border: 1px solid var(--brand-line);
+    background: var(--surface-soft);
+    padding: 0.4rem 1rem;
+}
+
+.app-confirm-row + .app-confirm-row {
+    border-top-width: 0;
+}
+
+.app-confirm-row:first-child {
+    border-radius: 14px 14px 0 0;
+}
+
+.app-confirm-row:last-child {
+    border-radius: 0 0 14px 14px;
+}
+
+.app-confirm-row:only-child {
+    border-radius: 14px;
+}
+
+.app-confirm-key {
+    font-size: 0.82rem;
+    text-transform: capitalize;
+    color: var(--brand-muted);
+}
+
+.app-confirm-value {
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-align: right;
+    color: var(--brand-text);
+    overflow-wrap: anywhere;
+}
+
+.app-confirm-empty {
+    border: 1px solid var(--brand-line);
+    border-radius: 14px;
+    background: var(--surface-soft);
+    padding: 0.4rem 1rem;
+    font-size: 0.82rem;
+    color: var(--brand-muted);
+}
+
+.app-confirm-balance {
+    border: 1px solid var(--brand-line);
+    border-radius: 16px;
+    background: var(--surface-muted);
+    padding: 0.5rem 0.75rem;
+}
+
+.app-confirm-balance-pill {
+    border-radius: 999px;
+    background: var(--surface-card);
+    padding: 0.25rem 0.5rem;
+}
+
+.app-confirm-help {
+    font-size: 0.78rem;
+    color: var(--brand-muted);
+}
+
+.app-support-link {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--brand-accent);
+    transition: color 0.2s ease;
+}
+
+.app-support-link:hover {
+    color: var(--brand-navy);
+}
+
 .app-modal-close {
     display: inline-flex;
     height: 2.25rem;
@@ -178,16 +340,16 @@ button {
     align-items: center;
     justify-content: center;
     border-radius: 14px;
-    border: 1px solid rgba(222, 229, 238, 0.16);
-    background: rgba(248, 251, 255, 0.86);
-    color: #1e293b;
+    border: 1px solid var(--brand-line);
+    background: var(--surface-card);
+    color: var(--brand-text);
     font-size: 1.25rem;
     font-weight: 800;
     line-height: 1;
 }
 
 .app-modal-close:hover {
-    background: #ffffff;
+    background: var(--surface-muted);
     color: var(--brand-navy);
     transform: translateY(-1px);
 }
@@ -215,25 +377,38 @@ button {
 }
 
 .app-modal-btn-muted {
-    border: 1px solid rgba(222, 229, 238, 0.16);
-    background: rgba(248, 251, 255, 0.78);
-    color: #334155;
+    border: 1px solid var(--brand-line);
+    background: var(--surface-card);
+    color: var(--brand-muted);
 }
 
 .app-modal-btn-muted:hover {
-    background: #ffffff;
+    background: var(--surface-muted);
     color: var(--brand-navy);
 }
 
 .app-modal-btn-warm {
-    background: #a85d1f;
+    background: var(--brand-accent);
     color: #ffffff !important;
 }
 
 .app-modal-btn-warm:hover {
-    background: #8f4d19;
+    background: var(--brand-navy);
 }
 
+/* The main confirm action. Mirrors .btn-primary so a modal never disagrees
+   with the page behind it about what "go" looks like. */
+.app-modal-btn-primary {
+    background: var(--brand-navy);
+    color: #ffffff !important;
+}
+
+.app-modal-btn-primary:hover {
+    background: var(--brand-accent);
+}
+
+/* Reserved for genuine WhatsApp hand-off, not for a generic "continue".
+   Kept deep green on purpose: the brighter brand green fails contrast with white text. */
 .app-modal-btn-success {
     background: #187242;
     color: #ffffff !important;
@@ -241,6 +416,18 @@ button {
 
 .app-modal-btn-success:hover {
     background: #125c35;
+}
+
+/* Destructive / high-impact confirmation. Exists as a class because these
+   buttons used to bolt bg-rose-600 onto .btn-primary, and the ember theme's
+   !important gradient silently repainted them blue-orange. */
+.app-modal-btn-danger {
+    background: #b42318;
+    color: #ffffff !important;
+}
+
+.app-modal-btn-danger:hover {
+    background: #8f1c13;
 }
 
 .amount-fit,
@@ -507,6 +694,23 @@ button {
     .btn-primary:hover {
         background: #b45012;
         box-shadow: 0 10px 22px rgba(17, 45, 87, .2);
+        transform: translateY(-2px);
+    }
+
+    /* Destructive page-level action. These buttons used to paste bg-rose-600 onto
+       .btn-primary, which only looked right in the navy theme: the ember skin's
+       !important gradient sits outside the layers and overwrote the colour.
+       Deliberately red in both themes: danger must not be themable. */
+    .btn-danger {
+        @apply inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-bold text-white;
+        background: #b42318;
+        box-shadow: 0 6px 15px rgba(128, 24, 18, .18);
+        transition: transform .25s ease, background-color .25s ease, box-shadow .25s ease;
+    }
+
+    .btn-danger:hover {
+        background: #8f1c13;
+        box-shadow: 0 10px 22px rgba(128, 24, 18, .22);
         transform: translateY(-2px);
     }
 
@@ -1090,11 +1294,18 @@ button {
     color: #9aa7bc !important;
 }
 
+/* Leftover-theme remaps paint any button that sits inside a light surface dark.
+   Component buttons have to answer with !important or the surface wins. */
 .btn-primary,
 .btn-primary:hover,
 .btn-primary:focus,
 .btn-primary:active,
-.btn-primary * {
+.btn-danger,
+.btn-danger:hover,
+.btn-danger:focus,
+.btn-danger:active,
+.btn-primary *,
+.btn-danger * {
     color: #ffffff !important;
 }
 
@@ -1752,12 +1963,14 @@ input[class*="bg-black/"]::placeholder, textarea[class*="bg-black/"]::placeholde
     .reference-auth-page .app-form-shell { padding: 1.3rem; }
 }
 /* Shared customer actions and support control. */
-.btn-primary:focus-visible, .reference-full-button:focus-visible,
+.btn-primary:focus-visible, .btn-danger:focus-visible,
+.reference-full-button:focus-visible,
 .reference-whatsapp:focus-visible, .reference-nav-link:focus-visible {
     outline: 3px solid #c46617;
     outline-offset: 3px;
 }
-.btn-primary:disabled, .btn-primary[aria-disabled="true"] {
+.btn-primary:disabled, .btn-primary[aria-disabled="true"],
+.btn-danger:disabled, .btn-danger[aria-disabled="true"] {
     cursor: not-allowed;
     opacity: .55;
     transform: none;
@@ -1994,6 +2207,7 @@ html.motion-ready [data-motion="reveal"].is-revealed { opacity: 1; transform: no
 
 /* Tap targets answer the press on phones, where there is no hover to give feedback. */
 .btn-primary,
+.btn-danger,
 .reference-full-button,
 .reference-quiet-button,
 .reference-hero-action,
@@ -2005,6 +2219,7 @@ html.motion-ready [data-motion="reveal"].is-revealed { opacity: 1; transform: no
 .reference-menu-toggle { transition: transform .16s cubic-bezier(.22, .61, .36, 1), box-shadow .2s ease, background-color .18s ease, color .18s ease; }
 
 .btn-primary:active,
+.btn-danger:active,
 .reference-full-button:active,
 .reference-quiet-button:active,
 .reference-hero-action:active,
@@ -2308,3 +2523,19 @@ html[data-theme="ember"] .admin-quick-nav-close { border-color: var(--brand-line
 html[data-theme="ember"] .admin-quick-nav-link { border-color: var(--brand-line); background: white; color: var(--brand-navy); }
 html[data-theme="ember"] .admin-quick-nav-link:hover { background: var(--surface-muted); }
 html[data-theme="ember"] .admin-quick-nav-link.is-active { border-color: transparent; color: white; }
+
+/* Popups follow the active skin. Without these a modal stays cool-white while the
+   whole page around it has gone warm. */
+html[data-theme="ember"] .app-modal-overlay { background: rgba(38, 26, 16, 0.55); }
+html[data-theme="ember"] .app-modal-panel {
+    background:
+        radial-gradient(circle at top right, rgba(194, 92, 15, 0.16), transparent 32%),
+        linear-gradient(180deg, var(--surface-soft) 0%, var(--surface-base) 100%);
+}
+html[data-theme="ember"] .app-modal-btn { box-shadow: 0 10px 20px rgba(88, 52, 18, 0.12); }
+html[data-theme="ember"] .app-modal-btn-warm,
+html[data-theme="ember"] .app-modal-btn-primary { background: var(--ember-button); }
+html[data-theme="ember"] .app-modal-btn-warm:hover,
+html[data-theme="ember"] .app-modal-btn-primary:hover { background: var(--ember-button-quiet); }
+html[data-theme="ember"] .app-modal-btn-muted,
+html[data-theme="ember"] .app-modal-close { background: var(--surface-card); }

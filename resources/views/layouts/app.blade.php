@@ -226,11 +226,11 @@
                 <div id="transactionResultOverlay" class="app-modal-overlay fixed inset-0 z-[96] hidden items-center justify-center px-4">
                     <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
                         <div class="p-5 text-center">
-                            <div id="transactionResultIconWrap" class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200">
+                            <div id="transactionResultIconWrap" class="app-result-icon mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border">
                                 <div id="transactionResultIcon"></div>
                             </div>
-                            <div id="transactionResultTitle" class="mt-3 text-xl font-extrabold text-slate-950">Status</div>
-                            <div id="transactionResultMessage" class="mt-2 text-sm leading-6 text-slate-700">Message</div>
+                            <div id="transactionResultTitle" class="mt-3 text-xl font-extrabold">Status</div>
+                            <div id="transactionResultMessage" class="mt-2 text-sm leading-6 opacity-80">Message</div>
                             <div class="mt-5 flex items-center justify-center">
                                 <button type="button" id="transactionResultOk" class="app-modal-btn app-modal-btn-warm min-w-[112px]">Okay</button>
                             </div>
@@ -241,11 +241,11 @@
                 <div id="transactionContinueOverlay" class="app-modal-overlay fixed inset-0 z-[95] hidden items-center justify-center px-4">
                     <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
                         <div class="p-5 text-center">
-                            <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-extrabold uppercase tracking-wide text-emerald-800">
+                            <div class="app-flag-tone-success rounded-2xl border px-4 py-3 text-sm font-extrabold uppercase tracking-wide">
                                 Transaction Successful
                             </div>
                             <div class="mt-4 flex items-center justify-center">
-                                <button type="button" id="transactionContinueBtn" class="app-modal-btn app-modal-btn-success min-w-[132px]">Continue</button>
+                                <button type="button" id="transactionContinueBtn" class="app-modal-btn app-modal-btn-primary min-w-[132px]">Continue</button>
                             </div>
                         </div>
                     </div>
@@ -285,20 +285,20 @@
 
             const wrap = document.createElement('div');
             wrap.id = 'flashToast';
-            wrap.className = 'app-modal-overlay fixed inset-0 z-[85] flex items-center justify-center px-4';
+            wrap.className = 'app-modal-overlay fixed inset-0 z-[99] flex items-center justify-center px-4';
             wrap.innerHTML = `
                 <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
                     <div class="p-5">
                         <div class="flex items-start justify-between gap-3">
                             <div>
-                                <div class="text-lg font-extrabold text-slate-950">${ok ? 'Success' : 'Failed'}</div>
-                                <div class="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-slate-600">Transaction status</div>
+                                <div class="text-lg font-extrabold">${ok ? 'Success' : 'Failed'}</div>
+                                <div class="mt-1 text-xs font-bold uppercase tracking-[0.14em] opacity-70">Transaction status</div>
                             </div>
-                            <button type="button" onclick="closeFlashToast()" class="app-modal-close">
+                            <button type="button" onclick="closeFlashToast()" class="app-modal-close" aria-label="Close">
                                 &times;
                             </button>
                         </div>
-                        <div class="mt-4 rounded-2xl border ${ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'} p-4 text-sm font-semibold leading-6">
+                        <div class="mt-4 rounded-2xl border ${ok ? 'app-flag-tone-success' : 'app-flag-tone-error'} p-4 text-sm font-semibold leading-6">
                             ${safeMessage}
                         </div>
                         <div class="mt-5 flex items-center justify-end">
@@ -360,7 +360,7 @@
             if (msgEl) msgEl.textContent = message;
 
             if (iconWrap) {
-                iconWrap.className = 'mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border ' + (ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700');
+                iconWrap.className = 'app-result-icon mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border ' + (ok ? 'is-success' : 'is-error');
             }
 
             if (iconEl) {

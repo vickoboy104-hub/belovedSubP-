@@ -12,14 +12,14 @@
 
     <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
         @if($criticalAdminNotification)
-            <section class="rounded-3xl border border-rose-200 bg-rose-50 p-5 shadow-[0_18px_48px_rgba(190,24,93,0.12)]">
+            <section class="app-note-card is-critical">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <div class="text-sm font-extrabold uppercase tracking-[0.18em] text-rose-700">Urgent Admin Warning</div>
-                        <div class="mt-2 text-xl font-extrabold text-rose-900">{{ $criticalAdminNotification->data['title'] ?? 'Critical alert' }}</div>
-                        <div class="mt-2 text-sm text-rose-800">{{ $criticalAdminNotification->data['message'] ?? '' }}</div>
+                        <span class="app-flag app-flag-critical">Urgent Admin Warning</span>
+                        <div class="mt-2 text-xl font-extrabold">{{ $criticalAdminNotification->data['title'] ?? 'Critical alert' }}</div>
+                        <div class="mt-2 text-sm opacity-80">{{ $criticalAdminNotification->data['message'] ?? '' }}</div>
                     </div>
-                    <a href="{{ route('admin.notifications.index') }}" class="btn-primary justify-center bg-rose-600 hover:bg-rose-700">Open Alerts</a>
+                    <a href="{{ route('admin.notifications.index') }}" class="btn-danger shrink-0">Open Alerts</a>
                 </div>
             </section>
         @endif
@@ -64,22 +64,22 @@
                 <form method="POST" action="{{ route('admin.metrics.reset') }}">
                     @csrf
                     <input type="hidden" name="metric" value="funding">
-                    <button class="w-full rounded-xl bg-rose-600 px-3 py-3 text-sm font-bold text-white hover:bg-rose-700">Reset Funding Total</button>
+                    <button class="btn-danger w-full">Reset Funding Total</button>
                 </form>
                 <form method="POST" action="{{ route('admin.metrics.reset') }}">
                     @csrf
                     <input type="hidden" name="metric" value="purchases">
-                    <button class="w-full rounded-xl bg-rose-600 px-3 py-3 text-sm font-bold text-white hover:bg-rose-700">Reset Purchases Total</button>
+                    <button class="btn-danger w-full">Reset Purchases Total</button>
                 </form>
                 <form method="POST" action="{{ route('admin.metrics.reset') }}">
                     @csrf
                     <input type="hidden" name="metric" value="profit">
-                    <button class="w-full rounded-xl bg-rose-600 px-3 py-3 text-sm font-bold text-white hover:bg-rose-700">Reset Profit Total</button>
+                    <button class="btn-danger w-full">Reset Profit Total</button>
                 </form>
                 <form method="POST" action="{{ route('admin.metrics.reset') }}">
                     @csrf
                     <input type="hidden" name="metric" value="all">
-                    <button class="w-full rounded-xl bg-rose-700 px-3 py-3 text-sm font-extrabold text-white hover:bg-rose-800">Reset All Totals</button>
+                    <button class="btn-danger w-full">Reset All Totals</button>
                 </form>
             </div>
         </section>
@@ -117,23 +117,22 @@
             </button>
         </section>
 
-        <div id="websiteEditorWarningOverlay" class="fixed inset-0 z-[92] hidden items-center justify-center px-4">
-            <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
-            <div class="relative w-full max-w-lg rounded-2xl border border-rose-200 bg-white shadow-2xl overflow-hidden">
+        <div id="websiteEditorWarningOverlay" class="app-modal-overlay fixed inset-0 z-[92] hidden items-center justify-center px-4">
+            <div class="app-modal-panel relative w-full overflow-hidden">
                 <div class="p-6">
-                    <div class="text-rose-700 font-extrabold text-xl">Warning: High Impact Area</div>
-                    <p class="text-rose-800 text-sm mt-3">
+                    <span class="app-flag app-flag-critical">High Impact Area</span>
+                    <p class="app-flag-tone-error mt-3 rounded-2xl border px-4 py-3 text-sm leading-6">
                         Any change in Website Editor affects the live website immediately.
                         Do not continue unless you are sure.
                     </p>
-                    <div class="mt-6 flex flex-wrap justify-end gap-3">
+                    <div class="mt-6 app-modal-actions">
                         <button type="button"
                                 id="closeWebsiteEditorWarning"
-                                class="reference-quiet-button">
+                                class="app-modal-btn app-modal-btn-muted">
                             Cancel
                         </button>
                         <a href="{{ route('admin.website-editor') }}"
-                           class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold">
+                           class="app-modal-btn app-modal-btn-danger">
                             I Understand, Continue
                         </a>
                     </div>
@@ -164,19 +163,19 @@
                         $severity = (string) ($data['severity'] ?? 'info');
                         $isCritical = $severity === 'critical';
                     @endphp
-                    <div class="rounded-2xl border {{ $isCritical ? 'border-rose-200 bg-rose-50' : ($isUnread ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-slate-50') }} p-4">
+                    <div class="app-note-card {{ $isCritical ? 'is-critical' : ($isUnread ? 'is-unread' : '') }}">
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <div class="font-bold text-slate-900">{{ $data['title'] ?? 'Notification' }}</div>
-                                <div class="text-sm {{ $isCritical ? 'text-rose-800' : 'text-slate-600' }} mt-1">{{ $data['message'] ?? '' }}</div>
-                                <div class="text-xs text-slate-400 mt-2">{{ optional($notification->created_at)->format('d M Y, h:ia') }}</div>
+                                <div class="text-sm opacity-80 mt-1">{{ $data['message'] ?? '' }}</div>
+                                <div class="text-xs opacity-70 mt-2">{{ optional($notification->created_at)->format('d M Y, h:ia') }}</div>
                             </div>
                             <div class="flex flex-col items-end gap-2">
                                 @if($isCritical)
-                                    <span class="rounded-full bg-rose-100 px-2 py-1 text-xs font-bold text-rose-700">Critical</span>
+                                    <span class="app-flag app-flag-critical">Critical</span>
                                 @endif
                                 @if($isUnread)
-                                    <span class="px-2 py-1 rounded-full text-xs font-bold {{ $isCritical ? 'bg-rose-200 text-rose-900' : 'bg-orange-100 text-slate-900' }}">Unread</span>
+                                    <span class="app-flag {{ $isCritical ? 'app-flag-critical' : 'app-flag-unread' }}">Unread</span>
                                 @endif
                             </div>
                         </div>
@@ -297,18 +296,17 @@
     </div>
 
     @if($criticalAdminNotification)
-        <div id="adminCriticalAlertOverlay" class="fixed inset-0 z-[110] hidden items-center justify-center px-4">
-            <div class="absolute inset-0 bg-black/65 backdrop-blur-sm"></div>
-            <div class="relative w-full max-w-lg overflow-hidden rounded-3xl border border-rose-200 bg-white shadow-[0_24px_60px_rgba(159,18,57,0.22)]">
+        <div id="adminCriticalAlertOverlay" class="app-modal-overlay fixed inset-0 z-[110] hidden items-center justify-center px-4">
+            <div class="app-modal-panel relative w-full overflow-hidden">
                 <div class="p-6">
-                    <div class="text-sm font-extrabold uppercase tracking-[0.18em] text-rose-700">Critical Alert</div>
-                    <div class="mt-3 text-2xl font-extrabold text-slate-900">{{ $criticalAdminNotification->data['title'] ?? 'Critical alert' }}</div>
-                    <div class="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm leading-6 text-rose-800">
+                    <span class="app-flag app-flag-critical">Critical Alert</span>
+                    <div class="mt-3 text-2xl font-extrabold">{{ $criticalAdminNotification->data['title'] ?? 'Critical alert' }}</div>
+                    <div class="app-flag-tone-error mt-3 rounded-2xl border px-4 py-4 text-sm leading-6">
                         {{ $criticalAdminNotification->data['message'] ?? '' }}
                     </div>
-                    <div class="mt-6 flex flex-wrap justify-end gap-3">
-                        <button type="button" id="dismissAdminCriticalAlert" class="btn-outline">Close</button>
-                        <a href="{{ route('admin.notifications.index') }}" class="btn-primary justify-center bg-rose-600 hover:bg-rose-700">View Notifications</a>
+                    <div class="mt-6 app-modal-actions">
+                        <button type="button" id="dismissAdminCriticalAlert" class="app-modal-btn app-modal-btn-muted">Close</button>
+                        <a href="{{ route('admin.notifications.index') }}" class="app-modal-btn app-modal-btn-danger">View Notifications</a>
                     </div>
                 </div>
             </div>

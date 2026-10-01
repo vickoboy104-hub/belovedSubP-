@@ -28,23 +28,23 @@
 
 @if($showOverlay)
     <div id="maintenanceOverlay"
-         class="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+         class="app-modal-overlay fixed inset-0 z-[9999] flex items-center justify-center p-4"
          role="dialog"
          aria-live="polite"
          aria-modal="true">
-        <div class="w-full max-w-md rounded-3xl border border-white/20 bg-white text-gray-900 shadow-2xl overflow-hidden">
+        <div class="app-modal-panel overflow-hidden">
             <div class="p-6 sm:p-7">
                 <div class="text-xl sm:text-2xl font-extrabold">Update In Progress</div>
-                <p class="mt-2 text-sm sm:text-base text-gray-700">
+                <p class="mt-2 text-sm sm:text-base opacity-80">
                     {{ $overlayMessage !== '' ? $overlayMessage : 'We are currently running an update. Please hold on while we finish.' }}
                 </p>
 
-                <div class="mt-5 rounded-2xl border border-green-200 bg-green-50 p-4">
-                    <div class="text-xs uppercase tracking-wide text-green-700 font-bold">Estimated Time Remaining</div>
-                    <div id="maintenanceCountdown" class="mt-1 text-3xl sm:text-4xl font-black text-green-900" data-end-at="{{ $overlayEndIso }}">
+                <div class="app-soft-panel mt-5 rounded-2xl border p-4">
+                    <div class="text-xs font-bold uppercase tracking-wide opacity-70">Estimated Time Remaining</div>
+                    <div id="maintenanceCountdown" class="mt-1 text-3xl sm:text-4xl font-black" data-end-at="{{ $overlayEndIso }}">
                         --:--
                     </div>
-                    <div id="maintenanceCountdownLabel" class="mt-1 text-xs text-green-800">
+                    <div id="maintenanceCountdownLabel" class="mt-1 text-xs opacity-70">
                         Counting down...
                     </div>
                 </div>

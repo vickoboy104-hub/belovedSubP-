@@ -177,14 +177,18 @@
                         <form method="POST" action="{{ route('admin.users.admin', $user) }}">
                             @csrf
                             <input type="hidden" name="is_admin" value="{{ $user->is_admin ? '0' : '1' }}">
-                            <button class="w-full rounded-2xl {{ $user->is_admin ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700' }} px-4 py-3 text-sm font-bold text-white" @disabled($user->id === auth()->id())>
+                            <button class="w-full {{ $user->is_admin ? 'btn-danger' : 'btn-primary' }}" @disabled($user->id === auth()->id())>
                                 {{ $user->is_admin ? 'Remove Admin' : 'Make Admin' }}
                             </button>
                         </form>
 
-                        <form method="POST" action="{{ route('admin.users.reset-password', $user) }}" onsubmit="return confirm('Generate a new temporary password for this user?');">
+                        <form method="POST"
+                              id="resetPasswordForm"
+                              action="{{ route('admin.users.reset-password', $user) }}"
+                              data-confirm-sheet="confirmTempPassword"
+                              data-confirm-details='{"Action":"Generate a temporary password","Effect":"This user must set a new one at the next sign-in."}'>
                             @csrf
-                            <button class="w-full rounded-2xl bg-amber-600 px-4 py-3 text-sm font-bold text-white hover:bg-amber-700">
+                            <button class="btn-outline w-full">
                                 Generate Temp Password
                             </button>
                         </form>
@@ -246,4 +250,6 @@
             </aside>
         </section>
     </div>
+
+    <x-confirm-modal id="confirmTempPassword" title="Confirm Password Reset" confirmText="Generate Password" />
 </x-app-layout>

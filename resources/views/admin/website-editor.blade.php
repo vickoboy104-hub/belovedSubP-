@@ -126,20 +126,23 @@
         </div>
 
         <form method="POST"
+              id="websiteEditorResetForm"
               action="{{ route('admin.website-editor.reset') }}"
-              class="app-section border-rose-200 bg-rose-50 p-6"
-              onsubmit="return confirm('Reset all Website Editor changes to default?');">
+              class="app-note-card is-critical"
+              data-confirm-sheet="confirmWebsiteEditorReset"
+              data-confirm-details='{"Action":"Reset the Website Editor","Effect":"Every customization goes back to its default value."}'>
             @csrf
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h3 class="text-lg font-extrabold text-rose-700">Reset Editor Settings</h3>
-                    <p class="text-sm text-rose-800 mt-1">This removes all customizations made from Website Editor.</p>
+                    <h3 class="text-lg font-extrabold">Reset Editor Settings</h3>
+                    <p class="text-sm opacity-80 mt-1">This removes all customizations made from Website Editor.</p>
                 </div>
-                <button type="submit"
-                        class="px-5 py-3 bg-red-600 hover:bg-red-700 text-white font-extrabold transition">
+                <button type="submit" class="btn-danger">
                     Reset to Default
                 </button>
             </div>
         </form>
+
+        <x-confirm-modal id="confirmWebsiteEditorReset" title="Confirm Reset" confirmText="Reset to Default" />
     </div>
 </x-app-layout>
