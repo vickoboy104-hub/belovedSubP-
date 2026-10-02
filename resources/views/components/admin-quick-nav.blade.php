@@ -6,6 +6,7 @@
         ['label' => 'Wallet Transactions', 'route' => 'admin.wallet.transactions'],
         ['label' => 'Notifications', 'route' => 'admin.notifications.index'],
         ['label' => 'Support Chats', 'route' => 'admin.support.chats'],
+        ['label' => 'Announcements', 'route' => 'admin.broadcast'],
         ['label' => 'Website Editor', 'route' => 'admin.website-editor'],
         ['label' => 'Settings', 'route' => 'admin.settings'],
     ];

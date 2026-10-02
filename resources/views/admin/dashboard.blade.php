@@ -109,6 +109,7 @@
             <a href="{{ route('admin.orders') }}" class="btn-primary justify-center">View Orders</a>
             <a href="{{ route('admin.wallet.transactions') }}" class="btn-outline justify-center">Wallet Transactions</a>
             <a href="{{ route('admin.support.chats') }}" class="btn-outline justify-center">Support Chats</a>
+            <a href="{{ route('admin.broadcast') }}" class="btn-outline justify-center">Announcements</a>
             <a href="{{ route('admin.settings') }}" class="btn-outline justify-center">Settings</a>
             <button type="button"
                     id="openWebsiteEditorWarning"

@@ -191,6 +191,22 @@ button {
     box-shadow: inset 3px 0 0 #b42318;
 }
 
+.app-meter {
+    height: 0.5rem;
+    overflow: hidden;
+    border: 1px solid var(--brand-line);
+    border-radius: 999px;
+    background: var(--surface-muted);
+}
+
+.app-meter-fill {
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--brand-accent);
+    transition: width 0.28s ease;
+}
+
 .app-flag {
     display: inline-flex;
     align-items: center;

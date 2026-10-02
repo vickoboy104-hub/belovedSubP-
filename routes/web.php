@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\WalletTransactionsController;
 use App\Http\Controllers\Admin\SupportChatsController;
+use App\Http\Controllers\Admin\BroadcastController;
 use App\Http\Controllers\FlutterwaveController;
 use App\Http\Controllers\VirtualAccountController;
 use App\Http\Controllers\SupportBotController;
@@ -135,4 +136,7 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::get('/settings', [SettingsController::class, 'edit'])->name('admin.settings');
     Route::post('/settings', [SettingsController::class, 'update'])->name('admin.settings.update');
     Route::post('/settings/provider-prices/sync', [SettingsController::class, 'syncProviderPrices'])->name('admin.settings.provider-prices.sync');
+    Route::get('/broadcast', [BroadcastController::class, 'index'])->name('admin.broadcast');
+    Route::post('/broadcast/send', [BroadcastController::class, 'send'])->name('admin.broadcast.send');
+    Route::get('/broadcast/export', [BroadcastController::class, 'export'])->name('admin.broadcast.export');
 });
