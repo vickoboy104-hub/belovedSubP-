@@ -60,9 +60,10 @@
                                     <option value="{{ $suggestion['phone'] }}">{{ $suggestion['label'] }}</option>
                                 @endforeach
                             </datalist>
-                            <div class="mt-3 flex flex-nowrap gap-2 overflow-x-auto pb-1">
+                            <p class="app-choice-caption mt-3">Recently used numbers</p>
+                            <div class="mt-2 flex flex-nowrap gap-2 overflow-x-auto pb-1">
                                 @foreach(($phoneSuggestions ?? []) as $suggestion)
-                                    <button type="button" class="data-phone-suggestion shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100" data-phone="{{ $suggestion['phone'] }}">
+                                    <button type="button" class="data-phone-suggestion app-choice-chip shrink-0" data-phone="{{ $suggestion['phone'] }}">
                                         {{ $suggestion['phone'] }}
                                     </button>
                                 @endforeach

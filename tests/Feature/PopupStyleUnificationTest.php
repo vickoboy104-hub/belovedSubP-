@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Order;
+use App\Models\Service;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -237,6 +239,62 @@ class PopupStyleUnificationTest extends TestCase
         }
     }
 
+    public function test_the_recently_used_number_row_uses_the_shared_chip_skin(): void
+    {
+        $user = $this->member();
+        $service = Service::create(['slug' => 'mtn', 'name' => 'MTN Airtime']);
+
+        // Suggestions are derived from real past orders, so the chips only exist
+        // when the account has bought with a valid phone number before.
+        foreach ([
+            ['meta' => ['type' => 'airtime'], 'customer_ref' => '08031234567'],
+            ['meta' => ['type' => 'airtime'], 'customer_ref' => '08031234567'],
+            ['meta' => ['type' => 'data'], 'customer_ref' => '08066789012'],
+        ] as $order) {
+            Order::create([
+                'user_id' => $user->id,
+                'service_id' => $service->id,
+                'customer_ref' => $order['customer_ref'],
+                'amount' => 100000,
+                'provider' => 'mock',
+                'status' => 'success',
+                'meta' => $order['meta'],
+            ]);
+        }
+
+        foreach (['/vtu/airtime/mtn', '/vtu/data/mtn_sme'] as $path) {
+            $html = $this->actingAs($user)->get($path)->assertOk()->getContent();
+
+            $this->assertStringContainsString(
+                'app-choice-chip',
+                $html,
+                $path.' number row is not on the shared chip skin.'
+            );
+            $this->assertStringContainsString(
+                'app-choice-caption',
+                $html,
+                $path.' number row has no caption.'
+            );
+            $this->assertStringContainsString('Recently used numbers', $html);
+
+            // The old hand-pasted slate pill skin is retired.
+            $this->assertStringNotContainsString(
+                'phone-suggestion shrink-0 rounded-full border border-slate-200',
+                $html,
+                $path.' still renders the old slate number pills.'
+            );
+        }
+
+        $airtime = $this->actingAs($user)->get('/vtu/airtime/mtn')->assertOk()->getContent();
+
+        $this->assertStringContainsString('Quick amounts', $airtime);
+        $this->assertStringNotContainsString(
+            'airtime-amount-preset rounded-full border border-slate-200',
+            $airtime,
+            'The amount presets still render the old slate pills.'
+        );
+    }
+
     public function test_the_built_stylesheet_carries_the_popup_tokens_and_the_ember_skin(): void
     {
         $css = '';
@@ -253,6 +311,8 @@ class PopupStyleUnificationTest extends TestCase
         $this->assertStringContainsString('.app-modal-btn-primary', $css);
         $this->assertStringContainsString('.app-modal-btn-danger', $css);
         $this->assertStringContainsString('.app-note-card.is-unread', $css);
+        $this->assertStringContainsString('.app-choice-chip', $css);
+        $this->assertStringContainsString('.app-choice-caption', $css);
         $this->assertStringContainsString('data-theme=ember] .app-modal-panel', $css);
 
         $this->assertStringNotContainsString('d8b07a', $css);

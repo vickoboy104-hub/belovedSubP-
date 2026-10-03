@@ -46,9 +46,10 @@
                                     <option value="{{ $suggestion['phone'] }}">{{ $suggestion['label'] }}</option>
                                 @endforeach
                             </datalist>
-                            <div class="mt-3 flex flex-nowrap gap-2 overflow-x-auto pb-1">
+                            <p class="app-choice-caption mt-3">Recently used numbers</p>
+                            <div class="mt-2 flex flex-nowrap gap-2 overflow-x-auto pb-1">
                                 @foreach(($phoneSuggestions ?? []) as $suggestion)
-                                    <button type="button" class="airtime-phone-suggestion shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100" data-phone="{{ $suggestion['phone'] }}">
+                                    <button type="button" class="airtime-phone-suggestion app-choice-chip shrink-0" data-phone="{{ $suggestion['phone'] }}">
                                         {{ $suggestion['phone'] }}
                                     </button>
                                 @endforeach
@@ -64,12 +65,15 @@
                     </div>
                 </div>
 
-                <div class="flex flex-wrap gap-2">
-                    @foreach([100, 200, 500, 1000, 2000, 5000] as $presetAmount)
-                        <button type="button" class="airtime-amount-preset rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100" data-amount="{{ $presetAmount }}">
-                            &#8358;{{ number_format($presetAmount) }}
-                        </button>
-                    @endforeach
+                <div class="space-y-2">
+                    <p class="app-choice-caption">Quick amounts</p>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach([100, 200, 500, 1000, 2000, 5000] as $presetAmount)
+                            <button type="button" class="airtime-amount-preset app-choice-chip" data-amount="{{ $presetAmount }}">
+                                &#8358;{{ number_format($presetAmount) }}
+                            </button>
+                        @endforeach
+                    </div>
                 </div>
 
                 <button type="button" id="airtimeActionBtn" class="btn-primary w-full justify-center py-3.5 text-[0.98rem]">
