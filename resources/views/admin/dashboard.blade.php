@@ -105,6 +105,14 @@
         </section>
 
         <section class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            @php $waitingManualRequests = (int) ($waitingManualRequests ?? 0); @endphp
+            <a href="{{ route('admin.manual-orders.index', ['status' => 'pending']) }}"
+               class="{{ $waitingManualRequests > 0 ? 'btn-danger' : 'btn-outline' }} justify-between gap-3">
+                <span>Manual Requests</span>
+                <span class="rounded-full bg-white/20 px-3 py-1 text-xs font-bold">
+                    {{ $waitingManualRequests > 0 ? $waitingManualRequests.' waiting' : 'All clear' }}
+                </span>
+            </a>
             <a href="{{ route('admin.users') }}" class="btn-outline justify-center">Manage Users</a>
             <a href="{{ route('admin.orders') }}" class="btn-primary justify-center">View Orders</a>
             <a href="{{ route('admin.wallet.transactions') }}" class="btn-outline justify-center">Wallet Transactions</a>

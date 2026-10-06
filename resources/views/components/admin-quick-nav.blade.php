@@ -1,8 +1,12 @@
 @php
+    // Only rendered on admin routes, so the queue count is cheap to read here and
+    // the admin sees pending volume without leaving the page they are on.
+    $waitingManualRequests = app(\App\Services\ManualFulfilmentService::class)->waitingCount();
+
     $adminPages = [
         ['label' => 'Admin Dashboard', 'route' => 'admin.dashboard'],
         ['label' => 'Orders', 'route' => 'admin.orders'],
-        ['label' => 'Manual Requests', 'route' => 'admin.manual-orders.index'],
+        ['label' => 'Manual Requests', 'route' => 'admin.manual-orders.index', 'badge' => $waitingManualRequests],
         ['label' => 'Users', 'route' => 'admin.users'],
         ['label' => 'Wallet Transactions', 'route' => 'admin.wallet.transactions'],
         ['label' => 'Notifications', 'route' => 'admin.notifications.index'],
@@ -43,6 +47,9 @@
                         <a href="{{ route($page['route']) }}"
                            class="admin-quick-nav-link {{ request()->routeIs($page['route']) ? 'is-active' : '' }}">
                             <span>{{ $page['label'] }}</span>
+                            @if(!empty($page['badge']))
+                                <span class="admin-quick-nav-count">{{ $page['badge'] }}</span>
+                            @endif
                         </a>
                     @endif
                 @endforeach

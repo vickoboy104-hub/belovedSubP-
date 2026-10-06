@@ -27,19 +27,24 @@ class ManualOrdersController extends Controller
 
     public function index(Request $request)
     {
-        $query = Order::with('user')
-            ->where('meta->manual_queue', true)
-            ->latest();
+        $status = $this->normaliseStatus((string) $request->input('status', ''));
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        $query = $this->manualServices->queueQuery()->with('user');
+
+        // The queue opens on what is owed to a paying customer, worked oldest first.
+        if ($status === 'pending') {
+            $query->where('status', 'pending')->orderBy('created_at')->orderBy('id');
+        } elseif ($status === 'all') {
+            $query->latest();
         } else {
-            // Waiting requests are the actionable ones, so they come first.
-            $query->orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END");
+            $query->where('status', $status)->latest();
         }
 
-        if ($request->filled('service') && $this->manualServices->find((string) $request->service)) {
-            $query->where('meta->manual_service', $request->service);
+        $slug = trim((string) $request->input('service', ''));
+        if ($slug !== '' && $this->manualServices->find($slug)) {
+            $query->where('meta->manual_service', $slug);
+        } else {
+            $slug = '';
         }
 
         if ($request->filled('search')) {
@@ -61,19 +66,29 @@ class ManualOrdersController extends Controller
             });
         }
 
-        $orders = $query->paginate(20)->appends($request->query());
-
-        $catalogue = $this->manualServices->catalogue();
         $counts = [
-            'waiting' => Order::query()->where('meta->manual_queue', true)->where('status', 'pending')->count(),
-            'completed' => Order::query()->where('meta->manual_queue', true)->where('status', 'success')->count(),
-            'rejected' => Order::query()->where('meta->manual_queue', true)->where('status', 'failed')->count(),
+            'pending' => $this->manualServices->waitingQuery()->count(),
+            'success' => $this->manualServices->queueQuery()->where('status', 'success')->count(),
+            'failed' => $this->manualServices->queueQuery()->where('status', 'failed')->count(),
+            'all' => $this->manualServices->queueQuery()->count(),
         ];
 
+        // So a service the admin is clearing out can be seen from the filter itself.
+        $serviceCounts = $this->manualServices->queueQuery()
+            ->where('status', $status)
+            ->selectRaw("count(*) as aggregate_count, json_extract(meta, '$.manual_service') as service_slug")
+            ->groupBy('service_slug')
+            ->pluck('aggregate_count', 'service_slug')
+            ->all();
+
         return view('admin.manual-orders.index', [
-            'orders' => $orders,
-            'catalogue' => $catalogue,
+            'orders' => $query->paginate(20)->appends($request->query()),
+            'catalogue' => $this->manualServices->catalogue(),
+            'fulfilment' => $this->manualServices,
             'counts' => $counts,
+            'serviceCounts' => $serviceCounts,
+            'activeStatus' => $status,
+            'activeService' => $slug,
         ]);
     }
 
@@ -93,6 +108,10 @@ class ManualOrdersController extends Controller
             'definition' => $definition,
             'hasResultFile' => trim((string) ($meta['result_file'] ?? '')) !== ''
                 && Storage::disk('local')->exists((string) $meta['result_file']),
+            'nextWaiting' => $manualOrder->status === 'pending'
+                ? $this->nextWaitingRequest($manualOrder->id)
+                : null,
+            'waitingCount' => $this->manualServices->waitingCount(),
         ]);
     }
 
@@ -108,6 +127,7 @@ class ManualOrdersController extends Controller
             'admin_note' => ['nullable', 'string', 'max:1000'],
         ]);
 
+        $wasWaiting = $manualOrder->status === 'pending';
         $resultText = sanitize_popup_message_html($data['result_text'] ?? '');
 
         $meta = is_array($manualOrder->meta) ? $manualOrder->meta : [];
@@ -164,9 +184,7 @@ class ManualOrdersController extends Controller
             ],
         );
 
-        return redirect()
-            ->route('admin.manual-orders.show', $manualOrder->id)
-            ->with('success', 'Result published. The customer can now see it on their receipt.');
+        return $this->continueQueue($manualOrder, $wasWaiting, 'Result published. The customer can now see it on their receipt.');
     }
 
     public function reject(Request $request, int $order)
@@ -233,9 +251,46 @@ class ManualOrdersController extends Controller
             ],
         );
 
+        return $this->continueQueue($manualOrder, true, 'Request rejected and ₦'.number_format($amountKobo / 100, 2).' refunded to the customer.');
+    }
+
+    /**
+     * Keep the admin moving down the waiting list instead of bouncing them back
+     * to a page they have to scan again.
+     */
+    private function continueQueue(Order $handled, bool $wasWaiting, string $outcome)
+    {
+        if (!$wasWaiting) {
+            return redirect()->route('admin.manual-orders.show', $handled->id)->with('success', $outcome);
+        }
+
+        $next = $this->nextWaitingRequest($handled->id);
+
+        if ($next instanceof Order) {
+            $remaining = $this->manualServices->waitingCount();
+
+            return redirect()
+                ->route('admin.manual-orders.show', $next->id)
+                ->with('success', $outcome.' '.$remaining.' waiting '.($remaining === 1 ? 'request' : 'requests').' left — now on #'.$next->id.'.');
+        }
+
         return redirect()
-            ->route('admin.manual-orders.show', $manualOrder->id)
-            ->with('success', 'Request rejected and ₦'.number_format($amountKobo / 100, 2).' refunded to the customer.');
+            ->route('admin.manual-orders.index', ['status' => 'success'])
+            ->with('success', $outcome.' The waiting queue is now clear.');
+    }
+
+    private function nextWaitingRequest(int $exceptOrderId): ?Order
+    {
+        return $this->manualServices->waitingQuery()
+            ->where('id', '!=', $exceptOrderId)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->first();
+    }
+
+    private function normaliseStatus(string $status): string
+    {
+        return in_array($status, ['pending', 'success', 'failed', 'all'], true) ? $status : 'pending';
     }
 
     private function findManualOrder(int $id): Order

@@ -180,6 +180,29 @@ class ProviderConfigurationTest extends TestCase
         $this->assertStringContainsString('Flutterwave secret key', $afterKeys);
     }
 
+    public function test_the_nin_page_only_offers_printing_the_provider_actually_supports(): void
+    {
+        // ConfirmIdent's documentation has four endpoints and none of them print a
+        // slip, so the automatic page must hand printing to the manual queue
+        // instead of showing buttons that can only ever fail.
+        $user = $this->memberWithBalance(100_000);
+
+        $manualPrint = $this->actingAs($user)->get('/vtu/nin')->assertOk()->getContent();
+        $this->assertStringContainsString('Verify NIN Record', $manualPrint);
+        $this->assertStringContainsString('/vtu/manual/nin_slip_print', $manualPrint);
+        $this->assertStringNotContainsString('data-slip-type="standard_slip"', $manualPrint);
+        $this->assertStringNotContainsString('NIN Slip Reports', $manualPrint);
+
+        Setting::create(['key' => 'nin_print_endpoint', 'value' => '/nin_print']);
+        Setting::create(['key' => 'nin_reports_endpoint', 'value' => '/nin_reports']);
+        settings_flush_cache();
+
+        $instantPrint = $this->actingAs($user)->get('/vtu/nin')->assertOk()->getContent();
+        $this->assertStringContainsString('data-slip-type="standard_slip"', $instantPrint);
+        $this->assertStringContainsString('NIN Slip Reports', $instantPrint);
+        $this->assertStringNotContainsString('/vtu/manual/nin_slip_print', $instantPrint);
+    }
+
     private function memberWithBalance(int $kobo): User
     {
         $user = User::factory()->create();

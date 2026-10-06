@@ -8,22 +8,23 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * JH Tech is the only source for every identity job on this site, so the rate
- * they charge is the floor the site must price above. These numbers came off
- * the logged-in jhtechltd.com dashboard, and nothing here can be re-derived
- * from code, which is why the guards live in a test.
+ * Every identity job has a published cost behind it — ConfirmIdent's per-call
+ * rate for the two verification jobs that run automatically, the JH Tech
+ * counter rate for the jobs fulfilled by hand. Those numbers came off the
+ * logged-in dashboards and nothing here can be re-derived from code, which is
+ * why the guards live in a test.
  */
 class IdentityPriceReferenceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_every_wired_identity_price_defaults_above_what_jh_tech_charges(): void
+    public function test_every_wired_identity_price_defaults_above_what_the_provider_charges(): void
     {
         foreach (jhtech_price_reference() as $key => $entry) {
             $this->assertGreaterThanOrEqual(
                 $entry['cost'],
                 identity_price($key),
-                $key.' would be sold at or below the JH Tech cost of ₦'.$entry['cost'].'.'
+                $key.' would be sold at or below the provider cost of ₦'.$entry['cost'].'.'
             );
         }
     }
@@ -59,10 +60,16 @@ class IdentityPriceReferenceTest extends TestCase
 
         $html = $this->actingAs($admin)->get('/admin/settings')->assertOk()->getContent();
 
-        $this->assertStringContainsString('JH Tech cost', $html);
+        $this->assertStringContainsString('Provider cost', $html);
         // The old VNIN default was the cost, not a price.
         $this->assertStringContainsString('name="price_nin_slip_vnin"', $html);
         $this->assertStringContainsString('value="300.00"', $html);
+
+        // ConfirmIdent bills the automatic checks per call, so the admin sees
+        // those exact figures rather than a counter rate.
+        $this->assertStringContainsString('Provider cost: ₦160.00', $html);
+        $this->assertStringContainsString('Provider cost: ₦80.00', $html);
+
         $expectedHints = 10;
         foreach (array_keys($manual->catalogue()) as $slug) {
             if ($manual->providerCost($slug) !== null) {
@@ -72,7 +79,7 @@ class IdentityPriceReferenceTest extends TestCase
 
         $this->assertSame(
             $expectedHints,
-            substr_count($html, 'JH Tech cost'),
+            substr_count($html, 'Provider cost'),
             'Every priced identity job should carry exactly one cost hint.'
         );
     }
@@ -83,9 +90,10 @@ class IdentityPriceReferenceTest extends TestCase
         settings_flush_cache();
 
         $this->assertSame(450.0, identity_price('price_bvn_verify'));
-        $this->assertSame(100.0, identity_cost('price_bvn_verify'));
+        $this->assertSame(80.0, identity_cost('price_bvn_verify'));
         // The shipped default is untouched, so clearing the setting restores it.
         $this->assertSame(200.0, identity_reference_price('price_bvn_verify'));
+        $this->assertSame(160.0, identity_cost('price_nin_verify'));
     }
 
     public function test_the_owner_can_move_any_identity_price_and_the_site_follows_at_once(): void

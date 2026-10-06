@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Services\ManualFulfilmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, ManualFulfilmentService $manualServices)
     {
         $totalUsers = User::count();
 
@@ -74,6 +75,7 @@ class DashboardController extends Controller
 
         $recentOrders = Order::latest()->take(10)->get();
         $recentTransactions = WalletTransaction::latest()->take(10)->get();
+        $waitingManualRequests = $manualServices->waitingCount();
         $adminNotifications = collect();
         $unreadAdminNotifications = 0;
 
@@ -109,7 +111,8 @@ class DashboardController extends Controller
             'recentOrders',
             'recentTransactions',
             'adminNotifications',
-            'unreadAdminNotifications'
+            'unreadAdminNotifications',
+            'waitingManualRequests'
         ));
     }
 

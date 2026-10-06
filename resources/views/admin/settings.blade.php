@@ -1115,7 +1115,7 @@
                                 $cost = identity_cost($priceKey);
                             @endphp
                             <div class="text-xs text-gray-500 mt-1">
-                                {{ $cost === null ? 'No published JH Tech rate for this job.' : 'JH Tech cost: ₦'.number_format($cost, 2) }}
+                                {{ $cost === null ? 'No published provider rate for this job.' : 'Provider cost: ₦'.number_format($cost, 2) }}
                             </div>
                         </div>
                     @endforeach
@@ -1196,7 +1196,7 @@
                                         $manualCost = $manualServices->providerCost($slug);
                                     @endphp
                                     <div class="text-xs text-gray-500 mt-1">
-                                        {{ $manualCost === null ? 'No published JH Tech rate for this job.' : 'JH Tech cost: ₦'.number_format($manualCost, 2) }}
+                                        {{ $manualCost === null ? 'No published provider rate for this job.' : 'Provider cost: ₦'.number_format($manualCost, 2) }}
                                     </div>
                                 </div>
                                 <div>

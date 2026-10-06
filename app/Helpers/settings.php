@@ -75,11 +75,12 @@ if (!function_exists('exam_price_defaults')) {
 
 if (!function_exists('jhtech_price_reference')) {
     /**
-     * What jhtechltd.com charges this account per identity job, read from the
-     * logged-in dashboard on 2026-10-05, next to the price the site asks a
-     * customer for. JH Tech has no API and no reseller key, so every one of
-     * these is fulfilled by hand from Admin > Manual requests, and the retail
-     * figure must stay above the cost or the job is done at a loss.
+     * What each identity job costs this account, next to the price the site asks
+     * a customer for. The two verification jobs are billed per call by
+     * ConfirmIdent (N160 / N80, read from their dashboard and API documentation
+     * on 2026-10-06); everything else has no API and is fulfilled by hand from
+     * Admin > Manual requests at JH Tech's counter rates, read 2026-10-05. A
+     * retail figure must stay above its cost or the job is done at a loss.
      *
      * Keys are the setting keys Admin > Settings writes, so a price is only
      * ever spelled one way. A fresh install has no settings rows, which means
@@ -91,7 +92,7 @@ if (!function_exists('jhtech_price_reference')) {
     function jhtech_price_reference(): array
     {
         return [
-            'price_nin_verify' => ['cost' => 180, 'retail' => 250],
+            'price_nin_verify' => ['cost' => 160, 'retail' => 250],
             'price_nin_slip_long' => ['cost' => 180, 'retail' => 300],
             'price_nin_slip_standard' => ['cost' => 180, 'retail' => 350],
             'price_nin_slip_premium' => ['cost' => 180, 'retail' => 400],
@@ -100,7 +101,7 @@ if (!function_exists('jhtech_price_reference')) {
             'price_nin_slip_vnin' => ['cost' => 180, 'retail' => 300],
             'price_nin_validation_no_record' => ['cost' => 700, 'retail' => 1000],
             'price_nin_validation_update_record' => ['cost' => 1000, 'retail' => 1500],
-            'price_bvn_verify' => ['cost' => 100, 'retail' => 200],
+            'price_bvn_verify' => ['cost' => 80, 'retail' => 200],
             'price_bvn_retrieve_phone' => ['cost' => 2500, 'retail' => 3500],
             'price_bvn_retrieve_bms' => ['cost' => 1000, 'retail' => 1500],
 
@@ -149,7 +150,7 @@ if (!function_exists('identity_price')) {
 }
 
 if (!function_exists('identity_cost')) {
-    /** What JH Tech charges for the same job, or null when the rate is unknown. */
+    /** What the provider charges for the same job, or null when the rate is unknown. */
     function identity_cost(string $key): ?float
     {
         $entry = jhtech_price_reference()[$key] ?? null;

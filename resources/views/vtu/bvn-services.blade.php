@@ -4,6 +4,7 @@
         $priceRetrievePhone = identity_price('price_bvn_retrieve_phone');
         $priceRetrieveBms = identity_price('price_bvn_retrieve_bms');
         $markup = (float) setting('markup_bvn', 0);
+        $retrieveTurnaround = app(\App\Services\ManualFulfilmentService::class)->turnaroundLabel('bvn_retrieve');
     @endphp
 
     <style>
@@ -20,37 +21,38 @@
 
     <div class="reference-flow-page max-w-5xl mx-auto w-full px-4 sm:px-0 space-y-5 bvn-print-wrap">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div class="rounded-3xl p-5 sm:p-6 border border-gray-200 bg-white">
+            <div class="app-section p-5 sm:p-6">
                 <h3 class="text-lg font-extrabold">Instant BVN Verification</h3>
-                <p class="text-xs text-gray-600 mt-1">
+                <p class="mt-1 text-xs text-slate-500">
                     Charge: N{{ number_format($priceVerify + $markup, 2) }} per verification.
                 </p>
                 <form id="bvnVerifyForm" class="mt-4 space-y-4">
                     @csrf
                     <div>
-                        <label class="text-sm font-bold text-gray-700">Enter BVN</label>
+                        <label class="block text-sm font-bold text-slate-700">Enter BVN</label>
                         <input type="text" name="bvn" maxlength="11" required
-                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900"
+                               class="input-field mt-1"
                                placeholder="11-digit BVN">
                     </div>
                     <button type="submit"
-                            class="w-full px-4 py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold transition">
+                            class="btn-primary w-full justify-center">
                         Verify / Check BVN Details
                     </button>
                 </form>
             </div>
 
-            <div class="rounded-3xl p-5 sm:p-6 border border-gray-200 bg-white">
+            <div class="app-section p-5 sm:p-6">
                 <h3 class="text-lg font-extrabold">BVN Retrieval Workflow</h3>
-                <p class="text-xs text-gray-600 mt-1">
-                    Phone retrieval: N{{ number_format($priceRetrievePhone + $markup, 2) }} | BMS retrieval: N{{ number_format($priceRetrieveBms + $markup, 2) }}
+                <p class="mt-1 text-xs text-slate-500">
+                    Phone retrieval: N{{ number_format($priceRetrievePhone + $markup, 2) }} | BMS retrieval: N{{ number_format($priceRetrieveBms + $markup, 2) }}.
+                    Retrieval is completed by our team {{ strtolower($retrieveTurnaround) }} after payment.
                 </p>
                 <form id="bvnRetrieveForm" class="mt-4 space-y-4">
                     @csrf
                     <div>
-                        <label class="text-sm font-bold text-gray-700">Retrieve Type</label>
+                        <label class="block text-sm font-bold text-slate-700">Retrieve Type</label>
                         <select id="retrieve_type" name="retrieve_type" required
-                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                                class="input-field mt-1">
                             <option value="">Choose type</option>
                             <option value="phone">Using Phone Number</option>
                             <option value="bms">Using BMS Ticket</option>
@@ -58,18 +60,18 @@
                     </div>
                     <div id="retrieveFields" class="grid grid-cols-1 gap-3"></div>
                     <button type="submit"
-                            class="w-full px-4 py-3 rounded-2xl bg-blue-700 hover:bg-blue-800 text-white font-extrabold transition">
+                            class="btn-primary w-full justify-center">
                         Submit Retrieve Request
                     </button>
                 </form>
             </div>
         </div>
 
-        <div id="bvnResultCard" class="hidden rounded-3xl p-5 sm:p-6 border border-gray-200 bg-white">
+        <div id="bvnResultCard" class="app-section hidden p-5 sm:p-6">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h3 class="text-xl font-extrabold">BVN Result</h3>
-                    <p id="bvnResultMessage" class="text-sm mt-1 text-gray-600"></p>
+                    <p id="bvnResultMessage" class="mt-1 text-sm text-slate-600"></p>
                 </div>
                 <div class="flex items-center gap-2 no-print">
                     <span id="bvnStatusBadge" class="px-3 py-1 rounded-full text-xs font-semibold border"></span>
@@ -81,13 +83,13 @@
 
             <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
                 <div class="sm:col-span-1">
-                    <img id="bvnFaceImage" class="hidden w-40 h-40 object-cover rounded-2xl border border-gray-200" alt="BVN photo">
+                    <img id="bvnFaceImage" class="hidden w-40 h-40 object-cover rounded-2xl border border-slate-200" alt="BVN photo">
                 </div>
                 <div class="sm:col-span-2">
                     <div class="text-2xl font-black" id="bvnName">-</div>
                     <div class="mt-2 flex flex-wrap gap-2 text-sm">
-                        <span class="px-3 py-1 rounded-full bg-blue-50 text-blue-900 border border-blue-200">BVN: <span id="bvnNumber">-</span></span>
-                        <span class="px-3 py-1 rounded-full bg-green-50 text-green-900 border border-green-200">NIN: <span id="bvnNin">-</span></span>
+                        <span class="app-choice-chip">BVN: <span id="bvnNumber">-</span></span>
+                        <span class="app-choice-chip">NIN: <span id="bvnNin">-</span></span>
                     </div>
                 </div>
             </div>
@@ -96,7 +98,7 @@
 
             <p id="bvnReceiptLink" class="hidden mt-4">
                 <a id="bvnReceiptAnchor" href="#"
-                   class="inline-flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-900">
+                   class="btn-outline gap-2">
                     Open receipt and track this request
                 </a>
             </p>
@@ -153,12 +155,12 @@
 
             function setStatus(state) {
                 const looks = {
-                    success: ['SUCCESS', 'bg-green-50 text-green-800 border-green-200'],
+                    success: ['SUCCESS', 'bg-emerald-50 text-emerald-800 border-emerald-200'],
                     // A retrieval can be accepted and still have no answer yet,
                     // and the wallet has already been charged for it. Saying
                     // FAILED there would be a lie the customer could act on.
                     pending: ['IN PROGRESS', 'bg-amber-50 text-amber-800 border-amber-200'],
-                    failed: ['FAILED', 'bg-red-50 text-red-800 border-red-200'],
+                    failed: ['FAILED', 'bg-rose-50 text-rose-800 border-rose-200'],
                 };
                 const [label, tone] = looks[state] || looks.failed;
 
@@ -168,9 +170,9 @@
 
             function detailsRow(label, value) {
                 return `
-                    <div class="rounded-2xl p-3 border border-gray-200">
-                        <div class="text-xs text-gray-500 uppercase">${esc(label)}</div>
-                        <div class="font-semibold break-all">${esc(val(value))}</div>
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <div class="app-record-label">${esc(label)}</div>
+                        <div class="app-record-value break-all">${esc(val(value))}</div>
                     </div>
                 `;
             }
@@ -243,10 +245,10 @@
                 if (retrieveType.value === 'phone') {
                     retrieveFields.innerHTML = `
                         <div>
-                            <label class="text-sm font-bold text-gray-700">Phone Number</label>
+                            <label class="block text-sm font-bold text-slate-700">Phone Number</label>
                             <div class="contact-picker-row mt-1">
                                 <input type="tel" name="phone" required inputmode="tel" autocomplete="tel-national" data-contact-picker-input
-                                       class="w-full px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900"
+                                       class="input-field w-full"
                                        placeholder="Phone registered with BVN">
                                 <button type="button" class="contact-picker-btn" data-contact-picker-button data-contact-picker-target="#bvnRetrieveForm input[name='phone']" aria-label="Pick phone contact">
                                     <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
@@ -267,21 +269,21 @@
                 if (retrieveType.value === 'bms') {
                     retrieveFields.innerHTML = `
                         <div>
-                            <label class="text-sm font-bold text-gray-700">BMS Ticket</label>
+                            <label class="block text-sm font-bold text-slate-700">BMS Ticket</label>
                             <input type="text" name="bms_no" required
-                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900"
+                                   class="input-field mt-1"
                                    placeholder="Enter BMS ticket">
                         </div>
                         <div>
-                            <label class="text-sm font-bold text-gray-700">Ticket ID</label>
+                            <label class="block text-sm font-bold text-slate-700">Ticket ID</label>
                             <input type="text" name="ticket_id" required
-                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900"
+                                   class="input-field mt-1"
                                    placeholder="Enter full ticket ID">
                         </div>
                         <div>
-                            <label class="text-sm font-bold text-gray-700">Agent Code (Optional)</label>
+                            <label class="block text-sm font-bold text-slate-700">Agent Code (Optional)</label>
                             <input type="text" name="agent_code"
-                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900"
+                                   class="input-field mt-1"
                                    placeholder="Agent code">
                         </div>
                     `;

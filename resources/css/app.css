@@ -473,6 +473,14 @@ html[data-theme="ember"] .app-flag-tone-error { border-color: #e3b8ac; backgroun
     transform: scale(0.96);
 }
 
+/* Chips double as filter tabs on the admin queue pages, where one of them is
+   the state the page is currently showing. */
+.app-choice-chip.is-active {
+    border-color: var(--brand-navy);
+    background: var(--brand-navy);
+    color: #ffffff;
+}
+
 .app-choice-chip:focus-visible {
     outline: 3px solid var(--brand-accent);
     outline-offset: 2px;
@@ -1936,15 +1944,8 @@ input[class*="bg-black/"]::placeholder, textarea[class*="bg-black/"]::placeholde
 .legacy-themed-page button[type="submit"][class*="bg-blue"],
 .legacy-themed-page button[type="submit"][class*="bg-orange"],
 .legacy-themed-page a[class*="bg-blue"], .legacy-themed-page a[class*="bg-orange"] { color: white; }
-.reference-service-content { position: relative; margin-top: -3.6rem; padding-bottom: 2rem; }
 .reference-form-heading { text-align: center; font-size: clamp(1.2rem,2.2vw,1.55rem); font-weight: 800; color: #173f74; }
 .reference-form-intro { margin: .45rem 0 1.3rem; text-align: center; font-size: .85rem; color: #617189; }
-.reference-service-content > div:first-child { box-shadow: 0 10px 28px rgba(13,39,79,.12); }
-.reference-service-content select { border-radius: .35rem; }
-.reference-service-content #ninSubmitBtn { background: #173f74; color: white; border-radius: .35rem; }
-.reference-service-content #ninSubmitBtn:hover { background: #225697; }
-.reference-service-content #refreshReportsBtn { background: #ae4c10; color: white; }
-@media (max-width: 767px) { .reference-service-content { margin-top: -2.8rem; padding-inline: .5rem; } }
 /* Shared service flow: page context sits above the form, as on the reference. */
 .reference-flow-page { position: relative; margin-top: -2.7rem; padding-bottom: 1.5rem; min-width: 0; }
 .reference-flow-page > :first-child:not(.reference-tile-grid):not(.grid) {
@@ -2379,7 +2380,6 @@ html[data-theme="ember"] .bg-blue-600,
 html[data-theme="ember"] .legacy-themed-page [class*="bg-blue-700"],
 html[data-theme="ember"] .admin-light-page [class*="bg-blue"],
 html[data-theme="ember"] .reference-auth-page .app-form-shell button[type="submit"],
-html[data-theme="ember"] .reference-service-content #ninSubmitBtn,
 html[data-theme="ember"] :is(button, a, input[type="submit"], .btn-primary):is(.bg-blue-500, .bg-blue-600, .bg-blue-700, .bg-blue-800, .bg-blue-900, .bg-indigo-500, .bg-indigo-600, .bg-indigo-700, .bg-sky-600, .bg-sky-700)[class*="bg-"] {
     background: var(--ember-button) !important;
     border-color: transparent;
@@ -2388,7 +2388,6 @@ html[data-theme="ember"] .btn-primary:hover,
 html[data-theme="ember"] .reference-full-button:hover,
 html[data-theme="ember"] a.reference-full-button:hover,
 html[data-theme="ember"] .reference-auth-page .app-form-shell button[type="submit"]:hover,
-html[data-theme="ember"] .reference-service-content #ninSubmitBtn:hover,
 html[data-theme="ember"] .legacy-themed-page [class*="bg-blue-700"]:hover,
 html[data-theme="ember"] .hover\:bg-blue-800:hover,
 html[data-theme="ember"] .hover\:bg-blue-700:hover,
@@ -2567,7 +2566,23 @@ html[data-theme="ember"] .reference-auth-page { background: linear-gradient(180d
 }
 .admin-quick-nav-link:hover { background: #eaf1ff; transform: translateX(2px); }
 .admin-quick-nav-link.is-active { border-color: #173f74; background: #173f74; color: white; }
+.admin-quick-nav-link > span:first-child { flex: 1; }
 .admin-quick-nav-exit { margin-top: 1.1rem; justify-content: center; }
+
+/* Pending volume for the manual identity queue, so the admin knows before
+   opening the page whether work is waiting on them. */
+.admin-quick-nav-count {
+    min-width: 1.75rem;
+    padding: .15rem .5rem;
+    border-radius: 999px;
+    background: #b42318;
+    color: white;
+    font-size: .72rem;
+    font-weight: 800;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.admin-quick-nav-link.is-active .admin-quick-nav-count { background: white; color: #b42318; }
 
 @media (prefers-reduced-motion: reduce) {
     .admin-quick-nav-toggle, .admin-quick-nav-link, .admin-quick-nav-panel, .admin-quick-nav-backdrop { transition: none; }

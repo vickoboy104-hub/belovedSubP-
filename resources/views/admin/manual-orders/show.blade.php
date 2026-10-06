@@ -30,7 +30,14 @@
     <x-page-hero class="reference-shared-banner"
                  title="#{{ $order->id }} {{ $title }}"
                  subtitle="{{ $order->user?->name ?? 'Unknown customer' }} — {{ $order->user?->email ?? 'no email' }}">
-        <a href="{{ route('admin.manual-orders.index') }}" class="reference-hero-action">Back to queue</a>
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ route('admin.manual-orders.index', ['status' => 'pending']) }}" class="reference-hero-action">Back to waiting queue</a>
+            @if($nextWaiting)
+                <a href="{{ route('admin.manual-orders.show', $nextWaiting->id) }}" class="reference-hero-action">
+                    Skip to next ({{ $waitingCount }} waiting)
+                </a>
+            @endif
+        </div>
     </x-page-hero>
 
     <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
@@ -187,6 +194,14 @@
                             <button type="submit" class="btn-primary w-full justify-center">
                                 {{ $order->status === 'pending' ? 'Complete request and notify customer' : 'Save updated result' }}
                             </button>
+
+                            @if($order->status === 'pending')
+                                <p class="text-xs text-slate-500">
+                                    {{ $nextWaiting
+                                        ? 'Saving publishes the result and opens the next waiting request (#'.$nextWaiting->id.').'
+                                        : 'Saving publishes the result. This is the last waiting request.' }}
+                                </p>
+                            @endif
                         </form>
                     </section>
                 @endif

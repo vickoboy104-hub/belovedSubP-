@@ -50,6 +50,16 @@
             'premium_slip' => identity_price('price_nin_slip_premium'),
             'long_slip' => identity_price('price_nin_slip_long'),
         ];
+
+        // ConfirmIdent only sells verification calls, so unless the owner adds a
+        // print or reports endpoint there is nothing to print here. Showing the
+        // buttons anyway would charge a click that cannot ever succeed.
+        $ninProvider = app(\App\Services\NinApi::class);
+        $slipPrintAvailable = $ninProvider->supportsSlipPrint();
+        $slipReportsAvailable = $ninProvider->supportsSlipReports();
+        $heroSubtitle = $slipPrintAvailable
+            ? 'Verify the record once, then print a Standard, Premium or Long slip from the result.'
+            : 'Verify the record here in seconds. Slip printing is a job our team runs from the same result.';
     @endphp
 
     <style>
@@ -59,18 +69,18 @@
         }
     </style>
 
-    <x-page-hero class="reference-shared-banner" title="Verify NIN" subtitle="Verify the record once, then print a Standard, Premium or Long slip from the result." />
+    <x-page-hero class="reference-shared-banner" title="Verify NIN" subtitle="{{ $heroSubtitle }}" />
 
-    <div class="reference-service-content mx-auto w-full max-w-5xl space-y-5 px-4 sm:px-0">
-        <div class="rounded-3xl border border-gray-200 bg-white p-5 sm:p-6">
+    <div class="reference-flow-page mx-auto w-full max-w-5xl space-y-5 px-4 sm:px-0">
+        <div class="app-section p-5 sm:p-6">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <div class="text-lg font-extrabold text-gray-900">Identity record search</div>
-                    <p class="mt-1 text-sm text-gray-600">
+                    <div class="text-lg font-extrabold text-slate-900">Identity record search</div>
+                    <p class="mt-1 text-sm text-slate-600">
                         Search by NIN, phone number, or demographic data. A successful result unlocks direct slip printing below.
                     </p>
                 </div>
-                <div id="verifyPriceBadge" class="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800">
+                <div id="verifyPriceBadge" class="app-choice-chip">
                     Verification fee
                 </div>
             </div>
@@ -79,10 +89,10 @@
                 @csrf
 
                 <div>
-                    <label class="text-sm font-bold text-gray-700">Verification Type</label>
+                    <label class="text-sm font-bold text-slate-700">Verification Type</label>
                     <select id="verification_type"
                             name="verification_type"
-                            class="mt-1 w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-gray-900">
+                            class="input-field mt-1 w-full">
                         <option value="by_nin">By NIN</option>
                         <option value="by_phone">By Phone Number</option>
                         <option value="by_demo">By Demographic Data</option>
@@ -94,28 +104,28 @@
                 <div class="flex flex-col gap-3 sm:flex-row">
                     <button type="button"
                             id="resetFormBtn"
-                            class="w-full rounded-2xl border border-gray-300 px-4 py-3 font-bold text-gray-700 sm:w-auto">
+                            class="btn-outline w-full sm:w-auto justify-center">
                         Reset
                     </button>
                     <button type="button"
                             id="ninSubmitBtn"
-                            class="w-full rounded-2xl bg-blue-700 px-4 py-3 font-extrabold text-white transition hover:bg-blue-800 sm:flex-1">
+                            class="btn-primary w-full sm:flex-1 justify-center">
                         Verify NIN Record
                     </button>
                 </div>
             </form>
         </div>
 
-        <div id="ninResultCard" class="hidden rounded-3xl border border-gray-200 bg-white p-5 sm:p-6">
+        <div id="ninResultCard" class="app-section hidden p-5 sm:p-6">
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 class="text-xl font-extrabold text-gray-900">Verified NIN Result</h3>
-                    <p id="ninResultMessage" class="mt-1 text-sm text-gray-600"></p>
-                    <div class="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-gray-400">
+                    <h3 class="text-xl font-extrabold text-slate-900">Verified NIN Result</h3>
+                    <p id="ninResultMessage" class="mt-1 text-sm text-slate-600"></p>
+                    <div class="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
                         <span id="ninResultSourceHint"></span>
                         <button type="button"
                                 id="ninRefreshLiveBtn"
-                                class="hidden font-medium text-gray-400 transition hover:text-gray-600">
+                                class="hidden font-medium text-slate-400 transition hover:text-slate-600">
                             refresh live
                         </button>
                     </div>
@@ -123,44 +133,44 @@
                 <span id="ninStatusBadge" class="rounded-full border px-3 py-1 text-xs font-semibold"></span>
             </div>
 
-            <div id="profileSummaryWrap" class="mt-4 hidden rounded-3xl border border-gray-200 p-4 sm:p-5">
+            <div id="profileSummaryWrap" class="mt-4 hidden rounded-2xl border border-slate-200 p-4 sm:p-5">
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-[160px,1fr]">
                     <div class="flex items-center justify-center sm:justify-start">
-                        <div class="overflow-hidden rounded-3xl border border-gray-200 bg-slate-50">
+                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                             <img id="ninFaceImage" alt="NIN Photo" class="hidden h-40 w-36 object-cover">
-                            <div id="ninFaceFallback" class="flex h-40 w-36 items-center justify-center text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+                            <div id="ninFaceFallback" class="flex h-40 w-36 items-center justify-center text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
                                 No Photo
                             </div>
                         </div>
                     </div>
 
                     <div>
-                        <div class="text-2xl font-black text-gray-900" id="ninFullName">-</div>
+                        <div class="text-2xl font-black text-slate-900" id="ninFullName">-</div>
                         <div class="mt-2 flex flex-wrap gap-2 text-sm">
-                            <span class="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-blue-800">
+                            <span class="app-choice-chip">
                                 NIN: <span id="ninNumberText">-</span>
                             </span>
-                            <span class="rounded-full border border-green-100 bg-green-50 px-3 py-1 text-green-800">
+                            <span class="app-choice-chip">
                                 Tracking: <span id="ninTrackingText">-</span>
                             </span>
                         </div>
 
                         <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div class="rounded-2xl border border-gray-200 px-4 py-3">
-                                <div class="text-xs uppercase tracking-wide text-gray-500">Date of Birth</div>
-                                <div id="ninBirthText" class="mt-1 text-sm font-semibold text-gray-900">-</div>
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div class="app-record-label">Date of Birth</div>
+                                <div id="ninBirthText" class="app-record-value">-</div>
                             </div>
-                            <div class="rounded-2xl border border-gray-200 px-4 py-3">
-                                <div class="text-xs uppercase tracking-wide text-gray-500">Gender</div>
-                                <div id="ninGenderText" class="mt-1 text-sm font-semibold text-gray-900">-</div>
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div class="app-record-label">Gender</div>
+                                <div id="ninGenderText" class="app-record-value">-</div>
                             </div>
-                            <div class="rounded-2xl border border-gray-200 px-4 py-3">
-                                <div class="text-xs uppercase tracking-wide text-gray-500">Phone</div>
-                                <div id="ninPhoneText" class="mt-1 text-sm font-semibold text-gray-900">-</div>
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div class="app-record-label">Phone</div>
+                                <div id="ninPhoneText" class="app-record-value">-</div>
                             </div>
-                            <div class="rounded-2xl border border-gray-200 px-4 py-3">
-                                <div class="text-xs uppercase tracking-wide text-gray-500">Address</div>
-                                <div id="ninAddressText" class="mt-1 text-sm font-semibold text-gray-900">-</div>
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div class="app-record-label">Address</div>
+                                <div id="ninAddressText" class="app-record-value">-</div>
                             </div>
                         </div>
                     </div>
@@ -170,76 +180,90 @@
             <div id="directPrintWrap" class="mt-5 hidden rounded-3xl border border-amber-200 bg-amber-50 p-4">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <div class="text-lg font-extrabold text-gray-900">Direct Slip Print</div>
-                        <p id="directPrintNote" class="mt-1 text-sm text-gray-600">
-                            Verify a record first to unlock direct printing.
+                        <div class="text-lg font-extrabold text-slate-900">{{ $slipPrintAvailable ? 'Direct Slip Print' : 'NIN Slip Print' }}</div>
+                        <p id="directPrintNote" class="mt-1 text-sm text-slate-600">
+                            {{ $slipPrintAvailable
+                                ? 'Verify a record first to unlock direct printing.'
+                                : 'Verify a record first, then send the print request to our team.' }}
                         </p>
                     </div>
                     <div class="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
-                        Print or Save as PDF
+                        {{ $slipPrintAvailable ? 'Print or Save as PDF' : 'Our team prints it for you' }}
                     </div>
                 </div>
 
+                @if($slipPrintAvailable)
                 <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                     <button type="button"
-                            class="nin-slip-action rounded-2xl border border-gray-300 bg-white px-4 py-4 text-left transition hover:bg-gray-50"
+                            class="nin-slip-action rounded-2xl border border-slate-300 bg-white px-4 py-4 text-left transition hover:bg-slate-50"
                             data-slip-type="standard_slip"
                             disabled>
-                        <div class="text-base font-extrabold text-gray-900">Standard Slip</div>
-                        <div class="mt-1 text-sm text-gray-600">Classic printable NIN card layout.</div>
-                        <div class="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">
+                        <div class="text-base font-extrabold text-slate-900">Standard Slip</div>
+                        <div class="mt-1 text-sm text-slate-600">Classic printable NIN card layout.</div>
+                        <div class="amount-fit mt-3 text-base font-extrabold text-slate-900">
                             {!! '&#8358;' . number_format($slipPrices['standard_slip'], 2) !!}
                         </div>
                     </button>
 
                     <button type="button"
-                            class="nin-slip-action rounded-2xl border border-gray-300 bg-white px-4 py-4 text-left transition hover:bg-gray-50"
+                            class="nin-slip-action rounded-2xl border border-slate-300 bg-white px-4 py-4 text-left transition hover:bg-slate-50"
                             data-slip-type="premium_slip"
                             disabled>
-                        <div class="text-base font-extrabold text-gray-900">Premium Slip</div>
-                        <div class="mt-1 text-sm text-gray-600">Digital green card style with issue date.</div>
-                        <div class="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">
+                        <div class="text-base font-extrabold text-slate-900">Premium Slip</div>
+                        <div class="mt-1 text-sm text-slate-600">Digital green card style with issue date.</div>
+                        <div class="amount-fit mt-3 text-base font-extrabold text-slate-900">
                             {!! '&#8358;' . number_format($slipPrices['premium_slip'], 2) !!}
                         </div>
                     </button>
 
                     <button type="button"
-                            class="nin-slip-action rounded-2xl border border-gray-300 bg-white px-4 py-4 text-left transition hover:bg-gray-50"
+                            class="nin-slip-action rounded-2xl border border-slate-300 bg-white px-4 py-4 text-left transition hover:bg-slate-50"
                             data-slip-type="long_slip"
                             disabled>
-                        <div class="text-base font-extrabold text-gray-900">Long Slip</div>
-                        <div class="mt-1 text-sm text-gray-600">Landscape NIMS table slip printout.</div>
-                        <div class="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">
+                        <div class="text-base font-extrabold text-slate-900">Long Slip</div>
+                        <div class="mt-1 text-sm text-slate-600">Landscape NIMS table slip printout.</div>
+                        <div class="amount-fit mt-3 text-base font-extrabold text-slate-900">
                             {!! '&#8358;' . number_format($slipPrices['long_slip'], 2) !!}
                         </div>
                     </button>
                 </div>
+                @else
+                <p class="mt-4 text-sm text-slate-600">
+                    Slip printing is done by our team from the record you verify here,
+                    and the slip comes back to your receipt.
+                </p>
+                <a href="{{ route('vtu.manual.form', 'nin_slip_print') }}"
+                   class="btn-primary mt-3 inline-flex w-full sm:w-auto justify-center">
+                    Request a slip print
+                </a>
+                @endif
             </div>
 
             <div id="ninDetailsWrap" class="mt-4 space-y-4"></div>
 
             <details class="mt-4">
-                <summary class="cursor-pointer text-sm font-semibold text-gray-700">Show Raw Provider Fields</summary>
+                <summary class="cursor-pointer text-sm font-semibold text-slate-700">Show Raw Provider Fields</summary>
                 <div id="ninRawTableWrap" class="mt-3 overflow-x-auto"></div>
             </details>
         </div>
 
-        <div class="rounded-3xl border border-gray-200 bg-white p-5 sm:p-6">
+        @if($slipReportsAvailable)
+        <div class="app-section p-5 sm:p-6">
             <div class="flex items-center justify-between gap-3">
-                <h3 class="text-lg font-extrabold text-gray-900">NIN Slip Reports</h3>
+                <h3 class="text-lg font-extrabold text-slate-900">NIN Slip Reports</h3>
                 <button type="button"
                         id="refreshReportsBtn"
-                        class="rounded-xl bg-orange-600 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-700">
+                        class="btn-primary px-3 py-2 text-sm">
                     Refresh
                 </button>
             </div>
-            <p id="reportsMessage" class="mt-2 text-xs text-gray-600">
+            <p id="reportsMessage" class="mt-2 text-xs text-slate-600">
                 Provider download reports appear here when available.
             </p>
             <div class="mt-3 overflow-x-auto">
                 <table class="min-w-full text-sm">
                     <thead>
-                        <tr class="border-b border-gray-200">
+                        <tr class="border-b border-slate-200">
                             <th class="py-2 pr-4 text-left">NIN</th>
                             <th class="py-2 pr-4 text-left">Slip Type</th>
                             <th class="py-2 pr-4 text-left">Date</th>
@@ -248,12 +272,13 @@
                     </thead>
                     <tbody id="slipReportsBody">
                         <tr>
-                            <td colspan="4" class="py-3 text-gray-500">No records loaded yet.</td>
+                            <td colspan="4" class="py-3 text-slate-500">No records loaded yet.</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
+        @endif
     </div>
 
     <form id="ninVerifyBridgeForm" class="hidden"></form>
@@ -269,6 +294,14 @@
                 print: @json(route('vtu.nin.print')),
                 reports: @json(route('vtu.nin.reports')),
             };
+
+            @if($slipPrintAvailable)
+                const slipIdleNote = 'Verify a record first to unlock direct printing.';
+                const slipReadyNote = (nin) => `Verified NIN ${nin} is ready. Choose Standard, Premium, or Long Slip to print directly.`;
+            @else
+                const slipIdleNote = 'Verify a record first, then send the print request to our team.';
+                const slipReadyNote = (nin) => `Verified NIN ${nin} is on file. Our team prints the slip from this record.`;
+            @endif
 
             const verifyPrice = @json($verifyPrice);
             const premiumCardBackground = @json($premiumCardBackground);
@@ -426,11 +459,11 @@
             function inputBlock(label, name, placeholder, type = 'text', span2 = false) {
                 return `
                     <div class="${span2 ? 'sm:col-span-2' : ''}">
-                        <label class="text-sm font-bold text-gray-700">${escapeHtml(label)}</label>
+                        <label class="text-sm font-bold text-slate-700">${escapeHtml(label)}</label>
                         <input type="${escapeHtml(type)}"
                                name="${escapeHtml(name)}"
                                placeholder="${escapeHtml(placeholder)}"
-                               class="mt-1 w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400">
+                               class="input-field mt-1 w-full">
                     </div>
                 `;
             }
@@ -440,7 +473,7 @@
 
                 return `
                     <div class="${span2 ? 'sm:col-span-2' : ''}">
-                        <label class="text-sm font-bold text-gray-700">${escapeHtml(label)}</label>
+                        <label class="text-sm font-bold text-slate-700">${escapeHtml(label)}</label>
                         <div class="contact-picker-row mt-1">
                             <input type="tel"
                                    name="${safeName}"
@@ -448,7 +481,7 @@
                                    autocomplete="tel-national"
                                    data-contact-picker-input
                                    placeholder="${escapeHtml(placeholder)}"
-                                   class="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400">
+                                   class="input-field w-full">
                             <button type="button" class="contact-picker-btn" data-contact-picker-button data-contact-picker-target="#ninServiceForm input[name='${safeName}']" aria-label="Pick phone contact">
                                 <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
@@ -463,15 +496,15 @@
 
             function sectionCard(title, rows) {
                 const rowHtml = rows.map((row) => `
-                    <div class="border-b border-gray-100 py-2">
-                        <div class="text-xs uppercase tracking-wide text-gray-500">${escapeHtml(row.label)}</div>
-                        <div class="break-all text-sm font-medium text-gray-900">${escapeHtml(normalizeValue(row.value))}</div>
+                    <div class="border-b border-slate-100 py-2">
+                        <div class="text-xs uppercase tracking-wide text-slate-500">${escapeHtml(row.label)}</div>
+                        <div class="break-all text-sm font-medium text-slate-900">${escapeHtml(normalizeValue(row.value))}</div>
                     </div>
                 `).join('');
 
                 return `
-                    <div class="rounded-2xl border border-gray-200 p-4">
-                        <div class="mb-2 font-bold text-gray-900">${escapeHtml(title)}</div>
+                    <div class="rounded-2xl border border-slate-200 p-4">
+                        <div class="mb-2 font-bold text-slate-900">${escapeHtml(title)}</div>
                         ${rowHtml}
                     </div>
                 `;
@@ -544,9 +577,9 @@
                     ${inputBlock('Last Name', 'lastname', 'Enter last name')}
                     ${inputBlock('Date of Birth (dd-mm-yyyy)', 'dob', '16-02-1994')}
                     <div>
-                        <label class="text-sm font-bold text-gray-700">Gender</label>
+                        <label class="text-sm font-bold text-slate-700">Gender</label>
                         <select name="gender"
-                                class="mt-1 w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-gray-900">
+                                class="input-field mt-1 w-full">
                             <option value="">Select gender</option>
                             <option value="male">Male</option>
                             <option value="female">Female</option>
@@ -662,14 +695,14 @@
                 resultCard.classList.remove('hidden');
                 statusBadge.textContent = ok ? 'VERIFIED' : 'FAILED';
                 statusBadge.className = ok
-                    ? 'rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-800'
-                    : 'rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-800';
+                    ? 'rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800'
+                    : 'rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-800';
             }
 
             function clearVerifiedState() {
                 verifiedState = null;
                 directPrintWrap.classList.add('hidden');
-                directPrintNote.textContent = 'Verify a record first to unlock direct printing.';
+                directPrintNote.textContent = slipIdleNote;
                 resultSourceHint.textContent = '';
                 refreshLiveBtn.classList.add('hidden');
                 refreshLiveBtn.disabled = false;
@@ -688,7 +721,7 @@
                 };
 
                 directPrintWrap.classList.remove('hidden');
-                directPrintNote.textContent = `Verified NIN ${formatNin(normalized?.nin)} is ready. Choose Standard, Premium, or Long Slip to print directly.`;
+                directPrintNote.textContent = slipReadyNote(formatNin(normalized?.nin));
                 directPrintButtons.forEach((button) => {
                     button.disabled = false;
                 });
@@ -699,14 +732,14 @@
                 const entries = Object.entries(data || {}).filter(([key]) => !skipKeys.has(String(key).toLowerCase()));
 
                 if (entries.length === 0) {
-                    ninRawTableWrap.innerHTML = '<div class="text-sm text-gray-500">No extra fields returned.</div>';
+                    ninRawTableWrap.innerHTML = '<div class="text-sm text-slate-500">No extra fields returned.</div>';
                     return;
                 }
 
                 const rows = entries.map(([key, value]) => `
-                    <tr class="border-b border-gray-100">
-                        <td class="py-2 pr-4 text-xs uppercase tracking-wide text-gray-500">${escapeHtml(key)}</td>
-                        <td class="break-all py-2 text-sm text-gray-900">${escapeHtml(normalizeValue(value))}</td>
+                    <tr class="border-b border-slate-100">
+                        <td class="py-2 pr-4 text-xs uppercase tracking-wide text-slate-500">${escapeHtml(key)}</td>
+                        <td class="break-all py-2 text-sm text-slate-900">${escapeHtml(normalizeValue(value))}</td>
                     </tr>
                 `).join('');
 
@@ -1887,7 +1920,9 @@
             }
 
             async function loadReports() {
-                slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-gray-500">Loading...</td></tr>';
+                if (!slipReportsBody) return;
+
+                slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-slate-500">Loading...</td></tr>';
 
                 try {
                     const response = await fetch(routes.reports, { headers: { Accept: 'application/json' } });
@@ -1897,7 +1932,7 @@
                     if (!ok) {
                         const message = getErrorMessage(response, data, 'Unable to load reports.');
                         reportsMessage.textContent = message;
-                        slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-gray-500">No report data available.</td></tr>';
+                        slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-slate-500">No report data available.</td></tr>';
                         return;
                     }
 
@@ -1907,7 +1942,7 @@
                         : 'No reports returned yet.';
 
                     if (rows.length === 0) {
-                        slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-gray-500">No report data available.</td></tr>';
+                        slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-slate-500">No report data available.</td></tr>';
                         return;
                     }
 
@@ -1921,7 +1956,7 @@
                             : '-';
 
                         return `
-                            <tr class="border-b border-gray-100">
+                            <tr class="border-b border-slate-100">
                                 <td class="py-2 pr-4">${escapeHtml(nin)}</td>
                                 <td class="py-2 pr-4">${escapeHtml(type)}</td>
                                 <td class="py-2 pr-4">${escapeHtml(date)}</td>
@@ -1931,7 +1966,7 @@
                     }).join('');
                 } catch (error) {
                     reportsMessage.textContent = 'Network error while loading reports.';
-                    slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-gray-500">No report data available.</td></tr>';
+                    slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-slate-500">No report data available.</td></tr>';
                 }
             }
 
@@ -2121,7 +2156,7 @@
             });
 
             verificationType.addEventListener('change', renderVerificationFields);
-            refreshReportsBtn.addEventListener('click', loadReports);
+            refreshReportsBtn?.addEventListener('click', loadReports);
 
             renderVerificationFields();
             renderVerifyPrice();

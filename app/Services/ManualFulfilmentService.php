@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Order;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 /**
  * Identity services that have no live provider connection yet.
@@ -17,6 +20,24 @@ use Illuminate\Support\Carbon;
 class ManualFulfilmentService
 {
     public const DEFAULT_TURNAROUND_HOURS = 48;
+
+    /** Most useful first: what the job is worked from at the provider. */
+    private const QUEUE_PRIORITY_FIELDS = [
+        'nin',
+        'bvn',
+        'tracking_id',
+        'delink_value',
+        'bms_no',
+        'ticket_id',
+        'new_value',
+        'phone',
+        'validation_type',
+        'retrieve_type',
+        'ipe_type',
+        'delink_target',
+        'field_to_modify',
+        'state',
+    ];
 
     /** @return array<string, array<string, mixed>> */
     public function catalogue(): array
@@ -201,6 +222,56 @@ class ManualFulfilmentService
     public function find(string $slug): ?array
     {
         return $this->catalogue()[$slug] ?? null;
+    }
+
+    public function queueQuery(): Builder
+    {
+        return Order::query()->where('meta->manual_queue', true);
+    }
+
+    public function waitingQuery(): Builder
+    {
+        return $this->queueQuery()->where('status', 'pending');
+    }
+
+    public function waitingCount(): int
+    {
+        return $this->waitingQuery()->count();
+    }
+
+    /**
+     * The identifiers an admin needs to start the job, without opening the request.
+     *
+     * @param  array<string, mixed>  $submitted
+     * @return list<array{label: string, value: string}>
+     */
+    public function quickLook(string $slug, array $submitted, int $limit = 3): array
+    {
+        $fields = [];
+        foreach ($this->find($slug)['fields'] ?? [] as $field) {
+            $fields[$field['name']] = $field;
+        }
+
+        $look = [];
+        foreach (self::QUEUE_PRIORITY_FIELDS as $name) {
+            $value = trim((string) ($submitted[$name] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+
+            $field = $fields[$name] ?? ['label' => Str::headline($name), 'options' => []];
+
+            $look[] = [
+                'label' => $field['label'],
+                'value' => (string) ($field['options'][$value] ?? $value),
+            ];
+
+            if (count($look) >= $limit) {
+                break;
+            }
+        }
+
+        return $look;
     }
 
     public function priceKey(string $slug): string
