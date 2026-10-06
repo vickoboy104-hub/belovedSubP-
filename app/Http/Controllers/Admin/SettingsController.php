@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ProviderPlanPrice;
 use App\Models\Setting;
+use App\Services\ManualFulfilmentService;
 use App\Services\ProviderPlanPriceService;
 use Illuminate\Http\Request;
 
@@ -101,11 +102,10 @@ class SettingsController extends Controller
             'service_map_eko-electric',
             'service_map_ibadan-electric',
             'service_map_ikeja-electric',
-            'service_map_jos-electic',
+            'service_map_jos-electric',
             'service_map_kaduna-electric',
             'service_map_kano-electric',
-            'service_map_portharcourt-electric',
-            'service_map_aba-electric',
+            'service_map_phed-electric',
             'service_map_yola-electric',
             'service_map_benin-electric',
             'service_map_enugu-electric',
@@ -120,6 +120,29 @@ class SettingsController extends Controller
         $serviceMapRules['service_exam_nabteb'] = ['nullable', 'string', 'max:120'];
         $serviceMapRules['service_exam_jamb'] = ['nullable', 'string', 'max:120'];
         $serviceMapRules['service_map_canva'] = ['nullable', 'string', 'max:120'];
+
+        // Manual (key-less) identity services: price, markup and turnaround for
+        // every catalogue entry, so adding a service never needs an edit here.
+        $manualRules = [];
+        foreach (app(ManualFulfilmentService::class)->settingKeys() as $key) {
+            $manualRules[$key] = str_starts_with($key, 'turnaround_')
+                ? ['nullable', 'integer', 'min:1', 'max:8760']
+                : ['nullable', 'numeric', 'min:0'];
+        }
+
+        // Connecting an SMS gateway is meant to be a settings change only.
+        $smsRules = [
+            'sms_endpoint' => ['nullable', 'string', 'max:255'],
+            'sms_sender_id' => ['nullable', 'string', 'max:60'],
+            'sms_api_key' => ['nullable', 'string', 'max:255'],
+            'sms_auth_header' => ['nullable', 'string', 'max:60'],
+            'sms_body_format' => ['nullable', 'string', 'in:json,form'],
+            'sms_success_field' => ['nullable', 'string', 'max:60'],
+            'sms_success_value' => ['nullable', 'string', 'max:60'],
+            'sms_driver' => ['nullable', 'string', 'max:60'],
+            'sms_param_map' => ['nullable', 'string', 'max:500'],
+            'sms_extra_params' => ['nullable', 'string', 'max:500'],
+        ];
 
         // Add/remove keys here WITHOUT changing your UI structure
         $data = $request->validate(array_merge([
@@ -241,7 +264,7 @@ class SettingsController extends Controller
             'login_logo'      => ['nullable', 'image', 'max:2048'],
             'loader_logo'     => ['nullable', 'image', 'max:2048'],
             'favicon'         => ['nullable', 'image', 'max:1024'],
-        ], $serviceMapRules));
+        ], $serviceMapRules, $manualRules, $smsRules));
 
         $submittedPlanPrices = $data['provider_plan_prices'] ?? [];
         unset($data['provider_plan_prices']);

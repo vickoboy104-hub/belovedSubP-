@@ -1069,4 +1069,67 @@ Alpine.data('avatarPicker', ({ current = '', initials = '', name = 'Your' } = {}
     syncSections();
 })();
 
+/**
+ * One delegated handler so any view can offer a copy button with markup only.
+ * Falls back to execCommand because navigator.clipboard is unavailable over
+ * plain http on a LAN address, which is how most resellers reach this app.
+ */
+(function () {
+    function legacyCopy(text) {
+        const field = document.createElement('textarea');
+        field.value = text;
+        field.setAttribute('readonly', '');
+        field.style.position = 'fixed';
+        field.style.opacity = '0';
+        document.body.appendChild(field);
+        field.select();
+
+        let copied = false;
+        try {
+            copied = document.execCommand('copy');
+        } catch (error) {
+            copied = false;
+        }
+
+        document.body.removeChild(field);
+
+        return copied;
+    }
+
+    function flash(button) {
+        const label = button.dataset.copyLabel || button.textContent.trim();
+        const done = button.dataset.copyDone || 'Copied';
+
+        button.textContent = done;
+        button.disabled = true;
+        window.setTimeout(() => {
+            button.textContent = label;
+            button.disabled = false;
+        }, 1600);
+    }
+
+    document.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-copy-text]');
+        if (!button) return;
+
+        event.preventDefault();
+
+        const text = String(button.dataset.copyText || '').trim();
+        if (text === '') return;
+
+        let copied = false;
+        if (navigator.clipboard && window.isSecureContext) {
+            try {
+                await navigator.clipboard.writeText(text);
+                copied = true;
+            } catch (error) {
+                copied = false;
+            }
+        }
+
+        if (!copied) copied = legacyCopy(text);
+        if (copied) flash(button);
+    });
+})();
+
 Alpine.start();

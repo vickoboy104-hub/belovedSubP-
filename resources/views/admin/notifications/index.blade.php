@@ -15,6 +15,8 @@
                     @php
                         $isUnread = is_null($notification->read_at);
                         $data = $notification->data ?? [];
+                        $linkUrl = is_array($data) ? trim((string) ($data['url'] ?? '')) : '';
+                        $isSafeLink = str_starts_with($linkUrl, 'http');
                     @endphp
                     <article class="rounded-[22px] border p-4 {{ $isUnread ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-slate-50' }}">
                         <div class="flex items-start justify-between gap-3">
@@ -24,6 +26,12 @@
                             @endif
                         </div>
                         <div class="mt-2 text-sm leading-6 text-slate-600">{{ $data['message'] ?? '' }}</div>
+                        @if($isSafeLink)
+                            {{-- The alert is only useful if it opens the thing it describes. --}}
+                            <a href="{{ $linkUrl }}" class="mt-2 inline-block text-sm font-bold text-slate-900 underline">
+                                {{ $data['action_label'] ?? 'Open request' }} <span aria-hidden="true">→</span>
+                            </a>
+                        @endif
                         <div class="mt-2 text-xs text-slate-400">{{ optional($notification->created_at)->format('d M Y, h:ia') }}</div>
                     </article>
                 @empty

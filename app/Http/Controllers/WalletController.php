@@ -2,11 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Wallet;
 use App\Models\WalletTransaction;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class WalletController extends Controller
 {
@@ -36,55 +32,6 @@ class WalletController extends Controller
             ],
             'temporary_virtual_account' => $temporaryAccount,
         ]);
-    }
-
-    /**
-     * Manual funding request:
-     * Creates a pending credit transaction (does NOT credit wallet balance yet).
-     * Admin can approve later.
-     */
-    public function fundSubmit(Request $request)
-    {
-        $request->validate([
-            'amount' => ['required', 'numeric', 'min:100'],
-            'note' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        $user = auth()->user();
-        $wallet = $user->wallet;
-
-        if (!$wallet) {
-            abort(400, 'Wallet not found for this user.');
-        }
-
-        $amountKobo = (int) round(((float) $request->amount) * 100);
-
-        $reference = 'FUND_' . strtoupper(Str::random(12));
-
-        DB::beginTransaction();
-        try {
-            WalletTransaction::create([
-                'wallet_id' => $wallet->id,
-                'type' => 'credit',
-                'amount' => $amountKobo,
-                'reference' => $reference,
-                'status' => 'pending',
-                'channel' => 'manual_funding',
-                'description' => 'Wallet funding request',
-                'meta' => [
-                    'note' => $request->note,
-                    'requested_by_user_id' => $user->id,
-                ],
-            ]);
-
-            DB::commit();
-            return redirect()
-                ->route('wallet.transactions')
-                ->with('success', 'Funding request submitted! Please wait for admin confirmation.');
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            return back()->with('error', 'Error: ' . $e->getMessage());
-        }
     }
 
     public function transactions()

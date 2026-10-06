@@ -51,6 +51,116 @@ if (!function_exists('setting')) {
     }
 }
 
+if (!function_exists('exam_price_defaults')) {
+    /**
+     * The only place an exam PIN price default is written. The buy form, the
+     * purchase controller and Admin Settings all read this, because they used
+     * to disagree and a customer would see one figure and be charged another.
+     * These are starting prices for a fresh install, not the reseller's rate:
+     * Admin Settings > Education overrides them.
+     *
+     * @return array<string, int>
+     */
+    function exam_price_defaults(): array
+    {
+        return [
+            'jamb' => 7000,
+            'waec' => 5500,
+            'neco' => 5000,
+            'nabteb' => 4500,
+            'fee' => 100,
+        ];
+    }
+}
+
+if (!function_exists('jhtech_price_reference')) {
+    /**
+     * What jhtechltd.com charges this account per identity job, read from the
+     * logged-in dashboard on 2026-10-05, next to the price the site asks a
+     * customer for. JH Tech has no API and no reseller key, so every one of
+     * these is fulfilled by hand from Admin > Manual requests, and the retail
+     * figure must stay above the cost or the job is done at a loss.
+     *
+     * Keys are the setting keys Admin > Settings writes, so a price is only
+     * ever spelled one way. A fresh install has no settings rows, which means
+     * these retail numbers are what a customer is charged until the owner
+     * overrides them.
+     *
+     * @return array<string, array{cost: int, retail: int}>
+     */
+    function jhtech_price_reference(): array
+    {
+        return [
+            'price_nin_verify' => ['cost' => 180, 'retail' => 250],
+            'price_nin_slip_long' => ['cost' => 180, 'retail' => 300],
+            'price_nin_slip_standard' => ['cost' => 180, 'retail' => 350],
+            'price_nin_slip_premium' => ['cost' => 180, 'retail' => 400],
+            // Their own slip menu prices all three printed tiers at the same rate,
+            // so the old 180 here was the cost, not a price.
+            'price_nin_slip_vnin' => ['cost' => 180, 'retail' => 300],
+            'price_nin_validation_no_record' => ['cost' => 700, 'retail' => 1000],
+            'price_nin_validation_update_record' => ['cost' => 1000, 'retail' => 1500],
+            'price_bvn_verify' => ['cost' => 100, 'retail' => 200],
+            'price_bvn_retrieve_phone' => ['cost' => 2500, 'retail' => 3500],
+            'price_bvn_retrieve_bms' => ['cost' => 1000, 'retail' => 1500],
+
+            // Manually fulfilled identity jobs. Where one setting covers two JH
+            // Tech jobs of different cost, the retail figure clears the dearer one.
+            'price_manual_ipe_clearance' => ['cost' => 700, 'retail' => 3000],
+            'price_manual_nin_personalization' => ['cost' => 250, 'retail' => 3000],
+            'price_manual_nin_modification' => ['cost' => 0, 'retail' => 3500],
+            'price_manual_nin_delink' => ['cost' => 2000, 'retail' => 3000],
+            'price_manual_nin_agreement' => ['cost' => 0, 'retail' => 2500],
+            'price_manual_bvn_print' => ['cost' => 150, 'retail' => 1000],
+            'price_manual_nin_slip_print' => ['cost' => 180, 'retail' => 1000],
+            'price_manual_nin_validation' => ['cost' => 1000, 'retail' => 1500],
+            'price_manual_bvn_retrieve' => ['cost' => 2500, 'retail' => 3500],
+        ];
+    }
+}
+
+if (!function_exists('identity_reference_price')) {
+    /** The shipped default for an identity price key, ignoring anything saved. */
+    function identity_reference_price(string $key, float $fallback = 0.0): float
+    {
+        $entry = jhtech_price_reference()[$key] ?? null;
+
+        return $entry === null ? $fallback : (float) $entry['retail'];
+    }
+}
+
+if (!function_exists('identity_price')) {
+    /**
+     * The price the site actually charges right now: whatever the owner saved in
+     * Admin > Settings, otherwise the shipped default. Every page and every
+     * purchase path must read prices through this, or an admin price change
+     * silently stops reaching the customer.
+     */
+    function identity_price(string $key, float $fallback = 0.0): float
+    {
+        $stored = setting($key);
+
+        if ($stored === null || $stored === '') {
+            return identity_reference_price($key, $fallback);
+        }
+
+        return (float) $stored;
+    }
+}
+
+if (!function_exists('identity_cost')) {
+    /** What JH Tech charges for the same job, or null when the rate is unknown. */
+    function identity_cost(string $key): ?float
+    {
+        $entry = jhtech_price_reference()[$key] ?? null;
+        if ($entry === null || (int) $entry['cost'] === 0) {
+            return null;
+        }
+
+        return (float) $entry['cost'];
+    }
+}
+
 if (!function_exists('site_name')) {
     // The admin can save a blank site name, which would otherwise leave pages
     // titled with the host's default rather than the brand.

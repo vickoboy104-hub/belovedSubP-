@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\VtuController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\ManualOrdersController;
 use App\Http\Controllers\Admin\OrdersController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UsersController;
@@ -82,7 +83,10 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::post('/vtu/bvn/retrieve', [VtuController::class, 'bvnRetrieve'])->name('vtu.bvn.retrieve');
 
     Route::get('/vtu/orders', [VtuController::class, 'orders'])->name('vtu.orders');
+    Route::get('/vtu/manual/{service}', [VtuController::class, 'manualServiceForm'])->name('vtu.manual.form');
+    Route::post('/vtu/manual/{service}', [VtuController::class, 'manualServiceSubmit'])->name('vtu.manual.submit');
     Route::get('/vtu/receipt/{id}', [VtuController::class, 'receipt'])->name('vtu.receipt');
+    Route::get('/vtu/receipt/{id}/result-file', [VtuController::class, 'receiptFile'])->name('vtu.receipt.file');
     Route::get('/vtu/profit-calculator', [VtuController::class, 'profitCalculator'])->name('vtu.profit-calculator');
 
     // ✅ Wallet pages still handled by WalletController
@@ -117,6 +121,10 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
 Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('admin.dashboard');
     Route::get('/orders', [OrdersController::class, 'index'])->name('admin.orders');
+    Route::get('/manual-orders', [ManualOrdersController::class, 'index'])->name('admin.manual-orders.index');
+    Route::get('/manual-orders/{order}', [ManualOrdersController::class, 'show'])->name('admin.manual-orders.show');
+    Route::post('/manual-orders/{order}/fulfil', [ManualOrdersController::class, 'fulfil'])->name('admin.manual-orders.fulfil');
+    Route::post('/manual-orders/{order}/reject', [ManualOrdersController::class, 'reject'])->name('admin.manual-orders.reject');
     Route::get('/users', [UsersController::class, 'index'])->name('admin.users');
     Route::get('/users/{user}', [UsersController::class, 'show'])->name('admin.users.show');
     Route::post('/users/{user}/profile', [UsersController::class, 'updateProfile'])->name('admin.users.profile');

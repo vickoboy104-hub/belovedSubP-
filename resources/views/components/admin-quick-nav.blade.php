@@ -2,6 +2,7 @@
     $adminPages = [
         ['label' => 'Admin Dashboard', 'route' => 'admin.dashboard'],
         ['label' => 'Orders', 'route' => 'admin.orders'],
+        ['label' => 'Manual Requests', 'route' => 'admin.manual-orders.index'],
         ['label' => 'Users', 'route' => 'admin.users'],
         ['label' => 'Wallet Transactions', 'route' => 'admin.wallet.transactions'],
         ['label' => 'Notifications', 'route' => 'admin.notifications.index'],

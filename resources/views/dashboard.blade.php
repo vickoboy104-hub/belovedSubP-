@@ -3,18 +3,46 @@
         $balanceNaira = number_format(((int) ($walletBalanceKobo ?? 0)) / 100, 2);
         $referralBalanceNaira = number_format(((int) ($referralBalanceKobo ?? 0)) / 100, 2);
         $dashUser = auth()->user();
-        $accountNumber = trim((string) ($dashUser?->paystack_dva_account_number ?? ''));
+        $accountMeta = (array) ($dashUser?->virtual_account_metadata ?? []);
+        $accountNumber = trim((string) ($dashUser?->virtual_account_number ?? ''));
         $accountBank = trim((string) ($dashUser?->virtual_account_bank ?? ''));
+        $accountIsTemporary = false;
 
+        // A customer who only ever generated a one-time account still needs to see it here.
+        if ($accountNumber === '') {
+            $temporary = (array) ($accountMeta['temporary_virtual_account'] ?? []);
+            $temporaryNumber = trim((string) ($temporary['account_number'] ?? ''));
+
+            if ($temporaryNumber !== '') {
+                $expiresAt = null;
+                try {
+                    $expiresAt = \Illuminate\Support\Carbon::parse((string) ($temporary['expires_at'] ?? ''));
+                } catch (\Throwable $e) {
+                    $expiresAt = null;
+                }
+
+                if ($expiresAt === null || $expiresAt->isFuture()) {
+                    $accountNumber = $temporaryNumber;
+                    $accountBank = trim((string) ($temporary['bank_name'] ?? ''));
+                    $accountIsTemporary = true;
+                }
+            }
+        }
+
+        // Key-less identity services are handled by the manual fulfilment queue,
+        // so every tile here is a live link.
         $identityTiles = [
-            ['name' => 'NIN Verification', 'route' => 'vtu.nin', 'icon' => '◉'],
-            ['name' => 'Print NIN Slip', 'route' => 'vtu.nin', 'icon' => '▣'],
-            ['name' => 'BVN Verification', 'route' => 'vtu.bvn', 'icon' => '◉'],
-            ['name' => 'BVN Services', 'route' => 'vtu.bvn', 'icon' => '▣'],
-            ['name' => 'NIN Validation', 'route' => 'vtu.nin-validation', 'icon' => '✓'],
-            ['name' => 'IPE Clearance', 'route' => null, 'icon' => '⌕'],
-            ['name' => 'Personalization', 'route' => null, 'icon' => '◇'],
-            ['name' => 'NIN Modification', 'route' => null, 'icon' => '✎'],
+            ['name' => 'NIN Verification', 'url' => route('vtu.nin'), 'icon' => '◉'],
+            ['name' => 'Print NIN Slip', 'url' => route('vtu.manual.form', 'nin_slip_print'), 'icon' => '▣'],
+            ['name' => 'BVN Verification', 'url' => route('vtu.bvn'), 'icon' => '◉'],
+            ['name' => 'BVN Services', 'url' => route('vtu.bvn'), 'icon' => '▣'],
+            ['name' => 'NIN Validation', 'url' => route('vtu.nin-validation'), 'icon' => '✓'],
+            ['name' => 'IPE Clearance', 'url' => route('vtu.manual.form', 'ipe_clearance'), 'icon' => '⌕'],
+            ['name' => 'Personalization', 'url' => route('vtu.manual.form', 'nin_personalization'), 'icon' => '◇'],
+            ['name' => 'NIN Modification', 'url' => route('vtu.manual.form', 'nin_modification'), 'icon' => '✎'],
+            ['name' => 'NIN Delink', 'url' => route('vtu.manual.form', 'nin_delink'), 'icon' => '⛓'],
+            ['name' => 'NIN Agreement', 'url' => route('vtu.manual.form', 'nin_agreement'), 'icon' => '📄'],
+            ['name' => 'Print BVN Slip', 'url' => route('vtu.manual.form', 'bvn_print'), 'icon' => '🖨'],
         ];
         $everydayTiles = [
             ['name' => 'Data', 'route' => 'vtu.data', 'icon' => '▥'],
@@ -44,7 +72,7 @@
             <section class="reference-summary-grid" aria-label="Account summary">
                 <div class="reference-summary-card">
                     <div class="reference-card-caption">Balance (₦) <span class="reference-wallet-icon" aria-hidden="true">▣</span></div>
-                    <strong class="reference-money">₦{{ $balanceNaira }}</strong>
+                    <strong class="reference-money" id="walletBalance" data-wallet-kobo="{{ (int) ($walletBalanceKobo ?? 0) }}">₦{{ $balanceNaira }}</strong>
                     <a href="{{ route('wallet.fund') }}" class="reference-full-button">Fund Wallet</a>
                 </div>
                 <div class="reference-summary-card reference-summary-blue">
@@ -56,7 +84,13 @@
                     <div class="reference-card-caption">Account Number <span class="reference-wallet-icon" aria-hidden="true">▤</span></div>
                     @if($accountNumber !== '')
                         <strong class="reference-money reference-money-compact">{{ $accountNumber }}</strong>
-                        <span class="reference-account-bank">{{ $accountBank !== '' ? $accountBank : 'Assigned bank' }}</span>
+                        <span class="reference-account-bank">
+                            {{ $accountBank !== '' ? $accountBank : 'Assigned bank' }}
+                            @if($accountIsTemporary)
+                                &middot; one-time, expires soon
+                            @endif
+                        </span>
+                        <button type="button" class="reference-full-button" data-copy-text="{{ $accountNumber }}" data-copy-label="Copy Account" data-copy-done="Copied">Copy Account</button>
                     @else
                         <strong class="reference-money reference-money-compact">Not generated</strong>
                         <a href="{{ route('wallet.fund') }}" class="reference-full-button">Generate Account</a>
@@ -68,10 +102,7 @@
                 <h2 class="reference-section-title" id="identity-title">Identity services</h2>
                 <div class="reference-tile-grid">
                     @foreach($identityTiles as $tile)
-                        <x-service-tile :label="$tile['name']"
-                                         :href="$tile['route'] ? route($tile['route']) : null"
-                                         :icon="$tile['icon']"
-                                         :pending="$tile['route'] === null" />
+                        <x-service-tile :label="$tile['name']" :href="$tile['url']" :icon="$tile['icon']" />
                     @endforeach
                 </div>
             </section>

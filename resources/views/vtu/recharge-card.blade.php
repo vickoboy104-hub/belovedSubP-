@@ -18,6 +18,16 @@
         $markup = (float) ($markup ?? 0);
     @endphp
 
+    <style>
+        /* A tile that looks identical whether or not it is chosen is the one
+           complaint this page kept getting. */
+        .card-network.is-selected {
+            border-color: #ea580c !important;
+            box-shadow: 0 0 0 2px rgba(234, 88, 12, .35);
+            background: #fff7ed;
+        }
+    </style>
+
     <x-page-hero class="reference-shared-banner" title="Recharge Card Printing" subtitle="Select network, value and number of PINs, then confirm before purchase." />
 
     <div class="reference-flow-page max-w-3xl mx-auto w-full px-4 sm:px-0 space-y-5">
@@ -33,7 +43,7 @@
                              onerror="this.style.display='none';this.parentElement.innerHTML='<span class=&quot;text-xs font-extrabold text-gray-500&quot;>{{ $label }}</span>';">
                     </div>
                     <div class="mt-1 font-extrabold text-xs">{{ $label }}</div>
-                    <div class="text-[10px] text-gray-600">Tap</div>
+                    <div class="card-network-state text-[10px] text-gray-600">Tap</div>
                 </button>
             @endforeach
         </div>
@@ -127,11 +137,29 @@
                 return total;
             }
 
-            document.querySelectorAll('.card-network').forEach(btn => {
+            const networkTiles = Array.from(document.querySelectorAll('.card-network'));
+
+            function markSelectedNetwork() {
+                networkTiles.forEach(btn => {
+                    const isSelected = btn.dataset.network === network.value;
+                    btn.classList.toggle('is-selected', isSelected);
+
+                    const state = btn.querySelector('.card-network-state');
+                    if (state) {
+                        state.textContent = isSelected ? 'Selected' : 'Tap';
+                    }
+                });
+            }
+
+            networkTiles.forEach(btn => {
                 btn.addEventListener('click', () => {
                     network.value = btn.dataset.network || '';
+                    markSelectedNetwork();
                 });
             });
+
+            network.addEventListener('change', markSelectedNetwork);
+            markSelectedNetwork();
 
             value.addEventListener('change', computeTotal);
             qty.addEventListener('input', computeTotal);

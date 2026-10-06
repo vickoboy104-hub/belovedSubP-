@@ -51,6 +51,9 @@
                             <a href="#group-recharge-card" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Recharge Cards</a>
                             <a href="#group-exam-prices" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Exam Prices</a>
                             <a href="#group-identity-services" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">NIN/BVN</a>
+                            <a href="#group-manual-identity" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Manual Requests</a>
+                            <a href="#group-sms-gateway" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">SMS Gateway</a>
+                            <a href="#group-sms-gateway" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">SMS Gateway</a>
                             <a href="#group-app-download" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">App Download</a>
                             <a href="#group-footer-social" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Footer & Social</a>
                             <a href="#group-error-codes" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Error Codes</a>
@@ -548,6 +551,24 @@
                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                         <div class="text-xs text-gray-500 mt-1">This fee is deducted from every Flutterwave deposit.</div>
                     </div>
+
+                    <div>
+                        <label class="text-sm font-bold text-gray-800/80">Flutterwave Webhook URL</label>
+                        <div class="mt-1 flex flex-wrap items-center gap-2">
+                            <input type="text" readonly value="{{ url(route('flutterwave.webhook', absolute: false)) }}"
+                                   class="flex-1 min-w-[14rem] px-4 py-3 rounded-2xl bg-slate-50 border border-gray-300 text-gray-800">
+                            <button type="button" class="btn-outline px-4 py-2 text-sm font-bold"
+                                    data-copy-text="{{ url(route('flutterwave.webhook', absolute: false)) }}"
+                                    data-copy-label="Copy" data-copy-done="Copied">Copy</button>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            Paste this into Flutterwave → Settings → Webhooks. A wallet top-up paid by bank
+                            transfer into a virtual account is only credited when Flutterwave posts to this
+                            address, so an unregistered webhook leaves real money sitting in limbo. Set
+                            FLUTTERWAVE_SECRET_HASH in .env to the webhook hash from the same Flutterwave page,
+                            or every call here is rejected.
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -813,11 +834,10 @@
                         'eko-electric' => 'Eko Electric (EKEDC)',
                         'ibadan-electric' => 'Ibadan Electric (IBEDC)',
                         'ikeja-electric' => 'Ikeja Electric (IKEDC)',
-                        'jos-electic' => 'Jos Electric (JED)',
+                        'jos-electric' => 'Jos Electric (JED)',
                         'kaduna-electric' => 'Kaduna Electric (KAEDCO)',
                         'kano-electric' => 'Kano Electric (KEDCO)',
-                        'portharcourt-electric' => 'Port Harcourt Electric (PHED)',
-                        'aba-electric' => 'Aba Electric (ABA)',
+                        'phed-electric' => 'Port Harcourt Electric (PHED)',
                         'yola-electric' => 'Yola Electric (YEDC)',
                         'benin-electric' => 'Benin Electric (BEDC)',
                         'enugu-electric' => 'Enugu Electric (EEDC)',
@@ -1021,6 +1041,12 @@
 
             {{-- Exam Base Prices --}}
             <div id="group-exam-prices" class="scroll-mt-44">
+                @php
+                    // Pre-filled with the figure the store actually charges, so
+                    // saving this panel without touching a field cannot silently
+                    // price an exam at zero and lock customers out of buying it.
+                    $examDefaults = exam_price_defaults();
+                @endphp
                 <div class="text-lg font-extrabold">Exam Base Prices (₦)</div>
                 <div class="text-xs text-gray-500 mt-1">Set provider/base price here. Customer pays base + exam markup.</div>
 
@@ -1028,31 +1054,31 @@
                     <div>
                         <label class="text-sm font-bold text-gray-800/80">JAMB Base</label>
                         <input type="number" step="0.01" name="price_exam_jamb"
-                               value="{{ old('price_exam_jamb', $settings['price_exam_jamb'] ?? '0') }}"
+                               value="{{ old('price_exam_jamb', $settings['price_exam_jamb'] ?? $examDefaults['jamb']) }}"
                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                     </div>
                     <div>
                         <label class="text-sm font-bold text-gray-800/80">WAEC Base</label>
                         <input type="number" step="0.01" name="price_exam_waec"
-                               value="{{ old('price_exam_waec', $settings['price_exam_waec'] ?? '0') }}"
+                               value="{{ old('price_exam_waec', $settings['price_exam_waec'] ?? $examDefaults['waec']) }}"
                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                     </div>
                     <div>
                         <label class="text-sm font-bold text-gray-800/80">NECO Base</label>
                         <input type="number" step="0.01" name="price_exam_neco"
-                               value="{{ old('price_exam_neco', $settings['price_exam_neco'] ?? '0') }}"
+                               value="{{ old('price_exam_neco', $settings['price_exam_neco'] ?? $examDefaults['neco']) }}"
                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                     </div>
                     <div>
                         <label class="text-sm font-bold text-gray-800/80">NABTEB Base</label>
                         <input type="number" step="0.01" name="price_exam_nabteb"
-                               value="{{ old('price_exam_nabteb', $settings['price_exam_nabteb'] ?? '0') }}"
+                               value="{{ old('price_exam_nabteb', $settings['price_exam_nabteb'] ?? $examDefaults['nabteb']) }}"
                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                     </div>
                     <div>
                         <label class="text-sm font-bold text-gray-800/80">Education Transaction Charge</label>
                         <input type="number" step="0.01" name="price_exam_transaction_fee"
-                               value="{{ old('price_exam_transaction_fee', $settings['price_exam_transaction_fee'] ?? '100') }}"
+                               value="{{ old('price_exam_transaction_fee', $settings['price_exam_transaction_fee'] ?? $examDefaults['fee']) }}"
                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                     </div>
                 </div>
@@ -1061,48 +1087,38 @@
             <div id="group-identity-services" class="scroll-mt-44">
                 <div class="text-lg font-extrabold">NIN & BVN Services</div>
                 <div class="text-xs text-gray-500 mt-1">Set pricing and endpoints. Endpoints can be relative (`/path`) or full URL.</div>
+                <div class="text-xs text-gray-500 mt-1">The cost under each price is what jhtechltd.com charges this account per job, so a price set at or below it is worked at a loss.</div>
+
+                @php
+                    $identityPriceFields = [
+                        'price_nin_verify' => 'NIN Verify Price',
+                        'price_nin_slip_long' => 'NIN Slip Long Price',
+                        'price_nin_slip_standard' => 'NIN Slip Standard Price',
+                        'price_nin_slip_premium' => 'NIN Slip Premium Price',
+                        'price_nin_slip_vnin' => 'NIN VNIN Slip Price',
+                        'price_nin_validation_no_record' => 'NIN Validation (No Record)',
+                        'price_nin_validation_update_record' => 'NIN Validation (Update Record)',
+                        'price_bvn_verify' => 'BVN Verify Price',
+                        'price_bvn_retrieve_phone' => 'BVN Retrieve by Phone Price',
+                        'price_bvn_retrieve_bms' => 'BVN Retrieve by BMS Price',
+                    ];
+                @endphp
 
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">NIN Verify Price</label>
-                        <input type="number" step="0.01" name="price_nin_verify" value="{{ old('price_nin_verify', $settings['price_nin_verify'] ?? '250') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">NIN Slip Long Price</label>
-                        <input type="number" step="0.01" name="price_nin_slip_long" value="{{ old('price_nin_slip_long', $settings['price_nin_slip_long'] ?? '300') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">NIN Slip Standard Price</label>
-                        <input type="number" step="0.01" name="price_nin_slip_standard" value="{{ old('price_nin_slip_standard', $settings['price_nin_slip_standard'] ?? '350') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">NIN Slip Premium Price</label>
-                        <input type="number" step="0.01" name="price_nin_slip_premium" value="{{ old('price_nin_slip_premium', $settings['price_nin_slip_premium'] ?? '400') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">NIN VNIN Slip Price</label>
-                        <input type="number" step="0.01" name="price_nin_slip_vnin" value="{{ old('price_nin_slip_vnin', $settings['price_nin_slip_vnin'] ?? '180') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">NIN Validation (No Record)</label>
-                        <input type="number" step="0.01" name="price_nin_validation_no_record" value="{{ old('price_nin_validation_no_record', $settings['price_nin_validation_no_record'] ?? '1000') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">NIN Validation (Update Record)</label>
-                        <input type="number" step="0.01" name="price_nin_validation_update_record" value="{{ old('price_nin_validation_update_record', $settings['price_nin_validation_update_record'] ?? '1500') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">BVN Verify Price</label>
-                        <input type="number" step="0.01" name="price_bvn_verify" value="{{ old('price_bvn_verify', $settings['price_bvn_verify'] ?? '100') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">BVN Retrieve by Phone Price</label>
-                        <input type="number" step="0.01" name="price_bvn_retrieve_phone" value="{{ old('price_bvn_retrieve_phone', $settings['price_bvn_retrieve_phone'] ?? '2500') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">BVN Retrieve by BMS Price</label>
-                        <input type="number" step="0.01" name="price_bvn_retrieve_bms" value="{{ old('price_bvn_retrieve_bms', $settings['price_bvn_retrieve_bms'] ?? '1000') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
+                    @foreach($identityPriceFields as $priceKey => $priceLabel)
+                        <div>
+                            <label class="text-sm font-bold text-gray-800/80">{{ $priceLabel }}</label>
+                            <input type="number" step="0.01" name="{{ $priceKey }}"
+                                   value="{{ old($priceKey, number_format(identity_price($priceKey), 2, '.', '')) }}"
+                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                            @php
+                                $cost = identity_cost($priceKey);
+                            @endphp
+                            <div class="text-xs text-gray-500 mt-1">
+                                {{ $cost === null ? 'No published JH Tech rate for this job.' : 'JH Tech cost: ₦'.number_format($cost, 2) }}
+                            </div>
+                        </div>
+                    @endforeach
                     <div>
                         <label class="text-sm font-bold text-gray-800/80">NIN Base URL</label>
                         <input name="nin_base_url" value="{{ old('nin_base_url', $settings['nin_base_url'] ?? '') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
@@ -1148,6 +1164,118 @@
                         <input name="bvn_print_endpoint" value="{{ old('bvn_print_endpoint', $settings['bvn_print_endpoint'] ?? '') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                     </div>
                 </div>
+            </div>
+
+            <div id="group-manual-identity" class="scroll-mt-44">
+                @php
+                    // These requests have no provider behind them, so the price and
+                    // the promise the customer sees are decided here alone.
+                    $manualServices = app(\App\Services\ManualFulfilmentService::class);
+                @endphp
+                <div class="text-lg font-extrabold">Manual Identity Requests</div>
+                <div class="text-xs text-gray-500 mt-1">
+                    Services with no API connection. The customer pays and an admin completes the work,
+                    so the price and the promised turnaround below are what the customer is shown.
+                    Leave a field empty to use the built-in default.
+                </div>
+
+                <div class="mt-3 space-y-3">
+                    @foreach($manualServices->catalogue() as $slug => $manual)
+                        <div class="rounded-2xl border border-gray-200 bg-white p-4">
+                            <div class="font-extrabold text-gray-900">{{ $manual['icon'] }} {{ $manual['title'] }}</div>
+                            <div class="text-xs text-gray-500 mt-1">{{ $manual['summary'] }}</div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                                <div>
+                                    <label class="text-sm font-bold text-gray-800/80">Price (₦)</label>
+                                    <input type="number" step="0.01" min="0"
+                                           name="{{ $manualServices->priceKey($slug) }}"
+                                           value="{{ old($manualServices->priceKey($slug), $settings[$manualServices->priceKey($slug)] ?? '') }}"
+                                           placeholder="{{ number_format($manualServices->defaultPrice($slug), 2) }}"
+                                           class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                                    @php
+                                        $manualCost = $manualServices->providerCost($slug);
+                                    @endphp
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        {{ $manualCost === null ? 'No published JH Tech rate for this job.' : 'JH Tech cost: ₦'.number_format($manualCost, 2) }}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-sm font-bold text-gray-800/80">Markup (₦)</label>
+                                    <input type="number" step="0.01" min="0"
+                                           name="markup_manual_{{ $slug }}"
+                                           value="{{ old('markup_manual_'.$slug, $settings['markup_manual_'.$slug] ?? '') }}"
+                                           placeholder="0"
+                                           class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                                </div>
+                                <div>
+                                    <label class="text-sm font-bold text-gray-800/80">Turnaround (hours)</label>
+                                    <input type="number" step="1" min="1"
+                                           name="{{ $manualServices->turnaroundKey($slug) }}"
+                                           value="{{ old($manualServices->turnaroundKey($slug), $settings[$manualServices->turnaroundKey($slug)] ?? '') }}"
+                                           placeholder="Default {{ $manual['turnaround_default'] }}"
+                                           class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <div id="group-sms-gateway" class="scroll-mt-44">
+                <div class="text-lg font-extrabold">Bulk SMS Gateway</div>
+                <div class="text-xs text-gray-500 mt-1">
+                    Fill these four in and the Broadcast page starts sending texts on its own.
+                    Until then it only exports the recipient list. Leave a field empty to keep the value shown.
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+                    <div>
+                        <label class="text-sm font-bold text-gray-800/80">API Endpoint</label>
+                        <input name="sms_endpoint" value="{{ old('sms_endpoint', $settings['sms_endpoint'] ?? '') }}" placeholder="https://api.provider.com/sms/send" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                    </div>
+                    <div>
+                        <label class="text-sm font-bold text-gray-800/80">API Key</label>
+                        <input name="sms_api_key" value="{{ old('sms_api_key', $settings['sms_api_key'] ?? '') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                    </div>
+                    <div>
+                        <label class="text-sm font-bold text-gray-800/80">Sender ID</label>
+                        <input name="sms_sender_id" value="{{ old('sms_sender_id', $settings['sms_sender_id'] ?? '') }}" placeholder="BELIEVED" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                    </div>
+                    <div>
+                        <label class="text-sm font-bold text-gray-800/80">Label shown on the Broadcast page</label>
+                        <input name="sms_driver" value="{{ old('sms_driver', $settings['sms_driver'] ?? '') }}" placeholder="e.g. Termii" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                    </div>
+                </div>
+
+                <details class="mt-4">
+                    <summary class="text-sm font-bold text-gray-800/80 cursor-pointer">Provider-specific options</summary>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+                        <div>
+                            <label class="text-sm font-bold text-gray-800/80">Auth header</label>
+                            <input name="sms_auth_header" value="{{ old('sms_auth_header', $settings['sms_auth_header'] ?? 'Authorization') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                        </div>
+                        <div>
+                            <label class="text-sm font-bold text-gray-800/80">Body format</label>
+                            <select name="sms_body_format" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                                @foreach(['json', 'form'] as $format)
+                                    <option value="{{ $format }}" @selected(old('sms_body_format', $settings['sms_body_format'] ?? 'json') === $format)>{{ strtoupper($format) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-sm font-bold text-gray-800/80">Success field / value</label>
+                            <div class="flex gap-2 mt-1">
+                                <input name="sms_success_field" value="{{ old('sms_success_field', $settings['sms_success_field'] ?? '') }}" placeholder="code" class="w-1/2 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                                <input name="sms_success_value" value="{{ old('sms_success_value', $settings['sms_success_value'] ?? '') }}" placeholder="000" class="w-1/2 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                            </div>
+                        </div>
+                        <div class="sm:col-span-2 lg:col-span-3">
+                            <label class="text-sm font-bold text-gray-800/80">Field name map (JSON)</label>
+                            <textarea name="sms_param_map" rows="2" placeholder='{"to":"destination","message":"sms","from":"sender"}' class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">{{ old('sms_param_map', $settings['sms_param_map'] ?? '') }}</textarea>
+                            <div class="text-xs text-gray-500 mt-1">Extra fixed fields go in the same shape: {"sms": "Some message"}.</div>
+                        </div>
+                    </div>
+                </details>
             </div>
 
             <div id="group-app-download" class="scroll-mt-44">

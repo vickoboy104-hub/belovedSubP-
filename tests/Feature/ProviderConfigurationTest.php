@@ -62,21 +62,68 @@ class ProviderConfigurationTest extends TestCase
         $this->assertSame(0, Order::query()->where('user_id', $user->id)->count());
     }
 
-    public function test_nin_validation_is_refunded_and_explains_the_missing_key(): void
+    public function test_nin_validation_is_charged_and_queued_for_manual_fulfilment_without_a_key(): void
     {
+        $admin = User::factory()->create(['is_admin' => true]);
         $user = $this->memberWithBalance(100_000);
 
-        $this->actingAs($user)
+        $response = $this
+            ->actingAs($user)
             ->post('/vtu/nin-validation', [
                 'validation_type' => 'no_record',
                 'nin' => '12345678901',
-            ])
-            ->assertRedirect()
-            ->assertSessionHas('error', 'NIN validation endpoint is not configured.');
+            ]);
+
+        $order = $this->latestOrder($user);
+        $response->assertRedirect(route('vtu.receipt', $order->id));
+        $response->assertSessionHas('success');
 
         Http::assertNothingSent();
-        $this->assertSame(100_000, $this->balance($user));
-        $this->assertSame('failed', $this->latestOrder($user)->status);
+
+        // The customer is charged at submission, so the wallet must show the debit.
+        $this->assertSame(0, $this->balance($user));
+
+        $meta = $order->meta;
+        $this->assertSame('pending', $order->status);
+        $this->assertSame('manual', $order->provider);
+        $this->assertTrue($meta['manual_queue']);
+        $this->assertSame('nin_validation', $meta['manual_service']);
+        $this->assertSame('no_record', $meta['validation_type']);
+        $this->assertSame('12345678901', $meta['submitted']['nin']);
+        $this->assertNotEmpty($meta['expected_by']);
+
+        // A human is the only thing that can finish this, so an admin is alerted.
+        $this->assertDatabaseHas('notifications', [
+            'notifiable_type' => User::class,
+            'notifiable_id' => $admin->id,
+        ]);
+    }
+
+    public function test_bvn_retrieval_is_charged_and_queued_for_manual_fulfilment_without_an_endpoint(): void
+    {
+        $user = $this->memberWithBalance(400_000);
+
+        $response = $this
+            ->actingAs($user)
+            ->postJson('/vtu/bvn/retrieve', [
+                'retrieve_type' => 'phone',
+                'phone' => '08012345678',
+            ]);
+
+        $response->assertOk()->assertJson(['ok' => true, 'queued' => true]);
+
+        Http::assertNothingSent();
+
+        $order = $this->latestOrder($user);
+        $meta = $order->meta;
+        $this->assertSame('pending', $order->status);
+        $this->assertSame('manual', $order->provider);
+        $this->assertTrue($meta['manual_queue']);
+        $this->assertSame('bvn_retrieve', $meta['manual_service']);
+        $this->assertSame('08012345678', $meta['submitted']['phone']);
+        // JH Tech charges ₦2,500 for a phone retrieval, so the site asks ₦3,500
+        // and ₦4,000 of wallet leaves ₦500 behind.
+        $this->assertSame(50_000, $this->balance($user));
     }
 
     public function test_purchases_are_sent_to_the_provider_once_a_key_is_configured(): void

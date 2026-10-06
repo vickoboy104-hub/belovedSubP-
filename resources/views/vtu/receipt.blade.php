@@ -14,7 +14,27 @@
 
         $siteName = site_name();
         $support = whatsapp_link();
-        $providerLabel = 'BelovedSubP-G';
+
+        $isManualQueue = !empty($meta['manual_queue']);
+        $resultText = trim((string) ($meta['result_text'] ?? ''));
+        $resultFileName = trim((string) ($meta['result_file_name'] ?? ''));
+        $hasResultFile = trim((string) ($meta['result_file'] ?? '')) !== '';
+        $expectedBy = null;
+
+        if (!empty($meta['expected_by'])) {
+            try {
+                $expectedBy = \Illuminate\Support\Carbon::parse((string) $meta['expected_by']);
+            } catch (\Throwable $e) {
+                $expectedBy = null;
+            }
+        }
+
+        $providerLabel = match ((string) $order->provider) {
+            'gsubz' => 'GSUBZ',
+            'alt' => 'Alternative Provider',
+            'manual' => $siteName.' Team',
+            default => $siteName,
+        };
     @endphp
 
     <style>
@@ -55,11 +75,11 @@
         <div class="rounded-3xl p-6 border border-gray-200 bg-white print-card">
             <div class="flex items-center justify-between gap-3">
                 <div>
-                    <div class="text-sm text-gray-500
+                    <div class="text-sm text-gray-500">Receipt</div>
                     <div class="text-xl font-extrabold">{{ $siteName }}</div>
                 </div>
                 <div class="text-right">
-                    <div class="text-sm text-gray-500
+                    <div class="text-sm text-gray-500">Status</div>
                     <div class="text-sm font-extrabold">
                         <span class="px-3 py-1 rounded-full
                             @if($order->status === 'success') bg-green-500/15 text-green-700 border border-green-500/25
@@ -155,8 +175,40 @@
                 </div>
             @endif
 
+            @if($resultText !== '')
+                <div class="mt-5 rounded-2xl border border-green-500/25 bg-green-500/10 p-4">
+                    <div class="text-sm text-green-700 font-extrabold">Your Result</div>
+                    <div class="mt-2 text-sm text-slate-800 break-words">{!! sanitize_popup_message_html($resultText) !!}</div>
+                </div>
+            @endif
+
+            @if($hasResultFile)
+                <div class="mt-5 rounded-2xl border border-green-500/25 bg-green-500/10 p-4">
+                    <div class="text-sm text-green-700 font-extrabold">Result Document</div>
+                    <div class="mt-1 text-sm text-slate-700 break-words">{{ $resultFileName !== '' ? $resultFileName : 'Download your result' }}</div>
+                    <a href="{{ route('vtu.receipt.file', $order->id) }}"
+                       class="mt-3 inline-flex items-center gap-2 rounded-xl bg-green-700 px-4 py-2 text-sm font-extrabold text-white hover:bg-green-800">
+                        Download Result
+                    </a>
+                </div>
+            @elseif($isManualQueue && $order->status === 'pending')
+                <div class="mt-5 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4">
+                    <div class="text-sm font-extrabold text-yellow-800">In progress</div>
+                    <p class="mt-1 text-sm text-slate-700">
+                        Your request has been received and is being processed by our team.
+                        @if($expectedBy)
+                            Expected to be ready by <span class="font-extrabold">{{ $expectedBy->format('d M, Y h:ia') }}</span>
+                            ({{ $expectedBy->diffForHumans() }}).
+                        @endif
+                    </p>
+                    <p class="mt-2 text-xs text-slate-600">
+                        The result will appear on this page and in your notifications as soon as it is ready.
+                    </p>
+                </div>
+            @endif
+
             <div class="mt-6 flex items-center justify-between gap-3 text-sm">
-                <div class="text-gray-500
+                <div class="text-gray-500">
                     Need help?
                     <a class="text-green-700 hover:text-green-600 font-extrabold"
                        href="{{ $support }}"
@@ -171,12 +223,30 @@
 
     <script>
         function downloadReceipt() {
-            const originalTitle = document.title;
-            document.title = 'Receipt-{{ $order->id }}';
-            window.print();
-            setTimeout(() => {
-                document.title = originalTitle;
-            }, 1000);
+            const card = document.querySelector('.print-card');
+            if (!card) {
+                window.print();
+                return;
+            }
+
+            const html = '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+                + '<title>Receipt-{{ $order->id }}</title>\n'
+                + '<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#fff;color:#111;margin:24px}'
+                + 'a{color:#047857}</style>\n</head>\n<body>\n'
+                + card.outerHTML
+                + '\n</body>\n</html>';
+
+            const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+
+            link.href = url;
+            link.download = 'Receipt-{{ $order->id }}.html';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
         }
     </script>
 </x-app-layout>

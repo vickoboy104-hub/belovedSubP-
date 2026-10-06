@@ -1,8 +1,8 @@
 <x-app-layout>
     @php
-        $priceVerify = (float) setting('price_bvn_verify', 100);
-        $priceRetrievePhone = (float) setting('price_bvn_retrieve_phone', 2500);
-        $priceRetrieveBms = (float) setting('price_bvn_retrieve_bms', 1000);
+        $priceVerify = identity_price('price_bvn_verify');
+        $priceRetrievePhone = identity_price('price_bvn_retrieve_phone');
+        $priceRetrieveBms = identity_price('price_bvn_retrieve_bms');
         $markup = (float) setting('markup_bvn', 0);
     @endphp
 
@@ -93,6 +93,13 @@
             </div>
 
             <div id="bvnDetails" class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+
+            <p id="bvnReceiptLink" class="hidden mt-4">
+                <a id="bvnReceiptAnchor" href="#"
+                   class="inline-flex items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-900">
+                    Open receipt and track this request
+                </a>
+            </p>
         </div>
     </div>
 
@@ -144,11 +151,19 @@
                 return '';
             }
 
-            function setStatus(ok) {
-                statusBadge.textContent = ok ? 'SUCCESS' : 'FAILED';
-                statusBadge.className = ok
-                    ? 'px-3 py-1 rounded-full text-xs font-semibold border bg-green-50 text-green-800 border-green-200'
-                    : 'px-3 py-1 rounded-full text-xs font-semibold border bg-red-50 text-red-800 border-red-200';
+            function setStatus(state) {
+                const looks = {
+                    success: ['SUCCESS', 'bg-green-50 text-green-800 border-green-200'],
+                    // A retrieval can be accepted and still have no answer yet,
+                    // and the wallet has already been charged for it. Saying
+                    // FAILED there would be a lie the customer could act on.
+                    pending: ['IN PROGRESS', 'bg-amber-50 text-amber-800 border-amber-200'],
+                    failed: ['FAILED', 'bg-red-50 text-red-800 border-red-200'],
+                };
+                const [label, tone] = looks[state] || looks.failed;
+
+                statusBadge.textContent = label;
+                statusBadge.className = 'px-3 py-1 rounded-full text-xs font-semibold border ' + tone;
             }
 
             function detailsRow(label, value) {
@@ -160,18 +175,39 @@
                 `;
             }
 
-            function renderResult(ok, message, data) {
-                resultCard.classList.remove('hidden');
-                setStatus(ok);
-                resultMessage.textContent = message || (ok ? 'Request completed.' : 'Request failed.');
+            function clearResultFields() {
+                nameEl.textContent = '-';
+                bvnNoEl.textContent = '-';
+                ninEl.textContent = '-';
+                detailsWrap.innerHTML = '';
+                faceImg.src = '';
+                faceImg.classList.add('hidden');
+            }
 
-                if (!ok) {
-                    nameEl.textContent = '-';
-                    bvnNoEl.textContent = '-';
-                    ninEl.textContent = '-';
-                    detailsWrap.innerHTML = '';
-                    faceImg.src = '';
-                    faceImg.classList.add('hidden');
+            function showReceipt(url) {
+                const anchor = document.getElementById('bvnReceiptAnchor');
+                const wrapper = document.getElementById('bvnReceiptLink');
+
+                // Only ever a link this app generated, never whatever a provider said.
+                if (typeof url === 'string' && (url.startsWith('/') || url.startsWith(window.location.origin))) {
+                    anchor.href = url;
+                    wrapper.classList.remove('hidden');
+                    return;
+                }
+
+                wrapper.classList.add('hidden');
+                anchor.removeAttribute('href');
+            }
+
+            function renderResult(state, message, data) {
+                resultCard.classList.remove('hidden');
+                setStatus(state);
+                resultMessage.textContent = message || (state === 'success'
+                    ? 'Request completed.'
+                    : (state === 'pending' ? 'Request received.' : 'Request failed.'));
+
+                if (state !== 'success') {
+                    clearResultFields();
                     return;
                 }
 
@@ -276,15 +312,20 @@
                     });
                     const data = await response.json().catch(() => ({}));
                     const ok = response.ok && data?.ok === true;
-                    renderResult(ok, data?.message || 'Request completed.', data?.normalized || data?.data || {});
-                    notify(ok ? 'success' : 'error', data?.message || 'Request failed.');
+                    const message = data?.message || (ok ? 'Request completed.' : 'Request failed.');
+
+                    renderResult(ok ? (data?.queued ? 'pending' : 'success') : 'failed',
+                        message,
+                        data?.normalized || data?.data || {});
+                    showReceipt(data?.receipt_url);
+                    notify(ok ? 'success' : 'error', message);
 
                     const balanceKobo = Number(data?.balance_kobo ?? NaN);
                     if (Number.isFinite(balanceKobo) && typeof window.updateWalletBalance === 'function') {
                         window.updateWalletBalance(balanceKobo);
                     }
                 } catch (error) {
-                    renderResult(false, 'Network error. Please try again.', {});
+                    renderResult('failed', 'Network error. Please try again.', {});
                     notify('error', 'Network error. Please try again.');
                 } finally {
                     form.dataset.submitting = '0';

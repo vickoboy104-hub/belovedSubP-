@@ -22,6 +22,7 @@ cp .env.example .env
 php artisan key:generate
 touch database/database.sqlite
 php artisan migrate --seed
+php artisan storage:link   # required: avatars are stored on the public disk
 npm install
 npm run build
 php artisan serve   # http://127.0.0.1:8000

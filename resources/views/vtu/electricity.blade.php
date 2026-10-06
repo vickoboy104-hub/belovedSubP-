@@ -5,11 +5,10 @@
             'eko-electric' => '/electricity/ekedc.png',
             'ibadan-electric' => '/electricity/ibedc.png',
             'ikeja-electric' => '/electricity/ikedc.png',
-            'jos-electic' => '/electricity/jed.png',
+            'jos-electric' => '/electricity/jed.png',
             'kaduna-electric' => '/electricity/kaduna.png',
             'kano-electric' => '/electricity/kedco.png',
-            'portharcourt-electric' => '/electricity/phed.png',
-            'aba-electric' => '/electricity/aba.png',
+            'phed-electric' => '/electricity/phed.png',
             'yola-electric' => '/electricity/yola.png',
             'benin-electric' => '/electricity/benin.png',
             'enugu-electric' => '/electricity/enugu.png',
@@ -26,7 +25,7 @@
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <p class="max-w-xl text-sm leading-6 text-slate-500 sm:text-[0.95rem]">Enter the meter details and amount, then continue to checkout.</p>
                 <div class="app-icon-ring shrink-0">
-                    <img src="{{ asset($logos[$selectedService] ?? '/electricity/electricity.png') }}" alt="{{ $selectedServiceLabel }}" class="h-10 w-10 object-contain">
+                    <img src="{{ asset($logos[$selectedService] ?? '/networks/electricity.png') }}" alt="{{ $selectedServiceLabel }}" class="h-10 w-10 object-contain">
                 </div>
             </div>
 

@@ -83,6 +83,18 @@
                             <input type="checkbox" name="channels[]" value="mail" @disabled(!$mailReady)
                                    class="h-5 w-5 shrink-0 rounded border-gray-300 bg-white">
                         </label>
+                        <label class="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-3">
+                            <span>
+                                <span class="block text-sm font-bold text-slate-700">SMS</span>
+                                <span class="block text-xs text-slate-500">
+                                    {{ $smsReady
+                                        ? $smsGateway.': sends to the '.$usersWithPhone.' accounts with a phone number.'
+                                        : 'Needs a gateway under Admin Settings → SMS Gateway.' }}
+                                </span>
+                            </span>
+                            <input type="checkbox" name="channels[]" value="sms" @disabled(!$smsReady)
+                                   class="h-5 w-5 shrink-0 rounded border-gray-300 bg-white">
+                        </label>
                     </div>
                 </fieldset>
 
@@ -106,11 +118,20 @@
 
         <section class="app-section p-4 sm:p-6">
             <p class="text-sm font-semibold text-slate-600 mb-3">Phone delivery</p>
-            <p class="text-sm leading-6 text-slate-600">
-                No SMS gateway is connected to this application, so a bulk text cannot be sent from here yet.
-                Download the recipient list &mdash; names, stored numbers and the same number normalised to
-                E.164 &mdash; and upload it to any SMS or WhatsApp Business panel you already pay for.
-            </p>
+            @if($smsReady)
+                <p class="text-sm leading-6 text-slate-600">
+                    The <span class="font-bold">{{ $smsGateway }}</span> gateway is connected, so ticking
+                    SMS above sends real texts to the {{ $usersWithPhone }} accounts that have a number.
+                    The list below is still available if you want to run a campaign elsewhere as well.
+                </p>
+            @else
+                <p class="text-sm leading-6 text-slate-600">
+                    No SMS gateway is connected to this application, so a bulk text cannot be sent from here yet.
+                    Download the recipient list &mdash; names, stored numbers and the same number normalised to
+                    E.164 &mdash; and upload it to any SMS or WhatsApp Business panel you already pay for.
+                    Add an endpoint, sender ID and API key under Admin Settings &rarr; SMS Gateway to send from this page.
+                </p>
+            @endif
             <div class="mt-4 app-modal-actions">
                 <a href="{{ route('admin.broadcast.export') }}" class="btn-outline justify-center">
                     Download Recipient List
@@ -193,7 +214,9 @@
             }
 
             function labelForChannel(channel) {
-                return channel === 'mail' ? 'Email' : 'In-app inbox';
+                if (channel === 'mail') return 'Email';
+                if (channel === 'sms') return 'SMS';
+                return 'In-app inbox';
             }
 
             function paint(done) {
@@ -217,7 +240,7 @@
                     _token: token,
                 };
 
-                let after = 0, delivered = 0, emailed = 0, batches = 0;
+                let after = 0, delivered = 0, emailed = 0, texted = 0, textFailed = 0, batches = 0, gatewayNote = '';
 
                 try {
                     while (true) {
@@ -242,15 +265,28 @@
 
                         delivered += Number(result.sent || 0);
                         emailed += Number(result.emails || 0);
+                        texted += Number(result.sms_sent || 0);
+                        textFailed += Number(result.sms_failed || 0);
+                        if (result.gateway_message) gatewayNote = result.gateway_message;
                         after = Number(result.after || after);
                         paint(total - Number(result.remaining || 0));
 
                         if (!result.has_more) break;
                     }
 
-                    status.textContent = 'Finished: ' + delivered + ' accounts notified'
-                        + (emailed > 0 ? ', ' + emailed + ' emails queued.' : '.');
-                    showFlashToast('success', 'Announcement delivered to ' + delivered.toLocaleString() + ' accounts.');
+                    let summary = 'Finished: ' + delivered + ' accounts notified';
+                    if (emailed > 0) summary += ', ' + emailed + ' emails queued';
+                    if (texted > 0 || textFailed > 0) {
+                        summary += ', ' + texted + ' texts sent';
+                        if (textFailed > 0) summary += ' (' + textFailed + ' failed)';
+                    }
+                    status.textContent = summary + '.';
+
+                    if (textFailed > 0 && gatewayNote) {
+                        showFlashToast('error', 'Some texts were rejected: ' + gatewayNote);
+                    } else {
+                        showFlashToast('success', 'Announcement delivered to ' + delivered.toLocaleString() + ' accounts.');
+                    }
                     setTimeout(() => window.location.reload(), 1400);
                 } catch (error) {
                     status.textContent = error.message;

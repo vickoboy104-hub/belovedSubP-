@@ -9,11 +9,14 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Notifications\AdminSystemAlertNotification;
+use App\Notifications\ManualOrderNotification;
 use App\Notifications\UserWalletActivityNotification;
 use App\Services\BvnApi;
 use App\Services\GsubzApi;
+use App\Services\ManualFulfilmentService;
 use App\Services\NinApi;
 use App\Services\ProviderPlanPriceService;
+use App\Services\WalletLedger;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -21,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
@@ -31,6 +35,8 @@ class VtuController extends Controller
         private readonly NinApi $ninApi,
         private readonly BvnApi $bvnApi,
         private readonly ProviderPlanPriceService $planPrices,
+        private readonly ManualFulfilmentService $manualServices,
+        private readonly WalletLedger $ledger,
     )
     {
     }
@@ -1134,12 +1140,13 @@ class VtuController extends Controller
 
         $provider = (string) setting('provider', 'gsubz');
 
-        $markupNaira = (float) setting('price_exam_transaction_fee', setting('markup_exam', 0));
+        $examDefaults = exam_price_defaults();
+        $markupNaira = (float) setting('price_exam_transaction_fee', $examDefaults['fee']);
         $priceMap = [
-            'jamb' => (float) setting('price_exam_jamb', 0),
-            'waec' => (float) setting('price_exam_waec', 0),
-            'neco' => (float) setting('price_exam_neco', 0),
-            'nabteb' => (float) setting('price_exam_nabteb', 0),
+            'jamb' => (float) setting('price_exam_jamb', $examDefaults['jamb']),
+            'waec' => (float) setting('price_exam_waec', $examDefaults['waec']),
+            'neco' => (float) setting('price_exam_neco', $examDefaults['neco']),
+            'nabteb' => (float) setting('price_exam_nabteb', $examDefaults['nabteb']),
         ];
         $baseNaira = (float) ($request->amount ?? 0);
         if ($baseNaira <= 0) {
@@ -1522,10 +1529,42 @@ class VtuController extends Controller
         $validationType = (string) $payload['validation_type'];
 
         $basePriceNaira = match ($validationType) {
-            'update_record' => (float) setting('price_nin_validation_update_record', 1500),
-            default => (float) setting('price_nin_validation_no_record', 1000),
+            'update_record' => identity_price('price_nin_validation_update_record'),
+            default => identity_price('price_nin_validation_no_record'),
         };
         $markupNaira = (float) setting('markup_nin_validation', 0);
+
+        // No validation endpoint means a human does the work. Charge and queue it
+        // the same way, so the customer still gets a receipt and a result.
+        if (!$this->ninApi->supportsValidation()) {
+            try {
+                $queued = $this->queueManualOrder(
+                    user: $user,
+                    wallet: $wallet,
+                    slug: 'nin_validation',
+                    title: 'NIN Validation',
+                    submitted: [
+                        'validation_type' => $validationType,
+                        'nin' => (string) $payload['nin'],
+                        'phone' => (string) ($user->phone ?? ''),
+                    ],
+                    customerRef: (string) $payload['nin'],
+                    requestPrefix: 'NINVAL',
+                    serviceId: $this->resolveServiceId('nin_validation', 'nin_validation'),
+                    extraMeta: ['type' => 'nin_validation', 'validation_type' => $validationType],
+                    pricing: ['base_naira' => $basePriceNaira, 'markup_naira' => $markupNaira],
+                );
+            } catch (\RuntimeException $e) {
+                return back()->with('error', $this->userFacingRuntimeFailureMessage($e));
+            } catch (\Throwable $e) {
+                Log::error('NIN validation queueing error', ['error' => $e->getMessage()]);
+
+                return back()->with('error', $this->buildErrorMessage(4));
+            }
+
+            return redirect()->route('vtu.receipt', $queued->id)->with('success', 'NIN validation submitted. We will notify you as soon as it is ready.');
+        }
+
         $totalNaira = $basePriceNaira + $markupNaira;
         $totalKobo = $this->toKobo($totalNaira);
         [$discountPercent, $discountKobo, $payableKobo] = $this->applyDiscount($totalKobo, $user);
@@ -1632,7 +1671,7 @@ class VtuController extends Controller
         }
 
         $requestId = $this->makeRequestId('NINV');
-        $priceVerifyNaira = (float) setting('price_nin_verify', 250);
+        $priceVerifyNaira = identity_price('price_nin_verify');
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
         $priceVerifyKobo = $this->toKobo($priceVerifyNaira);
@@ -1816,12 +1855,12 @@ class VtuController extends Controller
         $verificationType = (string) ($validated['verification_type'] ?? '');
         $slipType = (string) $validated['slip_type'];
         $priceMapNaira = [
-            'long_slip' => (float) setting('price_nin_slip_long', 300),
-            'standard_slip' => (float) setting('price_nin_slip_standard', 350),
-            'premium_slip' => (float) setting('price_nin_slip_premium', 400),
-            'vnin_slip' => (float) setting('price_nin_slip_vnin', 180),
+            'long_slip' => identity_price('price_nin_slip_long'),
+            'standard_slip' => identity_price('price_nin_slip_standard'),
+            'premium_slip' => identity_price('price_nin_slip_premium'),
+            'vnin_slip' => identity_price('price_nin_slip_vnin'),
         ];
-        $basePriceNaira = (float) ($priceMapNaira[$slipType] ?? 300);
+        $basePriceNaira = (float) ($priceMapNaira[$slipType] ?? identity_price('price_nin_slip_long'));
         $markupNaira = (float) setting('markup_nin_print', 0);
         $totalNaira = $basePriceNaira + $markupNaira;
         $totalKobo = $this->toKobo($totalNaira);
@@ -2109,7 +2148,7 @@ class VtuController extends Controller
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
 
-        $basePriceNaira = (float) setting('price_bvn_verify', 100);
+        $basePriceNaira = identity_price('price_bvn_verify');
         $markupNaira = (float) setting('markup_bvn', 0);
         $totalNaira = $basePriceNaira + $markupNaira;
         $totalKobo = $this->toKobo($totalNaira);
@@ -2228,9 +2267,75 @@ class VtuController extends Controller
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
         $basePriceNaira = $retrieveType === 'phone'
-            ? (float) setting('price_bvn_retrieve_phone', 2500)
-            : (float) setting('price_bvn_retrieve_bms', 1000);
+            ? identity_price('price_bvn_retrieve_phone')
+            : identity_price('price_bvn_retrieve_bms');
         $markupNaira = (float) setting('markup_bvn', 0);
+
+        $endpointAvailable = $retrieveType === 'phone'
+            ? $this->bvnApi->supportsRetrieveByPhone()
+            : $this->bvnApi->supportsRetrieveByBms();
+
+        // Without a retrieval endpoint an admin does the search by hand. Charge and
+        // queue on this same form so the customer never sees a difference.
+        if (!$endpointAvailable) {
+            $customerRef = $retrieveType === 'phone'
+                ? (string) $payload['phone']
+                : (string) ($payload['bms_no'] ?? '');
+
+            try {
+                $queued = $this->queueManualOrder(
+                    user: $user,
+                    wallet: $wallet,
+                    slug: 'bvn_retrieve',
+                    title: 'BVN Retrieval',
+                    submitted: [
+                        'retrieve_type' => $retrieveType,
+                        'phone' => (string) ($payload['phone'] ?? ''),
+                        'bms_no' => (string) ($payload['bms_no'] ?? ''),
+                        'ticket_id' => (string) ($payload['ticket_id'] ?? ''),
+                        'agent_code' => (string) ($payload['agent_code'] ?? ''),
+                    ],
+                    customerRef: $customerRef,
+                    requestPrefix: 'BVNR',
+                    serviceId: $this->resolveServiceId('bvn_retrieve', 'bvn'),
+                    extraMeta: [
+                        'type' => 'bvn',
+                        'service_type' => 'retrieve',
+                        'retrieve_type' => $retrieveType,
+                    ],
+                    pricing: ['base_naira' => $basePriceNaira, 'markup_naira' => $markupNaira],
+                );
+            } catch (\RuntimeException $e) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => $this->userFacingRuntimeFailureMessage($e),
+                    'data' => [],
+                ], 402);
+            } catch (\Throwable $e) {
+                Log::error('BVN retrieval queueing error', ['error' => $e->getMessage()]);
+
+                return response()->json([
+                    'ok' => false,
+                    'message' => $this->buildErrorMessage(4),
+                    'data' => [],
+                ], 500);
+            }
+
+            return response()->json([
+                'ok' => true,
+                'queued' => true,
+                'message' => 'Retrieval request received. Our team is searching for your BVN and will send the result to your receipt.',
+                'data' => [],
+                'normalized' => [
+                    'status' => 'In progress',
+                    'message' => 'Your result will appear on the receipt page and in your notifications.',
+                ],
+                'order_id' => $queued->id,
+                'receipt_url' => route('vtu.receipt', $queued->id),
+                'balance_kobo' => (int) ($wallet->fresh()?->balance ?? $wallet->balance ?? 0),
+            ]);
+        }
+
         $totalNaira = $basePriceNaira + $markupNaira;
         $totalKobo = $this->toKobo($totalNaira);
         $requestId = $this->makeRequestId('BVNR');
@@ -2293,28 +2398,38 @@ class VtuController extends Controller
                 ]);
                 $order->save();
                 $this->awardReferralCommission($order);
-            } else {
-                $order->status = 'pending';
-                $order->meta = array_merge($order->meta ?? [], [
-                    'provider_response' => $response,
-                    'message' => $message,
+
+                DB::commit();
+
+                return response()->json([
+                    'ok' => true,
+                    'message' => $message !== '' ? $message : 'BVN retrieval request completed.',
+                    'data' => $providerData,
+                    'normalized' => $normalized,
+                    'order_id' => $order->id,
+                    'balance_kobo' => (int) ($wallet->fresh()?->balance ?? $wallet->balance ?? 0),
+                    'raw' => $response,
                 ]);
-                $order->save();
             }
+
+            // The provider gave a definitive answer and it was not a BVN, so the
+            // money comes back rather than sitting against an order that will
+            // never resolve. Every other purchase path on this site does this.
+            $realMessage = $this->userFacingProviderFailureMessage($message, $response);
+            $this->markFailedAndRefund($order, $wallet, $totalKobo, $requestId, $realMessage, $response);
 
             DB::commit();
 
             return response()->json([
-                'ok' => $ok,
-                'message' => $ok
-                    ? ($message !== '' ? $message : 'BVN retrieval request completed.')
-                    : 'BVN retrieval submitted. ' . $message,
+                'ok' => false,
+                'refunded' => true,
+                'message' => $realMessage.' The charge has been returned to your wallet.',
                 'data' => $providerData,
                 'normalized' => $normalized,
                 'order_id' => $order->id,
                 'balance_kobo' => (int) ($wallet->fresh()?->balance ?? $wallet->balance ?? 0),
                 'raw' => $response,
-            ], $ok ? 200 : 202);
+            ], 400);
         } catch (\RuntimeException $e) {
             DB::rollBack();
             return response()->json([
@@ -2431,6 +2546,246 @@ class VtuController extends Controller
         $buyAgainUrl = $this->resolveBuyAgainUrl($order);
 
         return view('vtu.receipt', compact('order', 'balanceBeforeKobo', 'balanceAfterKobo', 'buyAgainUrl'));
+    }
+
+    /**
+     * Result documents hold identity data, so they live on the private disk and
+     * are only ever streamed to the customer who owns the order.
+     */
+    public function receiptFile(int $id)
+    {
+        $user = auth()->user();
+
+        $order = Order::query()
+            ->where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $meta = is_array($order->meta) ? $order->meta : [];
+        $path = trim((string) ($meta['result_file'] ?? ''));
+
+        abort_if($path === '' || !Storage::disk('local')->exists($path), 404);
+
+        $name = trim((string) ($meta['result_file_name'] ?? ''));
+        if ($name === '') {
+            $name = basename($path);
+        }
+
+        return Storage::disk('local')->download($path, $name);
+    }
+
+    // Identity services with no live provider: the customer pays and fills the
+    // form as usual, an admin completes it, and the result lands on the receipt.
+    public function manualServiceForm(string $service)
+    {
+        $definition = $this->manualServices->find($service);
+        abort_unless($definition !== null, 404);
+
+        return view('vtu.manual-service', [
+            'definition' => $definition,
+            'priceNaira' => $this->manualServices->totalNaira($service),
+            'turnaroundLabel' => $this->manualServices->turnaroundLabel($service),
+            'expectedBy' => $this->manualServices->expectedBy($service),
+            'walletBalanceKobo' => (int) (auth()->user()?->wallet?->balance ?? 0),
+        ]);
+    }
+
+    public function manualServiceSubmit(string $service, Request $request)
+    {
+        $definition = $this->manualServices->find($service);
+        abort_unless($definition !== null, 404);
+
+        $submitted = $request->validate($this->manualServices->validationRules($service));
+
+        $user = auth()->user();
+        $wallet = $this->requireWallet($user->wallet);
+        $title = (string) $definition['title'];
+        $payableKobo = $this->manualPayableKobo($service, $user);
+
+        if (((int) $wallet->balance) < $payableKobo) {
+            return back()->with('error', $this->buildErrorMessage(1));
+        }
+
+        $customerRef = (string) ($submitted['tracking_id']
+            ?? $submitted['nin']
+            ?? $submitted['bvn']
+            ?? $submitted['phone']
+            ?? $title);
+
+        try {
+            $order = $this->queueManualOrder(
+                user: $user,
+                wallet: $wallet,
+                slug: $service,
+                title: $title,
+                submitted: $submitted,
+                customerRef: $customerRef,
+                requestPrefix: 'MANUAL',
+            );
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $this->userFacingRuntimeFailureMessage($e));
+        } catch (\Throwable $e) {
+            Log::error('Manual identity service submission error', [
+                'service' => $service,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', $this->buildErrorMessage(4));
+        }
+
+        return redirect()
+            ->route('vtu.receipt', $order->id)
+            ->with('success', $title.' received. '.$this->manualServices->turnaroundLabel($service).' to complete it.');
+    }
+
+    private function manualPayableKobo(string $slug, ?User $user): int
+    {
+        $totalKobo = $this->toKobo($this->manualServices->totalNaira($slug));
+        [, , $payableKobo] = $this->applyDiscount($totalKobo, $user);
+
+        return $payableKobo;
+    }
+
+    /**
+     * Charge at submission and park the order in the admin queue. Shared by the
+     * standalone identity services and by the NIN/BVN endpoints whose provider
+     * credentials are not configured, so both behave identically.
+     *
+     * @param  array<string, mixed>  $submitted
+     * @param  array<string, mixed>  $extraMeta
+     * @param  array{base_naira?: float, markup_naira?: float}|null  $pricing
+     */
+    private function queueManualOrder(
+        User $user,
+        Wallet $wallet,
+        string $slug,
+        string $title,
+        array $submitted,
+        string $customerRef,
+        string $requestPrefix,
+        ?int $serviceId = null,
+        array $extraMeta = [],
+        ?array $pricing = null,
+    ): Order {
+        $basePriceNaira = $pricing['base_naira'] ?? $this->manualServices->priceNaira($slug);
+        $markupNaira = $pricing['markup_naira'] ?? $this->manualServices->markupNaira($slug);
+        $totalNaira = $basePriceNaira + $markupNaira;
+        $totalKobo = $this->toKobo($totalNaira);
+        [$discountPercent, $discountKobo, $payableKobo] = $this->applyDiscount($totalKobo, $user);
+        $requestId = $this->makeRequestId($requestPrefix);
+        $expectedBy = $this->manualServices->expectedBy($slug);
+
+        DB::beginTransaction();
+        try {
+            $this->debitWallet($wallet, $payableKobo, $requestId, $title.' - '.$customerRef);
+
+            $order = Order::create([
+                'user_id' => $user->id,
+                'service_id' => $serviceId ?? $this->resolveServiceId($slug, 'identity'),
+                'customer_ref' => $customerRef,
+                'amount' => $payableKobo,
+                'profit' => $this->toKobo($markupNaira),
+                'provider' => 'manual',
+                'provider_reference' => $requestId,
+                'status' => 'pending',
+                'meta' => array_merge([
+                    'type' => 'manual_service',
+                    'manual_queue' => true,
+                    'manual_service' => $slug,
+                    'manual_service_title' => $title,
+                    'submitted' => $submitted,
+                    'base_amount_naira' => $basePriceNaira,
+                    'markup_naira' => $markupNaira,
+                    'total_amount_naira' => $totalNaira,
+                    'discount_percent' => $discountPercent,
+                    'discount_kobo' => $discountKobo,
+                    'turnaround_hours' => $this->manualServices->turnaroundHours($slug),
+                    'expected_by' => $expectedBy->toIso8601String(),
+                    'requestID' => $requestId,
+                ], $extraMeta),
+            ]);
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            throw $e;
+        }
+
+        // Outside the transaction: a notification failure must not roll back a
+        // payment the customer has already made.
+        $this->notifyManualOrderParties($order, $user, $title, $expectedBy);
+
+        return $order;
+    }
+
+    private function notifyManualOrderParties(Order $order, User $user, string $title, Carbon $expectedBy): void
+    {
+        $receiptUrl = route('vtu.receipt', $order->id);
+
+        try {
+            $user->notify(new ManualOrderNotification(
+                title: $title.' received',
+                message: 'We have received your '.$title.' request and charged your wallet. Our team is working on it and it should be ready '.$expectedBy->diffForHumans(null, true).'. Your result will appear on this receipt.',
+                url: $receiptUrl,
+                payload: [
+                    'type' => 'manual_order_received',
+                    'order_id' => $order->id,
+                    'manual_service' => (string) ($order->meta['manual_service'] ?? ''),
+                    'expected_by' => $expectedBy->toIso8601String(),
+                ],
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Failed to notify customer about manual order.', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->notifyAdminsAboutManualOrder($order, $user, $title, $receiptUrl);
+    }
+
+    /**
+     * The high-priority alert the owner asked for: every request that has no
+     * API behind it must reach an admin immediately, because a human is the
+     * only thing that can complete it.
+     */
+    private function notifyAdminsAboutManualOrder(Order $order, User $user, string $title, string $receiptUrl): void
+    {
+        try {
+            $admins = User::query()->where('is_admin', true)->get();
+            if ($admins->isEmpty()) {
+                return;
+            }
+
+            $submitted = is_array($order->meta['submitted'] ?? null) ? $order->meta['submitted'] : [];
+            $summary = collect($submitted)
+                ->reject(fn ($value) => $value === null || $value === '')
+                ->map(fn ($value, $key) => str_replace('_', ' ', $key).': '.$value)
+                ->implode(' | ');
+
+            Notification::send($admins, new AdminSystemAlertNotification(
+                title: 'ACTION NEEDED: '.$title.' request waiting',
+                message: $user->name.' ('.$user->email.') submitted a '.$title.' request that needs manual processing. '.$summary,
+                severity: 'critical',
+                url: route('admin.manual-orders.show', $order->id),
+                payload: [
+                    'type' => 'manual_order_submitted',
+                    'order_id' => $order->id,
+                    'manual_service' => (string) ($order->meta['manual_service'] ?? ''),
+                    'customer_id' => $user->id,
+                    'customer_name' => $user->name,
+                    'customer_email' => $user->email,
+                    'amount_kobo' => (int) $order->amount,
+                    'severity' => 'critical',
+                ],
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Failed to notify admins about a manual order.', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     // =========================================================
@@ -2779,95 +3134,12 @@ class VtuController extends Controller
 
     private function debitWallet(Wallet $wallet, int $amountKobo, string $reference, string $description): void
     {
-        $beforeBalanceKobo = (int) ($wallet->balance ?? 0);
-        if ($beforeBalanceKobo < $amountKobo) {
-            throw new \RuntimeException('Insufficient wallet balance.');
-        }
-
-        $afterBalanceKobo = $beforeBalanceKobo - $amountKobo;
-        $wallet->balance = $afterBalanceKobo;
-        $wallet->save();
-
-        WalletTransaction::create([
-            'wallet_id'    => $wallet->id,
-            'type'         => 'debit',
-            'amount'       => $amountKobo,
-            'reference'    => $reference,
-            'status'       => 'success',
-            'channel'      => 'purchase',
-            'description'  => $description,
-            'meta'         => [
-                'balance_before_kobo' => $beforeBalanceKobo,
-                'balance_after_kobo' => $afterBalanceKobo,
-            ],
-        ]);
-
-        $this->notifyWalletOwner(
-            wallet: $wallet,
-            title: 'Wallet Debited',
-            message: 'N' . number_format($amountKobo / 100, 2) . ' debited for transaction: ' . $description,
-            payload: [
-                'type' => 'debit',
-                'amount_kobo' => $amountKobo,
-                'reference' => $reference,
-                'channel' => 'purchase',
-                'balance_before_kobo' => $beforeBalanceKobo,
-                'balance_after_kobo' => $afterBalanceKobo,
-            ]
-        );
+        $this->ledger->debit($wallet, $amountKobo, $reference, $description);
     }
 
     private function creditWallet(Wallet $wallet, int $amountKobo, string $reference, string $description): void
     {
-        $beforeBalanceKobo = (int) ($wallet->balance ?? 0);
-        $afterBalanceKobo = $beforeBalanceKobo + $amountKobo;
-        $wallet->balance = $afterBalanceKobo;
-        $wallet->save();
-
-        WalletTransaction::create([
-            'wallet_id'    => $wallet->id,
-            'type'         => 'credit',
-            'amount'       => $amountKobo,
-            'reference'    => $reference,
-            'status'       => 'success',
-            'channel'      => 'refund',
-            'description'  => $description,
-            'meta'         => [
-                'balance_before_kobo' => $beforeBalanceKobo,
-                'balance_after_kobo' => $afterBalanceKobo,
-            ],
-        ]);
-
-        $this->notifyWalletOwner(
-            wallet: $wallet,
-            title: 'Wallet Credited',
-            message: 'N' . number_format($amountKobo / 100, 2) . ' credited: ' . $description,
-            payload: [
-                'type' => 'credit',
-                'amount_kobo' => $amountKobo,
-                'reference' => $reference,
-                'channel' => 'refund',
-                'balance_before_kobo' => $beforeBalanceKobo,
-                'balance_after_kobo' => $afterBalanceKobo,
-            ]
-        );
-    }
-
-    private function notifyWalletOwner(Wallet $wallet, string $title, string $message, array $payload = []): void
-    {
-        try {
-            $user = $wallet->user()->first();
-            if (!$user) {
-                return;
-            }
-
-            $user->notify(new UserWalletActivityNotification($title, $message, $payload));
-        } catch (\Throwable $e) {
-            Log::warning('Wallet notification failed.', [
-                'wallet_id' => $wallet->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        $this->ledger->credit($wallet, $amountKobo, $reference, $description);
     }
 
     private function resolveOrderBalances(Order $order, ?Wallet $wallet): array
@@ -3532,16 +3804,17 @@ class VtuController extends Controller
             return $services;
         }
 
+        // These slugs must match the `services` table, because the same string
+        // is what goes to the provider as serviceID when no service map is set.
         return [
             'abuja-electric' => 'Abuja Electric (AEDC)',
             'eko-electric' => 'Eko Electric (EKEDC)',
             'ibadan-electric' => 'Ibadan Electric (IBEDC)',
             'ikeja-electric' => 'Ikeja Electric (IKEDC)',
-            'jos-electic' => 'Jos Electric (JED)',
+            'jos-electric' => 'Jos Electric (JED)',
             'kaduna-electric' => 'Kaduna Electric (KAEDCO)',
             'kano-electric' => 'Kano Electric (KEDCO)',
-            'portharcourt-electric' => 'Port Harcourt Electric (PHED)',
-            'aba-electric' => 'Aba Electric (ABA)',
+            'phed-electric' => 'Port Harcourt Electric (PHED)',
             'yola-electric' => 'Yola Electric (YEDC)',
             'benin-electric' => 'Benin Electric (BEDC)',
             'enugu-electric' => 'Enugu Electric (EEDC)',

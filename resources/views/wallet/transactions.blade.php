@@ -5,7 +5,7 @@
         <section class="app-section p-6 sm:p-8">
             <div class="rounded-[22px] w-fit sm:ml-auto border border-slate-200 bg-slate-50 px-5 py-4 text-left sm:text-right">
                 <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Balance</div>
-                <div class="amount-fit mt-2 text-2xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
+                <div class="amount-fit mt-2 text-2xl font-extrabold text-slate-900" id="walletBalance" data-wallet-kobo="{{ (int) ($walletBalanceKobo ?? 0) }}">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
             </div>
 
             <div class="mt-5 flex flex-col gap-3 sm:flex-row">

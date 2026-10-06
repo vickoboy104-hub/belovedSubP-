@@ -39,6 +39,10 @@
                     <select id="plan" name="plan" required disabled class="input-field mt-2">
                         <option value="">Loading plans...</option>
                     </select>
+                    <div id="planNotice" class="hidden mt-2 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                        <p id="planNoticeText" class="text-xs font-medium text-amber-800"></p>
+                        <button type="button" id="planRetryBtn" class="btn-outline px-3 py-1.5 text-xs font-bold">Try again</button>
+                    </div>
                 </div>
 
                 <div class="grid gap-5 md:grid-cols-2">
@@ -104,6 +108,9 @@
             const actionBtn = document.getElementById('dataActionBtn');
             const form = document.getElementById('dataPurchaseForm');
             const loader = document.getElementById('planLoader');
+            const planNotice = document.getElementById('planNotice');
+            const planNoticeText = document.getElementById('planNoticeText');
+            const planRetryBtn = document.getElementById('planRetryBtn');
             const payTotalText = document.getElementById('payTotalText').querySelector('span');
             const confirmBtn = document.querySelector('[data-modal-confirm="confirmData"]');
 
@@ -136,7 +143,19 @@
                 return label;
             }
 
+            function setPlanNotice(message) {
+                if (message === '') {
+                    planNotice.classList.add('hidden');
+                    planNoticeText.textContent = '';
+                    return;
+                }
+
+                planNoticeText.textContent = message;
+                planNotice.classList.remove('hidden');
+            }
+
             async function loadPlans() {
+                setPlanNotice('');
                 try {
                     const url = `{{ route('gsubz.plans') }}?service=${encodeURIComponent(serviceId)}`;
                     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
@@ -144,8 +163,12 @@
                     const plans = data.plans || data.data || data || [];
 
                     if (!Array.isArray(plans) || plans.length === 0) {
-                        planSelect.innerHTML = '<option value="">No plans found</option>';
+                        planSelect.innerHTML = '<option value="">No plans available</option>';
                         planSelect.disabled = true;
+                        // A silent empty dropdown reads as a broken button. Say what
+                        // is missing and let the customer try again without a reload.
+                        setPlanNotice(data?.message
+                            || `${serviceLabel} has no plans right now. Try again in a moment or choose another network.`);
                         return;
                     }
 
@@ -163,10 +186,16 @@
                 } catch (e) {
                     planSelect.innerHTML = '<option value="">Failed to load plans</option>';
                     planSelect.disabled = true;
+                    setPlanNotice('Plans could not be loaded. Check your connection and try again.');
                 } finally {
                     loader.classList.add('hidden');
                 }
             }
+
+            planRetryBtn.addEventListener('click', () => {
+                loader.classList.remove('hidden');
+                loadPlans();
+            });
 
             planSelect.addEventListener('change', () => {
                 const opt = planSelect.options[planSelect.selectedIndex];

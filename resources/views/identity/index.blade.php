@@ -1,13 +1,30 @@
 <x-app-layout>
     @php
+        // Wired services keep their own pages; everything else is the manual
+        // fulfilment catalogue, so a new entry there shows up here on its own.
+        $manualServices = app(\App\Services\ManualFulfilmentService::class);
+
         $services = [
-            ['icon' => '🪪', 'title' => 'NIN verification & slips', 'copy' => 'Search by NIN, phone or personal details, then choose an available slip.', 'route' => 'vtu.nin', 'status' => 'Available'],
-            ['icon' => '🏦', 'title' => 'BVN verification', 'copy' => 'Verify a BVN or follow the existing retrieval process.', 'route' => 'vtu.bvn', 'status' => 'Available'],
-            ['icon' => '✓', 'title' => 'NIN validation', 'copy' => 'Submit no record or update record validation and review its progress.', 'route' => 'vtu.nin-validation', 'status' => 'Available'],
-            ['icon' => '🔎', 'title' => 'IPE clearance', 'copy' => 'Clear an identity processing exception with a tracking number.', 'route' => null, 'status' => 'Coming soon'],
-            ['icon' => '▣', 'title' => 'NIN personalization', 'copy' => 'Request personalization and follow the provider processing status.', 'route' => null, 'status' => 'Coming soon'],
-            ['icon' => '✎', 'title' => 'NIN modification', 'copy' => 'Submit a correction and link an email when the provider enables it.', 'route' => null, 'status' => 'Coming soon'],
+            ['icon' => '🪪', 'title' => 'NIN verification & slips', 'copy' => 'Search by NIN, phone or personal details, then choose an available slip.', 'url' => route('vtu.nin'), 'status' => 'Available'],
+            ['icon' => '🏦', 'title' => 'BVN verification', 'copy' => 'Verify a BVN or follow the existing retrieval process.', 'url' => route('vtu.bvn'), 'status' => 'Available'],
+            ['icon' => '✓', 'title' => 'NIN validation', 'copy' => 'Submit no record or update record validation and review its progress.', 'url' => route('vtu.nin-validation'), 'status' => 'Available'],
         ];
+
+        foreach ($manualServices->catalogue() as $slug => $manual) {
+            // Entries flagged hidden_from_hub are reached from the wired NIN/BVN
+            // pages above, so listing them again would double up the tile.
+            if (!empty($manual['hidden_from_hub'])) {
+                continue;
+            }
+
+            $services[] = [
+                'icon' => $manual['icon'],
+                'title' => $manual['title'],
+                'copy' => $manual['summary'],
+                'url' => route('vtu.manual.form', $slug),
+                'status' => '₦'.number_format($manualServices->totalNaira($slug), 0).' • '.$manualServices->turnaroundLabel($slug),
+            ];
+        }
     @endphp
 
     <div class="identity-hub mx-auto max-w-6xl space-y-7">
@@ -26,17 +43,13 @@
             <div class="identity-section-heading"><div><span class="app-kicker">Explore services</span><h2 id="identity-services-title">Identity and verification</h2></div><span class="identity-count">{{ count($services) }} services</span></div>
             <div class="identity-grid">
                 @foreach($services as $service)
-                    @if($service['route'])
-                        <a class="identity-tile" href="{{ route($service['route']) }}">
-                    @else
-                        <div class="identity-tile identity-tile-pending">
-                    @endif
+                    <a class="identity-tile" href="{{ $service['url'] }}">
                         <span class="identity-icon" aria-hidden="true">{{ $service['icon'] }}</span>
-                        <span class="identity-status {{ $service['route'] ? 'identity-status-ready' : '' }}">{{ $service['status'] }}</span>
+                        <span class="identity-status identity-status-ready">{{ $service['status'] }}</span>
                         <strong>{{ $service['title'] }}</strong>
                         <span class="identity-description">{{ $service['copy'] }}</span>
-                        @if($service['route'])<span class="identity-tile-action">Open service <span aria-hidden="true">→</span></span>@endif
-                    @if($service['route'])</a>@else</div>@endif
+                        <span class="identity-tile-action">Open service <span aria-hidden="true">→</span></span>
+                    </a>
                 @endforeach
             </div>
         </section>

@@ -1,7 +1,7 @@
 <x-app-layout>
     @php
-        $priceNoRecord = (float) setting('price_nin_validation_no_record', 1000);
-        $priceUpdateRecord = (float) setting('price_nin_validation_update_record', 1500);
+        $priceNoRecord = identity_price('price_nin_validation_no_record');
+        $priceUpdateRecord = identity_price('price_nin_validation_update_record');
         $validationMarkup = (float) setting('markup_nin_validation', 0);
     @endphp
 

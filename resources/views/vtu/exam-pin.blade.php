@@ -7,12 +7,13 @@
             'nabteb' => '/images/providers/nabteb.png',
         ];
 
-        $transactionFee = (float) setting('price_exam_transaction_fee', setting('markup_exam', 100));
+        $examDefaults = exam_price_defaults();
+        $transactionFee = (float) setting('price_exam_transaction_fee', $examDefaults['fee']);
         $prices = [
-            'jamb' => (float) setting('price_exam_jamb', 0),
-            'waec' => (float) setting('price_exam_waec', 0),
-            'neco' => (float) setting('price_exam_neco', 0),
-            'nabteb' => (float) setting('price_exam_nabteb', 0),
+            'jamb' => (float) setting('price_exam_jamb', $examDefaults['jamb']),
+            'waec' => (float) setting('price_exam_waec', $examDefaults['waec']),
+            'neco' => (float) setting('price_exam_neco', $examDefaults['neco']),
+            'nabteb' => (float) setting('price_exam_nabteb', $examDefaults['nabteb']),
         ];
     @endphp
 

@@ -27,6 +27,10 @@
                                 class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                             <option value="">Select service first...</option>
                         </select>
+                        <div id="premiumPlanNotice" class="hidden mt-2 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                            <p id="premiumPlanNoticeText" class="text-xs font-medium text-amber-800">This service has no plans right now.</p>
+                            <button type="button" id="premiumPlanRetryBtn" class="btn-outline px-3 py-1.5 text-xs font-bold">Try again</button>
+                        </div>
                     </div>
                 </div>
 
@@ -82,6 +86,8 @@
             const actionBtn = document.getElementById('premiumActionBtn');
             const form = document.getElementById('premiumAppsForm');
             const confirmBtn = document.querySelector('[data-modal-confirm="confirmPremium"]');
+            const planNotice = document.getElementById('premiumPlanNotice');
+            const planRetryBtn = document.getElementById('premiumPlanRetryBtn');
 
             function notify(type, message) {
                 if (typeof window.showFlashToast === 'function') {
@@ -140,11 +146,16 @@
                 amountToPay.textContent = toCurrency(baseAmount + markupPremium);
             }
 
+            function setPlanNotice(visible) {
+                planNotice.classList.toggle('hidden', !visible);
+            }
+
             async function loadPlans(serviceId) {
                 const normalizedService = normalizeServiceId(serviceId);
                 const fallbackServices = normalizedService === 'canva' ? [] : ['canva'];
                 const servicesToTry = [normalizedService, ...fallbackServices].filter(Boolean);
 
+                setPlanNotice(false);
                 planSelect.innerHTML = '<option value="">Loading plans...</option>';
                 planSelect.disabled = true;
                 amountInput.value = '';
@@ -182,9 +193,18 @@
                     }
                 }
 
+                // Without a retry the customer's only way out of this state is a
+                // page reload, which reads as a dead button.
                 planSelect.innerHTML = '<option value="">No plans returned</option>';
                 planSelect.disabled = true;
+                setPlanNotice(true);
             }
+
+            planRetryBtn.addEventListener('click', () => {
+                if (serviceSelect.value) {
+                    loadPlans(serviceSelect.value);
+                }
+            });
 
             function getErrorMessage(response, data, fallback) {
                 if (data && typeof data.message === 'string' && data.message.trim() !== '') {
@@ -267,6 +287,7 @@
                 if (!serviceId) {
                     planSelect.innerHTML = '<option value="">Select service first...</option>';
                     planSelect.disabled = true;
+                    setPlanNotice(false);
                     amountInput.value = '';
                     amountToPay.textContent = 'N0';
                     return;

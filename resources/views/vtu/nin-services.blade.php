@@ -32,7 +32,7 @@
             return null;
         };
 
-        $verifyPrice = (float) setting('price_nin_verify', 250);
+        $verifyPrice = identity_price('price_nin_verify');
         $premiumCardBackground = asset('images/nin/premium-card-bg.png');
         $nimcLogo = $resolveInlineImage([
             'images/nin/nimc-logo-modern.svg',
@@ -46,9 +46,9 @@
         ]) ?? asset('images/nin/internet-explorer-logo.png');
         $printMarkup = (float) setting('markup_nin_print', 0);
         $slipPrices = [
-            'standard_slip' => (float) setting('price_nin_slip_standard', 350),
-            'premium_slip' => (float) setting('price_nin_slip_premium', 400),
-            'long_slip' => (float) setting('price_nin_slip_long', 300),
+            'standard_slip' => identity_price('price_nin_slip_standard'),
+            'premium_slip' => identity_price('price_nin_slip_premium'),
+            'long_slip' => identity_price('price_nin_slip_long'),
         ];
     @endphp
 
