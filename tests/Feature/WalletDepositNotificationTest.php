@@ -368,4 +368,56 @@ class WalletDepositNotificationTest extends TestCase
         $this->assertCount($callsAfterFirst, Http::recorded());
         $this->assertSame(295_000, (int) $user->wallet->fresh()->balance);
     }
+
+    public function test_a_second_transfer_into_the_same_permanent_account_is_credited(): void
+    {
+        Mail::spy();
+        $funding = app(WalletFundingService::class);
+
+        // A permanent account is issued once and paid into many times, and every
+        // transfer that lands in it carries the one reference the account was
+        // created under. Keying deposits on that reference would mean the second
+        // customer payment ever is mistaken for a replay of the first.
+        $user = $this->member([
+            'virtual_account_number' => self::ACCOUNT_NUMBER,
+            'virtual_account_metadata' => ['tx_ref' => 'FLW_VA_PERMANENT'],
+        ]);
+
+        $first = $funding->creditFlutterwaveCharge(
+            $user->wallet,
+            $this->charge(['id' => 777, 'tx_ref' => 'FLW_VA_PERMANENT', 'flw_ref' => 'FLW-MOCK-777']),
+            'flutterwave_virtual_account',
+            'deposit_check',
+        );
+
+        $this->assertSame(295_000, $first);
+
+        $second = $funding->creditFlutterwaveCharge(
+            $user->fresh()->wallet,
+            $this->charge(['id' => 888, 'tx_ref' => 'FLW_VA_PERMANENT', 'flw_ref' => 'FLW-MOCK-888', 'charged_amount' => 1500.00, 'amount' => 1500.00]),
+            'flutterwave_virtual_account',
+            'deposit_check',
+        );
+
+        $this->assertSame(145_000, $second, 'a fresh transfer into a permanent account is not a duplicate');
+        $this->assertSame(440_000, (int) $user->fresh()->wallet->balance);
+        $this->assertSame(2, WalletTransaction::query()->where('meta->tx_ref', 'FLW_VA_PERMANENT')->count());
+        Mail::assertSent(UserWalletActivityNotification::class, 2);
+    }
+
+    public function test_the_same_transfer_reported_twice_is_still_credited_once(): void
+    {
+        Mail::spy();
+        $funding = app(WalletFundingService::class);
+        $user = $this->member([
+            'virtual_account_number' => self::ACCOUNT_NUMBER,
+            'virtual_account_metadata' => ['tx_ref' => 'FLW_VA_PERMANENT'],
+        ]);
+
+        $charge = $this->charge(['id' => 777, 'tx_ref' => 'FLW_VA_PERMANENT']);
+
+        $this->assertSame(295_000, $funding->creditFlutterwaveCharge($user->wallet, $charge, 'flutterwave_virtual_account', 'webhook'));
+        $this->assertSame(0, $funding->creditFlutterwaveCharge($user->fresh()->wallet, $charge, 'flutterwave_virtual_account', 'deposit_check'));
+        $this->assertSame(295_000, (int) $user->fresh()->wallet->balance);
+    }
 }

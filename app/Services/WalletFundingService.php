@@ -215,9 +215,9 @@ class WalletFundingService
 
     /**
      * The row this deposit already has: the funding request the customer started
-     * themselves, or an earlier report of the same charge that never got banked.
-     * Only credits are ever considered - a purchase debit that happens to carry
-     * one of these references must not be mistaken for money arriving.
+     * themselves, or an earlier report of the very same charge that never got
+     * banked. Only credits are ever considered - a purchase debit that happens to
+     * carry one of these references must not be mistaken for money arriving.
      */
     private function arrivalRow(
         Wallet $wallet,
@@ -249,7 +249,67 @@ class WalletFundingService
             ->orderBy('id')
             ->get();
 
-        return $rows->firstWhere('status', '!=', 'success') ?? $rows->first();
+        // A permanent account is issued once and paid into as many times as its
+        // owner likes, and every one of those transfers carries the single
+        // reference the account was created under. So that reference can only
+        // ever point at a funding request still owed - never at a deposit already
+        // banked, or the second payment of a customer's life is thrown away as a
+        // replay of the first. Only the charge's own identity says "paid twice".
+        $alreadyBanked = $rows->first(
+            fn (WalletTransaction $row): bool => $row->status === 'success'
+                && $this->isSameCharge($row, $chargeId, $flutterwaveId, $gatewayReference)
+        );
+
+        if ($alreadyBanked) {
+            return $alreadyBanked;
+        }
+
+        return $rows->first(
+            fn (WalletTransaction $row): bool => $row->status !== 'success'
+                && $txRef !== ''
+                && ((string) $row->reference === $txRef || (string) ($row->meta['tx_ref'] ?? '') === $txRef)
+        );
+    }
+
+    /**
+     * Whether this ledger row and this charge are the same money, judged only on
+     * the identifiers Flutterwave gives an individual charge.
+     */
+    private function isSameCharge(
+        WalletTransaction $row,
+        string $chargeId,
+        string $flutterwaveId,
+        string $gatewayReference,
+    ): bool {
+        if ($chargeId === '' && $flutterwaveId === '' && $gatewayReference === '') {
+            return false;
+        }
+
+        $meta = (array) ($row->meta ?? []);
+        $payload = (array) ($meta['flutterwave_payload'] ?? []);
+
+        $recorded = array_values(array_filter([
+            (string) ($meta['flutterwave_charge_id'] ?? ''),
+            (string) ($payload['id'] ?? ''),
+            (string) ($meta['flw_ref'] ?? ''),
+            (string) ($meta['flutterwave_id'] ?? ''),
+            (string) ($payload['flw_ref'] ?? ''),
+            (string) ($meta['flutterwave_reference'] ?? ''),
+            (string) ($payload['reference'] ?? ''),
+        ], static fn (string $value): bool => $value !== ''));
+
+        foreach ([$chargeId, $flutterwaveId, $gatewayReference] as $token) {
+            if ($token !== '' && in_array($token, $recorded, true)) {
+                return true;
+            }
+        }
+
+        // A row written here without a funding request behind it names itself
+        // after the charge that funded it, sometimes with a suffix to keep the
+        // reference unique.
+        $derived = $this->arrivalReference($chargeId, $flutterwaveId);
+
+        return $derived !== 'FLW_VA_' && str_starts_with((string) $row->reference, $derived);
     }
 
     /**
