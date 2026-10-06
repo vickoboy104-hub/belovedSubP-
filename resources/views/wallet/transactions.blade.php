@@ -32,6 +32,10 @@
 
         </section>
 
+        {{-- The transfers still in flight are already rows in the table below, so
+             this panel only carries the check button and what the last check said. --}}
+        <x-deposit-status :check="$depositCheck" />
+
         <section class="app-section p-4 sm:p-6">
             <div class="space-y-4 md:hidden">
                 @forelse($transactions as $t)

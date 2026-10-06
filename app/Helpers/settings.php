@@ -164,16 +164,17 @@ if (!function_exists('identity_cost')) {
 
 if (!function_exists('identity_verify_mode')) {
     /**
-     * How a verification job is run today: 'manual' (an admin completes it from
-     * the queue) or 'automatic' (the ConfirmIdent endpoint answers). The owner
-     * switches this in Admin > Settings per service, and manual is the default
-     * so a provider outage never quietly turns into a failed paid request.
+     * How a verification job is run today: 'automatic' (the ConfirmIdent
+     * endpoint answers on the spot) or 'manual' (an admin completes it from the
+     * queue). The owner switches this in Admin > Settings per service.
+     * Automatic is the default because that is the service the site sells; the
+     * switch exists so a provider outage can be worked by hand without a deploy.
      */
     function identity_verify_mode(string $service): string
     {
         $stored = strtolower(trim((string) setting($service.'_verify_mode')));
 
-        return $stored === 'automatic' ? 'automatic' : 'manual';
+        return $stored === 'manual' ? 'manual' : 'automatic';
     }
 }
 

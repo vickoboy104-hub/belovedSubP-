@@ -1094,14 +1094,14 @@
                 <div class="text-xs text-gray-500 mt-1">The cost under each price is what the provider charges this account per job, so a price set at or below it is worked at a loss.</div>
 
                 @php
-                    $verifyModes = ['manual' => 'Manual - our team completes it', 'automatic' => 'Automatic - the provider API answers'];
+                    $verifyModes = ['automatic' => 'Automatic - the provider API answers', 'manual' => 'Manual - our team completes it'];
                 @endphp
                 <div class="mt-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
                     <div class="text-sm font-extrabold text-gray-900">Who runs a verification</div>
                     <div class="text-xs text-gray-600 mt-1">
                         Manual puts the paid request in your Manual Requests queue and an admin posts the result to the
                         customer's receipt. Automatic calls the provider and answers on the spot. The customer is
-                        charged the same price either way. Switch to automatic once the provider is answering again.
+                        charged the same price either way. Switch to manual if the provider stops answering.
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                         @foreach(['nin' => 'NIN verification', 'bvn' => 'BVN verification'] as $verifyService => $verifyLabel)
@@ -1112,7 +1112,7 @@
                                         class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                                     @foreach($verifyModes as $modeValue => $modeLabel)
                                         <option value="{{ $modeValue }}"
-                                                @selected(old($verifyModeKey, $settings[$verifyModeKey] ?? 'manual') === $modeValue)>
+                                                @selected(old($verifyModeKey, $settings[$verifyModeKey] ?? 'automatic') === $modeValue)>
                                             {{ $modeLabel }}
                                         </option>
                                     @endforeach

@@ -125,6 +125,44 @@
                 </div>
             </section>
 
+            <section class="reference-recent" aria-labelledby="alerts-title">
+                <div class="flex items-center justify-between gap-3">
+                    <h2 class="reference-section-title" id="alerts-title">Payment alerts</h2>
+                    <a href="{{ route('notifications.index') }}">
+                        All alerts
+                        @if((int) ($unreadUserNotifications ?? 0) > 0)
+                            &middot; {{ (int) $unreadUserNotifications }} new
+                        @endif
+                        &rarr;
+                    </a>
+                </div>
+
+                @forelse(($userNotifications ?? []) as $alert)
+                    @php
+                        $alertData = (array) ($alert->data ?? []);
+                        $alertAmountKobo = (int) ($alertData['amount_kobo'] ?? 0);
+                        $alertUrl = trim((string) ($alertData['url'] ?? ''));
+                        $isCredit = (string) ($alertData['type'] ?? '') === 'credit';
+                    @endphp
+                    <a href="{{ $alertUrl !== '' ? $alertUrl : route('notifications.index') }}" class="reference-order-row">
+                        <span>
+                            <strong>{{ $alertData['title'] ?? 'Wallet alert' }}</strong>
+                            <small>{{ $alertData['message'] ?? '' }}</small>
+                        </span>
+                        <span>
+                            <strong class="{{ $isCredit ? 'text-emerald-700' : '' }}">
+                                {{ $alertAmountKobo > 0 ? ($isCredit ? '+' : '-').'₦'.number_format($alertAmountKobo / 100, 2) : '' }}
+                            </strong>
+                            <small>{{ optional($alert->created_at)->format('M j, Y') }}{{ is_null($alert->read_at) ? ' · new' : '' }}</small>
+                        </span>
+                    </a>
+                @empty
+                    <p class="text-sm text-slate-500">
+                        Every payment into your wallet is confirmed here and by email as soon as it arrives. Nothing to report yet.
+                    </p>
+                @endforelse
+            </section>
+
             <section class="reference-recent" aria-labelledby="recent-title">
                 <div class="flex items-center justify-between gap-3"><h2 class="reference-section-title" id="recent-title">Recent orders</h2><a href="{{ route('vtu.orders') }}">View all →</a></div>
                 @forelse(($recentOrders ?? []) as $order)

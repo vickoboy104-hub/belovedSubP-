@@ -230,7 +230,8 @@ class SettingsController extends Controller
             'bvn_print_endpoint' => ['nullable', 'string', 'max:255'],
 
             // Which mode a verification runs in today. Anything that is not
-            // 'automatic' stays manual, so an unconfigured switch is safe.
+            // 'manual' stays automatic, so an unconfigured switch keeps the
+            // provider answering on the spot.
             'nin_verify_mode' => ['nullable', 'string', 'in:manual,automatic'],
             'bvn_verify_mode' => ['nullable', 'string', 'in:manual,automatic'],
 

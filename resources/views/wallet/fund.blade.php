@@ -42,6 +42,8 @@
             </div>
         </section>
 
+        <x-deposit-status :check="$depositCheck" :pending="$pendingDeposits" />
+
         @if($errors->any())
             <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
                 <div class="font-bold">Please fix the following:</div>

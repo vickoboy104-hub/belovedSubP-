@@ -48,9 +48,6 @@ class ProviderConfigurationTest extends TestCase
     public function test_bvn_verification_reports_the_missing_key_without_charging_the_wallet(): void
     {
         $user = $this->memberWithBalance(100_000);
-        // Verification defaults to the manual queue, so this only reaches the
-        // provider once the owner has switched it to automatic.
-        $this->runVerificationAutomatically('bvn');
 
         $response = $this
             ->actingAs($user)
@@ -216,7 +213,7 @@ class ProviderConfigurationTest extends TestCase
 
         // A configured key is what makes the request reach the provider at all.
         Setting::create(['key' => 'nin_api_key', 'value' => 'test-nin-key']);
-        $this->runVerificationAutomatically('nin');
+        settings_flush_cache();
 
         Http::fake([
             'confirmident.com.ng/api/nin_demo' => Http::response(
@@ -249,15 +246,15 @@ class ProviderConfigurationTest extends TestCase
         ]);
     }
 
-    public function test_a_nin_verification_is_paid_for_and_queued_because_manual_is_the_default(): void
+    public function test_a_nin_verification_is_paid_for_and_queued_when_the_owner_switches_it_to_manual(): void
     {
-        // ConfirmIdent stopped answering, so verification now joins the manual
-        // queue unless the owner deliberately switches it back.
+        // Verification answers straight from the provider by default; the queue
+        // is where a paid request goes only while the owner has it switched off.
         $admin = User::factory()->create(['is_admin' => true]);
         $user = $this->memberWithBalance(100_000);
 
         Setting::create(['key' => 'nin_api_key', 'value' => 'test-nin-key']);
-        settings_flush_cache();
+        $this->runVerificationManually('nin');
         Http::fake();
 
         $response = $this->actingAs($user)->postJson('/vtu/nin/search', [
@@ -286,12 +283,12 @@ class ProviderConfigurationTest extends TestCase
         ]);
     }
 
-    public function test_a_bvn_verification_is_paid_for_and_queued_because_manual_is_the_default(): void
+    public function test_a_bvn_verification_is_paid_for_and_queued_when_the_owner_switches_it_to_manual(): void
     {
         $user = $this->memberWithBalance(100_000);
 
         Setting::create(['key' => 'bvn_api_key', 'value' => 'test-bvn-key']);
-        settings_flush_cache();
+        $this->runVerificationManually('bvn');
         Http::fake();
 
         $response = $this->actingAs($user)
@@ -306,7 +303,50 @@ class ProviderConfigurationTest extends TestCase
         $this->assertSame(80_000, $this->balance($user));
     }
 
-    public function test_the_admin_switch_puts_a_verification_back_on_the_provider(): void
+    public function test_verifications_run_on_the_provider_without_any_setting_being_saved(): void
+    {
+        $user = $this->memberWithBalance(100_000);
+
+        $this->assertSame('automatic', identity_verify_mode('nin'));
+        $this->assertSame('automatic', identity_verify_mode('bvn'));
+
+        Setting::create(['key' => 'nin_api_key', 'value' => 'test-nin-key']);
+        Setting::create(['key' => 'bvn_api_key', 'value' => 'test-bvn-key']);
+        settings_flush_cache();
+
+        Http::fake([
+            'confirmident.com.ng/api/nin_search' => Http::response([
+                'success' => true,
+                'message' => 'Record found',
+                'data' => ['nin' => '12345678901', 'firstname' => 'Test', 'lastname' => 'Candidate'],
+            ]),
+            'confirmident.com.ng/api/bvn_search' => Http::response([
+                'success' => true,
+                'message' => 'Verification Successfull',
+                'data' => ['bvn' => '12345678901', 'firstname' => 'Test', 'lastname' => 'Candidate'],
+            ]),
+        ]);
+
+        $nin = $this->actingAs($user)->postJson('/vtu/nin/search', [
+            'search_type' => 'by_nin',
+            'nin' => '12345678901',
+        ]);
+        $nin->assertOk()->assertJson(['ok' => true]);
+        $this->assertNull($nin->json('queued'));
+
+        $bvn = $this->actingAs($user)->postJson('/vtu/bvn/verify', ['bvn' => '12345678901']);
+        $bvn->assertOk()->assertJson(['ok' => true]);
+        $this->assertNull($bvn->json('queued'));
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://confirmident.com.ng/api/nin_search');
+        Http::assertSent(fn ($request) => $request->url() === 'https://confirmident.com.ng/api/bvn_search');
+        $this->assertSame(
+            ['nin_api', 'bvn_api'],
+            Order::query()->where('user_id', $user->id)->orderBy('id')->pluck('provider')->all(),
+        );
+    }
+
+    public function test_the_admin_switch_moves_a_verification_between_the_provider_and_the_queue(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
         $admin->email_verified_at = now();
@@ -316,16 +356,8 @@ class ProviderConfigurationTest extends TestCase
         $page = $this->actingAs($admin)->get('/admin/settings')->assertOk()->getContent();
         $this->assertStringContainsString('name="nin_verify_mode"', $page);
         $this->assertStringContainsString('name="bvn_verify_mode"', $page);
-
-        // Saving the switch is all it takes - the next request goes out to the
-        // provider instead of the queue.
-        $this->actingAs($admin)->post('/admin/settings', [
-            'nin_verify_mode' => 'automatic',
-            'bvn_verify_mode' => 'automatic',
-        ])->assertRedirect();
-
-        $this->assertSame('automatic', identity_verify_mode('nin'));
-        $this->assertSame('automatic', identity_verify_mode('bvn'));
+        // Nothing saved yet, so the form must show the provider as the picked mode.
+        $this->assertSame('automatic', $this->modePickedOnSettingsPage($page, 'nin_verify_mode'));
 
         Setting::create(['key' => 'nin_api_key', 'value' => 'test-nin-key']);
         settings_flush_cache();
@@ -343,13 +375,63 @@ class ProviderConfigurationTest extends TestCase
             'nin' => '12345678901',
         ])->assertOk()->assertJson(['ok' => true]);
 
-        Http::assertSent(fn ($request) => $request->url() === 'https://confirmident.com.ng/api/nin_search');
-        $this->assertSame('nin_api', $this->latestOrder($user)->provider);
+        // Saving manual is all it takes - the next request is worked by a person.
+        $this->actingAs($admin)->post('/admin/settings', [
+            'nin_verify_mode' => 'manual',
+            'bvn_verify_mode' => 'manual',
+        ])->assertRedirect();
+
+        $this->assertSame('manual', identity_verify_mode('nin'));
+        $this->assertSame('manual', identity_verify_mode('bvn'));
+        $saved = $this->actingAs($admin)->get('/admin/settings')->assertOk()->getContent();
+        $this->assertSame('manual', $this->modePickedOnSettingsPage($saved, 'nin_verify_mode'));
+        $this->assertSame('manual', $this->modePickedOnSettingsPage($saved, 'bvn_verify_mode'));
+
+        $this->actingAs($user)->postJson('/vtu/nin/search', [
+            'search_type' => 'by_nin',
+            'nin' => '09876543210',
+        ])->assertOk()->assertJson(['ok' => true, 'queued' => true]);
+
+        // And back again the moment the provider is trusted once more.
+        $this->actingAs($admin)->post('/admin/settings', ['nin_verify_mode' => 'automatic'])->assertRedirect();
+        $this->assertSame('automatic', identity_verify_mode('nin'));
+
+        $this->actingAs($user)->postJson('/vtu/nin/search', [
+            'search_type' => 'by_nin',
+            'nin' => '13579246801',
+        ])->assertOk()->assertJson(['ok' => true]);
+
+        $this->assertSame(['nin_api', 'manual', 'nin_api'], $this->orderProviders($user));
+        // Only the two automatic runs reached the provider; the queued one did not.
+        Http::assertSentCount(2);
     }
 
-    private function runVerificationAutomatically(string $service): void
+    /**
+     * Which option the switch for one service is showing as chosen, so a test
+     * can prove the form agrees with the mode the site is actually running in.
+     */
+    private function modePickedOnSettingsPage(string $page, string $field): string
     {
-        Setting::query()->updateOrCreate(['key' => $service.'_verify_mode'], ['value' => 'automatic']);
+        preg_match('/name="'.$field.'".*?<\/select>/s', $page, $select);
+
+        preg_match_all('/<option value="([^"]+)"([^>]*)>/s', $select[0] ?? '', $options, PREG_SET_ORDER);
+        foreach ($options as $option) {
+            if (preg_match('/\bselected\b/', $option[2])) {
+                return $option[1];
+            }
+        }
+
+        return '';
+    }
+
+    private function orderProviders(User $user): array
+    {
+        return Order::query()->where('user_id', $user->id)->orderBy('id')->pluck('provider')->all();
+    }
+
+    private function runVerificationManually(string $service): void
+    {
+        Setting::query()->updateOrCreate(['key' => $service.'_verify_mode'], ['value' => 'manual']);
         settings_flush_cache();
     }
 

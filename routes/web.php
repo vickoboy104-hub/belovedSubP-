@@ -101,6 +101,11 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::post('/wallet/virtual-account/temporary', [VirtualAccountController::class, 'assignTemporary'])
         ->name('wallet.virtual-account.temporary');
 
+    // A webhook only ever arrives if Flutterwave can reach this site from the
+    // outside, so the customer can always ask directly what has been paid in.
+    Route::post('/wallet/deposits/check', [FlutterwaveController::class, 'checkDeposits'])
+        ->name('wallet.deposits.check');
+
     // Wallet transactions page
     Route::get('/wallet/transactions', [WalletController::class, 'transactions'])->name('wallet.transactions');
 
