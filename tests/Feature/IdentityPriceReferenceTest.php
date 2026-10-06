@@ -72,6 +72,12 @@ class IdentityPriceReferenceTest extends TestCase
 
         $expectedHints = 10;
         foreach (array_keys($manual->catalogue()) as $slug) {
+            // A verification that shares its price with the automatic version is
+            // already counted in those ten rows above.
+            if ($manual->sharesWiredPrice($slug)) {
+                continue;
+            }
+
             if ($manual->providerCost($slug) !== null) {
                 $expectedHints++;
             }

@@ -8,14 +8,15 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 /**
- * Identity services that have no live provider connection yet.
+ * Identity services a person completes instead of an API.
  *
  * The customer fills the form exactly as they would for a wired service and is
  * charged at submission. An admin completes the request by hand and types or
  * uploads the result, which then appears on the customer's receipt. The JH Tech
  * catalogue (Delink, IPE Clearance, Agreement, Personalize, Modification) is
  * the source of the service list; prices and turnaround are admin settings so
- * they can be corrected without a deploy.
+ * they can be corrected without a deploy. Verification appears here too when
+ * the owner switches it off the ConfirmIdent endpoints.
  */
 class ManualFulfilmentService
 {
@@ -31,6 +32,7 @@ class ManualFulfilmentService
         'ticket_id',
         'new_value',
         'phone',
+        'verification_type',
         'validation_type',
         'retrieve_type',
         'ipe_type',
@@ -216,6 +218,55 @@ class ManualFulfilmentService
                     $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
+
+            // Verification can also be run by a person when the provider is down or
+            // the owner has switched the service to manual. These entries carry the
+            // queue and the turnaround only: the price and the form stay on the
+            // wired NIN and BVN pages, which is where customers meet them.
+            'nin_verify' => [
+                'slug' => 'nin_verify',
+                'title' => 'NIN Verification',
+                'icon' => '✓',
+                'summary' => 'Confirm the details held against a NIN record.',
+                'group' => 'nin',
+                'turnaround_default' => 24,
+                'hidden_from_hub' => true,
+                'wired_only' => true,
+                'price_key' => 'price_nin_verify',
+                'fields' => [
+                    $this->field('verification_type', 'Verified by', type: 'select', options: [
+                        'by_nin' => 'NIN number',
+                        'by_phone' => 'Phone number',
+                        'by_demo' => 'Name and date of birth',
+                    ], rules: ['required', 'in:by_nin,by_phone,by_demo']),
+                    $this->field('nin', 'NIN', rules: ['nullable', 'digits:11']),
+                    $this->field('phone', 'Phone number', rules: ['nullable', 'string', 'max:20']),
+                    $this->field('firstname', 'First name', rules: ['nullable', 'string', 'max:120']),
+                    $this->field('lastname', 'Last name', rules: ['nullable', 'string', 'max:120']),
+                    $this->field('dob', 'Date of birth', rules: ['nullable', 'string', 'max:20']),
+                    $this->field('gender', 'Gender', rules: ['nullable', 'string', 'max:20']),
+                    $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                ],
+            ],
+
+            'bvn_verify' => [
+                'slug' => 'bvn_verify',
+                'title' => 'BVN Verification',
+                'icon' => '✓',
+                'summary' => 'Confirm the details held against a BVN.',
+                'group' => 'bvn',
+                'turnaround_default' => 24,
+                'hidden_from_hub' => true,
+                'wired_only' => true,
+                'price_key' => 'price_bvn_verify',
+                'fields' => [
+                    $this->field('bvn', 'BVN', rules: ['required', 'digits:11']),
+                    $this->field('firstname', 'First name', rules: ['nullable', 'string', 'max:120']),
+                    $this->field('lastname', 'Last name', rules: ['nullable', 'string', 'max:120']),
+                    $this->field('phone', 'Phone number', rules: ['nullable', 'string', 'max:20']),
+                    $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                ],
+            ],
         ];
     }
 
@@ -274,9 +325,14 @@ class ManualFulfilmentService
         return $look;
     }
 
+    /**
+     * Verification is priced the same whether a robot or a person runs it, so
+     * those catalogue entries point back at the wired price key instead of
+     * inventing a second price the owner would have to keep in sync.
+     */
     public function priceKey(string $slug): string
     {
-        return 'price_manual_'.$slug;
+        return $this->find($slug)['price_key'] ?? 'price_manual_'.$slug;
     }
 
     public function turnaroundKey(string $slug): string
@@ -295,7 +351,7 @@ class ManualFulfilmentService
         return identity_reference_price($this->priceKey($slug));
     }
 
-    /** What jhtechltd.com charges for the same job, or null when unpublished. */
+    /** What the provider charges for the same job, or null when unpublished. */
     public function providerCost(string $slug): ?float
     {
         return identity_cost($this->priceKey($slug));
@@ -368,11 +424,29 @@ class ManualFulfilmentService
         $keys = [];
         foreach (array_keys($this->catalogue()) as $slug) {
             $keys[] = $this->priceKey($slug);
-            $keys[] = 'markup_manual_'.$slug;
+            if (!$this->sharesWiredPrice($slug)) {
+                $keys[] = 'markup_manual_'.$slug;
+            }
             $keys[] = $this->turnaroundKey($slug);
         }
 
-        return $keys;
+        return array_values(array_unique($keys));
+    }
+
+    /** True when the price lives with the wired version of the same job. */
+    public function sharesWiredPrice(string $slug): bool
+    {
+        return isset($this->find($slug)['price_key']);
+    }
+
+    /**
+     * True for jobs the customer only reaches from their wired service page, so
+     * the generic manual form must not offer a second, differently validated way
+     * into the same queue.
+     */
+    public function wiredOnly(string $slug): bool
+    {
+        return !empty($this->find($slug)['wired_only']);
     }
 
     /**

@@ -162,6 +162,21 @@ if (!function_exists('identity_cost')) {
     }
 }
 
+if (!function_exists('identity_verify_mode')) {
+    /**
+     * How a verification job is run today: 'manual' (an admin completes it from
+     * the queue) or 'automatic' (the ConfirmIdent endpoint answers). The owner
+     * switches this in Admin > Settings per service, and manual is the default
+     * so a provider outage never quietly turns into a failed paid request.
+     */
+    function identity_verify_mode(string $service): string
+    {
+        $stored = strtolower(trim((string) setting($service.'_verify_mode')));
+
+        return $stored === 'automatic' ? 'automatic' : 'manual';
+    }
+}
+
 if (!function_exists('site_name')) {
     // The admin can save a blank site name, which would otherwise leave pages
     // titled with the host's default rather than the brand.

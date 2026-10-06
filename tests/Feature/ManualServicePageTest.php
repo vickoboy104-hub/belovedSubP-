@@ -9,9 +9,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Every key-less identity job is done by a human at JH Tech, but the customer
- * must never learn that. What they get instead is a normal-looking purchase
- * page that states the price and how long the result takes.
+ * Every key-less identity job is done by a person rather than an API, but the
+ * customer must never learn that. What they get instead is a normal-looking
+ * purchase page that states the price and how long the result takes.
  */
 class ManualServicePageTest extends TestCase
 {
@@ -33,6 +33,14 @@ class ManualServicePageTest extends TestCase
         $user = $this->member();
 
         foreach ($manual->catalogue() as $slug => $service) {
+            // Verification is ordered from its own wired page, which is also the
+            // page that queues it when the owner has switched it to manual.
+            if ($manual->wiredOnly($slug)) {
+                $this->actingAs($user)->get('/vtu/manual/'.$slug)->assertNotFound();
+
+                continue;
+            }
+
             $html = $this->actingAs($user)->get('/vtu/manual/'.$slug)
                 ->assertOk()
                 ->getContent();

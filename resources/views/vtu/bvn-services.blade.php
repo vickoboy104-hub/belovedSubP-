@@ -4,7 +4,10 @@
         $priceRetrievePhone = identity_price('price_bvn_retrieve_phone');
         $priceRetrieveBms = identity_price('price_bvn_retrieve_bms');
         $markup = (float) setting('markup_bvn', 0);
-        $retrieveTurnaround = app(\App\Services\ManualFulfilmentService::class)->turnaroundLabel('bvn_retrieve');
+        $manualServices = app(\App\Services\ManualFulfilmentService::class);
+        $retrieveTurnaround = $manualServices->turnaroundLabel('bvn_retrieve');
+        $verifyManual = identity_verify_mode('bvn') === 'manual';
+        $verifyTurnaround = $manualServices->turnaroundLabel('bvn_verify');
     @endphp
 
     <style>
@@ -17,14 +20,21 @@
         }
     </style>
 
-    <x-page-hero class="reference-shared-banner" title="BVN Services" subtitle="Verify a BVN instantly, submit a retrieval request, and print the result once it succeeds." />
+    <x-page-hero class="reference-shared-banner" title="BVN Services"
+                 subtitle="{{ $verifyManual
+                     ? 'Submit a BVN check and our team posts the result to your receipt, or follow an existing retrieval request.'
+                     : 'Verify a BVN instantly, submit a retrieval request, and print the result once it succeeds.' }}" />
 
     <div class="reference-flow-page max-w-5xl mx-auto w-full px-4 sm:px-0 space-y-5 bvn-print-wrap">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div class="app-section p-5 sm:p-6">
-                <h3 class="text-lg font-extrabold">Instant BVN Verification</h3>
+                <h3 class="text-lg font-extrabold">{{ $verifyManual ? 'BVN Verification' : 'Instant BVN Verification' }}</h3>
                 <p class="mt-1 text-xs text-slate-500">
                     Charge: N{{ number_format($priceVerify + $markup, 2) }} per verification.
+                    @if($verifyManual)
+                        A member of our team runs this check and the result appears on your receipt
+                        {{ strtolower($verifyTurnaround) }} after payment.
+                    @endif
                 </p>
                 <form id="bvnVerifyForm" class="mt-4 space-y-4">
                     @csrf

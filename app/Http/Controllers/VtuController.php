@@ -1686,33 +1686,18 @@ class VtuController extends Controller
             ], 402);
         }
 
-        if ($searchType === 'nin') {
-            $payload = $request->validate([
-                'nin' => ['required', 'digits:11'],
-            ]);
-            $lookupPayload = [
-                'nin' => (string) $payload['nin'],
-            ];
-        } elseif ($searchType === 'phone') {
-            $payload = $request->validate([
-                'phone' => ['required', 'digits_between:10,14'],
-            ]);
-            $lookupPayload = [
-                'phone' => (string) $payload['phone'],
-            ];
-        } else {
-            $payload = $request->validate([
-                'firstname' => ['required', 'string', 'max:120'],
-                'lastname' => ['required', 'string', 'max:120'],
-                'dob' => ['required', 'date_format:d-m-Y'],
-                'gender' => ['required', Rule::in(['male', 'female', 'm', 'f'])],
-            ]);
-            $lookupPayload = [
-                'firstname' => (string) $payload['firstname'],
-                'lastname' => (string) $payload['lastname'],
-                'dob' => (string) $payload['dob'],
-                'gender' => (string) $payload['gender'],
-            ];
+        $lookupPayload = $this->validatedNinLookup($request, $searchType);
+
+        // Whether a verification is answered by the provider or worked from the
+        // manual queue is the owner's decision in Admin > Settings.
+        if (identity_verify_mode('nin') === 'manual') {
+            return $this->queueManualNinVerification(
+                $user,
+                $wallet,
+                $searchType,
+                $lookupPayload,
+                $priceVerifyNaira,
+            );
         }
 
         $cacheRecord = !$forceRefresh
@@ -1841,6 +1826,117 @@ class VtuController extends Controller
             'force_refresh' => $forceRefresh,
             'raw' => $ok ? null : $response,
         ], $ok ? 200 : 422);
+    }
+
+    /**
+     * The fields each verification type needs. Kept in one place because the
+     * automatic and the manual route must ask the customer for the same thing.
+     *
+     * @return array<string, string>
+     */
+    private function validatedNinLookup(Request $request, string $searchType): array
+    {
+        if ($searchType === 'nin') {
+            $payload = $request->validate([
+                'nin' => ['required', 'digits:11'],
+            ]);
+
+            return ['nin' => (string) $payload['nin']];
+        }
+
+        if ($searchType === 'phone') {
+            $payload = $request->validate([
+                'phone' => ['required', 'digits_between:10,14'],
+            ]);
+
+            return ['phone' => (string) $payload['phone']];
+        }
+
+        $payload = $request->validate([
+            'firstname' => ['required', 'string', 'max:120'],
+            'lastname' => ['required', 'string', 'max:120'],
+            'dob' => ['required', 'date_format:d-m-Y'],
+            'gender' => ['required', Rule::in(['male', 'female', 'm', 'f'])],
+        ]);
+
+        return [
+            'firstname' => (string) $payload['firstname'],
+            'lastname' => (string) $payload['lastname'],
+            'dob' => (string) $payload['dob'],
+            'gender' => (string) $payload['gender'],
+        ];
+    }
+
+    private function queueManualNinVerification(
+        User $user,
+        Wallet $wallet,
+        string $searchType,
+        array $lookupPayload,
+        float $basePriceNaira,
+    ) {
+        $submitted = $lookupPayload;
+        $submitted['verification_type'] = match ($searchType) {
+            'phone' => 'by_phone',
+            'demo' => 'by_demo',
+            default => 'by_nin',
+        };
+        if (empty($submitted['phone']) && !empty($user->phone)) {
+            $submitted['phone'] = (string) $user->phone;
+        }
+
+        try {
+            $order = $this->queueManualOrder(
+                user: $user,
+                wallet: $wallet,
+                slug: 'nin_verify',
+                title: 'NIN Verification',
+                submitted: array_map(static fn ($value) => (string) $value, $submitted),
+                customerRef: (string) ($submitted['nin'] ?? $submitted['phone'] ?? 'NIN '.$searchType),
+                requestPrefix: 'NINV',
+                serviceId: $this->resolveServiceId('nin_verify', 'nin'),
+                extraMeta: [
+                    'type' => 'nin',
+                    'service_type' => 'verify',
+                    'verification_type' => $submitted['verification_type'],
+                ],
+                pricing: ['base_naira' => $basePriceNaira, 'markup_naira' => 0.0],
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $this->userFacingRuntimeFailureMessage($e),
+                'data' => [],
+            ], 402);
+        } catch (\Throwable $e) {
+            Log::error('NIN verification queueing error', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'ok' => false,
+                'message' => $this->buildErrorMessage(4),
+                'data' => [],
+            ], 500);
+        }
+
+        return $this->queuedVerificationResponse($order, $wallet, 'checking your NIN record');
+    }
+
+    private function queuedVerificationResponse(Order $order, Wallet $wallet, string $doing)
+    {
+        $turnaround = $this->manualServices->turnaroundLabel((string) $order->meta['manual_service']);
+
+        return response()->json([
+            'ok' => true,
+            'queued' => true,
+            'message' => 'Request received. Our team is '.$doing.'. '.$turnaround.' to complete it.',
+            'data' => [],
+            'normalized' => [
+                'status' => 'In progress',
+                'message' => 'Your result will appear on the receipt page and in your notifications.',
+            ],
+            'order_id' => $order->id,
+            'receipt_url' => route('vtu.receipt', $order->id),
+            'balance_kobo' => (int) ($wallet->fresh()?->balance ?? $wallet->balance ?? 0),
+        ]);
     }
 
     public function ninPrint(Request $request)
@@ -2160,6 +2256,42 @@ class VtuController extends Controller
                 'data' => [],
                 'balance_kobo' => (int) $wallet->balance,
             ], 402);
+        }
+
+        if (identity_verify_mode('bvn') === 'manual') {
+            try {
+                $order = $this->queueManualOrder(
+                    user: $user,
+                    wallet: $wallet,
+                    slug: 'bvn_verify',
+                    title: 'BVN Verification',
+                    submitted: array_filter([
+                        'bvn' => (string) $payload['bvn'],
+                        'phone' => (string) ($user->phone ?? ''),
+                    ], static fn ($value) => $value !== ''),
+                    customerRef: (string) $payload['bvn'],
+                    requestPrefix: 'BVNV',
+                    serviceId: $this->resolveServiceId('bvn_verify', 'bvn'),
+                    extraMeta: ['type' => 'bvn', 'service_type' => 'verify'],
+                    pricing: ['base_naira' => $basePriceNaira, 'markup_naira' => $markupNaira],
+                );
+            } catch (\RuntimeException $e) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => $this->userFacingRuntimeFailureMessage($e),
+                    'data' => [],
+                ], 402);
+            } catch (\Throwable $e) {
+                Log::error('BVN verification queueing error', ['error' => $e->getMessage()]);
+
+                return response()->json([
+                    'ok' => false,
+                    'message' => $this->buildErrorMessage(4),
+                    'data' => [],
+                ], 500);
+            }
+
+            return $this->queuedVerificationResponse($order, $wallet, 'confirming the details on your BVN');
         }
 
         $response = $this->bvnApi->verify((string) $payload['bvn']);
@@ -2580,6 +2712,7 @@ class VtuController extends Controller
     {
         $definition = $this->manualServices->find($service);
         abort_unless($definition !== null, 404);
+        abort_if($this->manualServices->wiredOnly($service), 404);
 
         return view('vtu.manual-service', [
             'definition' => $definition,
@@ -2594,6 +2727,7 @@ class VtuController extends Controller
     {
         $definition = $this->manualServices->find($service);
         abort_unless($definition !== null, 404);
+        abort_if($this->manualServices->wiredOnly($service), 404);
 
         $submitted = $request->validate($this->manualServices->validationRules($service));
 
@@ -2852,12 +2986,24 @@ class VtuController extends Controller
     private function friendlyNinProviderFailureMessage(string $action, array $response, ?string $fallbackMessage = null): string
     {
         if ($this->ninProviderWalletIssueDetected($response)) {
-            $this->notifyAdminsAboutNinProviderWalletIssue($action, $response);
+            $this->notifyAdminsAboutNinProviderIssue($action, $response, 'wallet');
 
             return 'NIN service is temporarily unavailable right now. Please try again shortly or contact support.';
         }
 
         $message = trim((string) ($fallbackMessage ?: $this->ninApi->message($response)));
+
+        // The provider answers this way when the service behind it is down or
+        // busy. Nothing is charged, so the customer is told what else works
+        // rather than being left with a dead end, and the admin is told whose
+        // fault it is.
+        if ($message !== '' && $this->ninApi->isServiceDown($message)) {
+            $this->notifyAdminsAboutNinProviderIssue($action, $response, 'outage');
+
+            return 'Our NIN provider is reporting a network problem with this check, so nothing was charged. '
+                .'Try again in a few minutes, or verify with your 11-digit NIN or the phone number on your NIN '
+                .'instead of name and date of birth.';
+        }
 
         return $message !== ''
             ? $message
@@ -2922,14 +3068,26 @@ class VtuController extends Controller
         )));
     }
 
-    private function notifyAdminsAboutNinProviderWalletIssue(string $action, array $response): void
+    private function notifyAdminsAboutNinProviderIssue(string $action, array $response, string $kind): void
     {
-        $fingerprint = 'nin-provider-wallet-alert:'.md5($action.'|'.$this->flattenFailurePayload($response));
+        $fingerprint = 'nin-provider-alert:'.$kind.':'.md5($action.'|'.$this->flattenFailurePayload($response));
         if (Cache::has($fingerprint)) {
             return;
         }
 
         Cache::put($fingerprint, true, now()->addMinutes(20));
+
+        $alerts = [
+            'wallet' => [
+                'title' => 'URGENT: NIN provider wallet needs funding',
+                'message' => 'A NIN '.$action.' request failed because the provider wallet appears empty or underfunded. Please fund the NIN provider wallet immediately.',
+            ],
+            'outage' => [
+                'title' => 'NIN provider is refusing requests',
+                'message' => 'A NIN '.$action.' request came back with the provider reporting its own service down or busy. Nothing was charged. If this keeps happening, raise it with the provider.',
+            ],
+        ];
+        $alert = $alerts[$kind] ?? $alerts['outage'];
 
         try {
             $admins = User::query()->where('is_admin', true)->get();
@@ -2938,20 +3096,21 @@ class VtuController extends Controller
             }
 
             Notification::send($admins, new AdminSystemAlertNotification(
-                title: 'URGENT: NIN provider wallet needs funding',
-                message: 'A NIN '.$action.' request failed because the provider wallet appears empty or underfunded. Please fund the NIN provider wallet immediately.',
+                title: $alert['title'],
+                message: $alert['message'],
                 severity: 'critical',
                 url: url('/admin'),
                 payload: [
-                    'type' => 'nin_provider_wallet',
+                    'type' => 'nin_provider_'.$kind,
                     'action' => $action,
                     'severity' => 'critical',
                     'provider_message' => trim((string) ($response['message'] ?? $response['error'] ?? '')),
                 ],
             ));
         } catch (\Throwable $e) {
-            Log::warning('Failed to notify admins about NIN provider wallet issue.', [
+            Log::warning('Failed to notify admins about a NIN provider problem.', [
                 'action' => $action,
+                'kind' => $kind,
                 'error' => $e->getMessage(),
             ]);
         }

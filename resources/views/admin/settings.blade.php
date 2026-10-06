@@ -654,10 +654,14 @@
                             .' key — airtime, data, cable, electricity, exam and premium apps';
                     }
                     if (trim((string) setting('nin_api_key', config('services.nin.key', ''))) === '') {
-                        $missingIntegrations[] = 'NIN key — NIN search, print, reports and validation';
+                        $missingIntegrations[] = identity_verify_mode('nin') === 'automatic'
+                            ? 'NIN key — NIN search, print, reports and validation'
+                            : 'NIN key — only needed if NIN verification is switched back to automatic';
                     }
                     if (trim((string) setting('bvn_api_key', config('services.bvn.key', ''))) === '') {
-                        $missingIntegrations[] = 'BVN key — BVN verify and retrieve';
+                        $missingIntegrations[] = identity_verify_mode('bvn') === 'automatic'
+                            ? 'BVN key — BVN verify and retrieve'
+                            : 'BVN key — only needed if BVN verification is switched back to automatic';
                     }
                     if (trim((string) config('services.flutterwave.secret_key', '')) === '') {
                         $missingIntegrations[] = 'Flutterwave secret key — wallet funding and virtual accounts';
@@ -1087,7 +1091,36 @@
             <div id="group-identity-services" class="scroll-mt-44">
                 <div class="text-lg font-extrabold">NIN & BVN Services</div>
                 <div class="text-xs text-gray-500 mt-1">Set pricing and endpoints. Endpoints can be relative (`/path`) or full URL.</div>
-                <div class="text-xs text-gray-500 mt-1">The cost under each price is what jhtechltd.com charges this account per job, so a price set at or below it is worked at a loss.</div>
+                <div class="text-xs text-gray-500 mt-1">The cost under each price is what the provider charges this account per job, so a price set at or below it is worked at a loss.</div>
+
+                @php
+                    $verifyModes = ['manual' => 'Manual - our team completes it', 'automatic' => 'Automatic - the provider API answers'];
+                @endphp
+                <div class="mt-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                    <div class="text-sm font-extrabold text-gray-900">Who runs a verification</div>
+                    <div class="text-xs text-gray-600 mt-1">
+                        Manual puts the paid request in your Manual Requests queue and an admin posts the result to the
+                        customer's receipt. Automatic calls the provider and answers on the spot. The customer is
+                        charged the same price either way. Switch to automatic once the provider is answering again.
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                        @foreach(['nin' => 'NIN verification', 'bvn' => 'BVN verification'] as $verifyService => $verifyLabel)
+                            @php $verifyModeKey = $verifyService.'_verify_mode'; @endphp
+                            <div>
+                                <label class="text-sm font-bold text-gray-800/80">{{ $verifyLabel }}</label>
+                                <select name="{{ $verifyModeKey }}"
+                                        class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                                    @foreach($verifyModes as $modeValue => $modeLabel)
+                                        <option value="{{ $modeValue }}"
+                                                @selected(old($verifyModeKey, $settings[$verifyModeKey] ?? 'manual') === $modeValue)>
+                                            {{ $modeLabel }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
 
                 @php
                     $identityPriceFields = [
@@ -1177,6 +1210,7 @@
                     Services with no API connection. The customer pays and an admin completes the work,
                     so the price and the promised turnaround below are what the customer is shown.
                     Leave a field empty to use the built-in default.
+                    NIN and BVN verification appear here too while they are switched to manual above.
                 </div>
 
                 <div class="mt-3 space-y-3">
@@ -1185,28 +1219,39 @@
                             <div class="font-extrabold text-gray-900">{{ $manual['icon'] }} {{ $manual['title'] }}</div>
                             <div class="text-xs text-gray-500 mt-1">{{ $manual['summary'] }}</div>
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
-                                <div>
-                                    <label class="text-sm font-bold text-gray-800/80">Price (₦)</label>
-                                    <input type="number" step="0.01" min="0"
-                                           name="{{ $manualServices->priceKey($slug) }}"
-                                           value="{{ old($manualServices->priceKey($slug), $settings[$manualServices->priceKey($slug)] ?? '') }}"
-                                           placeholder="{{ number_format($manualServices->defaultPrice($slug), 2) }}"
-                                           class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                                    @php
-                                        $manualCost = $manualServices->providerCost($slug);
-                                    @endphp
-                                    <div class="text-xs text-gray-500 mt-1">
-                                        {{ $manualCost === null ? 'No published provider rate for this job.' : 'Provider cost: ₦'.number_format($manualCost, 2) }}
+                                @if($manualServices->sharesWiredPrice($slug))
+                                    <div class="sm:col-span-2">
+                                        <label class="text-sm font-bold text-gray-800/80">Price (₦)</label>
+                                        <div class="mt-1 px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-sm text-gray-700">
+                                            ₦{{ number_format($manualServices->priceNaira($slug), 2) }} —
+                                            set with the automatic version under NIN & BVN Services above, so
+                                            switching modes never changes what the customer pays.
+                                        </div>
                                     </div>
-                                </div>
-                                <div>
-                                    <label class="text-sm font-bold text-gray-800/80">Markup (₦)</label>
-                                    <input type="number" step="0.01" min="0"
-                                           name="markup_manual_{{ $slug }}"
-                                           value="{{ old('markup_manual_'.$slug, $settings['markup_manual_'.$slug] ?? '') }}"
-                                           placeholder="0"
-                                           class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                                </div>
+                                @else
+                                    <div>
+                                        <label class="text-sm font-bold text-gray-800/80">Price (₦)</label>
+                                        <input type="number" step="0.01" min="0"
+                                               name="{{ $manualServices->priceKey($slug) }}"
+                                               value="{{ old($manualServices->priceKey($slug), $settings[$manualServices->priceKey($slug)] ?? '') }}"
+                                               placeholder="{{ number_format($manualServices->defaultPrice($slug), 2) }}"
+                                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                                        @php
+                                            $manualCost = $manualServices->providerCost($slug);
+                                        @endphp
+                                        <div class="text-xs text-gray-500 mt-1">
+                                            {{ $manualCost === null ? 'No published provider rate for this job.' : 'Provider cost: ₦'.number_format($manualCost, 2) }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="text-sm font-bold text-gray-800/80">Markup (₦)</label>
+                                        <input type="number" step="0.01" min="0"
+                                               name="markup_manual_{{ $slug }}"
+                                               value="{{ old('markup_manual_'.$slug, $settings['markup_manual_'.$slug] ?? '') }}"
+                                               placeholder="0"
+                                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                                    </div>
+                                @endif
                                 <div>
                                     <label class="text-sm font-bold text-gray-800/80">Turnaround (hours)</label>
                                     <input type="number" step="1" min="1"

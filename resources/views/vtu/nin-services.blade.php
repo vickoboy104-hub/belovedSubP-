@@ -57,9 +57,18 @@
         $ninProvider = app(\App\Services\NinApi::class);
         $slipPrintAvailable = $ninProvider->supportsSlipPrint();
         $slipReportsAvailable = $ninProvider->supportsSlipReports();
-        $heroSubtitle = $slipPrintAvailable
-            ? 'Verify the record once, then print a Standard, Premium or Long slip from the result.'
-            : 'Verify the record here in seconds. Slip printing is a job our team runs from the same result.';
+
+        // A verification can be answered by the provider on the spot, or taken
+        // off it and worked from the manual queue. The owner switches between
+        // the two in Admin > Settings; the wording here must follow that choice.
+        $manualServices = app(\App\Services\ManualFulfilmentService::class);
+        $verifyManual = identity_verify_mode('nin') === 'manual';
+        $verifyTurnaround = $manualServices->turnaroundLabel('nin_verify');
+        $heroSubtitle = $verifyManual
+            ? 'Send us the record you need checked and our team posts the result to your receipt.'
+            : ($slipPrintAvailable
+                ? 'Verify the record once, then print a Standard, Premium or Long slip from the result.'
+                : 'Verify the record here in seconds. Slip printing is a job our team runs from the same result.');
     @endphp
 
     <style>
@@ -77,7 +86,12 @@
                 <div>
                     <div class="text-lg font-extrabold text-slate-900">Identity record search</div>
                     <p class="mt-1 text-sm text-slate-600">
-                        Search by NIN, phone number, or demographic data. A successful result unlocks direct slip printing below.
+                        @if($verifyManual)
+                            Search by NIN, phone number, or demographic data. Our team runs the check and the result
+                            appears on your receipt {{ strtolower($verifyTurnaround) }} after payment.
+                        @else
+                            Search by NIN, phone number, or demographic data. A successful result unlocks direct slip printing below.
+                        @endif
                     </p>
                 </div>
                 <div id="verifyPriceBadge" class="app-choice-chip">
@@ -119,7 +133,7 @@
         <div id="ninResultCard" class="app-section hidden p-5 sm:p-6">
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 class="text-xl font-extrabold text-slate-900">Verified NIN Result</h3>
+                    <h3 id="ninResultTitle" class="text-xl font-extrabold text-slate-900">Verified NIN Result</h3>
                     <p id="ninResultMessage" class="mt-1 text-sm text-slate-600"></p>
                     <div class="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
                         <span id="ninResultSourceHint"></span>
@@ -132,6 +146,12 @@
                 </div>
                 <span id="ninStatusBadge" class="rounded-full border px-3 py-1 text-xs font-semibold"></span>
             </div>
+
+            <p id="ninQueuedReceipt" class="mt-3 hidden">
+                <a id="ninQueuedReceiptAnchor" href="#" class="btn-outline gap-2">
+                    Open receipt and track this request
+                </a>
+            </p>
 
             <div id="profileSummaryWrap" class="mt-4 hidden rounded-2xl border border-slate-200 p-4 sm:p-5">
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-[160px,1fr]">
@@ -322,6 +342,7 @@
             const refreshReportsBtn = document.getElementById('refreshReportsBtn');
 
             const resultCard = document.getElementById('ninResultCard');
+            const resultTitle = document.getElementById('ninResultTitle');
             const statusBadge = document.getElementById('ninStatusBadge');
             const resultMessage = document.getElementById('ninResultMessage');
             const resultSourceHint = document.getElementById('ninResultSourceHint');
@@ -343,6 +364,8 @@
             const directPrintButtons = Array.from(document.querySelectorAll('[data-slip-type]'));
             const slipReportsBody = document.getElementById('slipReportsBody');
             const reportsMessage = document.getElementById('reportsMessage');
+            const queuedReceiptWrap = document.getElementById('ninQueuedReceipt');
+            const queuedReceiptAnchor = document.getElementById('ninQueuedReceiptAnchor');
 
             let verifiedState = null;
             let pendingVerifyLookup = null;
@@ -691,12 +714,36 @@
                 };
             }
 
-            function setResultStatus(ok) {
+            function setResultStatus(state) {
+                const looks = {
+                    verified: ['VERIFIED', 'rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800'],
+                    // A queued verification has been paid for but has no answer
+                    // yet, so calling it FAILED would send the customer away
+                    // while their money is already spent.
+                    pending: ['IN PROGRESS', 'rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800'],
+                    failed: ['FAILED', 'rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-800'],
+                };
+                const [label, tone] = looks[state] || looks.failed;
+
                 resultCard.classList.remove('hidden');
-                statusBadge.textContent = ok ? 'VERIFIED' : 'FAILED';
-                statusBadge.className = ok
-                    ? 'rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800'
-                    : 'rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-800';
+                statusBadge.textContent = label;
+                statusBadge.className = tone;
+            }
+
+            function showQueuedReceipt(url) {
+                // Only ever a link this app generated, never whatever a provider said.
+                const isInternal = typeof url === 'string'
+                    && (url.startsWith('/') || url.startsWith(window.location.origin));
+
+                if (!isInternal) {
+                    queuedReceiptWrap.classList.add('hidden');
+                    queuedReceiptAnchor.removeAttribute('href');
+
+                    return;
+                }
+
+                queuedReceiptAnchor.href = url;
+                queuedReceiptWrap.classList.remove('hidden');
             }
 
             function clearVerifiedState() {
@@ -747,7 +794,24 @@
             }
 
             function renderVerifyResult(ok, message, payload, normalized, orderId, meta = {}) {
-                setResultStatus(ok);
+                if (meta.queued) {
+                    setResultStatus('pending');
+                    resultTitle.textContent = 'Verification in progress';
+                    resultMessage.textContent = message || 'Request received.';
+                    resultSourceHint.textContent = 'Your result will appear on the receipt page and in your notifications.';
+                    refreshLiveBtn.classList.add('hidden');
+                    profileSummaryWrap.classList.add('hidden');
+                    ninDetailsWrap.innerHTML = '';
+                    ninRawTableWrap.innerHTML = '';
+                    clearVerifiedState();
+                    showQueuedReceipt(meta.receiptUrl);
+
+                    return;
+                }
+
+                showQueuedReceipt('');
+                resultTitle.textContent = 'Verified NIN Result';
+                setResultStatus(ok ? 'verified' : 'failed');
                 resultMessage.textContent = message || (ok ? 'Verification successful.' : 'Verification failed.');
 
                 if (!ok) {
@@ -2078,6 +2142,8 @@
                         cacheHit: data?.cache_hit === true,
                         cachedAtLabel: data?.cached_at_label || '',
                         forceRefresh: data?.force_refresh === true,
+                        queued: data?.queued === true,
+                        receiptUrl: data?.receipt_url || '',
                         lookup,
                     });
 

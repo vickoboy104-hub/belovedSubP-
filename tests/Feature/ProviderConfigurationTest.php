@@ -48,6 +48,9 @@ class ProviderConfigurationTest extends TestCase
     public function test_bvn_verification_reports_the_missing_key_without_charging_the_wallet(): void
     {
         $user = $this->memberWithBalance(100_000);
+        // Verification defaults to the manual queue, so this only reaches the
+        // provider once the owner has switched it to automatic.
+        $this->runVerificationAutomatically('bvn');
 
         $response = $this
             ->actingAs($user)
@@ -201,6 +204,153 @@ class ProviderConfigurationTest extends TestCase
         $this->assertStringContainsString('data-slip-type="standard_slip"', $instantPrint);
         $this->assertStringContainsString('NIN Slip Reports', $instantPrint);
         $this->assertStringNotContainsString('/vtu/manual/nin_slip_print', $instantPrint);
+    }
+
+    public function test_a_provider_side_outage_is_blamed_on_the_provider_and_costs_nobody(): void
+    {
+        // ConfirmIdent answers 400 "Service not available" when the service behind
+        // their own endpoint is down. That is not our site failing, and the
+        // customer must not pay for it or be left without a way forward.
+        $admin = User::factory()->create(['is_admin' => true]);
+        $user = $this->memberWithBalance(100_000);
+
+        // A configured key is what makes the request reach the provider at all.
+        Setting::create(['key' => 'nin_api_key', 'value' => 'test-nin-key']);
+        $this->runVerificationAutomatically('nin');
+
+        Http::fake([
+            'confirmident.com.ng/api/nin_demo' => Http::response(
+                ['success' => false, 'message' => 'Service not available'],
+                400,
+            ),
+        ]);
+
+        $response = $this->actingAs($user)->postJson('/vtu/nin/search', [
+            'search_type' => 'by_demo',
+            'firstname' => 'Test',
+            'lastname' => 'Candidate',
+            'dob' => '01-01-1990',
+            'gender' => 'male',
+        ]);
+
+        $response->assertStatus(422)->assertJson([
+            'ok' => false,
+            'message' => 'Our NIN provider is reporting a network problem with this check, so nothing was charged. '
+                .'Try again in a few minutes, or verify with your 11-digit NIN or the phone number on your NIN '
+                .'instead of name and date of birth.',
+        ]);
+
+        $this->assertSame(100_000, $this->balance($user));
+        $this->assertSame(0, Order::query()->count());
+
+        $this->assertDatabaseHas('notifications', [
+            'notifiable_type' => User::class,
+            'notifiable_id' => $admin->id,
+        ]);
+    }
+
+    public function test_a_nin_verification_is_paid_for_and_queued_because_manual_is_the_default(): void
+    {
+        // ConfirmIdent stopped answering, so verification now joins the manual
+        // queue unless the owner deliberately switches it back.
+        $admin = User::factory()->create(['is_admin' => true]);
+        $user = $this->memberWithBalance(100_000);
+
+        Setting::create(['key' => 'nin_api_key', 'value' => 'test-nin-key']);
+        settings_flush_cache();
+        Http::fake();
+
+        $response = $this->actingAs($user)->postJson('/vtu/nin/search', [
+            'search_type' => 'by_nin',
+            'nin' => '12345678901',
+        ]);
+
+        $response->assertOk()->assertJson(['ok' => true, 'queued' => true]);
+        Http::assertNothingSent();
+
+        $order = $this->latestOrder($user);
+        $meta = $order->meta;
+        $this->assertSame('pending', $order->status);
+        $this->assertSame('manual', $order->provider);
+        $this->assertTrue($meta['manual_queue']);
+        $this->assertSame('nin_verify', $meta['manual_service']);
+        $this->assertSame('by_nin', $meta['submitted']['verification_type']);
+        $this->assertSame('12345678901', $meta['submitted']['nin']);
+        $this->assertNotEmpty($meta['expected_by']);
+
+        // The customer pays the same ₦250 the automatic page quotes.
+        $this->assertSame(75_000, $this->balance($user));
+        $this->assertDatabaseHas('notifications', [
+            'notifiable_type' => User::class,
+            'notifiable_id' => $admin->id,
+        ]);
+    }
+
+    public function test_a_bvn_verification_is_paid_for_and_queued_because_manual_is_the_default(): void
+    {
+        $user = $this->memberWithBalance(100_000);
+
+        Setting::create(['key' => 'bvn_api_key', 'value' => 'test-bvn-key']);
+        settings_flush_cache();
+        Http::fake();
+
+        $response = $this->actingAs($user)
+            ->postJson('/vtu/bvn/verify', ['bvn' => '12345678901']);
+
+        $response->assertOk()->assertJson(['ok' => true, 'queued' => true]);
+        Http::assertNothingSent();
+
+        $order = $this->latestOrder($user);
+        $this->assertSame('bvn_verify', $order->meta['manual_service']);
+        $this->assertSame('12345678901', $order->meta['submitted']['bvn']);
+        $this->assertSame(80_000, $this->balance($user));
+    }
+
+    public function test_the_admin_switch_puts_a_verification_back_on_the_provider(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $admin->email_verified_at = now();
+        $admin->save();
+        $user = $this->memberWithBalance(100_000);
+
+        $page = $this->actingAs($admin)->get('/admin/settings')->assertOk()->getContent();
+        $this->assertStringContainsString('name="nin_verify_mode"', $page);
+        $this->assertStringContainsString('name="bvn_verify_mode"', $page);
+
+        // Saving the switch is all it takes - the next request goes out to the
+        // provider instead of the queue.
+        $this->actingAs($admin)->post('/admin/settings', [
+            'nin_verify_mode' => 'automatic',
+            'bvn_verify_mode' => 'automatic',
+        ])->assertRedirect();
+
+        $this->assertSame('automatic', identity_verify_mode('nin'));
+        $this->assertSame('automatic', identity_verify_mode('bvn'));
+
+        Setting::create(['key' => 'nin_api_key', 'value' => 'test-nin-key']);
+        settings_flush_cache();
+
+        Http::fake([
+            'confirmident.com.ng/api/nin_search' => Http::response([
+                'success' => true,
+                'message' => 'Record found',
+                'data' => ['nin' => '12345678901', 'firstname' => 'Test', 'lastname' => 'Candidate'],
+            ]),
+        ]);
+
+        $this->actingAs($user)->postJson('/vtu/nin/search', [
+            'search_type' => 'by_nin',
+            'nin' => '12345678901',
+        ])->assertOk()->assertJson(['ok' => true]);
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://confirmident.com.ng/api/nin_search');
+        $this->assertSame('nin_api', $this->latestOrder($user)->provider);
+    }
+
+    private function runVerificationAutomatically(string $service): void
+    {
+        Setting::query()->updateOrCreate(['key' => $service.'_verify_mode'], ['value' => 'automatic']);
+        settings_flush_cache();
     }
 
     private function memberWithBalance(int $kobo): User

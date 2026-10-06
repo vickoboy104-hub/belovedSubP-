@@ -228,6 +228,12 @@ class SettingsController extends Controller
             'bvn_retrieve_phone_endpoint' => ['nullable', 'string', 'max:255'],
             'bvn_retrieve_bms_endpoint' => ['nullable', 'string', 'max:255'],
             'bvn_print_endpoint' => ['nullable', 'string', 'max:255'],
+
+            // Which mode a verification runs in today. Anything that is not
+            // 'automatic' stays manual, so an unconfigured switch is safe.
+            'nin_verify_mode' => ['nullable', 'string', 'in:manual,automatic'],
+            'bvn_verify_mode' => ['nullable', 'string', 'in:manual,automatic'],
+
             'app_download_url' => ['nullable', 'string', 'max:255'],
             'app_latest_version' => ['nullable', 'string', 'max:60'],
 
