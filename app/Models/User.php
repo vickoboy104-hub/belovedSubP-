@@ -3,10 +3,14 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Notifications\AdminSupportComplaintNotification;
+use App\Notifications\AdminSystemAlertNotification;
+use App\Notifications\AdminUserActivityNotification;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
@@ -89,6 +93,22 @@ class User extends Authenticatable
     public function referrals(): HasMany
     {
         return $this->hasMany(self::class, 'referred_by_user_id');
+    }
+
+    /**
+     * The notices a person wants when they open their alerts: their own money,
+     * their own orders, a reply from support, an announcement. An administrator
+     * receives a running commentary about everybody else's logins and failing
+     * jobs, and none of it is about the reader - so it stays out of the tray
+     * rather than burying the one alert that mattered.
+     */
+    public function visibleNotifications(): MorphMany
+    {
+        return $this->notifications()->whereNotIn('type', [
+            AdminUserActivityNotification::class,
+            AdminSupportComplaintNotification::class,
+            AdminSystemAlertNotification::class,
+        ]);
     }
 
     public function ensureReferralCode(): string

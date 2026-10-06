@@ -113,7 +113,9 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::get('/referral', [ReferralController::class, 'index'])->name('referral.index');
     Route::post('/referral/link/generate', [ReferralController::class, 'generate'])->name('referral.generate');
     Route::post('/referral/withdraw', [ReferralController::class, 'withdraw'])->name('referral.withdraw');
+    Route::get('/notifications/feed', [VtuController::class, 'notificationFeed'])->name('notifications.feed');
     Route::post('/notifications/read-all', [VtuController::class, 'markUserNotificationsRead'])->name('notifications.read-all');
+    Route::post('/notifications/{notificationId}/read', [VtuController::class, 'markUserNotificationRead'])->name('notifications.read');
     Route::get('/notifications', [VtuController::class, 'notificationsIndex'])->name('notifications.index');
 
     Route::get('/support/bot', [SupportBotController::class, 'index'])->name('support.bot');

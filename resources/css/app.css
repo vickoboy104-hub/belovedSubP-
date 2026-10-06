@@ -229,6 +229,104 @@ button {
     color: #9b1c1c;
 }
 
+/* The header alert tray borrows the unread language of the notifications page,
+   so an alert looks the same whether it is in the shade or on the full list. */
+.app-bell {
+    position: relative;
+}
+
+.app-bell-badge {
+    position: absolute;
+    top: 0.1rem;
+    right: 0.1rem;
+    min-width: 1.1rem;
+    padding: 0 0.28rem;
+    border-radius: 999px;
+    background: var(--brand-accent);
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 800;
+    line-height: 1.1rem;
+    text-align: center;
+}
+
+.app-bell-panel {
+    border-radius: 22px;
+}
+
+.app-bell-list {
+    max-height: min(58vh, 26rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.app-bell-item {
+    display: block;
+    border: 1px solid var(--brand-line);
+    border-radius: 18px;
+    background: var(--surface-card);
+    padding: 0.7rem 0.8rem;
+}
+
+.app-bell-item + .app-bell-item {
+    margin-top: 0.5rem;
+}
+
+.app-bell-item.is-unread {
+    border-color: var(--brand-accent);
+    background: var(--surface-soft);
+    box-shadow: inset 3px 0 0 var(--brand-accent);
+}
+
+.app-bell-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--brand-navy);
+}
+
+.app-bell-amount {
+    color: #0f7a52;
+    font-variant-numeric: tabular-nums;
+}
+
+.app-bell-text {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.76rem;
+    line-height: 1.3rem;
+    color: var(--brand-text);
+}
+
+.app-bell-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+    font-size: 0.68rem;
+    color: var(--brand-text);
+    opacity: 0.72;
+}
+
+.app-bell-empty {
+    padding: 0.9rem 0.8rem;
+    font-size: 0.78rem;
+    line-height: 1.4rem;
+    color: var(--brand-text);
+}
+
+.app-bell-all {
+    display: block;
+    padding: 0.6rem 0.8rem 0.2rem;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--brand-navy);
+}
+
 /* Result tone inside a flash popup. Kept as a class rather than Tailwind
    utilities so the Blade flash and the JS flash share one definition. */
 .app-flag-tone-success {

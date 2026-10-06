@@ -1132,4 +1132,89 @@ Alpine.data('avatarPicker', ({ current = '', initials = '', name = 'Your' } = {}
     });
 })();
 
+// ==============================
+// HEADER ALERT TRAY
+// ==============================
+Alpine.data('notificationBell', (feedUrl, readUrl) => ({
+    feedUrl,
+    readUrl,
+    open: false,
+    loading: false,
+    unread: 0,
+    items: [],
+
+    init() {
+        this.refresh();
+
+        setInterval(() => {
+            if (!document.hidden) this.refresh();
+        }, 60000);
+
+        // Coming back to the tab is exactly when a person wants to know whether
+        // anything landed while they were away.
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) this.refresh();
+        });
+    },
+
+    get badge() {
+        return this.unread > 99 ? '99+' : String(this.unread);
+    },
+
+    toggle() {
+        this.open = !this.open;
+        if (this.open) this.refresh();
+    },
+
+    async refresh() {
+        if (this.loading) return;
+
+        this.loading = true;
+        try {
+            const response = await fetch(this.feedUrl, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            });
+            const payload = await response.json();
+
+            this.unread = Number(payload.unread) || 0;
+            this.items = Array.isArray(payload.notifications) ? payload.notifications : [];
+        } catch (error) {
+            // A lost request is not worth interrupting somebody who is trying to
+            // spend money; the next heartbeat asks again.
+        } finally {
+            this.loading = false;
+        }
+    },
+
+    async follow(item) {
+        const target = String(item.url || '');
+
+        if (item.unread) {
+            item.unread = false;
+            this.unread = Math.max(0, this.unread - 1);
+
+            // Settled before navigating away, so the badge does not come back
+            // the same number on the next page.
+            try {
+                await fetch(this.readUrl.replace('__NOTIFICATION_ID__', encodeURIComponent(item.id)), {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin',
+                });
+            } catch (error) {
+                // The alert stays unread on the server. Reading it later costs one
+                // more tap, which is not worth failing the navigation over.
+            }
+        }
+
+        this.open = false;
+        if (target) window.location.href = target;
+    },
+}));
+
 Alpine.start();

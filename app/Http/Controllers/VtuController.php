@@ -63,8 +63,8 @@ class VtuController extends Controller
             ->where('referred_by_user_id', $user->id)
             ->whereNotNull('referral_qualified_at')
             ->count();
-        $userNotifications = $user->notifications()->latest()->take(10)->get();
-        $unreadUserNotifications = $user->unreadNotifications()->count();
+        $userNotifications = $user->visibleNotifications()->latest()->take(10)->get();
+        $unreadUserNotifications = $user->visibleNotifications()->whereNull('read_at')->count();
 
         return view('dashboard', compact(
             'walletBalanceKobo',
@@ -2645,6 +2645,61 @@ class VtuController extends Controller
         return back()->with('success', 'Notifications marked as read.');
     }
 
+    /**
+     * What the header bell asks for. One small JSON shape, so the badge on the
+     * icon and the list under it can never disagree about what is unread.
+     */
+    public function notificationFeed(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['unread' => 0, 'notifications' => []]);
+        }
+
+        return response()->json([
+            'unread' => $user->visibleNotifications()->whereNull('read_at')->count(),
+            'notifications' => $user->visibleNotifications()
+                ->limit(8)
+                ->get()
+                ->map(fn (object $notice): array => $this->notificationCard($notice))
+                ->values()
+                ->all(),
+        ]);
+    }
+
+    /**
+     * Opening one alert settles it. Scoped to the reader's own visible notices,
+     * so a guessed id from somebody else's inbox changes nothing.
+     */
+    public function markUserNotificationRead(Request $request, string $notificationId)
+    {
+        $notice = $request->user()?->visibleNotifications()->where('id', $notificationId)->first();
+        $notice?->markAsRead();
+
+        return response()->json(['ok' => true, 'unread' => (int) ($request->user()?->visibleNotifications()->whereNull('read_at')->count() ?? 0)]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function notificationCard(object $notice): array
+    {
+        $data = (array) ($notice->data ?? []);
+        $amountKobo = (int) ($data['amount_kobo'] ?? 0);
+        $isCredit = (string) ($data['type'] ?? '') === 'credit';
+        $url = trim((string) ($data['url'] ?? ''));
+
+        return [
+            'id' => (string) $notice->id,
+            'title' => trim((string) ($data['title'] ?? '')) !== '' ? (string) $data['title'] : 'Notification',
+            'message' => (string) ($data['message'] ?? ''),
+            'amount' => $amountKobo > 0 ? ($isCredit ? '+' : '-').'₦'.number_format($amountKobo / 100, 2) : '',
+            'url' => str_starts_with($url, 'http') ? $url : url('/notifications'),
+            'at' => optional($notice->created_at)->format('M j, Y · g:ia'),
+            'unread' => is_null($notice->read_at),
+        ];
+    }
+
     public function notificationsIndex(Request $request)
     {
         $user = $request->user();
@@ -2652,8 +2707,8 @@ class VtuController extends Controller
         $unreadCount = 0;
 
         if ($user && Schema::hasTable('notifications')) {
-            $unreadCount = $user->unreadNotifications()->count();
-            $notifications = $user->notifications()->latest()->paginate(40);
+            $unreadCount = $user->visibleNotifications()->whereNull('read_at')->count();
+            $notifications = $user->visibleNotifications()->paginate(40);
         }
 
         return view('notifications.index', [

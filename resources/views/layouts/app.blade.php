@@ -149,6 +149,10 @@
 
                 <a href="{{ route('download.app') }}" class="reference-install hidden md:inline-flex">Install app</a>
 
+                <div class="flex items-center gap-2">
+                    <x-notification-bell />
+                </div>
+
                 <div class="flex items-center gap-2 md:hidden">
                     <a href="{{ route('download.app') }}" class="reference-install">Install app</a>
                     <button type="button"
