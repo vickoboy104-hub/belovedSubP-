@@ -2583,13 +2583,39 @@ class VtuController extends Controller
     // =========================================================
     // TRANSACTIONS + ORDERS
     // =========================================================
-    public function orders()
+    public function orders(Request $request)
     {
         $user = auth()->user();
-        $orders = Order::where('user_id', $user->id)->latest()->paginate(20);
+
+        // The provider's history screens sit a search box and a page-size select
+        // above the table, so both ask the database rather than pretending to
+        // filter rows this page never loaded.
+        $search = trim((string) $request->query('q', ''));
+        $perPage = (int) $request->query('per_page', 25);
+        if (!in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 25;
+        }
+
+        $query = Order::query()->where('user_id', $user->id);
+        if ($search !== '') {
+            $query->where(function ($filter) use ($search): void {
+                $filter->where('customer_ref', 'like', "%{$search}%")
+                    ->orWhere('service_id', 'like', "%{$search}%")
+                    ->orWhere('status', 'like', "%{$search}%");
+            });
+        }
+
+        $totalRecords = (clone $query)->count();
+        $orders = $query->latest()->paginate($perPage)->withQueryString();
         $orderBalanceMap = $this->buildOrderBalanceMap($orders->getCollection(), $user?->wallet);
 
-        return view('vtu.orders', compact('orders', 'orderBalanceMap'));
+        return view('vtu.orders', compact(
+            'orders',
+            'orderBalanceMap',
+            'search',
+            'perPage',
+            'totalRecords',
+        ));
     }
 
     public function profitCalculator(Request $request)
@@ -2769,12 +2795,23 @@ class VtuController extends Controller
         abort_unless($definition !== null, 404);
         abort_if($this->manualServices->wiredOnly($service), 404);
 
+        // The provider prints the history of the job directly under its form, so
+        // the customer can check an earlier request without navigating away.
+        $history = Order::query()
+            ->where('user_id', auth()->id())
+            ->where('meta->manual_service', $service)
+            ->latest()
+            ->take(25)
+            ->get();
+
         return view('vtu.manual-service', [
             'definition' => $definition,
             'priceNaira' => $this->manualServices->totalNaira($service),
             'turnaroundLabel' => $this->manualServices->turnaroundLabel($service),
             'expectedBy' => $this->manualServices->expectedBy($service),
             'walletBalanceKobo' => (int) (auth()->user()?->wallet?->balance ?? 0),
+            'history' => $history,
+            'historyTotal' => $history->count(),
         ]);
     }
 

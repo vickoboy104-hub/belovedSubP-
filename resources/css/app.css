@@ -2772,3 +2772,250 @@ html[data-theme="ember"] .app-modal-close { background: var(--surface-card); }
     font-weight: 600;
     overflow-wrap: anywhere;
 }
+
+/* ── Records history block ───────────────────────────────────────────────
+   Mirrors the provider's own transaction screens: a "Total Record(n) - page x
+   of y" heading beside a search box and page-size select, a flat table whose
+   first cell is a "+" that opens the rest of the row, coloured status badges
+   and an em dash wherever a value has not arrived yet. */
+.records-panel {
+    border: 1px solid #dfe5ee;
+    border-radius: .6rem;
+    background: #fff;
+    box-shadow: 0 5px 17px rgba(13,39,79,.06);
+    overflow: hidden;
+}
+
+.records-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .8rem 1rem;
+    border-bottom: 1px solid #e6ebf3;
+    background: #f7f9fd;
+}
+
+.records-count { color: #213b62; font-size: .86rem; font-weight: 800; }
+.records-count-page { color: #6b7c95; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+.records-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+
+.records-search,
+.records-select,
+.records-search-button {
+    min-height: 38px;
+    border: 1px solid #cbd6e4;
+    border-radius: .4rem;
+    background: #fff;
+    color: #1b2b44;
+    font-size: .82rem;
+}
+
+.records-search { width: clamp(170px, 38vw, 260px); padding: .35rem .6rem; }
+.records-search::placeholder { color: #93a1b5; }
+.records-size { display: inline-flex; align-items: center; gap: .35rem; color: #617189; font-size: .78rem; font-weight: 700; }
+.records-select { padding: .25rem .45rem; }
+.records-search-button { padding: .3rem .9rem; font-weight: 800; color: #173f74; }
+.records-search-button:hover { background: #eaf1ff; }
+
+.records-table-wrap { display: none; overflow-x: auto; }
+
+.records-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .82rem;
+    color: #33445e;
+    font-variant-numeric: tabular-nums;
+}
+
+.records-table th {
+    text-align: left;
+    padding: .7rem .75rem;
+    border-bottom: 1px solid #dfe5ee;
+    background: #fbfcfe;
+    color: #69788d;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.records-table td {
+    padding: .72rem .75rem;
+    border-bottom: 1px solid #edf1f6;
+    vertical-align: middle;
+    overflow-wrap: anywhere;
+}
+
+.records-cell-toggle { width: 2.4rem; text-align: center; }
+
+.records-expand {
+    display: inline-grid;
+    place-items: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    border: 1px solid #cbd6e4;
+    border-radius: 50%;
+    background: #fff;
+    color: #173f74;
+    font-size: .95rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.records-expand:hover { background: #eaf1ff; border-color: #b9cbe8; }
+.records-cell-strong { color: #1b2b44; font-weight: 800; }
+.records-note { display: block; color: #7c8aa0; font-size: .72rem; font-weight: 600; }
+.records-detail-row > td { background: #f8fafd; padding-bottom: .9rem; padding-top: .1rem; }
+
+.records-detail {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: .4rem 1.1rem;
+    padding-top: .5rem;
+}
+
+.records-detail-label {
+    display: block;
+    color: #7c8aa0;
+    font-size: .64rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.records-detail-value {
+    display: block;
+    margin-top: .15rem;
+    color: #25354b;
+    font-size: .82rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.records-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: .6rem;
+    padding: .45rem .95rem;
+    border-radius: .4rem;
+    background: #173f74;
+    color: #fff !important;
+    font-size: .76rem;
+    font-weight: 800;
+}
+
+.records-action:hover { background: #225697; }
+.records-action-block { width: 100%; }
+.records-empty { color: #6b7c95; font-size: .82rem; }
+
+/* Status blocks are the provider's green, red and grey badges. */
+.records-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: .3rem;
+    padding: .3rem .6rem;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.records-badge-success { background: #d4edda; color: #155724; }
+.records-badge-danger { background: #f8d7da; color: #721c24; }
+.records-badge-warning { background: #fff3cd; color: #856404; }
+.records-badge-info { background: #e2e3e5; color: #383d41; }
+
+.records-cards { display: grid; gap: .6rem; padding: .75rem; }
+
+.records-card {
+    border: 1px solid #e2e8f0;
+    border-radius: .5rem;
+    background: #fff;
+    padding: .7rem .8rem;
+    box-shadow: 0 3px 10px rgba(25,50,85,.05);
+}
+
+.records-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .6rem; }
+.records-card-lines { display: grid; gap: .2rem; min-width: 0; }
+.records-card-line { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.records-card-label { color: #7c8aa0; font-size: .62rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.records-card-value { color: #25354b; font-size: .85rem; font-weight: 700; overflow-wrap: anywhere; }
+.records-card .records-detail { grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid #edf1f6; margin-top: .6rem; }
+.records-empty-card { border: 1px dashed #d6deea; border-radius: .5rem; background: #f8fafd; padding: .9rem; color: #6b7c95; font-size: .82rem; }
+
+/* One markup, two shapes: the flat table from 768px up, the "+" cards below it.
+   Written here rather than as utility classes so nothing can out-order it. */
+@media (min-width: 768px) {
+    .records-table-wrap { display: block; }
+    .records-cards { display: none; }
+}
+
+@media (max-width: 767px) {
+    .records-toolbar { padding: .7rem .8rem; }
+    .records-tools { width: 100%; }
+    .records-search { flex: 1 1 150px; width: auto; }
+    .records-expand { min-width: 1.7rem; min-height: 1.7rem; }
+    .records-card-label { font-size: .58rem; }
+    .records-card-value { font-size: .8rem; }
+    .records-badge { font-size: .62rem; padding: .26rem .5rem; }
+}
+
+/* ── Service request form ─────────────────────────────────────────────────
+   The provider's data-entry screens: one card, a centred icon over the name of
+   the job, heavy labels sitting above full-width boxes, the price stated as a
+   red line once the fields are filled, a caution block under the form, and
+   Previous beside Submit. */
+.service-form-head { text-align: center; padding-bottom: .3rem; }
+
+.service-form-icon {
+    display: grid;
+    place-items: center;
+    width: 3.6rem;
+    height: 3.6rem;
+    margin: 0 auto .6rem;
+    border-radius: 50%;
+    background: #eaf1fc;
+    color: #173f74;
+    font-size: 1.5rem;
+}
+
+.service-form-title { color: #173f74; font-size: clamp(1.15rem, 2.2vw, 1.4rem); font-weight: 800; }
+.service-form-body { display: grid; gap: 1.05rem; margin-top: 1.1rem; }
+.service-form-label { display: block; margin-bottom: .4rem; color: #25354b; font-size: 1.02rem; font-weight: 800; }
+.service-form-required { color: #d9363e; }
+.service-form-hint { margin-top: .35rem; color: #74849a; font-size: .76rem; line-height: 1.45; }
+
+.service-form-cost {
+    margin-top: .3rem;
+    color: #d9363e;
+    font-size: .95rem;
+    font-weight: 800;
+}
+
+.service-form-alert {
+    border: 1px solid;
+    border-radius: .5rem;
+    padding: .8rem .95rem;
+    font-size: .82rem;
+    line-height: 1.6;
+}
+
+.service-form-alert-warning { border-color: #f3ddae; background: #fdf6e6; color: #7a5410; }
+.service-form-alert-danger { border-color: #f2c4c6; background: #fdecec; color: #8f1f22; }
+.service-form-alert a { text-decoration: underline; }
+
+.service-form-actions { display: flex; align-items: stretch; gap: .7rem; margin-top: .3rem; }
+.service-form-actions .btn-primary { flex: 1 1 auto; justify-content: center; }
+.service-form-actions .reference-quiet-button { flex: 0 0 auto; min-height: 44px; }
+
+@media (max-width: 767px) {
+    .service-form-label { font-size: .98rem; }
+    .service-form-actions { flex-wrap: wrap; }
+    .service-form-actions .reference-quiet-button { flex: 1 1 100%; justify-content: center; }
+}

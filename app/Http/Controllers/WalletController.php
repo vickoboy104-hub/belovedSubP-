@@ -67,9 +67,26 @@ class WalletController extends Controller
             abort(400, 'Wallet not found for this user.');
         }
 
-        $transactions = WalletTransaction::where('wallet_id', $wallet->id)
-            ->latest()
-            ->paginate(20);
+        // The history block searches and pages against the database, so a filter
+        // can never look like it dropped rows the customer still owes money on.
+        $search = trim((string) $request->query('q', ''));
+        $perPage = (int) $request->query('per_page', 25);
+        if (!in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 25;
+        }
+
+        $query = WalletTransaction::where('wallet_id', $wallet->id);
+        if ($search !== '') {
+            $query->where(function ($filter) use ($search): void {
+                $filter->where('reference', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('channel', 'like', "%{$search}%")
+                    ->orWhere('type', 'like', "%{$search}%");
+            });
+        }
+
+        $totalRecords = (clone $query)->count();
+        $transactions = $query->latest()->paginate($perPage)->withQueryString();
 
         $balanceKobo = $wallet->balance ?? 0;
 
@@ -77,6 +94,9 @@ class WalletController extends Controller
             'walletBalanceKobo' => $balanceKobo,
             'walletBalanceNaira' => $balanceKobo / 100,
             'transactions' => $transactions,
+            'search' => $search,
+            'perPage' => $perPage,
+            'totalRecords' => $totalRecords,
             'depositCheck' => (array) (session('deposit_check') ?? $check),
             'pendingDeposits' => $this->awaitingDeposits($wallet->id),
         ]);
