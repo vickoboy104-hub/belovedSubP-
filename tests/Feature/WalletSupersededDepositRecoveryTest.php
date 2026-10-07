@@ -260,6 +260,23 @@ class WalletSupersededDepositRecoveryTest extends TestCase
         $this->assertSame('pending', $replacement->fresh()->status, 'The new request was paid for by the old money.');
     }
 
+    public function test_the_audit_asks_about_missing_money_without_moving_any(): void
+    {
+        $user = $this->member();
+        $pending = $this->oneTimeAccount($user);
+
+        $this->listCharges = [['id' => 903, 'tx_ref' => $pending->reference]];
+        $this->verifiableCharges = [
+            903 => $this->charge(['id' => 903, 'tx_ref' => $pending->reference, 'flw_ref' => 'FLW-MOCK-903']),
+        ];
+
+        $this->artisan('deposits:audit --days=30 --references=1')->assertSuccessful();
+
+        $this->assertTrue($this->wasAskedAbout((string) $pending->reference));
+        $this->assertSame(0, (int) $user->fresh()->wallet->balance);
+        $this->assertSame('pending', $pending->fresh()->status);
+    }
+
     public function test_the_scheduled_check_credits_a_customer_who_never_opens_their_page(): void
     {
         $user = $this->member();
