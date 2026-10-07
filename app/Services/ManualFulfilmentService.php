@@ -17,6 +17,10 @@ use Illuminate\Support\Str;
  * the source of the service list; prices and turnaround are admin settings so
  * they can be corrected without a deploy. Verification appears here too when
  * the owner switches it off the ConfirmIdent endpoints.
+ *
+ * A service asks for what the provider works from and nothing more: the
+ * customer's own phone and email are already on their account and on the admin's
+ * detail page, so collecting them again only makes the form longer.
  */
 class ManualFulfilmentService
 {
@@ -27,7 +31,6 @@ class ManualFulfilmentService
         'nin',
         'bvn',
         'tracking_id',
-        'delink_value',
         'bms_no',
         'ticket_id',
         'new_value',
@@ -36,6 +39,7 @@ class ManualFulfilmentService
         'validation_type',
         'retrieve_type',
         'ipe_type',
+        'slip_type',
         'delink_target',
         'field_to_modify',
         'state',
@@ -53,10 +57,12 @@ class ManualFulfilmentService
                 'group' => 'nin',
                 'turnaround_default' => 48,
                 'fields' => [
-                    $this->field('tracking_id', 'Tracking ID', rules: ['required', 'string', 'size:15', 'alpha_num'], hint: 'The 15-character tracking ID printed on your NIN enrolment slip.'),
-                    $this->field('ipe_type', 'Request type', type: 'select', options: ['new_enrollment' => 'New enrolment'], rules: ['required', 'in:new_enrollment']),
-                    $this->field('nin', 'NIN', rules: ['nullable', 'digits:11'], hint: 'Optional, but it speeds up the search.'),
-                    $this->field('phone', 'Phone number', rules: ['required', 'string', 'max:20']),
+                    $this->field('ipe_type', 'Reason for clearance', type: 'select', options: [
+                        'new_enrollment' => 'New enrolment for ID retrieval',
+                        'inprocessing_error' => 'Inprocessing error',
+                        'still_being_process' => 'Enrolment is still being processed',
+                    ], rules: ['required', 'in:new_enrollment,inprocessing_error,still_being_process']),
+                    $this->field('tracking_id', 'Tracking ID', rules: ['required', 'string', 'size:15', 'alpha_num'], hint: 'The 15-character tracking ID printed on your NIN enrolment slip, e.g. BTX947E60001020.'),
                     $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
@@ -69,12 +75,7 @@ class ManualFulfilmentService
                 'group' => 'nin',
                 'turnaround_default' => 48,
                 'fields' => [
-                    $this->field('tracking_id', 'Tracking ID', rules: ['required', 'string', 'size:15', 'alpha_num']),
-                    $this->field('nin', 'NIN', rules: ['required', 'digits:11']),
-                    $this->field('firstname', 'First name', rules: ['required', 'string', 'max:120']),
-                    $this->field('lastname', 'Last name', rules: ['required', 'string', 'max:120']),
-                    $this->field('phone', 'Phone number', rules: ['required', 'string', 'max:20']),
-                    $this->field('email', 'Email address', rules: ['nullable', 'email', 'max:160']),
+                    $this->field('tracking_id', 'Tracking ID', rules: ['required', 'string', 'size:15', 'alpha_num'], hint: 'The 15-character tracking ID printed on your NIN enrolment slip.'),
                     $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
@@ -88,21 +89,19 @@ class ManualFulfilmentService
                 'turnaround_default' => 72,
                 'fields' => [
                     $this->field('nin', 'NIN', rules: ['required', 'digits:11']),
-                    $this->field('tracking_id', 'Tracking ID', rules: ['nullable', 'string', 'size:15', 'alpha_num']),
-                    $this->field('field_to_modify', 'Detail to correct', type: 'select', options: [
-                        'firstname' => 'First name',
-                        'lastname' => 'Last name',
-                        'date_of_birth' => 'Date of birth',
-                        'gender' => 'Gender',
-                        'phone' => 'Phone number',
-                        'address' => 'Address',
-                        'photo' => 'Photograph',
-                        'other' => 'Other',
-                    ], rules: ['required', 'string', 'max:60']),
-                    $this->field('current_value', 'What it currently says', rules: ['nullable', 'string', 'max:255']),
+                    $this->field('field_to_modify', 'What needs correcting', type: 'select', options: [
+                        'name' => 'Change of name',
+                        'phone' => 'Change of phone number',
+                        'address' => 'Change of address',
+                        'email' => 'Change of email',
+                        'dob' => 'Change of date of birth',
+                        'name_phone' => 'Name and phone number',
+                        'name_dob' => 'Name and date of birth',
+                        'name_email' => 'Name and email',
+                        'name_address' => 'Name and address',
+                        'dob_phone' => 'Date of birth and phone number',
+                    ], rules: ['required', 'in:name,phone,address,email,dob,name_phone,name_dob,name_email,name_address,dob_phone']),
                     $this->field('new_value', 'What it should say', rules: ['required', 'string', 'max:255']),
-                    $this->field('phone', 'Phone number', rules: ['required', 'string', 'max:20']),
-                    $this->field('email', 'Email address', rules: ['nullable', 'email', 'max:160']),
                     $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
@@ -111,24 +110,23 @@ class ManualFulfilmentService
                 'slug' => 'nin_delink',
                 'title' => 'Self Service Delink',
                 'icon' => '⛓',
-                'summary' => 'Remove a phone number or bank account that is still linked to your NIN.',
+                'summary' => 'Unlink a self service account from your NIN, or recover the email on it.',
                 'group' => 'nin',
                 'turnaround_default' => 48,
                 'fields' => [
                     $this->field('nin', 'NIN', rules: ['required', 'digits:11']),
-                    $this->field('tracking_id', 'Tracking ID', rules: ['nullable', 'string', 'size:15', 'alpha_num']),
-                    $this->field('delink_target', 'What should be delinked', type: 'select', options: [
-                        'phone' => 'Phone number',
-                        'bank_account' => 'Bank account',
-                        'email' => 'Email address',
-                        'other' => 'Other',
-                    ], rules: ['required', 'string', 'max:40']),
-                    $this->field('delink_value', 'The exact value to remove', rules: ['required', 'string', 'max:255']),
-                    $this->field('phone', 'Phone number to reach you on', rules: ['required', 'string', 'max:20']),
+                    $this->field('delink_target', 'What you want done', type: 'select', options: [
+                        'delink' => 'Delink my self service account',
+                        'retrieve_email' => 'Retrieve the email on my self service account',
+                    ], rules: ['required', 'in:delink,retrieve_email']),
                     $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
+            // JH Tech's own /agreement screen turned out to be their non-withdrawal
+            // policy for resellers, not a job a customer can order. Nothing on the
+            // provider side matches this, so it is off the hub until the owner
+            // decides whether to sell it under our own terms or drop it.
             'nin_agreement' => [
                 'slug' => 'nin_agreement',
                 'title' => 'NIN Agreement',
@@ -136,12 +134,12 @@ class ManualFulfilmentService
                 'summary' => 'Request the agreement form tied to your enrolment.',
                 'group' => 'nin',
                 'turnaround_default' => 48,
+                'hidden_from_hub' => true,
                 'fields' => [
                     $this->field('nin', 'NIN', rules: ['required', 'digits:11']),
                     $this->field('tracking_id', 'Tracking ID', rules: ['nullable', 'string', 'size:15', 'alpha_num']),
                     $this->field('state', 'State of enrolment', rules: ['required', 'string', 'max:80']),
                     $this->field('lga', 'LGA of enrolment', rules: ['nullable', 'string', 'max:80']),
-                    $this->field('phone', 'Phone number', rules: ['required', 'string', 'max:20']),
                     $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
@@ -154,10 +152,7 @@ class ManualFulfilmentService
                 'group' => 'bvn',
                 'turnaround_default' => 24,
                 'fields' => [
-                    $this->field('bvn', 'BVN', rules: ['required', 'digits:11']),
-                    $this->field('firstname', 'First name on the BVN', rules: ['nullable', 'string', 'max:120']),
-                    $this->field('lastname', 'Last name on the BVN', rules: ['nullable', 'string', 'max:120']),
-                    $this->field('phone', 'Phone number linked to the BVN', rules: ['nullable', 'string', 'max:20']),
+                    $this->field('bvn', 'BVN', rules: ['required', 'digits:11'], hint: 'The 11-digit Bank Verification Number.'),
                     $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
@@ -173,9 +168,13 @@ class ManualFulfilmentService
                 'group' => 'nin',
                 'turnaround_default' => 24,
                 'fields' => [
-                    $this->field('nin', 'NIN', rules: ['required', 'digits:11']),
-                    $this->field('tracking_id', 'Tracking ID', rules: ['nullable', 'string', 'size:15', 'alpha_num']),
-                    $this->field('phone', 'Phone number', rules: ['required', 'string', 'max:20']),
+                    $this->field('nin', 'NIN', rules: ['required', 'digits:11'], hint: 'The 11-digit National Identification Number.'),
+                    $this->field('slip_type', 'Which slip', type: 'select', options: [
+                        'long_slip' => 'Long slip',
+                        'standard_slip' => 'Standard slip',
+                        'premium_slip' => 'Premium slip',
+                        'vnin_slip' => 'Vnin slip sample',
+                    ], rules: ['required', 'in:long_slip,standard_slip,premium_slip,vnin_slip']),
                     $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
@@ -191,10 +190,9 @@ class ManualFulfilmentService
                 'fields' => [
                     $this->field('validation_type', 'Validation type', type: 'select', options: [
                         'no_record' => 'No record',
-                        'update_record' => 'Update record',
+                        'update_record' => 'Update record (name, phone or address, not date of birth)',
                     ], rules: ['required', 'in:no_record,update_record']),
                     $this->field('nin', 'NIN', rules: ['required', 'digits:11']),
-                    $this->field('phone', 'Phone number', rules: ['required', 'string', 'max:20']),
                     $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],

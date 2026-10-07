@@ -32,9 +32,8 @@ class AdminManualQueueNavigationTest extends TestCase
             'bvn' => '12345678901',
         ]);
         $ipeRequest = $this->submitManualRequest($this->memberWithBalance(500_000), 'ipe_clearance', [
-            'tracking_id' => 'ABCDEFGHIJKLMNO',
             'ipe_type' => 'new_enrollment',
-            'phone' => '08012345678',
+            'tracking_id' => 'ABCDEFGHIJKLMNO',
         ]);
 
         $this->actingAs($admin)
@@ -60,9 +59,8 @@ class AdminManualQueueNavigationTest extends TestCase
 
         $done = $this->submitManualRequest($user, 'bvn_print', ['bvn' => '12345678901']);
         $waiting = $this->submitManualRequest($this->memberWithBalance(500_000), 'ipe_clearance', [
-            'tracking_id' => 'ABCDEFGHIJKLMNO',
             'ipe_type' => 'new_enrollment',
-            'phone' => '08012345678',
+            'tracking_id' => 'ABCDEFGHIJKLMNO',
         ]);
 
         $this->actingAs($admin)->post('/admin/manual-orders/'.$done->id.'/fulfil', [
@@ -87,9 +85,7 @@ class AdminManualQueueNavigationTest extends TestCase
         $first = $this->submitManualRequest($this->memberWithBalance(500_000), 'bvn_print', ['bvn' => '12345678901']);
         $second = $this->submitManualRequest($this->memberWithBalance(500_000), 'nin_delink', [
             'nin' => '23456789012',
-            'delink_target' => 'phone',
-            'delink_value' => '08098765432',
-            'phone' => '08012345678',
+            'delink_target' => 'delink',
         ]);
 
         $this->actingAs($admin)

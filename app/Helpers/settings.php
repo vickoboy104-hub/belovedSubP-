@@ -79,8 +79,9 @@ if (!function_exists('jhtech_price_reference')) {
      * a customer for. The two verification jobs are billed per call by
      * ConfirmIdent (N160 / N80, read from their dashboard and API documentation
      * on 2026-10-06); everything else has no API and is fulfilled by hand from
-     * Admin > Manual requests at JH Tech's counter rates, read 2026-10-05. A
-     * retail figure must stay above its cost or the job is done at a loss.
+     * Admin > Manual requests at JH Tech's counter rates, read off their logged-in
+     * service screens on 2026-10-07. A retail figure must stay above its cost or
+     * the job is done at a loss.
      *
      * Keys are the setting keys Admin > Settings writes, so a price is only
      * ever spelled one way. A fresh install has no settings rows, which means
@@ -109,7 +110,11 @@ if (!function_exists('jhtech_price_reference')) {
             // Tech jobs of different cost, the retail figure clears the dearer one.
             'price_manual_ipe_clearance' => ['cost' => 700, 'retail' => 3000],
             'price_manual_nin_personalization' => ['cost' => 250, 'retail' => 3000],
-            'price_manual_nin_modification' => ['cost' => 0, 'retail' => 3500],
+            // Their counter charges 5,000 for a single change, 6,000 for name plus
+            // one more detail, 12,000 for a date of birth combined with a name or
+            // phone, and 33,000 for a date of birth on its own. The cost here is
+            // the cheapest real tier, so a saved retail under it is already a loss.
+            'price_manual_nin_modification' => ['cost' => 5000, 'retail' => 6500],
             'price_manual_nin_delink' => ['cost' => 2000, 'retail' => 3000],
             'price_manual_nin_agreement' => ['cost' => 0, 'retail' => 2500],
             'price_manual_bvn_print' => ['cost' => 150, 'retail' => 1000],

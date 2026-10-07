@@ -135,11 +135,16 @@ class IdentityPriceReferenceTest extends TestCase
             ->assertSee('1,750.00', false);
     }
 
-    public function test_an_unpublished_rate_is_reported_as_unknown_rather_than_free(): void
+    public function test_a_rate_the_provider_has_not_published_is_unknown_rather_than_free(): void
     {
-        // Modification has no published JH Tech rate; the hint must say so
-        // instead of showing ₦0, which an owner would read as free labour.
-        $this->assertNull(identity_cost('price_manual_nin_modification'));
-        $this->assertSame(3500.0, app(ManualFulfilmentService::class)->priceNaira('nin_modification'));
+        // A key with no reference row must read as unknown, never as ₦0, which an
+        // owner would read as free labour.
+        $this->assertNull(identity_cost('price_manual_not_a_real_service'));
+
+        // Modification used to be unpublished. Its counter rates were read off the
+        // provider's own screen on 2026-10-07, so the shipped default now clears
+        // the cheapest tier (₦5,000 for a single detail) instead of selling at a loss.
+        $this->assertSame(5000.0, identity_cost('price_manual_nin_modification'));
+        $this->assertSame(6500.0, app(ManualFulfilmentService::class)->priceNaira('nin_modification'));
     }
 }

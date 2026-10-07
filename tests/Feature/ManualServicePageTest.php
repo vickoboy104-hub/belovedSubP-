@@ -55,6 +55,37 @@ class ManualServicePageTest extends TestCase
         }
     }
 
+    public function test_a_manual_service_asks_for_exactly_what_the_provider_asks_for(): void
+    {
+        $manual = app(ManualFulfilmentService::class);
+
+        // Read off the JH Tech screens themselves. 'notes' is ours, not theirs, and
+        // is always optional; anything else in here must be a field the provider
+        // shows, because every extra box is one more reason for a customer to stop.
+        $contract = [
+            'ipe_clearance' => ['ipe_type', 'tracking_id', 'notes'],
+            'nin_personalization' => ['tracking_id', 'notes'],
+            'nin_slip_print' => ['nin', 'slip_type', 'notes'],
+            'bvn_print' => ['bvn', 'notes'],
+        ];
+
+        foreach ($contract as $slug => $expected) {
+            $this->assertSame(
+                $expected,
+                array_column($manual->find($slug)['fields'], 'name'),
+                $slug.' does not match the fields the provider asks for.'
+            );
+
+            // The customer's contact details live on their account and on the
+            // admin's detail page, so the form must not ask for them again.
+            $this->actingAs($this->member())
+                ->get('/vtu/manual/'.$slug)
+                ->assertOk()
+                ->assertDontSee('name="phone"', false)
+                ->assertDontSee('name="email"', false);
+        }
+    }
+
     public function test_a_manual_service_is_never_offered_for_free(): void
     {
         $manual = app(ManualFulfilmentService::class);

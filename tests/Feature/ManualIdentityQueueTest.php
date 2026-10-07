@@ -36,9 +36,8 @@ class ManualIdentityQueueTest extends TestCase
 
         $response = $this->actingAs($user)
             ->post('/vtu/manual/ipe_clearance', [
-                'tracking_id' => 'ABCDEFGHIJKLMNO',
                 'ipe_type' => 'new_enrollment',
-                'phone' => '08012345678',
+                'tracking_id' => 'ABCDEFGHIJKLMNO',
             ]);
 
         $order = $this->latestOrder($user);
@@ -49,6 +48,39 @@ class ManualIdentityQueueTest extends TestCase
         $this->assertSame('manual', $order->provider);
 
         $this->actingAs($admin)->get('/admin/manual-orders')->assertOk()->assertSee('IPE Clearance');
+    }
+
+    public function test_nothing_beyond_the_providers_own_fields_is_ever_needed(): void
+    {
+        $user = $this->memberWithBalance(2_000_000);
+
+        // Exactly what each JH Tech screen asks for, and nothing else: no phone
+        // number, no email, no names. If a purchase needs more than this, the
+        // catalogue has grown a field the provider never asked for.
+        $jobs = [
+            'ipe_clearance' => ['ipe_type' => 'new_enrollment', 'tracking_id' => 'ABCDEFGHIJKLMNO'],
+            'nin_personalization' => ['tracking_id' => 'PQRSTUVWXYZABCD'],
+            'nin_slip_print' => ['nin' => '12345678901', 'slip_type' => 'premium_slip'],
+            'bvn_print' => ['bvn' => '22334455667'],
+        ];
+
+        foreach ($jobs as $slug => $payload) {
+            $this->actingAs($user)
+                ->post('/vtu/manual/'.$slug, $payload)
+                ->assertRedirect()
+                ->assertSessionHasNoErrors();
+        }
+
+        // ₦3,000 + ₦3,000 + ₦1,000 + ₦1,000 shipped defaults.
+        $this->assertSame(1_200_000, $this->balance($user));
+        $this->assertSame(4, Order::query()->where('user_id', $user->id)->count());
+
+        $personalization = Order::query()
+            ->where('user_id', $user->id)
+            ->where('meta->manual_service', 'nin_personalization')
+            ->sole();
+
+        $this->assertSame(['tracking_id' => 'PQRSTUVWXYZABCD'], $personalization->meta['submitted']);
     }
 
     public function test_admin_types_a_result_and_the_customer_reads_it_on_the_receipt(): void
@@ -83,7 +115,7 @@ class ManualIdentityQueueTest extends TestCase
 
         $order = $this->submitManualRequest($user, 'nin_slip_print', [
             'nin' => '12345678901',
-            'phone' => '08012345678',
+            'slip_type' => 'long_slip',
         ]);
 
         $this->actingAs($admin)->post('/admin/manual-orders/'.$order->id.'/fulfil', [
@@ -114,7 +146,6 @@ class ManualIdentityQueueTest extends TestCase
         $order = $this->submitManualRequest($user, 'nin_agreement', [
             'nin' => '12345678901',
             'state' => 'Lagos',
-            'phone' => '08012345678',
         ]);
 
         $this->actingAs($admin)->post('/admin/manual-orders/'.$order->id.'/fulfil', [
@@ -133,9 +164,7 @@ class ManualIdentityQueueTest extends TestCase
 
         $order = $this->submitManualRequest($user, 'nin_delink', [
             'nin' => '12345678901',
-            'delink_target' => 'phone',
-            'delink_value' => '08012345678',
-            'phone' => '08012345678',
+            'delink_target' => 'delink',
         ]);
 
         $this->assertNotSame(500_000, $this->balance($user));
@@ -156,7 +185,6 @@ class ManualIdentityQueueTest extends TestCase
         $order = $this->submitManualRequest($user, 'nin_agreement', [
             'nin' => '12345678901',
             'state' => 'Lagos',
-            'phone' => '08012345678',
         ]);
 
         $this->actingAs($admin)->post('/admin/manual-orders/'.$order->id.'/fulfil', [
@@ -217,9 +245,8 @@ class ManualIdentityQueueTest extends TestCase
 
         $user = $this->memberWithBalance(900_000);
         $order = $this->submitManualRequest($user, 'ipe_clearance', [
+            'ipe_type' => 'inprocessing_error',
             'tracking_id' => 'ABCDEFGHIJKLMNO',
-            'ipe_type' => 'new_enrollment',
-            'phone' => '08012345678',
         ]);
 
         $this->assertSame(400_000, $this->balance($user));
