@@ -39,10 +39,10 @@
                 <form id="bvnVerifyForm" class="mt-4 space-y-4">
                     @csrf
                     <div>
-                        <label class="block text-sm font-bold text-slate-700">Enter BVN</label>
+                        <label class="block text-sm font-bold text-slate-700">Enter the BVN Number</label>
                         <input type="text" name="bvn" maxlength="11" required
                                class="input-field mt-1"
-                               placeholder="11-digit BVN">
+                               placeholder="Enter BVN">
                     </div>
                     <button type="submit"
                             class="btn-primary w-full justify-center">
@@ -60,10 +60,10 @@
                 <form id="bvnRetrieveForm" class="mt-4 space-y-4">
                     @csrf
                     <div>
-                        <label class="block text-sm font-bold text-slate-700">Retrieve Type</label>
+                        <label class="block text-sm font-bold text-slate-700">Choose Category</label>
                         <select id="retrieve_type" name="retrieve_type" required
                                 class="input-field mt-1">
-                            <option value="">Choose type</option>
+                            <option value="">Select category</option>
                             <option value="phone">Using Phone Number</option>
                             <option value="bms">Using BMS Ticket</option>
                         </select>

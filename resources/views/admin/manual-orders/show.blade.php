@@ -4,11 +4,12 @@
         $resultText = trim((string) ($meta['result_text'] ?? ''));
         $resultFileName = trim((string) ($meta['result_file_name'] ?? ''));
 
-        // Labels come from the catalogue so the admin reads the same wording the
-        // customer saw on the form.
+        // The customer's form labels are full instructions ("Enter the NIN
+        // Number"), which read badly beside a value, so the admin sees the short
+        // name of the same field that the history table uses.
         $labels = [];
         foreach ($definition['fields'] ?? [] as $field) {
-            $labels[$field['name']] = $field['label'];
+            $labels[$field['name']] = $field['column'] ?? $field['label'];
         }
 
         $expectedBy = null;

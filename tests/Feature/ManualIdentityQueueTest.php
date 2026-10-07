@@ -59,7 +59,7 @@ class ManualIdentityQueueTest extends TestCase
         // catalogue has grown a field the provider never asked for.
         $jobs = [
             'ipe_clearance' => ['ipe_type' => 'new_enrollment', 'tracking_id' => 'ABCDEFGHIJKLMNO'],
-            'nin_personalization' => ['tracking_id' => 'PQRSTUVWXYZABCD'],
+            'nin_personalization' => ['tracking_id' => 'PQRSTUVWXYZABCD', 'category' => 'get_nin_slip'],
             'nin_slip_print' => ['nin' => '12345678901', 'slip_type' => 'premium_slip'],
             'bvn_print' => ['bvn' => '22334455667'],
         ];
@@ -80,7 +80,10 @@ class ManualIdentityQueueTest extends TestCase
             ->where('meta->manual_service', 'nin_personalization')
             ->sole();
 
-        $this->assertSame(['tracking_id' => 'PQRSTUVWXYZABCD'], $personalization->meta['submitted']);
+        $this->assertSame(
+            ['tracking_id' => 'PQRSTUVWXYZABCD', 'category' => 'get_nin_slip'],
+            $personalization->meta['submitted'],
+        );
     }
 
     public function test_admin_types_a_result_and_the_customer_reads_it_on_the_receipt(): void

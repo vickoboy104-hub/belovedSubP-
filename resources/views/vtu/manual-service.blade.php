@@ -22,6 +22,32 @@
             ];
         };
 
+        // The provider writes a label as an instruction ("Enter the NIN Number")
+        // and its dropdowns open on the same instruction, so the blank option
+        // reuses the label rather than inventing a third phrasing. A plain input
+        // stays empty unless it has an example worth showing.
+        $placeholderText = function (array $field): string {
+            if (!empty($field['placeholder'])) {
+                return (string) $field['placeholder'];
+            }
+            if (($field['type'] ?? 'text') !== 'select') {
+                return '';
+            }
+            if (preg_match('/^(Select|Choose)\b/i', $field['label'])) {
+                return $field['label'];
+            }
+
+            return 'Select '.strtolower($field['label']);
+        };
+
+        // The price is always the admin's number, never text copied off the
+        // provider, so {{price}} is filled in at render time.
+        $costLine = str_replace(
+            '{{price}}',
+            $priceLabel,
+            (string) ($definition['cost_text'] ?? '* This service will cost you ₦{{price}}'),
+        );
+
         // The provider prints the history of that same job under its form, so the
         // customer can see whether an earlier tracking ID already went through
         // without leaving the page they are filling.
@@ -37,7 +63,7 @@
             if ($field['name'] === 'notes') {
                 continue;
             }
-            $columns[] = ['key' => 'field:'.$field['name'], 'label' => $field['label']];
+            $columns[] = ['key' => 'field:'.$field['name'], 'label' => $field['column'] ?? $field['label']];
         }
 
         $rows = [];
@@ -106,7 +132,7 @@
                 @csrf
 
                 @foreach($definition['fields'] as $field)
-                    @php $meta = $inputMeta($field); @endphp
+                    @php $meta = $inputMeta($field); $ph = $placeholderText($field); @endphp
                     <div class="service-form-field">
                         <label for="field-{{ $field['name'] }}" class="service-form-label">
                             {{ $field['label'] }}
@@ -118,7 +144,7 @@
                                     name="{{ $field['name'] }}"
                                     @if($field['required']) required @endif
                                     class="input-field">
-                                <option value="">Select {{ strtolower($field['label']) }}</option>
+                                <option value="">{{ $ph }}</option>
                                 @foreach($field['options'] as $value => $label)
                                     <option value="{{ $value }}" @selected((string) old($field['name']) === (string) $value)>{{ $label }}</option>
                                 @endforeach
@@ -127,6 +153,7 @@
                             <textarea id="field-{{ $field['name'] }}"
                                       name="{{ $field['name'] }}"
                                       rows="3"
+                                      @if($ph !== '') placeholder="{{ $ph }}" @endif
                                       @if($meta['maxlength']) maxlength="{{ $meta['maxlength'] }}" @endif
                                       @if($field['required']) required @endif
                                       class="input-field">{{ old($field['name']) }}</textarea>
@@ -135,6 +162,7 @@
                                    type="{{ str_contains(implode('|', $field['rules']), 'email') ? 'email' : 'text' }}"
                                    name="{{ $field['name'] }}"
                                    value="{{ old($field['name']) }}"
+                                   @if($ph !== '') placeholder="{{ $ph }}" @endif
                                    @if($meta['maxlength']) maxlength="{{ $meta['maxlength'] }}" @endif
                                    @if($meta['numeric']) inputmode="numeric" @endif
                                    @if($field['required']) required @endif
@@ -148,11 +176,16 @@
                 @endforeach
 
                 {{-- The provider states the price as a red line under the fields,
-                     once the job itself has been chosen, rather than as a tile. --}}
-                <p class="service-form-cost">* This service will cost you &#8358;{{ $priceLabel }}</p>
+                     once the job itself has been chosen, rather than as a tile.
+                     The number on that line is always the admin's own setting. --}}
+                <p class="service-form-cost">{{ $costLine }}</p>
+
+                @foreach($definition['notices'] ?? [] as $notice)
+                    <p class="service-form-hint">{{ $notice }}</p>
+                @endforeach
 
                 <div class="service-form-alert service-form-alert-warning">
-                    &#8358;{{ $priceLabel }} is deducted from your wallet the moment you press Submit.
+                    &#8358;{{ $priceLabel }} is deducted from your wallet the moment you press {{ $definition['cta'] ?? 'Submit' }}.
                     We take {{ $turnaroundLabel }} to complete it, so the result should be ready by
                     {{ $expectedBy->format('d M Y, h:i A') }}. It appears on your receipt page and stays
                     there, so keep the receipt after the work is done. If we cannot complete the job, the
@@ -168,7 +201,7 @@
 
                 <div class="service-form-actions">
                     <a href="{{ route('identity.index') }}" class="reference-quiet-button">Previous</a>
-                    <button type="submit" class="btn-primary" @disabled(!$canAfford)>Submit</button>
+                    <button type="submit" class="btn-primary" @disabled(!$canAfford)>{{ $definition['cta'] ?? 'Submit' }}</button>
                 </div>
             </form>
         </section>

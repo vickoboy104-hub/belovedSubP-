@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Models\Setting;
 use App\Models\Wallet;
 use App\Services\ManualFulfilmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -64,7 +65,7 @@ class ManualServicePageTest extends TestCase
         // shows, because every extra box is one more reason for a customer to stop.
         $contract = [
             'ipe_clearance' => ['ipe_type', 'tracking_id', 'notes'],
-            'nin_personalization' => ['tracking_id', 'notes'],
+            'nin_personalization' => ['tracking_id', 'category', 'notes'],
             'nin_slip_print' => ['nin', 'slip_type', 'notes'],
             'bvn_print' => ['bvn', 'notes'],
         ];
@@ -84,6 +85,72 @@ class ManualServicePageTest extends TestCase
                 ->assertDontSee('name="phone"', false)
                 ->assertDontSee('name="email"', false);
         }
+    }
+
+    /**
+     * The screens a customer fills are the provider's screens: the same labels,
+     * the same opening option in every dropdown, the same warnings about how long
+     * a slip stays available. Only the price is ours, and it comes from the admin
+     * settings page rather than from the provider's own number.
+     */
+    public function test_the_form_carries_the_providers_own_words_and_the_admins_own_price(): void
+    {
+        Setting::updateOrCreate(['key' => 'price_manual_bvn_print'], ['value' => '450']);
+        settings_flush_cache();
+
+        $html = $this->actingAs($this->member())
+            ->get('/vtu/manual/bvn_print')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Enter the BVN Number', $html);
+        $this->assertStringContainsString('placeholder="Enter BVN"', $html);
+        $this->assertStringContainsString('Print BVN Slip Now', $html);
+
+        $this->assertStringContainsString('It costs ₦450.00 per slip', $html);
+        $this->assertStringNotContainsString('₦150', $html);
+    }
+
+    public function test_a_dropdown_opens_on_the_providers_own_wording(): void
+    {
+        $user = $this->member();
+
+        $pages = [
+            'ipe_clearance' => 'Select IPEs Category',
+            'nin_validation' => 'Select Validation Category',
+            'nin_slip_print' => 'Select Slip Type',
+            'bvn_retrieve' => 'Choose Category',
+        ];
+
+        foreach ($pages as $slug => $opening) {
+            $this->actingAs($user)->get('/vtu/manual/'.$slug)
+                ->assertOk()
+                ->assertSee($opening, false);
+        }
+
+        // The provider's own option text, not our paraphrase of it.
+        $this->actingAs($user)->get('/vtu/manual/ipe_clearance')
+            ->assertOk()
+            ->assertSee('New Enrollment for ID Retrieval', false)
+            ->assertSee('Enrollment is Still Being Process', false);
+    }
+
+    public function test_the_providers_own_warnings_about_a_slip_are_shown(): void
+    {
+        $user = $this->member();
+
+        $this->actingAs($user)->get('/vtu/manual/nin_personalization')
+            ->assertOk()
+            ->assertSee('removed from our server one week after it is issued', false);
+
+        $this->actingAs($user)->get('/vtu/manual/nin_slip_print')
+            ->assertOk()
+            ->assertSee('24 hours after it is issued', false);
+
+        $this->actingAs($user)->get('/vtu/manual/nin_validation')
+            ->assertOk()
+            ->assertSee('Once the request has been sent it cannot be cancelled', false)
+            ->assertSee('Submit NIN');
     }
 
     public function test_a_manual_service_is_never_offered_for_free(): void
