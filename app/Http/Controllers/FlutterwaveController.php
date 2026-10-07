@@ -379,6 +379,16 @@ class FlutterwaveController extends Controller
         if (!$user && $virtualAccountNumber !== '') {
             $user = User::query()->where('virtual_account_metadata->temporary_virtual_account->account_number', $virtualAccountNumber)->first();
         }
+        if (!$user && $virtualAccountNumber !== '') {
+            // One-time accounts get replaced whenever a customer asks for a fresh
+            // one, and the transfer for the old number still arrives. The funding
+            // request that was told about that number is the only record of who
+            // the money belongs to.
+            $user = WalletTransaction::query()
+                ->where('type', 'credit')
+                ->where('meta->virtual_account_number', $virtualAccountNumber)
+                ->first()?->wallet?->user;
+        }
         if (!$user || !$user->wallet) {
             Log::warning('Flutterwave virtual account transfer user not found.', [
                 'tx_ref' => $txRef,

@@ -233,6 +233,20 @@ class VirtualAccountController extends Controller
                 return back()->with('error', 'Virtual account response was incomplete. Please try again in a few seconds.');
             }
 
+            // Money keeps arriving at an account number this call is about to
+            // replace, so the one being retired is kept on record beside the new
+            // one rather than overwritten out of existence.
+            $superseded = $existingMeta['previous_virtual_accounts'] ?? [];
+            if (!empty($user->virtual_account_number) && $user->virtual_account_number !== $accountNumber) {
+                $superseded[] = [
+                    'tx_ref' => (string) ($existingMeta['tx_ref'] ?? ''),
+                    'account_number' => (string) $user->virtual_account_number,
+                    'bank_name' => (string) ($user->virtual_account_bank ?? ''),
+                    'replaced_at' => now()->toIso8601String(),
+                ];
+                $superseded = array_slice($superseded, -5);
+            }
+
             $user->first_name = $firstName;
             $user->last_name = $lastName;
             $user->name = trim($firstName.' '.$lastName);
@@ -247,7 +261,7 @@ class VirtualAccountController extends Controller
             $user->virtual_account_name = $accountName;
             $user->virtual_account_number = $accountNumber;
             $user->virtual_account_assigned_at = now();
-            $user->virtual_account_metadata = [
+            $user->virtual_account_metadata = array_merge($existingMeta, [
                 'tx_ref' => $txRef,
                 'flw_ref' => (string) ($data['flw_ref'] ?? ''),
                 'order_ref' => (string) ($data['order_ref'] ?? ''),
@@ -258,7 +272,8 @@ class VirtualAccountController extends Controller
                 'identity_masked' => str_repeat('*', max(strlen($identityValue) - 4, 0)).substr($identityValue, -4),
                 'assigned_using_customer_identity' => true,
                 'raw_response' => $data,
-            ];
+                'previous_virtual_accounts' => $superseded,
+            ]);
             $user->save();
 
             return back()->with('success', 'Permanent virtual account generated successfully. You can now fund your wallet with direct transfer.');

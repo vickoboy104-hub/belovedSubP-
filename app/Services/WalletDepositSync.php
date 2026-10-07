@@ -23,8 +23,21 @@ class WalletDepositSync
 
     private const AUTOMATIC_WINDOW = 180;
 
+    /**
+     * References one check is allowed to ask about. Kept above the pending-request
+     * limit so an account number that was replaced still gets its turn.
+     */
+    private const MAX_CANDIDATES = 12;
+
     /** Each reference costs up to two API calls, so a check is kept small. */
     private const MAX_REFERENCES = 8;
+
+    /**
+     * How far back a closed-out funding request is still worth asking about. A
+     * transfer that was slower than the request was allowed to wait is still the
+     * customer's money, and the account it went to is still theirs.
+     */
+    private const ABANDONED_LOOKBACK_DAYS = 14;
 
     /**
      * How long a funding request is allowed to keep saying "still waiting" after
@@ -35,10 +48,119 @@ class WalletDepositSync
      */
     private const ABANDONED_AFTER_MINUTES = 60;
 
+    /** Where the walk through dedicated-account holders got to. */
+    private const SWEEP_POINTER_CACHE_KEY = 'wallet-deposit-sweep-pointer';
+
     public function __construct(
         private readonly FlutterwaveService $flutterwave,
         private readonly WalletFundingService $funding,
     ) {
+    }
+
+    /**
+     * Ask Flutterwave about money on behalf of customers who are not looking at
+     * their own page. A transfer that lands while nobody is watching would
+     * otherwise only be found the next time that customer opens their
+     * transactions, which is exactly how "I sent money and it did not reflect"
+     * happens to a customer who has no reason to log in again.
+     *
+     * @return array{checked:int,credited:int,credited_kobo:int}
+     */
+    public function sweep(int $limit = 10): array
+    {
+        $summary = ['checked' => 0, 'credited' => 0, 'credited_kobo' => 0];
+
+        if (!$this->flutterwave->configured() || $limit <= 0) {
+            return $summary;
+        }
+
+        $userIds = $this->awaitingWalletUserIds($limit);
+
+        // Whatever the waiting requests did not fill gets spent walking the
+        // customers who were handed a dedicated account number, so a transfer
+        // that was never announced by a funding request still gets looked for.
+        $remaining = $limit - count($userIds);
+        if ($remaining > 0) {
+            $userIds = array_merge($userIds, $this->accountHolderUserIds($remaining));
+        }
+
+        foreach ($userIds as $userId) {
+            $user = User::query()->find($userId);
+            if (!$user) {
+                continue;
+            }
+
+            $result = $this->sync($user);
+            $summary['checked']++;
+
+            if ($result['credited_kobo'] > 0) {
+                $summary['credited']++;
+                $summary['credited_kobo'] += $result['credited_kobo'];
+            }
+        }
+
+        return $summary;
+    }
+
+    /**
+     * Customers with a bank transfer either outstanding or recently written off.
+     *
+     * @return list<int>
+     */
+    private function awaitingWalletUserIds(int $limit): array
+    {
+        return WalletTransaction::query()
+            ->from('wallet_transactions')
+            ->join('wallets', 'wallets.id', '=', 'wallet_transactions.wallet_id')
+            ->where('wallet_transactions.type', 'credit')
+            ->where('wallet_transactions.channel', 'like', 'flutterwave%')
+            ->where(function ($query): void {
+                $query->where('wallet_transactions.status', 'pending')
+                    ->orWhere(function ($closed): void {
+                        $closed->where('wallet_transactions.status', 'failed')
+                            ->where('wallet_transactions.updated_at', '>=', now()->subDays(self::ABANDONED_LOOKBACK_DAYS));
+                    });
+            })
+            ->groupBy('wallets.user_id')
+            ->orderByRaw('MIN(wallet_transactions.created_at) ASC')
+            ->limit($limit)
+            ->pluck('wallets.user_id')
+            ->map(static fn ($id): int => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The next slice of customers who hold a dedicated account number, walking
+     * the list a little further on every run so no account is only ever checked
+     * by accident.
+     *
+     * @return list<int>
+     */
+    private function accountHolderUserIds(int $limit): array
+    {
+        $holders = User::query()
+            ->whereNotNull('virtual_account_number')
+            ->where('virtual_account_number', '!=', '')
+            ->orderBy('id');
+
+        $total = (clone $holders)->count();
+        if ($total === 0) {
+            return [];
+        }
+
+        $pointer = (int) Cache::get(self::SWEEP_POINTER_CACHE_KEY, 0);
+        if ($pointer >= $total) {
+            $pointer = 0;
+        }
+
+        $ids = $holders->offset($pointer)->limit($limit)->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->all();
+
+        Cache::put(self::SWEEP_POINTER_CACHE_KEY, $pointer + count($ids), now()->addDay());
+
+        return $ids;
     }
 
     /**
@@ -232,6 +354,47 @@ class WalletDepositSync
             ];
         }
 
+        // Accounts this customer was given and then replaced. A transfer already
+        // on its way to one of these has no other route back to their wallet.
+        foreach ((array) ($meta['previous_virtual_accounts'] ?? []) as $old) {
+            $old = (array) $old;
+            $account = trim((string) ($old['account_number'] ?? ''));
+            $ref = trim((string) ($old['tx_ref'] ?? ''));
+
+            if ($account === '' && $ref === '') {
+                continue;
+            }
+
+            $candidates[] = [
+                'ref' => $ref !== '' ? $ref : $account,
+                'channel' => 'flutterwave_virtual_account',
+                'accounts' => $account !== '' ? [$account] : [],
+            ];
+        }
+
+        // Funding requests that were closed out as abandoned still get asked about.
+        // A bank transfer that took longer than the site was willing to wait is the
+        // single most common way a customer's money arrives and is never seen again.
+        $closed = WalletTransaction::query()
+            ->where('wallet_id', $wallet->id)
+            ->where('type', 'credit')
+            ->where('status', 'failed')
+            ->where('channel', 'like', 'flutterwave%')
+            ->where('updated_at', '>=', now()->subDays(self::ABANDONED_LOOKBACK_DAYS))
+            ->latest('id')
+            ->limit(self::MAX_REFERENCES)
+            ->get();
+
+        foreach ($closed as $row) {
+            $account = trim((string) (($row->meta ?? [])['virtual_account_number'] ?? ''));
+
+            $candidates[] = [
+                'ref' => (string) $row->reference,
+                'channel' => (string) ($row->channel ?: 'flutterwave'),
+                'accounts' => $account !== '' ? [$account] : [],
+            ];
+        }
+
         $unique = [];
         foreach ($candidates as $candidate) {
             if ($candidate['ref'] === '' || isset($unique[$candidate['ref']])) {
@@ -240,7 +403,7 @@ class WalletDepositSync
             $unique[$candidate['ref']] = $candidate;
         }
 
-        return array_values($unique);
+        return array_slice(array_values($unique), 0, self::MAX_CANDIDATES);
     }
 
     /**

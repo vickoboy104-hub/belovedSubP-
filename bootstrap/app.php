@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withSchedule(function (Illuminate\Console\Scheduling\Schedule $schedule): void {
         $schedule->command('prices:sync')->hourly()->withoutOverlapping();
+        $schedule->command('wallet:sync-deposits')->everyFiveMinutes()->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
