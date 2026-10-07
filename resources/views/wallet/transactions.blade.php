@@ -5,7 +5,7 @@
         <section class="app-section p-6 sm:p-8">
             <div class="rounded-[22px] w-fit sm:ml-auto border border-slate-200 bg-slate-50 px-5 py-4 text-left sm:text-right">
                 <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Balance</div>
-                <div class="amount-fit mt-2 text-2xl font-extrabold text-slate-900" id="walletBalance" data-wallet-kobo="{{ (int) ($walletBalanceKobo ?? 0) }}">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
+                <div class="app-ledger-amount mt-2 text-2xl font-extrabold text-slate-900" id="walletBalance" data-wallet-kobo="{{ (int) ($walletBalanceKobo ?? 0) }}">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
             </div>
 
             <div class="mt-5 flex flex-col gap-3 sm:flex-row">
@@ -37,7 +37,7 @@
         <x-deposit-status :check="$depositCheck" />
 
         <section class="app-section p-4 sm:p-6">
-            <div class="space-y-4 md:hidden">
+            <div class="space-y-3 md:hidden">
                 @forelse($transactions as $t)
                     @php
                         $amountN = number_format(((int)$t->amount)/100, 2);
@@ -45,36 +45,36 @@
                         if ($status === 'pending' && ($t->type ?? '') === 'debit') {
                             $status = 'success';
                         }
-                        $typeLabel = ($t->type ?? '') === 'credit' ? 'Credit' : 'Debit';
-                        $statusClasses = $status === 'success'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : ($status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700');
+                        $isCredit = ($t->type ?? '') === 'credit';
+                        $statusClass = match ($status) {
+                            'success' => 'app-ledger-success',
+                            'failed' => 'app-ledger-failed',
+                            default => 'app-ledger-pending',
+                        };
                     @endphp
                     <article class="app-record-card">
-                        <div class="flex items-start justify-between gap-4">
+                        <div class="app-ledger-head flex justify-between">
                             <div>
-                                <div class="text-lg font-extrabold text-slate-900">{{ $typeLabel }}</div>
-                                <div class="mt-1 text-sm text-slate-500">{{ optional($t->created_at)->format('M j, Y, g:ia') }}</div>
+                                <div class="text-sm font-extrabold {{ $isCredit ? 'text-emerald-700' : 'text-rose-700' }}">
+                                    {{ $isCredit ? 'CREDIT' : 'DEBIT' }}
+                                </div>
+                                <div class="mt-0.5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                                    {{ $t->channel ?? 'wallet' }}
+                                </div>
                             </div>
-                            <span class="inline-flex rounded-full px-3 py-1 text-xs font-bold {{ $statusClasses }}">
-                                {{ strtoupper($status) }}
-                            </span>
+                            <div class="app-ledger-amount text-lg font-extrabold text-slate-900">&#8358;{{ $amountN }}</div>
                         </div>
 
-                        <div class="app-record-grid">
-                            <div>
-                                <div class="app-record-label">Amount</div>
-                                <div class="app-record-value amount-fit">&#8358;{{ $amountN }}</div>
-                            </div>
-                            <div>
-                                <div class="app-record-label">Channel</div>
-                                <div class="app-record-value">{{ $t->channel ?? '-' }}</div>
-                            </div>
-                            <div class="col-span-2">
-                                <div class="app-record-label">Reference</div>
-                                <div class="app-record-value break-all">{{ $t->reference ?? '-' }}</div>
-                            </div>
+                        <div class="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                            <div class="text-xs font-semibold text-slate-500">{{ optional($t->created_at)->format('d M Y, g:ia') }}</div>
+                            <span class="app-ledger-status {{ $statusClass }}">{{ $status }}</span>
                         </div>
+
+                        @if($status !== 'success' && !empty($t->description))
+                            <p class="mt-2 text-xs leading-5 text-slate-500">{{ $t->description }}</p>
+                        @endif
+
+                        <div class="app-ledger-ref mt-2">{{ $t->reference ?? '-' }}</div>
                     </article>
                 @empty
                     <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No wallet transactions yet.</div>
@@ -111,7 +111,7 @@
                                         <span class="text-rose-700">DEBIT</span>
                                     @endif
                                 </td>
-                                <td class="amount-fit py-3 pr-4">&#8358;{{ $amountN }}</td>
+                                <td class="app-ledger-amount py-3 pr-4">&#8358;{{ $amountN }}</td>
                                 <td class="py-3 pr-4">
                                     <span class="px-3 py-1 rounded-full text-xs font-bold
                                         @if($status==='success') bg-emerald-50 text-emerald-700

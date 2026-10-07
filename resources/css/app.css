@@ -2719,3 +2719,56 @@ html[data-theme="ember"] .app-modal-btn-warm:hover,
 html[data-theme="ember"] .app-modal-btn-primary:hover { background: var(--ember-button-quiet); }
 html[data-theme="ember"] .app-modal-btn-muted,
 html[data-theme="ember"] .app-modal-close { background: var(--surface-card); }
+
+/* Wallet ledger rows on a phone. The shared record card breaks long tokens on
+   purpose, which is exactly wrong for an amount, a status badge or a date, so
+   these undo it for the money list where every line has to stay whole. */
+.app-record-card > .app-ledger-head {
+    align-items: baseline;
+    gap: 0.75rem;
+}
+
+.app-ledger-amount {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: normal;
+    white-space: nowrap;
+    word-break: normal;
+}
+
+.app-ledger-status {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    flex: none;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    overflow-wrap: normal;
+    padding: 0.38rem 0.62rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.app-ledger-success {
+    background: #e6f6ee;
+    color: #12674a;
+}
+
+.app-ledger-failed {
+    background: #fbe9e9;
+    color: #96201d;
+}
+
+.app-ledger-pending {
+    background: #fdf2dd;
+    color: #8a5a12;
+}
+
+.app-ledger-ref {
+    color: #74849a;
+    font-size: 0.72rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}

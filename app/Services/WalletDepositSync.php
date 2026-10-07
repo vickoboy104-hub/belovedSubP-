@@ -26,6 +26,15 @@ class WalletDepositSync
     /** Each reference costs up to two API calls, so a check is kept small. */
     private const MAX_REFERENCES = 8;
 
+    /**
+     * How long a funding request is allowed to keep saying "still waiting" after
+     * Flutterwave was asked about it and reported no transfer. A bank transfer
+     * that was really sent is never lost by this: the account number it went to
+     * is still asked about on every later check, and money found there writes
+     * its own completed credit row.
+     */
+    private const ABANDONED_AFTER_MINUTES = 60;
+
     public function __construct(
         private readonly FlutterwaveService $flutterwave,
         private readonly WalletFundingService $funding,
@@ -53,19 +62,28 @@ class WalletDepositSync
             return $result;
         }
 
+        // The button a customer presses and the quiet check that runs when they
+        // open the page are counted separately, so reading the page can never
+        // turn their own check into "a check just ran".
         $window = $onDemand ? self::ON_DEMAND_WINDOW : self::AUTOMATIC_WINDOW;
-        if (!Cache::add('wallet-deposit-sync-'.$user->id, true, now()->addSeconds($window))) {
-            return ['status' => 'too_soon'] + $result;
+        $throttleKey = 'wallet-deposit-sync-'.($onDemand ? 'button' : 'page').'-'.$user->id;
+
+        if (!Cache::add($throttleKey, true, now()->addSeconds($window))) {
+            return ['status' => $this->isAwaiting($wallet) ? 'too_soon' : 'settled'] + $result;
         }
 
         $creditedKobo = 0;
         $lookupFailed = false;
+        $answered = [];
 
         foreach ($candidates as $candidate) {
             $result['checked']++;
 
             try {
-                foreach ($this->settledCharges($candidate) as $charge) {
+                $charges = $this->settledCharges($candidate);
+                $answered[] = $candidate['ref'];
+
+                foreach ($charges as $charge) {
                     $creditedKobo += $this->funding->creditFlutterwaveCharge(
                         $wallet,
                         $charge,
@@ -88,6 +106,8 @@ class WalletDepositSync
             }
         }
 
+        $this->closeAbandonedRequests($wallet, $answered);
+
         $result['credited_kobo'] = $creditedKobo;
 
         if ($creditedKobo > 0) {
@@ -97,11 +117,67 @@ class WalletDepositSync
                 'user_id' => $user->id,
                 'credited_kobo' => $creditedKobo,
             ]);
-        } else {
-            $result['status'] = $lookupFailed ? 'lookup_failed' : 'no_deposit_found';
+
+            return $result;
         }
 
+        // Nothing new arrived, so say what is actually outstanding rather than
+        // promising a transfer that nobody is waiting for any more.
+        $result['status'] = match (true) {
+            $this->isAwaiting($wallet) => $lookupFailed ? 'lookup_failed' : 'no_deposit_found',
+            $lookupFailed => 'lookup_failed',
+            default => 'settled',
+        };
+
         return $result;
+    }
+
+    /**
+     * Funding requests that were started, asked about and never paid. Leaving
+     * them pending is what makes a wallet that has already been credited go on
+     * advertising "still waiting" for money that is never coming.
+     *
+     * @param  list<string>  $answered references Flutterwave replied to
+     */
+    private function closeAbandonedRequests(Wallet $wallet, array $answered): int
+    {
+        if ($answered === []) {
+            return 0;
+        }
+
+        $closed = WalletTransaction::query()
+            ->where('wallet_id', $wallet->id)
+            ->where('type', 'credit')
+            ->where('status', 'pending')
+            ->whereIn('reference', $answered)
+            ->where('created_at', '<', now()->subMinutes(self::ABANDONED_AFTER_MINUTES))
+            ->update([
+                'status' => 'failed',
+                'description' => 'No transfer arrived for this funding request. Generate a new account number to try again.',
+                'updated_at' => now(),
+            ]);
+
+        if ($closed > 0) {
+            Log::info('Abandoned wallet funding requests were closed out.', [
+                'wallet_id' => $wallet->id,
+                'closed' => $closed,
+            ]);
+        }
+
+        return $closed;
+    }
+
+    /**
+     * Whether this wallet still has a deposit the customer was told to send.
+     */
+    private function isAwaiting(Wallet $wallet): bool
+    {
+        return WalletTransaction::query()
+            ->where('wallet_id', $wallet->id)
+            ->where('type', 'credit')
+            ->where('status', 'pending')
+            ->where('channel', 'like', 'flutterwave%')
+            ->exists();
     }
 
     /**

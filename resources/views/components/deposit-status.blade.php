@@ -26,7 +26,12 @@
         'too_soon' => [
             'tone' => 'amber',
             'head' => 'A check just ran',
-            'body' => 'Deposits were asked about less than a minute ago. Try again shortly.',
+            'body' => 'Deposits were asked about a few seconds ago. Give the bank a moment, then press Check deposit again.',
+        ],
+        'settled' => [
+            'tone' => 'slate',
+            'head' => 'Nothing is waiting on your account',
+            'body' => 'No transfer is outstanding. The balance you see is every deposit Flutterwave has confirmed as yours - press Check deposit any time to ask again.',
         ],
         'lookup_failed' => [
             'tone' => 'amber',
@@ -50,6 +55,7 @@
         'emerald' => 'border-emerald-200 bg-emerald-50 text-emerald-800',
         'amber' => 'border-amber-200 bg-amber-50 text-amber-800',
         'rose' => 'border-rose-200 bg-rose-50 text-rose-800',
+        'slate' => 'border-slate-200 bg-slate-50 text-slate-700',
     ];
 @endphp
 
@@ -60,9 +66,12 @@
                 <div class="text-xl font-extrabold text-slate-900" id="deposit-status-title">{{ $title }}</div>
                 <p class="mt-1 text-sm text-slate-500">Transfers into your account are confirmed by Flutterwave, not guessed at by this site.</p>
             </div>
-            <form method="POST" action="{{ route('wallet.deposits.check') }}">
+            {{-- Pressing this twice in a row must not cost the customer a check or
+                 start a second one behind their back, so the button retires itself
+                 for the length of the request it just made. --}}
+            <form method="POST" action="{{ route('wallet.deposits.check') }}" x-data="{ busy: false }" @submit="busy = true">
                 @csrf
-                <button type="submit" class="btn-primary w-full justify-center sm:w-auto">Check deposit</button>
+                <button type="submit" class="btn-primary w-full justify-center sm:w-auto" :disabled="busy" :class="{ 'opacity-60': busy }" x-text="busy ? 'Checking…' : 'Check deposit'">Check deposit</button>
             </form>
         </div>
 

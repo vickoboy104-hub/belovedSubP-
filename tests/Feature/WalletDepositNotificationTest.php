@@ -420,4 +420,110 @@ class WalletDepositNotificationTest extends TestCase
         $this->assertSame(0, $funding->creditFlutterwaveCharge($user->fresh()->wallet, $charge, 'flutterwave_virtual_account', 'deposit_check'));
         $this->assertSame(295_000, (int) $user->fresh()->wallet->balance);
     }
+
+    public function test_a_wallet_with_nothing_outstanding_stops_advertising_a_waiting_transfer(): void
+    {
+        $user = $this->member();
+        $stale = $this->oneTimeAccount($user);
+        $stale->forceFill(['created_at' => now()->subHours(3)])->save();
+
+        // Flutterwave was asked and answered: no transfer under that reference.
+        $this->fakeFlutterwave();
+        $this->listCharges = [];
+        $this->verifiableCharges = [];
+
+        $this->actingAs($user)
+            ->post('/wallet/deposits/check')
+            ->assertSessionHas('deposit_check.status', 'settled');
+
+        $this->assertSame('failed', $stale->fresh()->status);
+        $this->actingAs($user)->get('/wallet/transactions')
+            ->assertOk()
+            ->assertSee('Nothing is waiting on your account')
+            ->assertDontSee('Still waiting for your transfer');
+    }
+
+    public function test_a_transfer_that_lands_after_its_request_was_closed_out_is_still_credited(): void
+    {
+        $user = $this->member();
+        $stale = $this->oneTimeAccount($user);
+        $stale->forceFill(['created_at' => now()->subHours(3)])->save();
+
+        $this->fakeFlutterwave();
+        $this->listCharges = [];
+        $this->verifiableCharges = [];
+        $this->actingAs($user)->post('/wallet/deposits/check');
+
+        $this->assertSame('failed', $stale->fresh()->status);
+
+        // The bank took its time and the money arrives anyway, short of the
+        // amount the abandoned request had asked for. Closing that request out
+        // must never be a reason to refuse it.
+        $charge = $this->charge([
+            'id' => 888,
+            'tx_ref' => $stale->reference,
+            'flw_ref' => 'FLW-MOCK-888',
+            'charged_amount' => 100.00,
+            'amount' => 100.00,
+        ]);
+
+        app(WalletFundingService::class)->creditFlutterwaveCharge(
+            $user->fresh()->wallet,
+            $charge,
+            'flutterwave_virtual_account',
+            'webhook',
+        );
+
+        $this->assertSame(5_000, (int) $user->fresh()->wallet->balance);
+    }
+
+    public function test_the_check_button_is_not_blocked_by_the_page_having_just_loaded(): void
+    {
+        $user = $this->member();
+        $this->oneTimeAccount($user);
+
+        $this->fakeFlutterwave();
+        $this->listCharges = [];
+        $this->verifiableCharges = [];
+
+        // Opening the page asks quietly for its own account; the customer's own
+        // press must still be allowed to run immediately afterwards.
+        $this->actingAs($user)->get('/wallet/fund')->assertOk();
+
+        $this->actingAs($user)
+            ->post('/wallet/deposits/check')
+            ->assertSessionHas('deposit_check.status', 'no_deposit_found')
+            ->assertSessionHas('deposit_check.checked', 1);
+    }
+
+    public function test_only_the_customer_who_was_given_the_account_is_paid(): void
+    {
+        Mail::spy();
+
+        $owner = $this->member();
+        $other = $this->member();
+
+        $ownersRequest = $this->oneTimeAccount($owner);
+        $othersRequest = $this->oneTimeAccount($other);
+
+        $this->listCharges = [];
+        $this->verifiableCharges = [777 => $this->charge([
+            'id' => 777,
+            'tx_ref' => $ownersRequest->reference,
+            'customer' => ['email' => $owner->email],
+        ])];
+
+        $this->postJson('/wallet/flutterwave/webhook-v2', [
+            'event' => 'charge.completed',
+            'event.type' => 'BANK_TRANSFER_TRANSACTION',
+            'data' => ['id' => 777, 'status' => 'successful', 'tx_ref' => $ownersRequest->reference],
+            'meta_data' => [],
+        ], ['verif-hash' => 'test-verif-hash'])->assertOk();
+
+        $this->assertSame(295_000, (int) $owner->wallet->fresh()->balance);
+        $this->assertSame(0, (int) $other->wallet->fresh()->balance);
+        $this->assertSame('pending', $othersRequest->fresh()->status);
+        $this->assertSame(0, $other->notifications()->count());
+        Mail::assertSent(UserWalletActivityNotification::class, 1);
+    }
 }

@@ -84,6 +84,8 @@ class WalletController extends Controller
 
     /**
      * Transfers the customer has been told to make and that have not landed yet.
+     * A deposit this site has already closed out, or a credit that was never a
+     * transfer request, is not something to keep a customer waiting on.
      *
      * @return \Illuminate\Support\Collection<int, WalletTransaction>
      */
@@ -97,6 +99,7 @@ class WalletController extends Controller
             ->where('wallet_id', $walletId)
             ->where('type', 'credit')
             ->where('status', 'pending')
+            ->where('channel', 'like', 'flutterwave%')
             ->latest('id')
             ->take(5)
             ->get();

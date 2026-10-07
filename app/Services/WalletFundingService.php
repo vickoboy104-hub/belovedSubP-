@@ -264,8 +264,12 @@ class WalletFundingService
             return $alreadyBanked;
         }
 
+        // Only a request still open for business is taken over by a new charge.
+        // One that was already closed out as abandoned carries an amount nobody
+        // promised any more, and letting it stand would refuse a smaller transfer
+        // into the same account number.
         return $rows->first(
-            fn (WalletTransaction $row): bool => $row->status !== 'success'
+            fn (WalletTransaction $row): bool => $row->status === 'pending'
                 && $txRef !== ''
                 && ((string) $row->reference === $txRef || (string) ($row->meta['tx_ref'] ?? '') === $txRef)
         );
