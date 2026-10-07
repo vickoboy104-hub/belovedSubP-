@@ -74,6 +74,7 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::get('/vtu/nin', [VtuController::class, 'ninForm'])->name('vtu.nin');
     Route::post('/vtu/nin/search', [VtuController::class, 'ninSearch'])->name('vtu.nin.search');
     Route::post('/vtu/nin/print', [VtuController::class, 'ninPrint'])->name('vtu.nin.print');
+    Route::get('/vtu/nin/slip/{order}', [VtuController::class, 'ninSlip'])->name('vtu.nin.slip');
     Route::get('/vtu/nin/reports', [VtuController::class, 'ninSlipReports'])->name('vtu.nin.reports');
     Route::get('/vtu/nin-validation', [VtuController::class, 'ninValidationForm'])->name('vtu.nin-validation');
     Route::post('/vtu/nin-validation', [VtuController::class, 'ninValidationSubmit'])->name('vtu.nin-validation.submit');

@@ -17,6 +17,8 @@ use App\Services\ManualFulfilmentService;
 use App\Services\NinApi;
 use App\Services\ProviderPlanPriceService;
 use App\Services\WalletLedger;
+use App\Support\NinSlipLayout;
+use App\Support\NinSlipValues;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -2156,11 +2158,47 @@ class VtuController extends Controller
                 'issued_at' => $issuedAt->toIso8601String(),
                 'issued_at_label' => $issuedAt->format('d M Y'),
                 'source_verification_order_id' => $sourceVerificationOrderId,
+                'slip_url' => $orderId ? route('vtu.nin.slip', $orderId) : '',
             ]),
             'order_id' => $orderId,
             'balance_kobo' => (int) ($wallet->fresh()?->balance ?? $wallet->balance ?? 0),
             'raw' => $response,
         ], $ok ? 200 : 422);
+    }
+
+    /**
+     * The paid slip itself, drawn on a full A4 sheet.
+     *
+     * It reads the record the print order captured, so reopening this page
+     * reprint the same slip without another charge or another provider call.
+     */
+    public function ninSlip(Request $request, Order $order)
+    {
+        $meta = is_array($order->meta) ? $order->meta : [];
+        $slipType = (string) ($meta['slip_type'] ?? '');
+
+        abort_unless(
+            $order->user_id === $request->user()->id
+                && ($meta['type'] ?? null) === 'nin'
+                && ($meta['service_type'] ?? null) === 'print'
+                && NinSlipLayout::has($slipType),
+            404
+        );
+
+        $normalized = is_array($meta['normalized'] ?? null) ? $meta['normalized'] : [];
+        $providerData = is_array($meta['provider_data'] ?? null) ? $meta['provider_data'] : [];
+
+        $layout = NinSlipLayout::millimetres($slipType);
+        $values = NinSlipValues::forSlip($slipType, $normalized, $providerData, $order->created_at);
+
+        return response()->view('vtu.nin-slip', [
+            'title' => trim(($values['slots']['surname'] ?? '').' '.$layout['label'].' '.($values['slots']['nin_plain'] ?? '')),
+            'layout' => $layout,
+            'values' => $values,
+            'artworkUrl' => asset('images/nin/slips/'.$layout['artwork']),
+            'photo' => $values['photo'],
+            'qr' => $values['qr'],
+        ])->header('Cache-Control', 'private, max-age=0, must-revalidate');
     }
 
     private function verifiedNinPrintDataFromOrder(int $orderId, User $user): array

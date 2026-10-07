@@ -33,7 +33,6 @@
         // so every tile here is a live link.
         $identityTiles = [
             ['name' => 'NIN Verification', 'url' => route('vtu.nin'), 'icon' => '◉'],
-            ['name' => 'Print NIN Slip', 'url' => route('vtu.manual.form', 'nin_slip_print'), 'icon' => '▣'],
             ['name' => 'BVN Verification', 'url' => route('vtu.bvn'), 'icon' => '◉'],
             ['name' => 'BVN Services', 'url' => route('vtu.bvn'), 'icon' => '▣'],
             ['name' => 'NIN Validation', 'url' => route('vtu.nin-validation'), 'icon' => '✓'],

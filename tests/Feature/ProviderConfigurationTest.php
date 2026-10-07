@@ -180,27 +180,28 @@ class ProviderConfigurationTest extends TestCase
         $this->assertStringContainsString('Flutterwave secret key', $afterKeys);
     }
 
-    public function test_the_nin_page_only_offers_printing_the_provider_actually_supports(): void
+    public function test_the_nin_page_prints_every_slip_from_the_record_it_stores(): void
     {
-        // ConfirmIdent's documentation has four endpoints and none of them print a
-        // slip, so the automatic page must hand printing to the manual queue
-        // instead of showing buttons that can only ever fail.
+        // ConfirmIdent has no print endpoint, but the slip is drawn here from the
+        // record a verification leaves behind, so all three buttons are offered
+        // with no provider configuration at all and nothing goes to the queue.
         $user = $this->memberWithBalance(100_000);
 
-        $manualPrint = $this->actingAs($user)->get('/vtu/nin')->assertOk()->getContent();
-        $this->assertStringContainsString('Verify NIN Record', $manualPrint);
-        $this->assertStringContainsString('/vtu/manual/nin_slip_print', $manualPrint);
-        $this->assertStringNotContainsString('data-slip-type="standard_slip"', $manualPrint);
-        $this->assertStringNotContainsString('NIN Slip Reports', $manualPrint);
+        $page = $this->actingAs($user)->get('/vtu/nin')->assertOk()->getContent();
+        $this->assertStringContainsString('Verify NIN Record', $page);
+        foreach (['standard_slip', 'premium_slip', 'long_slip'] as $slip) {
+            $this->assertStringContainsString('data-slip-type="'.$slip.'"', $page);
+        }
+        $this->assertStringNotContainsString('/vtu/manual/nin_slip_print', $page);
+        $this->assertStringNotContainsString('NIN Slip Reports', $page);
 
-        Setting::create(['key' => 'nin_print_endpoint', 'value' => '/nin_print']);
+        // Only the provider's own download report list still needs an endpoint.
         Setting::create(['key' => 'nin_reports_endpoint', 'value' => '/nin_reports']);
         settings_flush_cache();
 
-        $instantPrint = $this->actingAs($user)->get('/vtu/nin')->assertOk()->getContent();
-        $this->assertStringContainsString('data-slip-type="standard_slip"', $instantPrint);
-        $this->assertStringContainsString('NIN Slip Reports', $instantPrint);
-        $this->assertStringNotContainsString('/vtu/manual/nin_slip_print', $instantPrint);
+        $withReports = $this->actingAs($user)->get('/vtu/nin')->assertOk()->getContent();
+        $this->assertStringContainsString('NIN Slip Reports', $withReports);
+        $this->assertStringContainsString('data-slip-type="standard_slip"', $withReports);
     }
 
     public function test_a_provider_side_outage_is_blamed_on_the_provider_and_costs_nobody(): void
