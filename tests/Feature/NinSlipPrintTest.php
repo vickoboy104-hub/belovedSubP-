@@ -113,7 +113,7 @@ class NinSlipPrintTest extends TestCase
 
         $page = $this->slipPage($user, $this->printSlip($user, 'long_slip', $verified));
 
-        $this->assertStringContainsString('/images/nin/slips/long-form.jpg', $page);
+        $this->assertStringContainsString('/images/nin/slips/long-form.png', $page);
 
         // BONIFACE_49979338424_Long_Slip.pdf breaks the street over two runs at one
         // left edge, and the state keeps a row of its own.
@@ -223,6 +223,18 @@ class NinSlipPrintTest extends TestCase
         $this->printSlip($user, 'standard_slip');
 
         $this->assertSame(100_000 - 50_000, $this->balance($user));
+    }
+
+    public function test_every_template_the_layout_names_is_a_file_the_site_actually_ships(): void
+    {
+        // A slip that names a template nobody committed prints as text floating on
+        // a blank page, and every markup assertion in this file would still pass.
+        foreach (NinSlipLayout::types() as $slipType) {
+            $path = public_path('images/nin/slips/'.NinSlipLayout::millimetres($slipType)['artwork']);
+
+            $this->assertFileExists($path, "The {$slipType} template is missing from the repository.");
+            $this->assertGreaterThan(50_000, filesize($path), "The {$slipType} template is a stub, not artwork.");
+        }
     }
 
     private function printSlip(User $user, string $slipType, ?Order $verified = null): string

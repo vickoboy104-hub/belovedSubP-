@@ -66,7 +66,7 @@ final class NinSlipLayout
         // address wraps into fixed lines with the state pinned to its own row.
         'long_slip' => [
             'label' => 'Long Slip',
-            'artwork' => 'long-form.jpg',
+            'artwork' => 'long-form.png',
             'artwork_pt' => [22.50, 557.38, 554.98, 262.01],
             'photo_pt' => [492.53, 649.89, 81.75, 107.25],
             'qr_pt' => null,
