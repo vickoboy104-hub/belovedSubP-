@@ -3,6 +3,7 @@
     'title' => 'Confirm Transaction',
     'confirmText' => 'Confirm & Proceed',
     'whatsapp' => null,
+    'danger' => false,
 ])
 
 @php
@@ -18,6 +19,7 @@
 
     <div class="relative w-full app-confirm-modal">
         <div class="app-modal-panel overflow-hidden">
+            <div class="app-dialog-accent is-{{ $danger ? 'error' : 'info' }}"></div>
             <div class="p-6 sm:p-7">
                 <div class="flex items-start justify-between gap-3">
                     <div>
@@ -38,8 +40,8 @@
                 <div class="mt-4" data-confirm-rows></div>
 
                 <div class="mt-3 app-confirm-balance" data-confirm-balance hidden>
-                    <div class="flex items-center gap-2 overflow-x-auto whitespace-nowrap text-[11px] sm:text-xs">
-                        <span class="shrink-0 font-bold uppercase tracking-[0.18em] opacity-70">Wallet</span>
+                    <div class="flex flex-wrap items-center gap-1.5 text-[11px] sm:text-xs">
+                        <span class="shrink-0 font-bold uppercase tracking-[0.14em] opacity-70">Wallet</span>
                         <span class="shrink-0 app-confirm-balance-pill">Bal <span class="font-bold" data-balance-current>&#8358;0.00</span></span>
                         <span class="shrink-0 app-confirm-balance-pill">Debit <span class="font-bold" data-balance-deduct>&#8358;0.00</span></span>
                         <span class="shrink-0 app-confirm-balance-pill">Left <span class="font-bold" data-balance-remaining>&#8358;0.00</span></span>
@@ -66,7 +68,7 @@
                     </button>
 
                     <button type="button"
-                            class="app-modal-btn app-modal-btn-primary"
+                            class="app-modal-btn app-modal-btn-{{ $danger ? 'danger' : 'primary' }}"
                             data-modal-confirm="{{ $id }}">
                         {{ $confirmText }}
                     </button>
@@ -200,9 +202,28 @@
         renderRows(overlay, data || {});
         renderBalanceSummary(overlay, data || {});
         showOverlay(overlay);
+
+        const confirmBtn = qs('[data-modal-confirm="' + modalId + '"]', overlay);
+        if (confirmBtn) {
+            // A previous sheet disables itself while the form runs. If that
+            // request came back without navigating, the next open must not be a
+            // sheet with a dead button in it.
+            confirmBtn.disabled = false;
+            confirmBtn.classList.remove('opacity-60');
+            confirmBtn.focus();
+        }
     };
 
     document.addEventListener('click', function (e) {
+        // Clicking the dimmed area around a sheet means "I did not mean to open
+        // this", the same as the cross in the corner.
+        if (e.target instanceof HTMLElement
+            && e.target.matches('[id$="_overlay"]')
+            && !e.target.classList.contains('hidden')) {
+            hideOverlay(e.target);
+            return;
+        }
+
         const closeBtn = e.target.closest('[data-modal-close]');
         const cancelBtn = e.target.closest('[data-modal-cancel]');
         if (closeBtn) {

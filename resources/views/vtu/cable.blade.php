@@ -61,11 +61,6 @@
                 catch (e) { return '₦' + (Number(n) || 0).toFixed(2); }
             }
 
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') window.showFlashToast(type, message);
-                else alert(message);
-            }
-
             function getErrorMessage(res, data, fallback) {
                 if (data && typeof data.message === 'string' && data.message.trim() !== '') return data.message;
                 if (data && data.errors) {

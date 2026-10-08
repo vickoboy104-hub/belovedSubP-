@@ -117,14 +117,6 @@
             const amountDisplay = document.getElementById('amount_display');
             const actionBtn = document.getElementById('rechargeCardAction');
 
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') {
-                    window.showFlashToast(type, message);
-                } else {
-                    alert(message);
-                }
-            }
-
             function computeTotal() {
                 const v = Number(value.value || 0);
                 const q = Number(qty.value || 0);

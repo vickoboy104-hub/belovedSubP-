@@ -124,14 +124,6 @@
 
             amountInput.addEventListener('input', updatePayTotal);
 
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') {
-                    window.showFlashToast(type, message);
-                } else {
-                    alert(message);
-                }
-            }
-
             function getErrorMessage(res, data, fallback) {
                 if (data && typeof data.message === 'string' && data.message.trim() !== '') return data.message;
                 if (data && data.errors) {

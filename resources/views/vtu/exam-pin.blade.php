@@ -94,11 +94,6 @@
             const form = document.getElementById('examPurchaseForm');
             const confirmBtn = document.querySelector('[data-modal-confirm="confirmExam"]');
 
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') window.showFlashToast(type, message);
-                else alert(message);
-            }
-
             function normalizePhone(raw) {
                 let p = (raw || '').toString().trim();
                 p = p.replace(/\s+/g, '').replace(/[^0-9+]/g, '');

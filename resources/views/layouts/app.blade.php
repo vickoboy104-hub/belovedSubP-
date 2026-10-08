@@ -227,34 +227,6 @@
             <div class="app-page">
                 <x-toast />
 
-                <div id="transactionResultOverlay" class="app-modal-overlay fixed inset-0 z-[96] hidden items-center justify-center px-4">
-                    <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
-                        <div class="p-5 text-center">
-                            <div id="transactionResultIconWrap" class="app-result-icon mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border">
-                                <div id="transactionResultIcon"></div>
-                            </div>
-                            <div id="transactionResultTitle" class="mt-3 text-xl font-extrabold">Status</div>
-                            <div id="transactionResultMessage" class="mt-2 text-sm leading-6 opacity-80">Message</div>
-                            <div class="mt-5 flex items-center justify-center">
-                                <button type="button" id="transactionResultOk" class="app-modal-btn app-modal-btn-warm min-w-[112px]">Okay</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="transactionContinueOverlay" class="app-modal-overlay fixed inset-0 z-[95] hidden items-center justify-center px-4">
-                    <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
-                        <div class="p-5 text-center">
-                            <div class="app-flag-tone-success rounded-2xl border px-4 py-3 text-sm font-extrabold uppercase tracking-wide">
-                                Transaction Successful
-                            </div>
-                            <div class="mt-4 flex items-center justify-center">
-                                <button type="button" id="transactionContinueBtn" class="app-modal-btn app-modal-btn-primary min-w-[132px]">Continue</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 {{ $slot }}
             </div>
         </main>
@@ -268,169 +240,165 @@
     </div>
 
     <script>
-        function escapeToastHtml(value) {
-            return String(value)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }
+        (function () {
+            const icons = {
+                success: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>',
+                error: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"></path><path d="M6 6l12 12"></path></svg>',
+                info: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>',
+            };
 
-        function closeFlashToast() {
-            const el = document.getElementById('flashToast');
-            if (el) el.remove();
-        }
+            const receiptBaseUrl = @json(url('/vtu/receipt'));
 
-        function showFlashToast(type, message) {
-            const ok = type === 'success';
-            const safeMessage = escapeToastHtml(message || '');
-            closeFlashToast();
+            let returnFocus = null;
+            let dismissable = false;
 
-            const wrap = document.createElement('div');
-            wrap.id = 'flashToast';
-            wrap.className = 'app-modal-overlay fixed inset-0 z-[99] flex items-center justify-center px-4';
-            wrap.innerHTML = `
-                <div class="app-modal-panel relative w-full max-w-sm overflow-hidden">
-                    <div class="p-5">
-                        <div class="flex items-start justify-between gap-3">
-                            <div>
-                                <div class="text-lg font-extrabold">${ok ? 'Success' : 'Failed'}</div>
-                                <div class="mt-1 text-xs font-bold uppercase tracking-[0.14em] opacity-70">Transaction status</div>
-                            </div>
-                            <button type="button" onclick="closeFlashToast()" class="app-modal-close" aria-label="Close">
-                                &times;
-                            </button>
-                        </div>
-                        <div class="mt-4 rounded-2xl border ${ok ? 'app-flag-tone-success' : 'app-flag-tone-error'} p-4 text-sm font-semibold leading-6">
-                            ${safeMessage}
-                        </div>
-                        <div class="mt-5 flex items-center justify-end">
-                            <button type="button" onclick="closeFlashToast()" class="app-modal-btn app-modal-btn-warm min-w-[96px]">OK</button>
+            function escapeHtml(value) {
+                return String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+
+            function closeAppDialog() {
+                const el = document.getElementById('appDialog');
+                if (el) el.remove();
+                document.removeEventListener('keydown', onKeyDown);
+                if (returnFocus && typeof returnFocus.focus === 'function') returnFocus.focus();
+                returnFocus = null;
+            }
+
+            function onKeyDown(event) {
+                if (event.key === 'Escape' && dismissable) {
+                    event.preventDefault();
+                    closeAppDialog();
+                }
+            }
+
+            /**
+             * The one dialog this site shows results in. A server flash, a fetch
+             * answer and a failed submission are the same event, so they share this
+             * markup rather than keeping three copies of it in step by hand.
+             *
+             * It waits for the customer to dismiss it on purpose: a transfer of
+             * money that vanishes from the screen after a few seconds leaves no
+             * proof of what just happened.
+             */
+            function showAppDialog(options) {
+                const tone = options.tone === 'error' || options.tone === 'info' ? options.tone : 'success';
+                const actions = Array.isArray(options.actions) && options.actions.length
+                    ? options.actions
+                    : [{ label: 'Okay', variant: 'warm' }];
+                dismissable = options.dismissable !== false;
+
+                closeAppDialog();
+                returnFocus = document.activeElement;
+
+                const wrap = document.createElement('div');
+                wrap.id = 'appDialog';
+                wrap.className = 'app-modal-overlay fixed inset-0 z-[99] flex items-center justify-center px-4';
+                wrap.setAttribute('role', tone === 'error' ? 'alertdialog' : 'dialog');
+                wrap.setAttribute('aria-modal', 'true');
+                wrap.innerHTML = `
+                    <div class="app-modal-panel app-dialog relative w-full max-w-sm overflow-hidden" aria-labelledby="appDialogTitle">
+                        <div class="app-dialog-accent is-${tone}"></div>
+                        ${dismissable ? '<button type="button" data-dialog-close class="app-modal-close app-dialog-close" aria-label="Close">&times;</button>' : ''}
+                        <div class="px-5 pb-5 pt-6 text-center">
+                            <div class="app-result-icon is-${tone} mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border">${icons[tone]}</div>
+                            <div id="appDialogTitle" class="app-dialog-title mt-3 text-xl font-extrabold">${escapeHtml(options.title)}</div>
+                            <div class="app-dialog-message mt-2 text-sm leading-6">${escapeHtml(options.message)}</div>
+                            <div data-dialog-actions class="app-modal-actions app-dialog-actions mt-5"></div>
                         </div>
                     </div>
-                </div>
-            `;
+                `;
 
-            document.body.appendChild(wrap);
-            setTimeout(closeFlashToast, 8000);
-        }
+                const actionsWrap = wrap.querySelector('[data-dialog-actions]');
+                actions.forEach((action) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'app-modal-btn app-modal-btn-' + (action.variant || 'warm');
+                    button.textContent = action.label;
+                    button.addEventListener('click', () => {
+                        closeAppDialog();
+                        if (action.href) window.location.href = action.href;
+                        if (typeof action.onClick === 'function') action.onClick();
+                    });
+                    actionsWrap.appendChild(button);
+                });
 
-        function updateWalletBalance(balanceKobo) {
-            const el = document.getElementById('walletBalance');
-            const raw = Number(balanceKobo);
-            if (!el || !Number.isFinite(raw)) return;
-            el.dataset.walletKobo = String(raw);
-            const naira = raw / 100;
-            el.textContent = '\u20A6' + naira.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
+                wrap.querySelectorAll('[data-dialog-close]').forEach((button) => {
+                    button.addEventListener('click', closeAppDialog);
+                });
+                wrap.addEventListener('click', (event) => {
+                    if (event.target === wrap && dismissable) closeAppDialog();
+                });
 
-        const receiptBaseUrl = @json(url('/vtu/receipt'));
-
-        function getReceiptUrl(orderId) {
-            if (!orderId) return receiptBaseUrl;
-            return receiptBaseUrl + '/' + encodeURIComponent(orderId);
-        }
-
-        function showOverlay(el) {
-            if (!el) return;
-            if (typeof window.promoteViewportLayer === 'function') {
-                window.promoteViewportLayer(el);
-            }
-            el.classList.remove('hidden');
-            el.classList.add('flex');
-        }
-
-        function hideOverlay(el) {
-            if (!el) return;
-            el.classList.add('hidden');
-            el.classList.remove('flex');
-        }
-
-        function showTransactionResult(opts) {
-            const overlay = document.getElementById('transactionResultOverlay');
-            if (!overlay) return;
-
-            const ok = !!opts?.ok;
-            const message = String(opts?.message || (ok ? 'Transaction successful.' : 'Transaction failed.'));
-            const orderId = opts?.orderId || '';
-
-            const titleEl = document.getElementById('transactionResultTitle');
-            const msgEl = document.getElementById('transactionResultMessage');
-            const iconEl = document.getElementById('transactionResultIcon');
-            const iconWrap = document.getElementById('transactionResultIconWrap');
-
-            if (titleEl) titleEl.textContent = ok ? 'Success' : 'Failed';
-            if (msgEl) msgEl.textContent = message;
-
-            if (iconWrap) {
-                iconWrap.className = 'app-result-icon mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border ' + (ok ? 'is-success' : 'is-error');
+                document.body.appendChild(wrap);
+                if (typeof window.promoteViewportLayer === 'function') window.promoteViewportLayer(wrap);
+                document.addEventListener('keydown', onKeyDown);
+                actionsWrap.querySelector('button').focus();
             }
 
-            if (iconEl) {
-                iconEl.innerHTML = ok
-                    ? '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>'
-                    : '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"></path><path d="M6 6l12 12"></path></svg>';
+            function getReceiptUrl(orderId) {
+                if (!orderId) return receiptBaseUrl;
+                return receiptBaseUrl + '/' + encodeURIComponent(orderId);
             }
 
-            overlay.dataset.ok = ok ? '1' : '0';
-            overlay.dataset.orderId = orderId;
-            hideOverlay(document.getElementById('transactionContinueOverlay'));
-            closeFlashToast();
-            showOverlay(overlay);
-        }
+            function showTransactionResult(options) {
+                const ok = !!options?.ok;
+                const orderId = options?.orderId || '';
 
-        function showTransactionContinue(orderId) {
-            const overlay = document.getElementById('transactionContinueOverlay');
-            if (!overlay) return;
-            overlay.dataset.orderId = orderId || '';
-            showOverlay(overlay);
-        }
-
-        function bindTransactionModals() {
-            const resultOverlay = document.getElementById('transactionResultOverlay');
-            const continueOverlay = document.getElementById('transactionContinueOverlay');
-            const okBtn = document.getElementById('transactionResultOk');
-            const continueBtn = document.getElementById('transactionContinueBtn');
-
-            if (okBtn && resultOverlay) {
-                okBtn.addEventListener('click', () => {
-                    const ok = resultOverlay.dataset.ok === '1';
-                    const orderId = resultOverlay.dataset.orderId || '';
-                    hideOverlay(resultOverlay);
-                    if (ok && orderId) showTransactionContinue(orderId);
+                showAppDialog({
+                    tone: ok ? 'success' : 'error',
+                    title: ok ? 'Successful' : 'Failed',
+                    message: options?.message || (ok ? 'Your transaction went through.' : 'Your transaction could not be completed.'),
+                    actions: ok && orderId
+                        ? [
+                            { label: 'View receipt', variant: 'primary', href: getReceiptUrl(orderId) },
+                            { label: 'Close', variant: 'muted' },
+                        ]
+                        : [{ label: 'Okay', variant: 'warm' }],
                 });
             }
 
-            if (continueBtn && continueOverlay) {
-                continueBtn.addEventListener('click', () => {
-                    const orderId = continueOverlay.dataset.orderId || '';
-                    hideOverlay(continueOverlay);
-                    if (orderId) {
-                        window.location.href = getReceiptUrl(orderId);
-                    }
+            function showFlashToast(type, message) {
+                showAppDialog({
+                    tone: type === 'success' ? 'success' : 'error',
+                    title: type === 'success' ? 'Success' : 'Failed',
+                    message,
                 });
             }
 
-            if (resultOverlay) {
-                resultOverlay.addEventListener('click', (e) => {
-                    if (e.target === resultOverlay) hideOverlay(resultOverlay);
-                });
+            function updateWalletBalance(balanceKobo) {
+                const el = document.getElementById('walletBalance');
+                const raw = Number(balanceKobo);
+                if (!el || !Number.isFinite(raw)) return;
+                el.dataset.walletKobo = String(raw);
+                const naira = raw / 100;
+                el.textContent = '\u20A6' + naira.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
 
-            if (continueOverlay) {
-                continueOverlay.addEventListener('click', (e) => {
-                    if (e.target === continueOverlay) hideOverlay(continueOverlay);
-                });
+            // The flash handover and the deposit card both render above this
+            // script, so they leave their answer here rather than calling a
+            // function that does not exist yet. Never write a component tag in
+            // this file's comments: Blade compiles it right into the script.
+            if (window.pendingFlashDialog) {
+                showFlashToast(window.pendingFlashDialog.type, window.pendingFlashDialog.message);
+            } else if (window.pendingDepositDialog) {
+                showAppDialog(window.pendingDepositDialog);
             }
-        }
 
-        window.showFlashToast = showFlashToast;
-        window.closeFlashToast = closeFlashToast;
-        window.updateWalletBalance = updateWalletBalance;
-        window.showTransactionResult = showTransactionResult;
-        window.getReceiptUrl = getReceiptUrl;
-        bindTransactionModals();
+            window.escapeToastHtml = escapeHtml;
+            window.showAppDialog = showAppDialog;
+            window.closeAppDialog = closeAppDialog;
+            window.closeFlashToast = closeAppDialog;
+            window.showFlashToast = showFlashToast;
+            window.showTransactionResult = showTransactionResult;
+            window.notify = showFlashToast;
+            window.updateWalletBalance = updateWalletBalance;
+            window.getReceiptUrl = getReceiptUrl;
+        })();
     </script>
 
     <script>

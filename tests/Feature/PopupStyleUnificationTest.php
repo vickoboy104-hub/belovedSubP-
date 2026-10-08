@@ -22,15 +22,15 @@ class PopupStyleUnificationTest extends TestCase
     private function purchasePages(): array
     {
         return [
-            '/vtu/airtime',
-            '/vtu/data',
-            '/vtu/electricity',
-            '/vtu/cable',
-            '/vtu/exam',
+            '/vtu/airtime/mtn',
+            '/vtu/data/mtn_sme',
+            '/vtu/electricity/ikeja-electric',
+            '/vtu/cable/dstv',
+            '/vtu/exam/jamb',
             '/vtu/premium-apps',
             '/vtu/recharge-card',
-            '/vtu/nin-validation',
             '/vtu/nin',
+            '/vtu/nin-validation',
         ];
     }
 
@@ -77,17 +77,36 @@ class PopupStyleUnificationTest extends TestCase
         $note->save();
     }
 
-    /** Isolate the flash popup markup so assertions cannot pass off elsewhere. */
-    private function flashBlock(string $html): string
+    /** Isolate the popup markup so assertions cannot pass off elsewhere. */
+    private function sheetBlock(string $html, string $sheetId): string
     {
-        $start = strpos($html, 'id="flashToast"');
+        $start = strpos($html, 'id="'.$sheetId.'_overlay"');
 
-        $this->assertNotFalse($start, 'No flash popup was rendered.');
+        $this->assertNotFalse($start, 'No sheet named '.$sheetId.' was rendered.');
 
-        $block = substr($html, $start, 2600);
-        $script = strpos($block, '<script');
+        return substr($html, $start, 5000);
+    }
 
-        return $script === false ? $block : substr($block, 0, $script);
+    /**
+     * The flash no longer prints a popup of its own; it hands the answer to the
+     * layout's one dialog kernel. That handover is what the page must show.
+     */
+    private function pendingFlash(array $payload): array
+    {
+        $html = $this->actingAs($this->member())
+            ->withSession($payload)
+            ->get('/dashboard')
+            ->assertOk()
+            ->getContent();
+
+        preg_match('/window\.pendingFlashDialog = (\{.*?\});/s', $html, $match);
+
+        $this->assertNotEmpty($match, 'The server flash never reached the dialog kernel.');
+
+        $handed = json_decode(html_entity_decode($match[1], ENT_QUOTES, 'UTF-8'), true);
+        $this->assertIsArray($handed, 'The flash handover is not readable JSON.');
+
+        return [$html, $handed];
     }
 
     public function test_every_purchase_page_confirm_sheet_uses_the_shared_modal_skin(): void
@@ -97,21 +116,20 @@ class PopupStyleUnificationTest extends TestCase
         foreach ($this->purchasePages() as $path) {
             $html = $this->actingAs($user)->get($path)->assertOk()->getContent();
 
-            $this->assertStringContainsString(
-                'app-modal-overlay',
-                $html,
-                $path.' confirm sheet has no shared overlay.'
-            );
-            $this->assertStringContainsString(
-                'app-modal-panel',
-                $html,
-                $path.' confirm sheet has no shared panel.'
-            );
-            $this->assertStringContainsString(
-                'app-modal-btn-primary',
-                $html,
-                $path.' confirm sheet has no brand primary action.'
-            );
+            // The sheet's own script mentions these attribute names, so scan markup only.
+            $markup = preg_replace('/<script\b.*?<\/script>/s', '', $html);
+
+            preg_match_all('/id="([^"]+)_overlay"/', $markup, $sheets);
+            $this->assertNotEmpty($sheets[1], $path.' mounts no confirm sheet.');
+
+            foreach (array_unique($sheets[1]) as $sheet) {
+                $block = $this->sheetBlock($markup, $sheet);
+
+                $this->assertStringContainsString('app-modal-overlay', $block, $path.' sheet has no shared overlay.');
+                $this->assertStringContainsString('app-modal-panel', $block, $path.' sheet has no shared panel.');
+                $this->assertStringContainsString('app-modal-btn-primary', $block, $path.' sheet has no brand primary action.');
+                $this->assertStringContainsString('app-dialog-accent', $block, $path.' sheet has no tone bar.');
+            }
 
             // The champagne-gold confirm button belonged to an older skin and is
             // not in either theme palette.
@@ -125,51 +143,77 @@ class PopupStyleUnificationTest extends TestCase
 
     public function test_a_server_flash_renders_the_same_popup_as_the_js_toast(): void
     {
-        $html = $this->actingAs($this->member())
-            ->withSession(['success' => 'Airtime delivered to 08031234567.'])
-            ->get('/dashboard')
-            ->assertOk()
-            ->getContent();
+        [$html, $handed] = $this->pendingFlash(['success' => 'Airtime delivered to 08031234567.']);
 
-        $block = $this->flashBlock($html);
+        $this->assertSame('success', $handed['type']);
+        $this->assertSame('Airtime delivered to 08031234567.', $handed['message']);
 
-        $this->assertStringContainsString('app-modal-overlay', $block);
-        $this->assertStringContainsString('app-modal-panel', $block);
-        $this->assertStringContainsString('app-flag-tone-success', $block);
+        // One kernel builds the sheet, so a flash and a fetch answer cannot drift.
+        $this->assertSame(1, substr_count($html, 'function showAppDialog('));
+        $this->assertStringContainsString("wrap.className = 'app-modal-overlay fixed inset-0 z-[99] flex items-center justify-center px-4'", $html);
+        $this->assertStringContainsString('window.showFlashToast = showFlashToast;', $html);
 
-        // The retired dark-glass toast: frosted panel plus five classes that were
-        // never defined anywhere in the stylesheet.
-        $this->assertStringNotContainsString('bg-white/10', $block);
-        $this->assertStringNotContainsString('toast-pop', $block);
-        $this->assertStringNotContainsString('toast-icon', $block);
-        $this->assertStringNotContainsString('toast-progress', $block);
+        // The old page-level copy of the popup is gone, along with the second
+        // overlay the layout used to ship on every signed-in page.
+        $this->assertStringNotContainsString('id="flashToast"', $html);
+        $this->assertStringNotContainsString('transactionResultOverlay', $html);
+        $this->assertStringNotContainsString('transactionContinueOverlay', $html);
+
+        // The retired dark-glass toast: frosted panel plus classes that were never
+        // defined anywhere in the stylesheet.
+        $this->assertStringNotContainsString('bg-white/10', $html);
+        $this->assertStringNotContainsString('toast-pop', $html);
+        $this->assertStringNotContainsString('toast-icon', $html);
+        $this->assertStringNotContainsString('toast-progress', $html);
     }
 
     public function test_a_failed_flash_gets_the_error_tone_not_a_green_face(): void
     {
-        $html = $this->actingAs($this->member())
-            ->withSession(['error' => 'Wallet balance is too low.'])
-            ->get('/dashboard')
-            ->assertOk()
-            ->getContent();
+        [$html, $handed] = $this->pendingFlash(['error' => 'Wallet balance is too low.']);
 
-        $block = $this->flashBlock($html);
+        $this->assertSame('error', $handed['type']);
+        $this->assertSame('Wallet balance is too low.', $handed['message']);
 
-        $this->assertStringContainsString('app-flag-tone-error', $block);
-        $this->assertStringNotContainsString('app-flag-tone-success', $block);
+        // The kernel decides the tone from that type, so a failure can only ever
+        // be shown in the error skin.
+        $this->assertStringContainsString("const tone = options.tone === 'error'", $html);
+        $this->assertStringNotContainsString('border-emerald-200 bg-emerald-50 text-emerald-800', $html);
     }
 
-    public function test_the_js_toast_and_the_blade_flash_agree_on_layer_and_markup(): void
+    public function test_the_result_popup_stays_until_the_customer_answers_it(): void
     {
         $html = $this->actingAs($this->member())->get('/dashboard')->assertOk()->getContent();
 
-        // Both paths build #flashToast, so they must declare one identical skin.
-        $this->assertStringContainsString(
-            "wrap.className = 'app-modal-overlay fixed inset-0 z-[99] flex items-center justify-center px-4'",
-            $html
-        );
-        $this->assertStringContainsString('app-flag-tone-success', $html);
-        $this->assertStringNotContainsString('border-emerald-200 bg-emerald-50 text-emerald-800', $html);
+        // A money result that vanishes from the screen leaves no proof of what
+        // happened, so nothing in the kernel may dismiss a dialog on a timer.
+        preg_match('/function showAppDialog\(.*?\n        \}/s', $html, $kernel);
+        $this->assertNotEmpty($kernel, 'The dialog kernel is missing from the layout.');
+        $this->assertStringNotContainsString('setTimeout', $kernel[0]);
+
+        // A success that comes back with an order answers with the receipt, in one
+        // sheet rather than the old chain of two.
+        $this->assertStringContainsString("showTransactionResult", $html);
+        $this->assertStringContainsString("{ label: 'View receipt', variant: 'primary', href: getReceiptUrl(orderId) }", $html);
+    }
+
+    public function test_the_dialog_kernel_arrives_at_the_browser_in_one_piece(): void
+    {
+        $html = $this->actingAs($this->member())->get('/dashboard')->assertOk()->getContent();
+
+        // A Blade component tag written anywhere in this layout - including inside
+        // a JS comment - is compiled into real markup. A </script> carried by that
+        // markup ends the kernel early, and every popup on the site disappears
+        // without a single test failing, so the exported tail is checked here.
+        $start = strpos($html, 'function showAppDialog');
+
+        $this->assertNotFalse($start, 'The dialog kernel is missing from the page.');
+
+        $end = strpos($html, '</script>', $start);
+        $kernel = substr($html, $start, $end - $start);
+
+        $this->assertStringContainsString('window.showAppDialog = showAppDialog;', $kernel);
+        $this->assertStringContainsString('window.notify = showFlashToast;', $kernel);
+        $this->assertStringNotContainsString('<script', $kernel);
     }
 
     public function test_unread_items_in_the_member_inbox_use_the_shared_flag_language(): void
@@ -210,6 +254,46 @@ class PopupStyleUnificationTest extends TestCase
         $this->assertStringContainsString('btn-danger', $html);
         $this->assertStringNotContainsString('btn-primary justify-center bg-rose-600', $html);
         $this->assertStringNotContainsString('bg-amber-50/70', $html);
+    }
+
+    public function test_no_page_asks_the_browser_for_a_confirmation_it_cannot_style(): void
+    {
+        // A browser dialog cannot be themed, cannot be trusted to be read, and on
+        // some mobile browsers is suppressed entirely - which would silently
+        // swallow the submit it was guarding.
+        foreach (\Illuminate\Support\Facades\File::allFiles(resource_path('views')) as $file) {
+            $source = $file->getContents();
+
+            $this->assertStringNotContainsString(
+                'return confirm(',
+                $source,
+                $file->getRelativePathname().' still gates a submission on the browser dialog.'
+            );
+            $this->assertStringNotContainsString(
+                'window.confirm(',
+                $source,
+                $file->getRelativePathname().' still gates a submission on the browser dialog.'
+            );
+        }
+    }
+
+    public function test_every_form_gated_on_a_sheet_ships_that_sheet_on_the_same_page(): void
+    {
+        // A gate with no sheet behind it swallows the button press in silence, and
+        // nothing else in the suite notices because the form simply never submits.
+        foreach (\Illuminate\Support\Facades\File::allFiles(resource_path('views')) as $file) {
+            $source = $file->getContents();
+
+            preg_match_all('/data-confirm-sheet="([^"]+)"/', $source, $gates);
+
+            foreach (array_unique($gates[1]) as $sheet) {
+                $this->assertStringContainsString(
+                    '<x-confirm-modal id="'.$sheet.'"',
+                    $source,
+                    $file->getRelativePathname().' gates a form onto the missing sheet "'.$sheet.'".'
+                );
+            }
+        }
     }
 
     public function test_destructive_admin_forms_use_the_shared_sheet_instead_of_the_browser_dialog(): void
@@ -313,6 +397,10 @@ class PopupStyleUnificationTest extends TestCase
         $this->assertStringContainsString('.app-note-card.is-unread', $css);
         $this->assertStringContainsString('.app-choice-chip', $css);
         $this->assertStringContainsString('.app-choice-caption', $css);
+
+        // The dialog focuses its own go-button, so the ring it lands in has to be
+        // the brand's, not the browser's black outline.
+        $this->assertStringContainsString('.app-modal-btn:focus-visible', $css);
         $this->assertStringContainsString('data-theme=ember] .app-modal-panel', $css);
 
         $this->assertStringNotContainsString('d8b07a', $css);

@@ -243,7 +243,21 @@
                             Rejecting refunds the full &#8358;{{ number_format($order->amount / 100, 2) }} to the customer's wallet and tells them why.
                         </p>
 
-                        <form method="POST" action="{{ route('admin.manual-orders.reject', $order->id) }}" class="mt-4 space-y-3">
+                        @php
+                            $rejectDetails = [
+                                'Request' => '#'.$order->id.' '.$title,
+                                'Customer' => $order->user?->name ?? '-',
+                                'Refund' => '₦'.number_format($order->amount / 100, 2),
+                                'Reason' => '',
+                            ];
+                        @endphp
+
+                        <form method="POST"
+                              id="rejectOrderForm"
+                              action="{{ route('admin.manual-orders.reject', $order->id) }}"
+                              class="mt-4 space-y-3"
+                              data-confirm-sheet="confirmRejectOrder"
+                              data-confirm-details='{{ json_encode($rejectDetails) }}'>
                             @csrf
 
                             <label class="block">
@@ -253,8 +267,7 @@
                                           class="input-field mt-2">{{ old('reason') }}</textarea>
                             </label>
 
-                            <button type="submit" class="btn-danger w-full justify-center"
-                                    onclick="return confirm('Reject this request and refund ₦{{ number_format($order->amount / 100, 2) }}?');">
+                            <button type="submit" class="btn-danger w-full justify-center">
                                 Reject and refund
                             </button>
                         </form>
@@ -263,4 +276,27 @@
             </div>
         </div>
     </div>
+
+    <x-confirm-modal id="confirmRejectOrder" title="Reject and refund?" confirmText="Reject and refund" :danger="true" />
+
+    <script>
+        (function () {
+            const form = document.getElementById('rejectOrderForm');
+            const reason = form ? form.querySelector('textarea[name="reason"]') : null;
+            if (!reason) return;
+
+            // The sheet reads its rows off the form at submit time, so the reason
+            // typed a second ago is the reason the admin is asked to confirm.
+            form.addEventListener('input', function () {
+                let details = {};
+                try {
+                    details = JSON.parse(form.getAttribute('data-confirm-details') || '{}');
+                } catch (error) {
+                    details = {};
+                }
+                details.Reason = reason.value.trim();
+                form.setAttribute('data-confirm-details', JSON.stringify(details));
+            });
+        })();
+    </script>
 </x-app-layout>

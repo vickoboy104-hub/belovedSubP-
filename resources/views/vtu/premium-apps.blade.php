@@ -89,14 +89,6 @@
             const planNotice = document.getElementById('premiumPlanNotice');
             const planRetryBtn = document.getElementById('premiumPlanRetryBtn');
 
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') {
-                    window.showFlashToast(type, message);
-                } else {
-                    alert(message);
-                }
-            }
-
             function toCurrency(value) {
                 const n = Number(value || 0);
                 return 'N' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });

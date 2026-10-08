@@ -82,7 +82,7 @@
 
         {{-- The transfers still in flight are already rows in the table below, so
              this panel only carries the check button and what the last check said. --}}
-        <x-deposit-status :check="$depositCheck" />
+        <x-deposit-status :check="$depositCheck" :asked="$depositCheckAsked" />
 
         <section class="app-section p-4 sm:p-6">
             <x-records-table

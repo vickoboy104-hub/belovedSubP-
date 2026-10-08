@@ -31,6 +31,10 @@ class WalletController extends Controller
 
         $balanceKobo = $wallet?->balance ?? 0;
 
+        // Only the answer to the button the customer pressed is worth interrupting
+        // them with; the quiet check that runs when the page opens stays quiet.
+        $askedCheck = session('deposit_check');
+
         return view('wallet.fund', [
             'walletBalanceKobo' => $balanceKobo,
             'walletBalanceNaira' => $balanceKobo / 100,
@@ -40,7 +44,8 @@ class WalletController extends Controller
             'bank_account_name' => setting('bank_account_name', ''),
             'bank_account_number' => setting('bank_account_number', ''),
             'funding_fee_naira' => (float) setting('wallet_funding_fee', 50),
-            'depositCheck' => (array) (session('deposit_check') ?? $automaticCheck),
+            'depositCheck' => (array) ($askedCheck ?? $automaticCheck),
+            'depositCheckAsked' => $askedCheck !== null,
             'pendingDeposits' => $this->awaitingDeposits($wallet?->id),
             'virtual_account' => [
                 'account_number' => $user?->virtual_account_number,
@@ -89,6 +94,7 @@ class WalletController extends Controller
         $transactions = $query->latest()->paginate($perPage)->withQueryString();
 
         $balanceKobo = $wallet->balance ?? 0;
+        $askedCheck = session('deposit_check');
 
         return view('wallet.transactions', [
             'walletBalanceKobo' => $balanceKobo,
@@ -97,7 +103,8 @@ class WalletController extends Controller
             'search' => $search,
             'perPage' => $perPage,
             'totalRecords' => $totalRecords,
-            'depositCheck' => (array) (session('deposit_check') ?? $check),
+            'depositCheck' => (array) ($askedCheck ?? $check),
+            'depositCheckAsked' => $askedCheck !== null,
             'pendingDeposits' => $this->awaitingDeposits($wallet->id),
         ]);
     }

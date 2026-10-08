@@ -193,9 +193,7 @@ document.body.classList.add('page-is-entering');
     const layerSelector = [
         '#globalLoader',
         '#ninPopupOverlay',
-        '#flashToast',
-        '#transactionResultOverlay',
-        '#transactionContinueOverlay',
+        '#appDialog',
         '#maintenanceOverlay',
         '.page-save-overlay',
         '[id$="_overlay"]',
@@ -690,10 +688,8 @@ document.body.classList.add('page-is-entering');
     function isBlockingUiVisible() {
         const selectors = [
             '#globalLoader',
-            '#flashToast',
+            '#appDialog',
             '#ninPopupOverlay',
-            '#transactionResultOverlay',
-            '#transactionContinueOverlay',
             '[id$="_overlay"]',
             '[aria-modal="true"]',
         ];

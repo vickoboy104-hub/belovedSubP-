@@ -303,14 +303,6 @@
             let pendingVerifyLookup = null;
             let pendingSlipType = null;
 
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') {
-                    window.showFlashToast(type, message);
-                    return;
-                }
-                alert(message);
-            }
-
             function escapeHtml(value) {
                 return String(value ?? '')
                     .replace(/&/g, '&amp;')
@@ -595,18 +587,22 @@
                 return rows;
             }
 
-            function buildPrintConfirmationData(slipType) {
-                const normalized = verifiedState?.normalized || {};
-                const slipLabelMap = {
+            function slipLabel(slipType) {
+                const labels = {
                     standard_slip: 'Standard Slip',
                     premium_slip: 'Premium Slip',
                     long_slip: 'Long Slip',
                 };
+                return labels[slipType] || String(slipType || 'slip').replace(/_/g, ' ');
+            }
+
+            function buildPrintConfirmationData(slipType) {
+                const normalized = verifiedState?.normalized || {};
                 const amount = Number(slipPrices?.[slipType] || 0) + printMarkup;
 
                 return {
                     service: 'NIN Slip Print',
-                    slip: slipLabelMap[slipType] || slipType,
+                    slip: slipLabel(slipType),
                     nin: formatNin(normalized?.nin || '-'),
                     amount: formatNaira(amount),
                     __debitAmount: amount,
@@ -657,6 +653,10 @@
                 });
             }
 
+            function revealDirectPrint() {
+                directPrintWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
             function enableDirectPrint(orderId, normalized, payload, meta = {}) {
                 verifiedState = {
                     orderId,
@@ -671,13 +671,6 @@
                 directPrintButtons.forEach((button) => {
                     button.disabled = false;
                 });
-
-                // The verification is only half the job the customer paid for, so
-                // bring the slip choices under their eyes instead of leaving them
-                // to find the panel below the record.
-                window.setTimeout(() => {
-                    directPrintWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 450);
             }
 
             function renderRawTable(data) {
@@ -862,13 +855,13 @@
 
             async function printVerifiedSlip(slipType) {
                 if (!verifiedState?.orderId) {
-                    notify('error', 'Verify a NIN record first before printing.');
+                    showAppDialog({ tone: 'info', title: 'Nothing verified yet', message: 'Verify a NIN record first, then the slip buttons become usable.' });
                     return;
                 }
 
                 const popup = window.open('', '_blank');
                 if (!popup) {
-                    notify('error', 'Allow popups to print the slip.');
+                    showAppDialog({ tone: 'error', title: 'Pop-ups blocked', message: 'Allow pop-ups for this site so the slip can open in its own tab, then press the button again.' });
                     return;
                 }
 
@@ -898,13 +891,14 @@
 
                     const data = await response.json().catch(() => ({}));
                     const ok = response.ok && data && data.ok === true;
-                    const message = ok
-                        ? (data.message || 'Slip generated successfully.')
-                        : getErrorMessage(response, data, 'Unable to generate the slip right now.');
 
                     if (!ok) {
                         popup.close();
-                        notify('error', message);
+                        showAppDialog({
+                            tone: 'error',
+                            title: 'Slip not ready',
+                            message: getErrorMessage(response, data, 'Unable to generate the slip right now.'),
+                        });
                         return;
                     }
 
@@ -915,17 +909,28 @@
                     const slipUrl = data?.data?.slip_url;
                     if (!slipUrl) {
                         popup.close();
-                        notify('error', 'The slip could not be prepared. Please try again.');
+                        showAppDialog({ tone: 'error', title: 'Slip not ready', message: 'The slip could not be prepared. Please try again.' });
                         return;
                     }
 
                     popup.location.href = slipUrl;
 
-                    notify('success', message);
+                    // The new tab does the printing, so it is the one thing the
+                    // customer cannot undo from here - say what happened and give
+                    // them the tab back if the browser swallowed it.
+                    showAppDialog({
+                        tone: 'success',
+                        title: slipLabel(slipType) + ' ready',
+                        message: 'The slip has opened in a new tab and should be printing now. If no tab appeared, your browser blocked it - open it from here.',
+                        actions: [
+                            { label: 'Open the slip', variant: 'primary', onClick: () => window.open(slipUrl, '_blank') },
+                            { label: 'Close', variant: 'muted' },
+                        ],
+                    });
                     await loadReports();
                 } catch (error) {
                     popup.close();
-                    notify('error', 'Network error. Please try again.');
+                    showAppDialog({ tone: 'error', title: 'Slip not ready', message: 'Network error. Please try again.' });
                 } finally {
                     if (typeof window.hideGlobalLoader === 'function') {
                         window.hideGlobalLoader();
@@ -963,24 +968,53 @@
                     const message = ok
                         ? (data.message || 'Verification successful.')
                         : getErrorMessage(response, data, 'Verification failed. Please check your details.');
+                    const queued = data?.queued === true;
 
                     renderVerifyResult(ok, message, data?.data || {}, data?.normalized || {}, data?.order_id || null, {
                         cacheHit: data?.cache_hit === true,
                         cachedAtLabel: data?.cached_at_label || '',
                         forceRefresh: data?.force_refresh === true,
-                        queued: data?.queued === true,
+                        queued,
                         receiptUrl: data?.receipt_url || '',
                         lookup,
                     });
 
                     if (!ok) {
-                        notify('error', message);
-                    } else if (typeof window.updateWalletBalance === 'function' && Number.isFinite(Number(data.balance_kobo))) {
-                        window.updateWalletBalance(Number(data.balance_kobo));
+                        showAppDialog({ tone: 'error', title: 'Not verified', message });
+                    } else if (queued) {
+                        showAppDialog({
+                            tone: 'info',
+                            title: 'Request received',
+                            message,
+                            actions: data?.receipt_url
+                                ? [
+                                    { label: 'View receipt', variant: 'primary', href: data.receipt_url },
+                                    { label: 'Close', variant: 'muted' },
+                                ]
+                                : [{ label: 'Okay', variant: 'warm' }],
+                        });
+                    } else {
+                        if (typeof window.updateWalletBalance === 'function' && Number.isFinite(Number(data.balance_kobo))) {
+                            window.updateWalletBalance(Number(data.balance_kobo));
+                        }
+
+                        const record = data?.normalized || {};
+                        showAppDialog({
+                            tone: 'success',
+                            title: 'Verified',
+                            message: [
+                                normalizeValue(record.full_name) + ' - NIN ' + formatNin(record.nin),
+                                message,
+                            ].filter(Boolean).join(' '),
+                            actions: [
+                                { label: 'Print a slip', variant: 'primary', onClick: revealDirectPrint },
+                                { label: 'Close', variant: 'muted' },
+                            ],
+                        });
                     }
                 } catch (error) {
                     renderVerifyResult(false, 'Network error. Please try again.', {}, {}, null);
-                    notify('error', 'Network error. Please try again.');
+                    showAppDialog({ tone: 'error', title: 'Not verified', message: 'Network error. Please try again.' });
                 } finally {
                     if (typeof window.hideGlobalLoader === 'function') {
                         window.hideGlobalLoader();

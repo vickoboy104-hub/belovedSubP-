@@ -132,14 +132,6 @@
             const detailsWrap = document.getElementById('bvnDetails');
             const faceImg = document.getElementById('bvnFaceImage');
 
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') {
-                    window.showFlashToast(type, message);
-                    return;
-                }
-                alert(message);
-            }
-
             function esc(value) {
                 return String(value ?? '')
                     .replace(/&/g, '&amp;')
@@ -211,6 +203,13 @@
                 anchor.removeAttribute('href');
             }
 
+            function fullNameOf(data) {
+                const first = data.first_name || data.firstname || data.firs_tname || '';
+                const middle = data.middle_name || data.middlename || '';
+                const last = data.last_name || data.lastname || '';
+                return [first, middle, last].filter(Boolean).join(' ');
+            }
+
             function renderResult(state, message, data) {
                 resultCard.classList.remove('hidden');
                 setStatus(state);
@@ -223,10 +222,7 @@
                     return;
                 }
 
-                const first = data.first_name || data.firstname || data.firs_tname || '';
-                const middle = data.middle_name || data.middlename || '';
-                const last = data.last_name || data.lastname || '';
-                nameEl.textContent = [first, middle, last].filter(Boolean).join(' ') || '-';
+                nameEl.textContent = fullNameOf(data) || '-';
                 bvnNoEl.textContent = val(data.bvn || data.BVN);
                 ninEl.textContent = val(data.nin || data.NIN);
 
@@ -309,7 +305,7 @@
                 }
             }
 
-            async function submitForm(form, endpoint) {
+            async function submitForm(form, endpoint, labels) {
                 if (form.dataset.submitting === '1') return;
                 form.dataset.submitting = '1';
                 if (typeof window.showGlobalLoader === 'function') {
@@ -324,21 +320,36 @@
                     });
                     const data = await response.json().catch(() => ({}));
                     const ok = response.ok && data?.ok === true;
+                    const queued = ok && data?.queued === true;
                     const message = data?.message || (ok ? 'Request completed.' : 'Request failed.');
+                    const payload = data?.normalized || data?.data || {};
+                    const receiptUrl = data?.receipt_url || '';
 
-                    renderResult(ok ? (data?.queued ? 'pending' : 'success') : 'failed',
-                        message,
-                        data?.normalized || data?.data || {});
-                    showReceipt(data?.receipt_url);
-                    notify(ok ? 'success' : 'error', message);
+                    renderResult(ok ? (queued ? 'pending' : 'success') : 'failed', message, payload);
+                    showReceipt(receiptUrl);
 
                     const balanceKobo = Number(data?.balance_kobo ?? NaN);
                     if (Number.isFinite(balanceKobo) && typeof window.updateWalletBalance === 'function') {
                         window.updateWalletBalance(balanceKobo);
                     }
+
+                    // Naming the customer in the popup is the proof that this is
+                    // their record, not just a green tick on a page.
+                    const identity = ok && !queued ? fullNameOf(payload) : '';
+                    showAppDialog({
+                        tone: ok ? (queued ? 'info' : 'success') : 'error',
+                        title: ok ? (queued ? 'Request received' : labels.done) : labels.failed,
+                        message: [message, identity && ('Record: ' + identity)].filter(Boolean).join(' '),
+                        actions: receiptUrl
+                            ? [
+                                { label: 'View receipt', variant: 'primary', href: receiptUrl },
+                                { label: 'Close', variant: 'muted' },
+                            ]
+                            : [{ label: 'Okay', variant: 'warm' }],
+                    });
                 } catch (error) {
                     renderResult('failed', 'Network error. Please try again.', {});
-                    notify('error', 'Network error. Please try again.');
+                    showAppDialog({ tone: 'error', title: labels.failed, message: 'Network error. Please try again.' });
                 } finally {
                     form.dataset.submitting = '0';
                     if (typeof window.hideGlobalLoader === 'function') {
@@ -349,16 +360,16 @@
 
             verifyForm.addEventListener('submit', function (event) {
                 event.preventDefault();
-                submitForm(verifyForm, verifyRoute);
+                submitForm(verifyForm, verifyRoute, { done: 'BVN verified', failed: 'Not verified' });
             });
 
             retrieveForm.addEventListener('submit', function (event) {
                 event.preventDefault();
                 if (!retrieveType.value) {
-                    notify('error', 'Please choose retrieve type.');
+                    showAppDialog({ tone: 'info', title: 'Pick a retrieve type', message: 'Choose which BVN record you want to retrieve.' });
                     return;
                 }
-                submitForm(retrieveForm, retrieveRoute);
+                submitForm(retrieveForm, retrieveRoute, { done: 'BVN retrieved', failed: 'Not retrieved' });
             });
 
             retrieveType.addEventListener('change', renderRetrieveFields);

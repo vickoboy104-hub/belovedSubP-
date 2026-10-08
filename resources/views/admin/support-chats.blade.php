@@ -83,14 +83,6 @@
             let pollTimer = null;
             let sessionsCache = [];
 
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') {
-                    window.showFlashToast(type, message);
-                } else {
-                    alert(message);
-                }
-            }
-
             function routeForTicket(template, ticketId) {
                 return template.replace('__ID__', encodeURIComponent(String(ticketId)));
             }

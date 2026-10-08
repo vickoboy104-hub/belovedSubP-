@@ -2,6 +2,7 @@
     'check' => [],
     'pending' => [],
     'title' => 'Deposit status',
+    'asked' => false,
 ])
 
 @php
@@ -48,6 +49,11 @@
             'head' => 'Your wallet is missing',
             'body' => 'There is no wallet to receive this deposit. Contact support.',
         ],
+        'nothing_to_check' => [
+            'tone' => 'slate',
+            'head' => 'Nothing was waiting to be checked',
+            'body' => 'You have no open funding request, so there was no transfer for Flutterwave to confirm. Fund your wallet to be given an account number, transfer into it, then press Check deposit.',
+        ],
         default => null,
     };
 
@@ -57,6 +63,13 @@
         'rose' => 'border-rose-200 bg-rose-50 text-rose-800',
         'slate' => 'border-slate-200 bg-slate-50 text-slate-700',
     ];
+
+    // Opening the page also runs a quiet check, and most of the time that check
+    // finds nothing to ask about. Saying so on every page load would be noise;
+    // saying it after the customer pressed the button is the answer they wanted.
+    if (!$asked && (string) ($check['status'] ?? '') === 'nothing_to_check') {
+        $copy = null;
+    }
 @endphp
 
 @if($copy !== null || $pending->isNotEmpty())
@@ -80,6 +93,23 @@
                 <div class="font-bold">{{ $copy['head'] }}</div>
                 <div class="mt-1">{{ $copy['body'] }}</div>
             </div>
+
+            {{-- A page reload that quietly repaints a card is easy to miss after
+                 pressing a button, so the same words are put in front of the
+                 customer as a dialog. One definition serves both, so they cannot
+                 disagree about what the check found. --}}
+            @if($asked)
+                @php
+                    // Blade's @json directive mis-parses a multi-line array, so the
+                    // payload is assembled here and passed in one piece.
+                    $dialogPayload = [
+                        'tone' => ['emerald' => 'success', 'rose' => 'error', 'amber' => 'info', 'slate' => 'info'][$copy['tone']] ?? 'info',
+                        'title' => $copy['head'],
+                        'message' => $copy['body'],
+                    ];
+                @endphp
+                <script>window.pendingDepositDialog = @json($dialogPayload);</script>
+            @endif
         @endif
 
         @foreach($pending as $awaiting)

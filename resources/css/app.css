@@ -363,6 +363,79 @@ html[data-theme="ember"] .app-flag-tone-error { border-color: #e3b8ac; backgroun
     color: #961c1c;
 }
 
+.app-result-icon.is-info {
+    border-color: var(--brand-line);
+    background: var(--surface-soft);
+    color: var(--brand-navy);
+}
+
+/* The one result dialog. A server flash, a fetch answer and a rejected
+   submission all build from this, so the only thing that differs between them
+   is the tone - which is the whole point of showing a dialog at all. */
+.app-dialog {
+    text-align: center;
+}
+
+.app-dialog-accent {
+    height: 5px;
+}
+
+.app-dialog-accent.is-success {
+    background: linear-gradient(90deg, #145c33, #34a065);
+}
+
+.app-dialog-accent.is-error {
+    background: linear-gradient(90deg, #961c1c, #d34a3f);
+}
+
+.app-dialog-accent.is-info {
+    background: linear-gradient(90deg, var(--brand-navy), var(--brand-accent));
+}
+
+.app-dialog-close {
+    position: absolute;
+    top: 0.85rem;
+    right: 0.85rem;
+    z-index: 1;
+}
+
+.app-dialog-message {
+    color: var(--brand-muted);
+}
+
+.app-dialog-actions {
+    justify-content: center;
+}
+
+.app-dialog-actions .app-modal-btn {
+    flex: 1 1 7.5rem;
+    min-width: 7.5rem;
+}
+
+.app-dialog-title {
+    letter-spacing: -0.01em;
+}
+
+/* A ring of the tone's own colour behind the chip is what stops the dialog
+   looking like a box with a glyph pasted into it, and makes the result sheet
+   and the confirm sheet read as one family. */
+.app-dialog .app-result-icon {
+    box-shadow: 0 0 0 7px rgba(17, 45, 87, 0.05);
+}
+
+.app-dialog .app-result-icon.is-success {
+    box-shadow: 0 0 0 7px rgba(20, 92, 51, 0.08);
+}
+
+.app-dialog .app-result-icon.is-error {
+    box-shadow: 0 0 0 7px rgba(150, 28, 28, 0.08);
+}
+
+html[data-theme="ember"] .app-dialog-accent.is-success { background: linear-gradient(90deg, #3f6320, #7aa83c); }
+html[data-theme="ember"] .app-dialog-accent.is-error { background: linear-gradient(90deg, #9c2b14, #e07a4b); }
+html[data-theme="ember"] .app-dialog .app-result-icon.is-success { box-shadow: 0 0 0 7px rgba(63, 99, 32, 0.10); }
+html[data-theme="ember"] .app-dialog .app-result-icon.is-error { box-shadow: 0 0 0 7px rgba(156, 43, 20, 0.10); }
+
 /* Transaction confirm sheet. Its rows are injected by JS, so every colour it
    needs has to live in a class rather than in Tailwind utilities. */
 .app-confirm-modal {
@@ -542,6 +615,20 @@ html[data-theme="ember"] .app-flag-tone-error { border-color: #e3b8ac; backgroun
 
 .app-modal-btn-danger:hover {
     background: #8f1c13;
+}
+
+/* A dialog puts keyboard focus on its go-button by itself, so the browser's
+   default black ring lands on a coloured button and looks like a border the
+   designer forgot. One soft ring in the brand's own ink instead. */
+.app-modal-btn:focus-visible,
+.app-modal-close:focus-visible {
+    outline: none;
+    box-shadow: 0 10px 20px rgba(18, 31, 56, 0.10), 0 0 0 3px rgba(17, 45, 87, 0.30);
+}
+
+html[data-theme="ember"] .app-modal-btn:focus-visible,
+html[data-theme="ember"] .app-modal-close:focus-visible {
+    box-shadow: 0 10px 20px rgba(88, 52, 18, 0.12), 0 0 0 3px rgba(189, 89, 14, 0.38);
 }
 
 /* Suggestion chips (recent phone numbers, quick amounts). One skin for Airtime

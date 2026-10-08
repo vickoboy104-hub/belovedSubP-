@@ -195,7 +195,7 @@
 
                 const channels = chosenChannels();
                 if (channels.length === 0) {
-                    showFlashToast('error', 'Choose at least one delivery channel.');
+                    showAppDialog({ tone: 'info', title: 'Choose a channel', message: 'Pick at least one delivery channel before sending this announcement.' });
                     return;
                 }
 
@@ -282,15 +282,22 @@
                     }
                     status.textContent = summary + '.';
 
-                    if (textFailed > 0 && gatewayNote) {
-                        showFlashToast('error', 'Some texts were rejected: ' + gatewayNote);
-                    } else {
-                        showFlashToast('success', 'Announcement delivered to ' + delivered.toLocaleString() + ' accounts.');
-                    }
-                    setTimeout(() => window.location.reload(), 1400);
+                    // Nothing dismisses this on a timer. A delivery that took
+                    // minutes to run is not worth a message that disappears before
+                    // the admin has read how many went out.
+                    const troubled = textFailed > 0 && gatewayNote;
+                    showAppDialog({
+                        tone: troubled ? 'error' : 'success',
+                        title: troubled ? 'Delivered, with a problem' : 'Announcement delivered',
+                        message: troubled ? summary + '. Some texts were rejected: ' + gatewayNote : summary + '.',
+                        actions: [
+                            { label: 'Fresh form', variant: 'primary', href: window.location.href },
+                            { label: 'Stay here', variant: 'muted' },
+                        ],
+                    });
                 } catch (error) {
                     status.textContent = error.message;
-                    showFlashToast('error', error.message);
+                    showAppDialog({ tone: 'error', title: 'Delivery stopped', message: error.message });
                     sendBtn.disabled = false;
                     sendBtn.classList.remove('btn-loading');
                 }
