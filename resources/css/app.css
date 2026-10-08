@@ -254,6 +254,43 @@ button {
     border-radius: 22px;
 }
 
+/* The tray's own positioning layer. On a phone it is the whole viewport, so the
+   card lands dead centre and the dimmed page behind it says "tap outside to put
+   this away". From the md breakpoint up it collapses to a zero-size anchor pinned
+   under the bell and lets the card hang there like a normal dropdown. */
+.app-bell-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.app-bell-layer > .app-bell-panel {
+    width: 100%;
+    max-width: 24rem;
+}
+
+@media (min-width: 768px) {
+    .app-bell-layer {
+        position: absolute;
+        inset: auto;
+        top: calc(100% + 0.5rem);
+        right: 0;
+        display: block;
+        padding: 0;
+        background: none;
+    }
+
+    .app-bell-layer > .app-bell-panel {
+        width: min(22rem, calc(100vw - 2rem));
+        max-width: none;
+    }
+}
+
 .app-bell-list {
     max-height: min(58vh, 26rem);
     overflow-y: auto;
@@ -656,6 +693,33 @@ html[data-theme="ember"] .app-modal-close:focus-visible {
 
 .app-choice-chip:active {
     transform: scale(0.96);
+}
+
+/* Recently used phone numbers sit inside a grid column, and a grid item's
+   default min-width:auto means a row of nowrap pills laid end to end can force
+   that column wider than the screen - which is what skewed the whole form to
+   one side. Wrapping shows every number at once without a hidden scroll, and
+   the max-width keeps a long label inside the viewport. */
+.app-phone-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.app-phone-chip-row .app-choice-chip {
+    flex: 0 1 auto;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* How many times the customer has already topped up with that number, so the
+   list reads as history rather than a random pile of digits. */
+.app-phone-chip-count {
+    margin-left: .4rem;
+    color: var(--brand-muted);
+    font-weight: 700;
 }
 
 /* Chips double as filter tabs on the admin queue pages, where one of them is
@@ -1159,6 +1223,10 @@ html[data-theme="ember"] .app-modal-close:focus-visible {
     .contact-picker-row input,
     .contact-picker-row .block.w-full {
         flex: 1 1 auto;
+        /* A bare <input> has an intrinsic width from its size attribute, and
+           without this it refuses to shrink - the row then grows past the
+           screen and the whole form leans to one side. */
+        min-width: 0;
     }
 
     .contact-picker-row .input-field,
@@ -1180,6 +1248,15 @@ html[data-theme="ember"] .app-modal-close:focus-visible {
         font-size: 0.76rem;
         font-weight: 700;
         line-height: 1;
+    }
+
+    /* The button only exists on a browser that can actually open the contact
+       book, so the script marks it with this class. It has to be a rule of our
+       own: `hidden` above compiles straight into this selector, and an unlayered
+       declaration outranks the layered `.inline-flex` utility, so adding that
+       utility to the element would never have made it appear. */
+    .contact-picker-btn.is-available {
+        display: inline-flex;
     }
 
     .contact-picker-btn:hover {
@@ -2113,8 +2190,34 @@ input[class*="bg-black/"]::placeholder, textarea[class*="bg-black/"]::placeholde
     .reference-app-shell.desktop-nav-collapsed .reference-main { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
+    /* Reduced motion means "do not throw me across the screen", not "snap
+       everything instantly" - a change nobody can see is a change that reads as
+       broken. The chrome keeps moving, just briefly. */
     .reference-app-shell .reference-header, .reference-app-shell .reference-main,
-    .reference-app-shell #desktop-navigation, .reference-sidebar-brand { transition-duration: .01ms; }
+    .reference-app-shell #desktop-navigation, .reference-sidebar-brand { transition-duration: .18s; }
+}
+
+/* One number decides how far the page steps aside, so the rail, the shift and
+   the tap catcher can never disagree about the width. */
+.reference-app-shell { --drawer-w: min(280px, 78vw); }
+.reference-drawer { width: var(--drawer-w); }
+
+@media (max-width: 767.98px) {
+    /* Push, not overlay. The rail is bolted to the left edge and the top bar and
+       the page slide off it together, the way a page swipes aside to show what is
+       underneath. Width is pinned to the viewport on purpose: the content must
+       travel, not reflow into a sliver, and the shell clips what hangs off the
+       right. Nothing here uses transform, because a transformed ancestor would
+       re-anchor every fixed popup inside the page. */
+    .reference-app-shell { overflow-x: hidden; }
+    .reference-app-shell .reference-main { width: 100vw; }
+    .reference-app-shell .reference-header {
+        transition: left .42s cubic-bezier(.22, 1, .36, 1), right .42s cubic-bezier(.22, 1, .36, 1);
+    }
+    .reference-app-shell .reference-main { transition: margin-left .42s cubic-bezier(.22, 1, .36, 1); }
+    .reference-app-shell.mobile-nav-open .reference-header { left: var(--drawer-w); right: calc(-1 * var(--drawer-w)); }
+    .reference-app-shell.mobile-nav-open .reference-main { margin-left: var(--drawer-w); }
+    .reference-drawer-scrim { left: var(--drawer-w); background: rgba(10, 31, 61, .34); }
 }
 
 /* Auth pages carry the same blue and orange language as the dashboard. */
@@ -2189,6 +2292,12 @@ input[class*="bg-black/"]::placeholder, textarea[class*="bg-black/"]::placeholde
 
 /* Corner badge on service tiles, matching the reference "New" marker. */
 .reference-service-tile { position: relative; }
+
+/* Tailwind puts its utilities in a layer, so the `display:flex` above wins over
+   a layered `.hidden` whatever the specificity - which is how the Awoof tile
+   stayed on the shelf after the provider withdrew it. Naming the tile again
+   outside the layer is what makes the switch actually switch. */
+.reference-service-tile.hidden { display: none; }
 .reference-tile-badge { position: absolute; top: .5rem; right: .5rem; padding: .15rem .45rem; border-radius: .35rem; background: #d9363e; color: #fff; font-size: .58rem; font-weight: 800; letter-spacing: .02em; }
 
 /* Brand logos (MTN, Glo, DSTV…) sit in the same circle as the glyph icons,
@@ -2215,6 +2324,27 @@ input[class*="bg-black/"]::placeholder, textarea[class*="bg-black/"]::placeholde
     .reference-auth-page .reference-auth-layout { gap: 0; }
     .reference-auth-page .app-form-shell { padding: 1.3rem; }
 }
+
+/* ==========================================================================
+   SIGN-IN CARD — the mark rides on the panel's top edge, each field carries
+   its own icon, and the notice is a strip the visitor can put away instead of
+   a wall of text that repeats on every visit.
+   ========================================================================== */
+.reference-auth-page .app-form-shell { position: relative; margin-top: 54px; padding-top: 3.3rem; }
+.reference-auth-crest { position: absolute; left: 50%; top: -54px; transform: translateX(-50%); display: grid; place-items: center; width: 104px; height: 104px; padding: 5px; border-radius: 50%; background: #fff; box-shadow: 0 16px 34px rgba(16, 43, 82, .2); }
+.reference-auth-crest img { width: 92px; height: 92px; border-radius: 50%; object-fit: cover; }
+
+.reference-auth-notice { display: flex; align-items: flex-start; gap: .6rem; padding: .8rem .9rem; border: 1px solid #f0c8c1; border-left: 4px solid #b42318; border-radius: .55rem; background: #fdf1ef; color: #7a271a; font-size: .84rem; line-height: 1.6; }
+.reference-auth-notice strong { display: block; font-weight: 800; }
+.reference-auth-notice-close { flex: none; margin-left: auto; display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: .4rem; color: #a2402f; font-size: 1.05rem; line-height: 1; }
+.reference-auth-notice-close:hover { background: rgba(180, 35, 24, .1); }
+
+.app-field { position: relative; }
+.app-field-icon { position: absolute; left: .8rem; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 1.35rem; color: #7d8aa3; pointer-events: none; }
+.app-field :is(input, select):not([type="checkbox"]) { padding-left: 2.5rem; }
+.app-field-reveal { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 2.1rem; height: 2.1rem; border-radius: .45rem; color: #5a6b86; }
+.app-field-reveal:hover { background: rgba(23, 63, 116, .08); color: #173f74; }
+.app-field :is(input)[data-revealable] { padding-right: 3.1rem; }
 /* Shared customer actions and support control. */
 .btn-primary:focus-visible, .btn-danger:focus-visible,
 .reference-full-button:focus-visible,
@@ -2439,7 +2569,11 @@ html.splash-active .reference-splash { opacity: 1; visibility: visible; pointer-
 
 @media (prefers-reduced-motion: reduce) {
     .reference-splash { transition: none; }
-    .reference-brand-ring,
+    /* A loader that stops moving is not a calm loader - it reads as a site that
+       has hung, which is the one thing this animation exists to disprove. So the
+       working ring keeps turning, just slowly, and only the decorative outer arc
+       is silenced. */
+    .reference-brand-ring { animation-duration: 1.9s; }
     .reference-brand-ring-accent { animation: none; }
     .reference-auth-page .app-form-shell,
     .reference-auth-page .app-accent-panel { animation: none; }
@@ -2506,6 +2640,45 @@ html.motion-ready [data-motion="reveal"].is-revealed { opacity: 1; transform: no
     .reference-service-tile:active,
     .reference-tile:active,
     .reference-nav-link:active { transform: none; }
+}
+
+/* ==========================================================================
+   WALLET STATISTICS — the admin's money view. The shapes are drawn by the
+   server, so a browser with JavaScript off still gets the whole picture; the
+   animation only draws the eye along a bar that is already there.
+   ========================================================================== */
+.app-bar-track { height: var(--bar-h, .62rem); border-radius: 999px; background: var(--surface-muted, #eef3fa); overflow: hidden; }
+.app-bar-fill { height: 100%; width: var(--bar-w, 0%); border-radius: 999px; background: linear-gradient(90deg, var(--brand-navy), var(--brand-accent)); transform-origin: left center; animation: appBarGrow .78s cubic-bezier(.22, .61, .36, 1) both; animation-delay: var(--bar-delay, 0ms); }
+@keyframes appBarGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.app-chart { display: block; width: 100%; height: auto; }
+.app-chart-grid { stroke: var(--brand-line); stroke-width: 1; }
+.app-chart-area { fill: url(#appChartShade); opacity: 0; animation: appChartFade .9s ease-out .45s both; }
+.app-chart-line { fill: none; stroke: var(--brand-navy); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: var(--chart-length, 2600); stroke-dashoffset: var(--chart-length, 2600); animation: appChartDraw 1.6s ease-out .05s both; }
+.app-chart-dot { fill: #fff; stroke: var(--brand-accent); stroke-width: 2.5; opacity: 0; animation: appChartFade .5s ease-out both; animation-delay: 1.15s; }
+@keyframes appChartDraw { to { stroke-dashoffset: 0; } }
+@keyframes appChartFade { to { opacity: 1; } }
+
+.app-chart-scale { display: flex; justify-content: space-between; gap: .5rem; margin-top: .4rem; font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--brand-muted); }
+
+.app-wallet-row { padding: 1rem; border: 1px solid var(--brand-line); border-radius: .55rem; background: var(--surface-card); }
+.app-wallet-open { display: inline-block; margin-top: .7rem; font-size: .78rem; font-weight: 800; color: var(--brand-navy); }
+.app-wallet-trail > summary { display: flex; align-items: center; gap: .4rem; margin-top: .75rem; font-size: .76rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--brand-muted); cursor: pointer; list-style: none; }
+.app-wallet-trail > summary::-webkit-details-marker { display: none; }
+.app-wallet-trail > summary::before { content: '\203A'; font-size: 1.1rem; line-height: 1; transition: transform .2s ease; }
+.app-wallet-trail[open] > summary::before { transform: rotate(90deg); }
+.app-wallet-trail[open] > div { animation: fadeInUp .32s ease both; }
+.app-trail-row { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; font-size: .82rem; }
+.app-trail-label { color: var(--brand-muted); font-weight: 700; }
+.app-trail-amount { color: var(--brand-text); font-weight: 800; font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+    .app-bar-fill { animation: none; }
+    .app-chart-line { animation: none; stroke-dasharray: none; stroke-dashoffset: 0; }
+    .app-chart-area,
+    .app-chart-dot { animation: none; opacity: 1; }
+    .app-wallet-trail > summary::before { transition: none; }
+    .app-wallet-trail[open] > div { animation: none; }
 }
 
 /* ==========================================================================

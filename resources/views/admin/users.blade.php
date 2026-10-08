@@ -217,7 +217,7 @@
                                                 <input type="number" min="0" max="100" step="0.01" name="discount_percent"
                                                        value="{{ old('discount_percent', $u->discount_percent ?? 0) }}"
                                                        class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
-                                                <button class="rounded-xl bg-[#17233d] px-3 py-2 text-xs font-bold text-white">
+                                                <button class="btn-primary justify-center px-3 py-2 text-xs">
                                                     Update %
                                                 </button>
                                             </form>

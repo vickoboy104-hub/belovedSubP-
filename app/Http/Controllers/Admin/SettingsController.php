@@ -156,6 +156,7 @@ class SettingsController extends Controller
             'home_popup_message'        => ['nullable', 'string', 'max:5000'],
             'dashboard_marquee_message' => ['nullable', 'string', 'max:500'],
             'dashboard_popup_message'   => ['nullable', 'string', 'max:5000'],
+            'login_popup_message'       => ['nullable', 'string', 'max:5000'],
             'fund_wallet_marquee_message' => ['nullable', 'string', 'max:500'],
             'marquee_speed_seconds' => ['nullable', 'numeric', 'min:5', 'max:120'],
             'maintenance_overlay_end_at' => ['nullable', 'date'],
@@ -294,6 +295,7 @@ class SettingsController extends Controller
 
         $data['home_popup_enabled'] = $request->boolean('home_popup_enabled') ? '1' : '0';
         $data['dashboard_popup_enabled'] = $request->boolean('dashboard_popup_enabled') ? '1' : '0';
+        $data['login_popup_enabled'] = $request->boolean('login_popup_enabled') ? '1' : '0';
         $data['maintenance_overlay_enabled'] = $request->boolean('maintenance_overlay_enabled') ? '1' : '0';
 
         // Backward compatibility for old keys
@@ -304,6 +306,9 @@ class SettingsController extends Controller
         }
         if (array_key_exists('dashboard_popup_message', $data)) {
             $data['dashboard_popup_message'] = sanitize_popup_message_html((string) $data['dashboard_popup_message']);
+        }
+        if (array_key_exists('login_popup_message', $data)) {
+            $data['login_popup_message'] = sanitize_popup_message_html((string) $data['login_popup_message']);
         }
 
         // Each logo lives in its own setting so an admin can give the dashboard,

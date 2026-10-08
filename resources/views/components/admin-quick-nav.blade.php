@@ -9,6 +9,7 @@
         ['label' => 'Manual Requests', 'route' => 'admin.manual-orders.index', 'badge' => $waitingManualRequests],
         ['label' => 'Users', 'route' => 'admin.users'],
         ['label' => 'Wallet Transactions', 'route' => 'admin.wallet.transactions'],
+        ['label' => 'Wallet Statistics', 'route' => 'admin.wallet-stats'],
         ['label' => 'Notifications', 'route' => 'admin.notifications.index'],
         ['label' => 'Support Chats', 'route' => 'admin.support.chats'],
         ['label' => 'Announcements', 'route' => 'admin.broadcast'],

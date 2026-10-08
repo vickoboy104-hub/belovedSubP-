@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\OrdersController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\WalletTransactionsController;
+use App\Http\Controllers\Admin\WalletStatsController;
 use App\Http\Controllers\Admin\SupportChatsController;
 use App\Http\Controllers\Admin\BroadcastController;
 use App\Http\Controllers\FlutterwaveController;
@@ -142,6 +143,7 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::post('/users/{user}/fund-wallet', [UsersController::class, 'fundWallet'])->name('admin.users.fund-wallet');
     Route::post('/users/{user}/adjust-wallet', [UsersController::class, 'adjustWallet'])->name('admin.users.adjust-wallet');
     Route::get('/wallet-transactions', [WalletTransactionsController::class, 'index'])->name('admin.wallet.transactions');
+    Route::get('/wallet-stats', [WalletStatsController::class, 'index'])->name('admin.wallet-stats');
     Route::post('/notifications/read-all', [DashboardController::class, 'markNotificationsRead'])->name('admin.notifications.read-all');
     Route::get('/notifications', [DashboardController::class, 'notificationsIndex'])->name('admin.notifications.index');
     Route::get('/support/chats', [SupportChatsController::class, 'index'])->name('admin.support.chats');

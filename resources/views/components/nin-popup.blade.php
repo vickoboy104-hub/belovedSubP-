@@ -37,13 +37,13 @@
                 <button id="ninPopupLater"
                         type="button"
                         class="app-modal-btn app-modal-btn-muted">
-                    Later
+                    Close
                 </button>
 
                 @if(!empty($whatsAppChannel))
                     <a href="{{ $whatsAppChannel }}" target="_blank"
                        class="app-modal-btn app-modal-btn-warm">
-                        Join BelovedSubP Channel
+                        Join our WhatsApp Channel
                     </a>
                 @endif
 

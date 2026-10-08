@@ -16,43 +16,54 @@
         <span x-show="unread > 0" x-cloak x-text="badge" class="app-bell-badge"></span>
     </button>
 
+    {{-- On a phone the tray cannot hang off the bell: the header is 64px tall and
+         the list is far taller than the strip of screen left below it, so an
+         anchored panel always runs off the bottom. The layer centres it instead,
+         and only gives the desktop its anchored dropdown back. --}}
     <div x-cloak x-show="open"
-         x-transition.origin.top.right
          @click.outside="open = false"
          @keydown.escape.window="open = false"
-         class="app-glass-card app-bell-panel absolute right-0 top-[calc(100%+0.5rem)] z-[70] w-[min(22rem,calc(100vw-2rem))] p-2 text-slate-800">
-        <div class="flex items-center justify-between gap-3 px-1 pb-2">
-            <span class="text-sm font-extrabold">Alerts</span>
-            <form method="POST" action="{{ route('notifications.read-all') }}">
-                @csrf
-                <button type="submit" class="text-xs font-bold underline opacity-75">Mark all read</button>
-            </form>
+         x-transition:enter="transition duration-200 ease-out"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition duration-150 ease-in"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="app-bell-layer">
+        <div class="app-glass-card app-bell-panel p-2 text-slate-800">
+            <div class="flex items-center justify-between gap-3 px-1 pb-2">
+                <span class="text-sm font-extrabold">Alerts</span>
+                <form method="POST" action="{{ route('notifications.read-all') }}">
+                    @csrf
+                    <button type="submit" class="text-xs font-bold underline opacity-75">Mark all read</button>
+                </form>
+            </div>
+
+            <div class="app-bell-list">
+                <template x-for="item in items" :key="item.id">
+                    <a :href="item.url"
+                         @click.prevent="follow(item)"
+                         class="app-bell-item"
+                         :class="{ 'is-unread': item.unread }">
+                        <span class="app-bell-title">
+                            <span x-text="item.title"></span>
+                            <span class="app-bell-amount" x-show="item.amount" x-text="item.amount"></span>
+                        </span>
+                        <span class="app-bell-text" x-text="item.message"></span>
+                        <span class="app-bell-meta">
+                            <span x-text="item.at"></span>
+                            <span x-show="item.unread" class="font-bold">new</span>
+                        </span>
+                    </a>
+                </template>
+
+                <p x-show="!loading && items.length === 0" class="app-bell-empty">
+                    Nothing yet. Payments, order results and replies from support arrive here.
+                </p>
+                <p x-show="loading && items.length === 0" class="app-bell-empty">Checking your alerts…</p>
+            </div>
+
+            <a href="{{ route('notifications.index') }}" class="app-bell-all">View all alerts →</a>
         </div>
-
-        <div class="app-bell-list">
-            <template x-for="item in items" :key="item.id">
-                <a :href="item.url"
-                     @click.prevent="follow(item)"
-                     class="app-bell-item"
-                     :class="{ 'is-unread': item.unread }">
-                    <span class="app-bell-title">
-                        <span x-text="item.title"></span>
-                        <span class="app-bell-amount" x-show="item.amount" x-text="item.amount"></span>
-                    </span>
-                    <span class="app-bell-text" x-text="item.message"></span>
-                    <span class="app-bell-meta">
-                        <span x-text="item.at"></span>
-                        <span x-show="item.unread" class="font-bold">new</span>
-                    </span>
-                </a>
-            </template>
-
-            <p x-show="!loading && items.length === 0" class="app-bell-empty">
-                Nothing yet. Payments, order results and replies from support arrive here.
-            </p>
-            <p x-show="loading && items.length === 0" class="app-bell-empty">Checking your alerts…</p>
-        </div>
-
-        <a href="{{ route('notifications.index') }}" class="app-bell-all">View all alerts →</a>
     </div>
 </div>

@@ -110,7 +110,7 @@
     <div x-data="{ drawerOpen: false, desktopNavOpen: true, profileMenuOpen: false }"
          x-effect="document.body.style.overflow = drawerOpen ? 'hidden' : ''"
          @resize.window="if (window.innerWidth >= 768) drawerOpen = false"
-         :class="{ 'desktop-nav-collapsed': !desktopNavOpen }" class="reference-app-shell min-h-screen">
+         :class="{ 'desktop-nav-collapsed': !desktopNavOpen, 'mobile-nav-open': drawerOpen }" class="reference-app-shell min-h-screen">
         <a href="{{ route('dashboard') }}" class="reference-sidebar-brand hidden md:flex" aria-label="{{ $siteName }} dashboard">
             <img src="{{ $logoUrl }}" alt="{{ $siteName }} logo" class="h-10 w-auto max-w-[170px] object-contain">
         </a>
@@ -183,20 +183,24 @@
 
         </header>
 
-        <div x-cloak x-show="drawerOpen" x-transition:enter="transition-opacity duration-500 ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity duration-500 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-x-0 bottom-0 top-[64px] z-50 bg-black/55 md:hidden" @click="drawerOpen = false"></div>
+        {{-- Push navigation: the drawer does not cover the page, the page steps
+             aside for it. This catcher sits over the shifted page only, so a tap
+             anywhere on the content closes the drawer while the rail itself stays
+             clickable. --}}
+        <div x-cloak x-show="drawerOpen" x-transition:enter="transition-opacity duration-500 ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity duration-500 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="reference-drawer-scrim fixed inset-0 z-[45] md:hidden" @click="drawerOpen = false"></div>
 
         <aside id="mobile-navigation" x-cloak x-show="drawerOpen"
                :class="{ 'drawer-is-open': drawerOpen }"
-               x-transition:enter="transition transform duration-[650ms] ease-out"
+               x-transition:enter="transition transform duration-[450ms] ease-out"
                x-transition:enter-start="-translate-x-full"
                x-transition:enter-end="translate-x-0"
-               x-transition:leave="transition transform duration-[650ms] ease-in"
+               x-transition:leave="transition transform duration-[450ms] ease-in"
                x-transition:leave-start="translate-x-0"
                x-transition:leave-end="-translate-x-full"
                @keydown.escape.window="drawerOpen = false; profileMenuOpen = false"
                :aria-hidden="!drawerOpen" :inert="!drawerOpen"
                role="dialog" aria-label="Navigation" aria-modal="true"
-               class="reference-sidebar fixed left-0 top-[64px] z-[60] h-[calc(100vh-64px)] w-[80%] max-w-[310px] overflow-y-auto md:hidden">
+               class="reference-sidebar reference-drawer fixed left-0 top-0 z-[50] h-full overflow-y-auto overscroll-contain md:hidden">
             <div class="flex items-center justify-end p-2">
                 <button type="button"
                         class="reference-drawer-close flex h-11 w-11 items-center justify-center"

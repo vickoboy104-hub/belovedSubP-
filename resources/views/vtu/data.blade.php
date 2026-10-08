@@ -46,7 +46,7 @@
                 </div>
 
                 <div class="grid gap-5 md:grid-cols-2">
-                    <div>
+                    <div class="min-w-0">
                         <label class="block text-sm font-bold text-slate-700">Phone Number</label>
                         <div class="contact-picker-row mt-2">
                             <input id="phone" type="tel" name="phone" required placeholder="Enter Phone Number" list="dataPhoneSuggestionList" class="input-field" inputmode="tel" autocomplete="tel-national" data-contact-picker-input>
@@ -65,10 +65,10 @@
                                 @endforeach
                             </datalist>
                             <p class="app-choice-caption mt-3">Recently used numbers</p>
-                            <div class="mt-2 flex flex-nowrap gap-2 overflow-x-auto pb-1">
+                            <div class="app-phone-chip-row mt-2">
                                 @foreach(($phoneSuggestions ?? []) as $suggestion)
-                                    <button type="button" class="data-phone-suggestion app-choice-chip shrink-0" data-phone="{{ $suggestion['phone'] }}">
-                                        {{ $suggestion['phone'] }}
+                                    <button type="button" class="data-phone-suggestion app-choice-chip" data-phone="{{ $suggestion['phone'] }}" title="{{ $suggestion['label'] }}">
+                                        {{ $suggestion['phone'] }}@if(($suggestion['count'] ?? 1) > 1)<span class="app-phone-chip-count">{{ $suggestion['count'] }}&times;</span>@endif
                                     </button>
                                 @endforeach
                             </div>

@@ -18,6 +18,18 @@
         // wear the separate square mark the admin uploads for them.
         $logoUrl = site_login_logo_url();
         $brandMark = site_loader_logo_url();
+
+        // The sign-in page is the one moment every customer passes through on the
+        // way in, so it is where the admin's channel invitation gets shown. It is
+        // the same notice sheet the home and dashboard pages use, and it appears
+        // once per browser session rather than on every failed password attempt.
+        $isLoginPage = request()->routeIs('login');
+        $loginPopupEnabled = $isLoginPage
+            && (string) setting('login_popup_enabled', '1') === '1';
+        $loginPopupMessage = setting(
+            'login_popup_message',
+            'Join our WhatsApp channel for giveaways, price drops and service updates.'
+        );
     @endphp
 
     <title>{{ $siteName }}</title>
@@ -45,6 +57,9 @@
     <x-maintenance-overlay />
     <x-app-splash :logo="$brandMark" :name="$siteName" />
     <x-global-loader :logo="$brandMark" :name="$siteName" />
+    @if($loginPopupEnabled)
+        <x-nin-popup :message="$loginPopupMessage" popupKey="login_popup_seen" />
+    @endif
 
     <header x-data="{ menuOpen: false }" class="app-header-bar fixed inset-x-0 top-0 z-40">
         <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
@@ -84,8 +99,8 @@
         @if($isAuthPage)
             <div class="reference-auth-layout mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[420px_minmax(0,1fr)] lg:items-stretch">
                 <section class="app-form-shell self-start">
-                    <div class="mb-8 flex justify-center lg:justify-start">
-                        <img src="{{ $logoUrl }}" alt="{{ $siteName }} logo" class="h-14 w-auto object-contain">
+                    <div class="reference-auth-crest">
+                        <img src="{{ $brandMark }}" alt="{{ $siteName }} emblem">
                     </div>
                     {{ $slot }}
                 </section>

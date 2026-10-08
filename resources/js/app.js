@@ -489,7 +489,7 @@ document.body.classList.add('page-is-entering');
 
         if (supported) {
             button.classList.remove('hidden');
-            button.classList.add('inline-flex');
+            button.classList.add('is-available');
         }
 
         button.addEventListener('click', async () => {

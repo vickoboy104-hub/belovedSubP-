@@ -236,6 +236,35 @@
                     </div>
 
                     <div class="rounded-2xl border border-gray-200 p-4">
+                        <div class="font-bold text-gray-500">Sign-in Page</div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            Shown to anyone on the login page, once per browser session. Use it to pull people into your WhatsApp channel.
+                        </div>
+                        <div class="grid grid-cols-1 gap-4 mt-3">
+                            <div class="flex items-center gap-3">
+                                <input id="login_popup_enabled" type="checkbox" name="login_popup_enabled" value="1"
+                                       @checked(old('login_popup_enabled', $settings['login_popup_enabled'] ?? '1') == '1')
+                                       class="w-5 h-5 rounded border-gray-300 bg-white">
+                                <label for="login_popup_enabled" class="text-sm text-gray-800/80 font-bold">Enable Popup</label>
+                            </div>
+
+                            <div>
+                                <label class="text-sm font-bold text-gray-800/80">Popup Message</label>
+                                @php
+                                    $loginPopupValue = old('login_popup_message', $settings['login_popup_message'] ?? 'Join our WhatsApp channel for giveaways, price drops and service updates.');
+                                @endphp
+                                <x-admin.popup-rich-editor
+                                    name="login_popup_message"
+                                    id="login_popup_message"
+                                    :value="$loginPopupValue"
+                                    placeholder="Type the sign-in popup message..."
+                                    helper="The channel button below this message uses the WhatsApp Channel link set at the top of this page."
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-2xl border border-gray-200 p-4">
                         <div class="font-bold text-gray-500">Fund Wallet Page</div>
                         <div class="grid grid-cols-1 gap-4 mt-3">
                             <div>

@@ -4,7 +4,6 @@
         $meta = $order->meta ?? [];
         $discountKobo = (int) ($meta['discount_kobo'] ?? 0);
         $profitN = number_format($discountKobo / 100, 2);
-        $feeN = number_format((float) ($meta['markup_naira'] ?? 0), 2);
         $type = $meta['type'] ?? 'order';
         $balanceBeforeN = $balanceBeforeKobo !== null ? number_format($balanceBeforeKobo / 100, 2) : null;
         $balanceAfterN = $balanceAfterKobo !== null ? number_format($balanceAfterKobo / 100, 2) : null;
@@ -29,12 +28,6 @@
             }
         }
 
-        $providerLabel = match ((string) $order->provider) {
-            'gsubz' => 'GSUBZ',
-            'alt' => 'Alternative Provider',
-            'manual' => $siteName.' Team',
-            default => $siteName,
-        };
     @endphp
 
     <style>
@@ -119,11 +112,6 @@
                 </div>
 
                 <div class="rounded-xl bg-slate-50 border border-gray-200 p-4">
-                    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Fee</div>
-                    <div class="font-extrabold">&#8358;{{ $feeN }}</div>
-                </div>
-
-                <div class="rounded-xl bg-slate-50 border border-gray-200 p-4">
                     <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Initial Balance</div>
                     <div class="font-extrabold">
                         @if($balanceBeforeN !== null)
@@ -148,11 +136,6 @@
                 <div class="rounded-xl bg-slate-50 border border-gray-200 p-4">
                     <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Discount</div>
                     <div class="font-extrabold">&#8358;{{ $profitN }}</div>
-                </div>
-
-                <div class="rounded-xl bg-slate-50 border border-gray-200 p-4">
-                    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Provider</div>
-                    <div class="font-extrabold">{{ $providerLabel }}</div>
                 </div>
 
                 <div class="rounded-xl bg-slate-50 border border-gray-200 p-4 col-span-2">

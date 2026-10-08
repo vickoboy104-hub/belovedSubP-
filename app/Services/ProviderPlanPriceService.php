@@ -3,11 +3,22 @@
 namespace App\Services;
 
 use App\Models\ProviderPlanPrice;
+use App\Models\User;
+use App\Notifications\AdminSystemAlertNotification;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class ProviderPlanPriceService
 {
+    /**
+     * The cheap MTN plans the customer page advertises by name. It is the one
+     * catalogue the provider switches on and off without warning, so its status
+     * gets announced instead of silently disappearing from the menu.
+     */
+    private const ANNOUNCED_SLUG = 'mtn_awoof';
+
     public function __construct(
         private readonly GsubzApi $gsubzApi,
     ) {
@@ -74,6 +85,7 @@ class ProviderPlanPriceService
     {
         $provider = $this->currentProvider();
         $slugs = $this->stalestServiceSlugs($limit, $provider);
+        $wasAnnouncedListed = $this->activePlanCount($this->serviceSlugKey(self::ANNOUNCED_SLUG), $provider) > 0;
 
         $syncedPlans = 0;
         $failedServices = [];
@@ -96,10 +108,25 @@ class ProviderPlanPriceService
                     continue;
                 }
 
-                $syncedPlans += $this->syncPlans($serviceSlug, $resp['plans'], $providerServiceId, $provider)->count();
+                $syncedPlans += $this->syncPlans($serviceSlug, $resp['plans'], $providerServiceId, $provider, true)->count();
             } catch (\Throwable $e) {
                 $failedServices[] = $serviceSlug;
             }
+        }
+
+        // Retiring plans and announcing them are two different claims. A service
+        // the provider never answered for proves nothing, so the status is only
+        // read when the sweep actually reached it and came back clean.
+        $announcedWasAnswered = in_array(self::ANNOUNCED_SLUG, $attempted, true)
+            && !in_array(self::ANNOUNCED_SLUG, $failedServices, true);
+
+        if ($announcedWasAnswered) {
+            $this->announcePlanStatusFlip(
+                self::ANNOUNCED_SLUG,
+                $wasAnnouncedListed,
+                $this->activePlanCount($this->serviceSlugKey(self::ANNOUNCED_SLUG), $provider) > 0,
+                $provider
+            );
         }
 
         return [
@@ -198,12 +225,13 @@ class ProviderPlanPriceService
      * @param array<int, mixed> $plans
      * @return Collection<int, ProviderPlanPrice>
      */
-    public function syncPlans(string $serviceSlug, array $plans, ?string $providerServiceId = null, ?string $provider = null): Collection
+    public function syncPlans(string $serviceSlug, array $plans, ?string $providerServiceId = null, ?string $provider = null, bool $catalogueIsComplete = false): Collection
     {
         $provider = trim((string) ($provider ?? $this->currentProvider()));
         $serviceSlug = str_replace(' ', '_', strtolower(trim($serviceSlug)));
         $providerServiceId = trim((string) ($providerServiceId ?? $this->providerServiceId($serviceSlug, $provider)));
         $synced = collect();
+        $seenPlanIds = [];
 
         foreach ($plans as $plan) {
             if (!is_array($plan)) {
@@ -215,6 +243,8 @@ class ProviderPlanPriceService
             if ($serviceSlug === '' || $planId === '' || $providerPrice <= 0) {
                 continue;
             }
+
+            $seenPlanIds[] = $planId;
 
             $row = ProviderPlanPrice::query()->firstOrNew([
                 'provider' => $provider,
@@ -239,6 +269,27 @@ class ProviderPlanPriceService
             $synced->push($row->refresh());
         }
 
+        // A plan the provider stopped returning has to stop being offered here
+        // too, otherwise the catalogue the admin reads and the menu the customer
+        // buys from drift apart forever. Only a caller that knows the provider
+        // answered the whole question may retire rows: during an outage the plan
+        // list arrives empty too, and that means nothing about the catalogue.
+        if ($catalogueIsComplete && $serviceSlug !== '') {
+            $retire = ProviderPlanPrice::query()
+                ->where('provider', $provider)
+                ->where('service_slug', $serviceSlug)
+                ->where('is_active', true);
+
+            if ($seenPlanIds !== []) {
+                $retire->whereNotIn('plan_id', $seenPlanIds);
+            }
+
+            // Being told "these are gone" is itself a fresh answer, so the row is
+            // stamped too; otherwise the withdrawal verdict ages out and a service
+            // the provider withdrew keeps looking like it might still be listed.
+            $retire->update(['is_active' => false, 'last_synced_at' => now()]);
+        }
+
         return $synced;
     }
 
@@ -246,11 +297,11 @@ class ProviderPlanPriceService
      * @param array<int, mixed> $plans
      * @return array<int, mixed>
      */
-    public function customerPlans(array $plans, string $serviceSlug, ?string $providerServiceId = null, ?string $provider = null): array
+    public function customerPlans(array $plans, string $serviceSlug, ?string $providerServiceId = null, ?string $provider = null, bool $catalogueIsComplete = false): array
     {
         $provider = trim((string) ($provider ?? $this->currentProvider()));
         $serviceSlug = str_replace(' ', '_', strtolower(trim($serviceSlug)));
-        $this->syncPlans($serviceSlug, $plans, $providerServiceId, $provider);
+        $this->syncPlans($serviceSlug, $plans, $providerServiceId, $provider, $catalogueIsComplete);
 
         $rows = ProviderPlanPrice::query()
             ->where('provider', $provider)
@@ -323,6 +374,93 @@ class ProviderPlanPriceService
         $row->selling_price = max(0, $sellingPrice);
         $row->selling_price_is_custom = abs(((float) $row->selling_price) - ((float) $row->provider_price)) > 0.004;
         $row->save();
+    }
+
+    /**
+     * How many plans this provider currently has on the shelf for a service.
+     */
+    public function activePlanCount(string $serviceSlug, ?string $provider = null): int
+    {
+        return ProviderPlanPrice::query()
+            ->where('provider', trim((string) ($provider ?? $this->currentProvider())))
+            ->where('service_slug', $this->serviceSlugKey($serviceSlug))
+            ->where('is_active', true)
+            ->count();
+    }
+
+    /**
+     * Whether a service is known to have been taken off the provider's shelf.
+     *
+     * The answer only counts while it is recent. A stale verdict means the sync
+     * job stopped talking, not that the plans went away, and a working service
+     * must not be hidden from customers because of that.
+     */
+    public function isWithdrawnByProvider(string $serviceSlug, int $freshMinutes = 180, ?string $provider = null): bool
+    {
+        $provider = trim((string) ($provider ?? $this->currentProvider()));
+        $lastSynced = $this->latestSyncAt($this->serviceSlugKey($serviceSlug), $provider);
+
+        if ($lastSynced === null || $lastSynced->lt(Carbon::now()->subMinutes(max(1, $freshMinutes)))) {
+            return false;
+        }
+
+        return $this->activePlanCount($this->serviceSlugKey($serviceSlug), $provider) === 0;
+    }
+
+    private function latestSyncAt(string $serviceSlug, string $provider): ?Carbon
+    {
+        $raw = ProviderPlanPrice::query()
+            ->where('provider', $provider)
+            ->where('service_slug', $serviceSlug)
+            ->max('last_synced_at');
+
+        return $raw === null ? null : Carbon::parse($raw);
+    }
+
+    private function serviceSlugKey(string $serviceSlug): string
+    {
+        return str_replace(' ', '_', strtolower(trim($serviceSlug)));
+    }
+
+    /**
+     * The robot's job is to say when the cheap plans went away and when they came
+     * back. A steady run of the same answer is not news, so this only speaks on a
+     * change of state - otherwise the alert board fills with the same message
+     * every hour and stops being an alert.
+     */
+    private function announcePlanStatusFlip(string $serviceSlug, bool $wasListed, bool $isListed, string $provider): void
+    {
+        if ($wasListed === $isListed) {
+            return;
+        }
+
+        $label = $this->pricingServiceGroups()['MTN Data'][$serviceSlug]
+            ?? str_replace('_', ' ', ucwords($serviceSlug, '_'));
+
+        try {
+            $admins = User::query()->where('is_admin', true)->get();
+            if ($admins->isEmpty()) {
+                return;
+            }
+
+            Notification::send($admins, new AdminSystemAlertNotification(
+                title: $isListed ? $label.' is back' : $label.' is not available',
+                message: $isListed
+                    ? 'The provider is offering '.$label.' again. It is live on the Buy Data page.'
+                    : 'The provider no longer offers any plan under '.$label.', so it is hidden from customers until it returns.',
+                severity: $isListed ? 'info' : 'critical',
+                url: url('/admin/settings'),
+                payload: [
+                    'type' => 'provider_plan_status_'.$serviceSlug.($isListed ? '_returned' : '_withdrawn'),
+                    'provider' => $provider,
+                ],
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Could not announce a change in provider plan availability.', [
+                'service' => $serviceSlug,
+                'exception' => $e,
+            ]);
+        }
     }
 
     public function planId(array $plan): string

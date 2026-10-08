@@ -283,12 +283,38 @@ class VtuController extends Controller
     {
         return view('vtu.data-index', [
             'services' => $this->dataServices(),
+            'awoofState' => $this->cheapPlanState(),
         ]);
+    }
+
+    /**
+     * What the last price sweep says about the cheap MTN plans, so the page can
+     * hand the robot an answer straight away instead of waiting for the browser
+     * to go and ask the provider. The browser still confirms it live.
+     */
+    private function cheapPlanState(): string
+    {
+        if ($this->planPrices->isWithdrawnByProvider('mtn_awoof')) {
+            return 'unavailable';
+        }
+
+        return $this->planPrices->activePlanCount('mtn_awoof') > 0 ? 'available' : 'unknown';
     }
 
     public function dataServiceForm(string $service)
     {
         $services = $this->dataServices();
+        $label = $services[$service] ?? str_replace('_', ' ', ucwords($service, '_'));
+
+        // A tile that went away is still reachable through a bookmark or an old
+        // shared link, so the page itself has to answer for the provider having
+        // taken the plan off the shelf.
+        if ($this->planPrices->isWithdrawnByProvider($service)) {
+            return redirect()
+                ->route('vtu.data')
+                ->with('error', $label.' is not available right now. Pick another data service.');
+        }
+
         abort_unless(array_key_exists($service, $services), 404);
 
         return view('vtu.data', [
@@ -3069,7 +3095,7 @@ class VtuController extends Controller
         $providerServiceId = $this->providerServiceId($serviceId);
         $resp = $this->gsubz->plans($providerServiceId);
         $provider = (string) setting('provider', 'gsubz');
-        $plans = $this->planPrices->customerPlans($resp['plans'] ?? [], $serviceId, $providerServiceId, $provider);
+        $plans = $this->planPrices->customerPlans($resp['plans'] ?? [], $serviceId, $providerServiceId, $provider, (bool) ($resp['ok'] ?? false));
 
         return response()->json([
             'ok'      => (bool) ($resp['ok'] ?? false),

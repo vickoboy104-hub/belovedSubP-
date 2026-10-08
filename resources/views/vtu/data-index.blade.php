@@ -15,26 +15,36 @@
             'glo_sme' => asset('networks/glo.png'),
             'etisalat_data' => asset('networks/9mobile.png'),
         ];
+        /* The last price sweep already knows whether the provider lists Awoof,
+           so the tile and the robot can answer on first paint instead of
+           waiting for the browser to go and ask. 'unknown' means the sweep
+           never got a clean answer, so nothing is claimed until the live
+           check agrees. */
+        $awoofSeed = in_array($awoofState ?? 'unknown', ['available', 'unavailable'], true)
+            ? (string) $awoofState
+            : 'unknown';
     @endphp
 
     <x-page-hero class="reference-shared-banner" title="Buy Data Subscription" subtitle="Select a data provider to see available plans." />
 
     <div class="reference-flow-page mx-auto max-w-6xl space-y-5"
          id="dataServiceIndex"
-         data-awoof-check-url="{{ route('gsubz.plans', ['service' => 'mtn_awoof']) }}">
+         data-awoof-check-url="{{ route('gsubz.plans', ['service' => 'mtn_awoof']) }}"
+         data-awoof-server-state="{{ $awoofSeed }}">
         <div class="reference-tile-grid">
             @foreach($services as $slug => $label)
                 @php($isAwoofCard = $slug === 'mtn_awoof')
                 @if($isAwoofCard)
-                    {{-- The script below reveals this tile only when Awoof plans load. --}}
+                    {{-- The sweep above decides the starting state; the script
+                         below then confirms it against the provider live. --}}
                     <x-service-tile :label="$label"
                                     :href="route('vtu.data.service', $slug)"
                                     :image="$serviceIcons[$slug] ?? asset('networks/mtn.png')"
                                     id="awoofServiceCard"
-                                    class="hidden"
+                                    class="{{ $awoofSeed === 'available' ? '' : 'hidden' }}"
                                     data-awoof-card
-                                    data-awoof-state="checking"
-                                    aria-hidden="true" />
+                                    data-awoof-state="{{ $awoofSeed }}"
+                                    aria-hidden="{{ $awoofSeed === 'available' ? 'false' : 'true' }}" />
                 @else
                     <x-service-tile :label="$label"
                                     :href="route('vtu.data.service', $slug)"
@@ -206,6 +216,7 @@
             const bubbleText = document.getElementById('awoofAvailabilityText');
             const pointer = document.getElementById('awoofAvailabilityPointer');
             const checkUrl = page?.dataset?.awoofCheckUrl || '';
+            const serverState = page?.dataset?.awoofServerState || 'unknown';
 
             if (!page || !awoofCard || !guide || !bubble || !bubbleText || !pointer || !checkUrl) {
                 return;
@@ -303,7 +314,14 @@
                 hideTimer = window.setTimeout(hideGuide, 6500);
             }
 
-            async function detectAwoofAvailability() {
+            function markCard(state) {
+                const visible = state === 'available';
+                awoofCard.classList.toggle('hidden', !visible);
+                awoofCard.setAttribute('aria-hidden', visible ? 'false' : 'true');
+                awoofCard.dataset.awoofState = state;
+            }
+
+            async function askProvider() {
                 try {
                     const response = await fetch(checkUrl, {
                         headers: {
@@ -312,26 +330,46 @@
                         },
                     });
 
+                    if (!response.ok) {
+                        return 'unknown';
+                    }
+
                     let data = {};
                     try {
                         data = await response.json();
                     } catch (error) {}
 
-                    const plans = Array.isArray(data?.plans) ? data.plans : [];
-                    const isAvailable = data?.ok === true && plans.length > 0;
-
-                    if (isAvailable) {
-                        awoofCard.classList.remove('hidden');
-                        awoofCard.removeAttribute('aria-hidden');
-                        awoofCard.dataset.awoofState = 'available';
-                        showGuide('Hurrah, Awoof plan is back.', 'available');
-                        return;
+                    /* Only a real answer from the provider can prove the plan is
+                       gone: ok=true with no plans means they listed nothing.
+                       Anything else is an outage and must not hide a service
+                       the last sweep saw for sale. */
+                    if (data?.ok !== true) {
+                        return 'unknown';
                     }
-                } catch (error) {}
 
-                awoofCard.classList.add('hidden');
-                awoofCard.setAttribute('aria-hidden', 'true');
-                awoofCard.dataset.awoofState = 'unavailable';
+                    const plans = Array.isArray(data?.plans) ? data.plans : [];
+                    return plans.length > 0 ? 'available' : 'unavailable';
+                } catch (error) {
+                    return 'unknown';
+                }
+            }
+
+            async function detectAwoofAvailability() {
+                if (serverState === 'available' || serverState === 'unavailable') {
+                    markCard(serverState);
+                }
+
+                const verified = await askProvider();
+                if (verified === 'unknown') {
+                    return;
+                }
+
+                markCard(verified);
+                if (verified === 'available') {
+                    showGuide('Hurrah, Awoof plan is back.', 'available');
+                    return;
+                }
+
                 showGuide('Awoof plan is not available.', 'unavailable');
             }
 
