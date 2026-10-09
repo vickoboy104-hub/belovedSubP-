@@ -169,6 +169,32 @@ button {
     max-width: 25.5rem;
 }
 
+/* The popup a customer is reading is the one place where the admin writes prose,
+   so it is the one measurement they are handed: the space between the lines of
+   every written notice. It lives here rather than on the markup because the
+   result sheets are assembled by JavaScript after the page has loaded, and it is
+   unlayered so it outranks whatever utility the box happens to carry. */
+.popup-rich-content {
+    border: 1px solid var(--brand-line);
+    border-radius: 22px;
+    background: var(--surface-card);
+    box-shadow: var(--app-shadow-soft);
+    color: var(--brand-text);
+    font-size: 0.875rem;
+    line-height: var(--popup-line-height, 1.7);
+    padding: 0.95rem 1.05rem;
+}
+
+/* Written text arrives as paragraphs, and the editor leaves a margin on the last
+   one, which reads as a box that clipped its own bottom off. */
+.popup-rich-content > :last-child {
+    margin-bottom: 0;
+}
+
+.app-dialog-message {
+    line-height: var(--popup-line-height, 1.7);
+}
+
 /* One unread/critical language for notification lists and the admin dashboard,
    so an unread item stops being a random amber box. */
 .app-note-card {

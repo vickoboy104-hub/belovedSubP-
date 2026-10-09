@@ -265,6 +265,35 @@
                     </div>
 
                     <div class="rounded-2xl border border-gray-200 p-4">
+                        <div class="font-bold text-gray-500">Line Spacing Of Every Popup</div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            One control for the space between the lines of the notices customers read - home, dashboard, sign-in and the message that answers a purchase. Drag it and the sample below changes exactly as theirs will.
+                        </div>
+                        @php
+                            $popupSpacing = old('popup_line_spacing', $settings['popup_line_spacing'] ?? '1.7');
+                        @endphp
+                        <div class="grid grid-cols-1 gap-4 mt-3 md:grid-cols-2">
+                            <div>
+                                <label for="popup_line_spacing" class="text-sm font-bold text-gray-800/80">Line spacing</label>
+                                <div class="mt-2 flex items-center gap-3">
+                                    <input id="popup_line_spacing" type="range" name="popup_line_spacing"
+                                           min="1.2" max="3" step="0.05" value="{{ $popupSpacing }}"
+                                           oninput="document.getElementById('popupSpacingSample').style.setProperty('--popup-line-height', this.value); document.getElementById('popupSpacingNumber').textContent = Number(this.value).toFixed(2);"
+                                           class="w-full">
+                                    <span id="popupSpacingNumber" class="w-12 text-right font-mono text-sm text-gray-800">{{ number_format((float) $popupSpacing, 2) }}</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="text-sm font-bold text-gray-800/80">How it will read</div>
+                                <div id="popupSpacingSample" class="popup-rich-content mt-2" style="--popup-line-height: {{ number_format((float) $popupSpacing, 2, '.', '') }})">
+                                    Your notice appears here. Payment results, order replies and anything else written in the boxes above all use this spacing.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-2xl border border-gray-200 p-4">
                         <div class="font-bold text-gray-500">Fund Wallet Page</div>
                         <div class="grid grid-cols-1 gap-4 mt-3">
                             <div>

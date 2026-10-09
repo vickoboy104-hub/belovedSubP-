@@ -52,6 +52,10 @@
     <link rel="preload" as="image" href="{{ $brandMark }}">
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    {{-- The home, dashboard and sign-in notices all render on this layout, so
+         they read the same admin-set leading as everything else. --}}
+    <style>:root { --popup-line-height: {{ popup_line_spacing() }}; }</style>
 </head>
 <body class="app-shell-bg min-h-screen text-slate-900">
     <x-maintenance-overlay />

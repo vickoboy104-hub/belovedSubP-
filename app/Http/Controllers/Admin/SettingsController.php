@@ -159,6 +159,7 @@ class SettingsController extends Controller
             'login_popup_message'       => ['nullable', 'string', 'max:5000'],
             'fund_wallet_marquee_message' => ['nullable', 'string', 'max:500'],
             'marquee_speed_seconds' => ['nullable', 'numeric', 'min:5', 'max:120'],
+            'popup_line_spacing' => ['nullable', 'numeric', 'min:1.2', 'max:3'],
             'maintenance_overlay_end_at' => ['nullable', 'date'],
             'maintenance_overlay_message' => ['nullable', 'string', 'max:500'],
 

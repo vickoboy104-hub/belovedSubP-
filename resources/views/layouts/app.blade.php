@@ -101,6 +101,11 @@
     <link rel="preload" as="image" href="{{ $brandMark }}">
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    {{-- The result sheets and confirm dialogs are built by JavaScript after the
+         page has loaded, so the admin's chosen line spacing has to arrive as a
+         variable on the document rather than as classes on a box. --}}
+    <style>:root { --popup-line-height: {{ popup_line_spacing() }}; }</style>
 </head>
 <body class="app-shell-bg min-h-screen text-slate-900">
     <x-maintenance-overlay />

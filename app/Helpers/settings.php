@@ -333,6 +333,26 @@ if (!function_exists('site_loader_logo_url')) {
     }
 }
 
+if (!function_exists('popup_line_spacing')) {
+    /**
+     * The space between the lines of every message the admin writes into a popup.
+     * It is one number for the whole site because the notices are the same box
+     * everywhere, and it is clamped because a value typed wrong - 0, or 40 -
+     * would either crush a warning into one unreadable line or push its own
+     * buttons off the screen.
+     */
+    function popup_line_spacing(): string
+    {
+        $value = (float) setting('popup_line_spacing', '1.7');
+
+        if (!is_finite($value)) {
+            $value = 1.7;
+        }
+
+        return number_format(max(1.2, min(3.0, $value)), 2, '.', '');
+    }
+}
+
 if (!function_exists('sanitize_popup_message_html')) {
     function sanitize_popup_message_html(?string $html): string
     {

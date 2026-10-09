@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Order;
 use App\Models\Service;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -405,5 +406,81 @@ class PopupStyleUnificationTest extends TestCase
 
         $this->assertStringNotContainsString('d8b07a', $css);
         $this->assertStringNotContainsString('.toast-pop', $css);
+
+        // The written notice box and the answer sheet both take their leading from
+        // the admin's number, and they have to do it from the built file - the
+        // markup carries no leading of its own any more.
+        $this->assertStringContainsString('.popup-rich-content{', $css);
+        $this->assertStringContainsString('line-height:var(--popup-line-height', $css);
+    }
+
+    public function test_the_admins_line_spacing_reaches_every_notice(): void
+    {
+        $this->spacing('2.4');
+
+        // The home and sign-in notices ride the guest layout, the result sheets
+        // and everything else ride the app layout. Both need the number. This
+        // request has to come before any signing in: once a session exists the
+        // sign-in page redirects and carries no notice at all.
+        $login = $this->get('/login')->assertOk()->getContent();
+        $this->assertStringContainsString('--popup-line-height: 2.40', $login);
+
+        // The notice box no longer argues with itself over its own leading.
+        $this->assertStringContainsString('class="popup-rich-content"', $login);
+        $this->assertStringNotContainsString('popup-rich-content rounded-2xl', $login);
+
+        $this->actingAs($this->member())
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertSee('--popup-line-height: 2.40', false);
+    }
+
+    public function test_a_notice_without_a_chosen_spacing_is_still_readable(): void
+    {
+        $this->get('/login')->assertOk()->assertSee('--popup-line-height: 1.70', false);
+    }
+
+    public function test_a_spacing_that_would_break_the_notice_is_brought_back(): void
+    {
+        // A line-height of 40 pushes a notice's own buttons off the screen, and 0
+        // crushes a warning into one unreadable line.
+        $this->spacing('40');
+        $this->get('/login')->assertOk()->assertSee('--popup-line-height: 3.00', false);
+
+        $this->spacing('0');
+        $this->get('/login')->assertOk()->assertSee('--popup-line-height: 1.20', false);
+
+        $this->spacing('wide');
+        $this->get('/login')->assertOk()->assertSee('--popup-line-height: 1.20', false);
+    }
+
+    /** The whole settings table is cached, exactly as the live site caches it. */
+    private function spacing(string $value): void
+    {
+        Setting::updateOrCreate(['key' => 'popup_line_spacing'], ['value' => $value]);
+        settings_flush_cache();
+    }
+
+    public function test_the_spacing_dialed_on_the_settings_page_is_the_one_that_gets_saved(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->post('/admin/settings', [
+            'popup_line_spacing' => '2.15',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('2.15', setting('popup_line_spacing'));
+
+        // The dial is read back where it was set, and the same number is what the
+        // admin's own pages are handed.
+        $this->actingAs($admin)->get('/admin/settings')
+            ->assertOk()
+            ->assertSee('--popup-line-height: 2.15', false)
+            ->assertSee('name="popup_line_spacing"', false);
+
+        // A number outside the dial is refused rather than quietly stored.
+        $this->actingAs($admin)->post('/admin/settings', [
+            'popup_line_spacing' => '9',
+        ])->assertSessionHasErrors('popup_line_spacing');
     }
 }
