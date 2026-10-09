@@ -41,6 +41,7 @@
                             <a href="#group-appearance" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Appearance</a>
                             <a href="#group-announcements" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Announcements</a>
                             <a href="#group-maintenance-overlay" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Maintenance Overlay</a>
+                            <a href="#group-service-availability" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Availability</a>
                             <a href="#group-catalog" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Service Catalog</a>
                             <a href="#group-data-defaults" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Data Defaults</a>
                             <a href="#group-data-pricing" class="px-2 py-2 text-center leading-tight rounded-lg hover:bg-gray-100">Data Pricing</a>
@@ -351,6 +352,56 @@
                             <textarea name="maintenance_overlay_message" rows="3"
                                       class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900"
                                       placeholder="We are currently running an update. Please hold on while we finish.">{{ old('maintenance_overlay_message', $settings['maintenance_overlay_message'] ?? 'We are currently running an update. Please hold on while we finish.') }}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Service Availability --}}
+            <div id="group-service-availability" class="scroll-mt-44">
+                <div class="text-lg font-extrabold">Service Availability</div>
+                <div class="text-xs text-gray-500 mt-1">
+                    Tick a service to take it off the shelf. Its button goes, the robot reads
+                    the outage to customers, and the checkout refuses it.
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                    A tick is yours and stays until you clear it. A service the supplier took
+                    off their shelf is marked <span class="font-extrabold text-amber-700">supplier</span>
+                    and comes back on its own once they list it again.
+                </div>
+
+                <div class="rounded-2xl border border-gray-200 p-4 mt-3 space-y-4">
+                    @foreach(($availabilityBoard ?? []) as $group)
+                        @if($group['items'] !== [])
+                            <div>
+                                <div class="text-sm font-extrabold text-gray-800">{{ $group['label'] }}</div>
+                                <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mt-2">
+                                    @foreach($group['items'] as $item)
+                                        <label class="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm {{ $item['down'] ? 'border-red-200 bg-red-50 text-red-700' : 'border-gray-200 bg-white text-gray-700' }}">
+                                            <input type="checkbox"
+                                                   name="{{ $item['key'] }}"
+                                                   value="1"
+                                                   @checked(old($item['key'], $item['declared'] ? '1' : '0') == '1')
+                                                   class="w-4 h-4 rounded border-gray-300">
+                                            <span class="font-bold truncate">{{ $item['label'] }}</span>
+                                            @if($item['withdrawn'] && !$item['declared'])
+                                                <span class="ml-auto shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-amber-700">supplier</span>
+                                            @endif
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+                    @endforeach
+
+                    <div>
+                        <label class="text-sm font-bold text-gray-800/80">Outage Message</label>
+                        <textarea name="service_maintenance_message" rows="2"
+                                  class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900"
+                                  placeholder="MTN Awoof is not available right now. Service Under Maintenance. We will inform you when it is back.">{{ old('service_maintenance_message', $settings['service_maintenance_message'] ?? '') }}</textarea>
+                        <div class="text-xs text-gray-500 mt-1">
+                            Leave blank and each outage is announced by name. What you type here is
+                            read out instead, on every service page.
                         </div>
                     </div>
                 </div>

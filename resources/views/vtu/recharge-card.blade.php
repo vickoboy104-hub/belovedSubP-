@@ -31,6 +31,9 @@
     <x-page-hero class="reference-shared-banner" title="Recharge Card Printing" subtitle="Select network, value and number of PINs, then confirm before purchase." />
 
     <div class="reference-flow-page max-w-3xl mx-auto w-full px-4 sm:px-0 space-y-5">
+        <x-service-outage-notice :down="$down ?? []" />
+
+        @if(($networkLabels ?? []) !== [])
         <div class="grid grid-cols-4 gap-2"
              style="display:grid !important;grid-template-columns:repeat(4,minmax(0,1fr)) !important;gap:0.5rem;">
             @foreach($networkLabels as $key => $label)
@@ -101,6 +104,7 @@
                 </div>
             </form>
         </div>
+        @endif
 
         <x-confirm-modal id="confirmRechargeCard" title="Confirm Recharge Card Purchase" confirmText="Confirm & Buy" />
     </div>
@@ -112,6 +116,11 @@
 
             const form = document.getElementById('rechargeCardForm');
             const network = document.getElementById('network');
+            if (!form || !network) {
+                return;
+            }
+
+
             const value = document.getElementById('value');
             const qty = document.getElementById('num_voucher');
             const amountDisplay = document.getElementById('amount_display');

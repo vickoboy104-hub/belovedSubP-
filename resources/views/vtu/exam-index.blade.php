@@ -14,6 +14,8 @@
     <x-page-hero class="reference-shared-banner" title="Education Services" subtitle="Select the exam body you want to purchase a PIN for." />
 
     <div class="reference-flow-page mx-auto max-w-5xl space-y-5">
+        <x-service-outage-notice :down="$down ?? []" />
+
         <div class="reference-tile-grid">
             @foreach($services as $slug => $label)
                 <x-service-tile :label="$label"

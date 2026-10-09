@@ -7,12 +7,14 @@ use App\Models\ProviderPlanPrice;
 use App\Models\Setting;
 use App\Services\ManualFulfilmentService;
 use App\Services\ProviderPlanPriceService;
+use App\Support\ServiceAvailability;
 use Illuminate\Http\Request;
 
 class SettingsController extends Controller
 {
     public function __construct(
         private readonly ProviderPlanPriceService $planPrices,
+        private readonly ServiceAvailability $availability,
     ) {
     }
 
@@ -35,11 +37,30 @@ class SettingsController extends Controller
             ->get()
             ->groupBy('service_slug');
 
-        return view('admin.settings', compact('settings', 'pricingServiceGroups', 'providerPlanPrices', 'provider'));
+        // Every service the customer can currently see, grouped so the owner can
+        // take one down without hunting for its slug.
+        $availabilityBoard = $this->availability->board();
+
+        return view('admin.settings', compact(
+            'settings',
+            'pricingServiceGroups',
+            'providerPlanPrices',
+            'provider',
+            'availabilityBoard'
+        ));
     }
 
     public function update(Request $request)
     {
+        // Only switches for services that are actually on the shelf can be
+        // written, so a hand-built post cannot plant arbitrary settings.
+        $availabilitySwitchKeys = [];
+        foreach ($this->availability->board() as $group) {
+            foreach ($group['items'] as $item) {
+                $availabilitySwitchKeys[] = $item['key'];
+            }
+        }
+
         $dataServiceToggleKeys = [
             'data_service_enabled_mtn_awoof',
             'data_service_enabled_mtn_gifting',
@@ -162,6 +183,7 @@ class SettingsController extends Controller
             'popup_line_spacing' => ['nullable', 'numeric', 'min:1.2', 'max:3'],
             'maintenance_overlay_end_at' => ['nullable', 'date'],
             'maintenance_overlay_message' => ['nullable', 'string', 'max:500'],
+            'service_maintenance_message' => ['nullable', 'string', 'max:500'],
 
             'services_airtime'     => ['nullable', 'string', 'max:4000'],
             'services_data'        => ['nullable', 'string', 'max:8000'],
@@ -286,6 +308,10 @@ class SettingsController extends Controller
         }
 
         foreach ($dataServiceToggleKeys as $toggleKey) {
+            $data[$toggleKey] = $request->boolean($toggleKey) ? '1' : '0';
+        }
+
+        foreach ($availabilitySwitchKeys as $toggleKey) {
             $data[$toggleKey] = $request->boolean($toggleKey) ? '1' : '0';
         }
 

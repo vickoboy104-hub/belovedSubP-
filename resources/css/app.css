@@ -2262,7 +2262,7 @@ input[class*="bg-black/"]::placeholder, textarea[class*="bg-black/"]::placeholde
 .reference-form-intro { margin: .45rem 0 1.3rem; text-align: center; font-size: .85rem; color: #617189; }
 /* Shared service flow: page context sits above the form, as on the reference. */
 .reference-flow-page { position: relative; margin-top: -2.7rem; padding-bottom: 1.5rem; min-width: 0; }
-.reference-flow-page > :first-child:not(.reference-tile-grid):not(.grid) {
+.reference-flow-page > :first-child:not(.reference-tile-grid):not(.grid):not(.svc-outage) {
     position: relative;
     background: #fff;
     border: 1px solid #dfe5ee;
@@ -3305,3 +3305,22 @@ html[data-theme="ember"] .app-modal-close { background: var(--surface-card); }
     .service-form-actions { flex-wrap: wrap; }
     .service-form-actions .reference-quiet-button { flex: 1 1 100%; justify-content: center; }
 }
+
+/* ==========================================================================
+   OUTAGE STRIP — the robot that reads out every service the provider or the
+   owner has taken off the shelf. It stays in the page for the whole visit,
+   because an alert that fades away is an alert nobody saw.
+   ========================================================================== */
+.svc-outage { display: flex; align-items: flex-start; gap: .7rem; padding: .85rem .95rem; border: 1px solid #f0d5b4; border-left: 4px solid #c46617; border-radius: .6rem; background: #fdf4e9; color: #7a3a0d; }
+.svc-outage.hidden { display: none; }
+.svc-outage-robot { flex: none; display: grid; place-items: center; width: 2.1rem; height: 2.1rem; border-radius: .6rem; background: rgba(196, 102, 23, .13); color: #8f4410; }
+.svc-outage-robot svg { width: 1.4rem; height: 1.4rem; }
+.svc-outage-copy { min-width: 0; }
+.svc-outage-copy strong { display: block; font-size: .8rem; font-weight: 850; letter-spacing: -.01em; }
+.svc-outage-copy p { margin-top: .15rem; font-size: .82rem; line-height: 1.6; }
+.svc-outage-chips { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .5rem; }
+.svc-outage-chips:empty { display: none; }
+.svc-outage-chip { padding: .2rem .55rem; border-radius: 999px; border: 1px solid #ecc9a0; background: #fff; color: #8f4410; font-size: .72rem; font-weight: 800; }
+.svc-outage-chip.is-arriving { animation: svcOutageIn .35s ease; }
+@keyframes svcOutageIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .svc-outage-chip.is-arriving { animation: none; } }

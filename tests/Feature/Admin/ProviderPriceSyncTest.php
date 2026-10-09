@@ -6,6 +6,7 @@ use App\Models\ProviderPlanPrice;
 use App\Models\User;
 use App\Notifications\AdminSystemAlertNotification;
 use App\Services\ProviderPlanPriceService;
+use App\Support\ServiceAvailability;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
@@ -157,16 +158,23 @@ class ProviderPriceSyncTest extends TestCase
            sits unlayered and outranks the utility whatever the specificity. */
         $this->assertStringContainsString('class="reference-service-tile hidden"', $html);
 
-        /* The robot has to say the two things the owner asked for in so many words,
-           and both lines live in the page's own script, so they are pinned here. */
-        $this->assertStringContainsString('Awoof plan is not available.', $html);
-        $this->assertStringContainsString('Awoof plan is back.', $html);
+        /* The robot has to keep saying it for as long as the outage lasts, so
+           the words are on the page itself rather than in a bubble that times
+           out. This is the sentence the owner asked for, service named. */
+        $this->assertStringContainsString('data-outage-notice', $html);
+        $this->assertStringContainsString('<span class="svc-outage-chip" data-outage-slug="mtn_awoof"', $html);
+        $this->assertStringContainsString(
+            'MTN Awoof Data (Cheap) is not available right now. Service Under Maintenance. We will inform you when it is back.',
+            $html
+        );
+        $this->assertStringNotContainsString('setTimeout(hideGuide', $html);
 
         $css = '';
         foreach (glob(public_path('build/assets/app-*.css')) ?: [] as $file) {
             $css .= file_get_contents($file);
         }
         $this->assertStringContainsString('.reference-service-tile.hidden{display:none}', $css);
+        $this->assertStringContainsString('.svc-outage.hidden{display:none}', $css);
 
         $this->get('/vtu/data/mtn_awoof')
             ->assertRedirect(route('vtu.data'))
@@ -284,8 +292,10 @@ class ProviderPriceSyncTest extends TestCase
 
     private function awoofStateOnMenu(): string
     {
-        return app(ProviderPlanPriceService::class)->isWithdrawnByProvider('mtn_awoof')
-            ? 'unavailable'
-            : (app(ProviderPlanPriceService::class)->activePlanCount('mtn_awoof') > 0 ? 'available' : 'unknown');
+        if (app(ServiceAvailability::class)->isDown('mtn_awoof', 'data')) {
+            return 'unavailable';
+        }
+
+        return app(ProviderPlanPriceService::class)->activePlanCount('mtn_awoof') > 0 ? 'available' : 'unknown';
     }
 }

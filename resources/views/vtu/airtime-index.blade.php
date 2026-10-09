@@ -11,6 +11,8 @@
     <x-page-hero class="reference-shared-banner" title="Buy Airtime" subtitle="Select your network operator to continue." />
 
     <div class="reference-flow-page mx-auto max-w-5xl space-y-5">
+        <x-service-outage-notice :down="$down ?? []" />
+
         <div class="reference-tile-grid">
             @foreach($services as $slug => $label)
                 <x-service-tile :label="$label"

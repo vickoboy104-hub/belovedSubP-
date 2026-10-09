@@ -389,32 +389,52 @@ class ProviderPlanPriceService
     }
 
     /**
-     * Whether a service is known to have been taken off the provider's shelf.
+     * Which of these services the provider is known to have stopped listing.
      *
-     * The answer only counts while it is recent. A stale verdict means the sync
-     * job stopped talking, not that the plans went away, and a working service
-     * must not be hidden from customers because of that.
+     * A menu asks this about every tile at once, so it is one grouped query
+     * rather than two queries per service.
+     *
+     * @param  array<int, string>  $serviceSlugs
+     * @return list<string>
      */
-    public function isWithdrawnByProvider(string $serviceSlug, int $freshMinutes = 180, ?string $provider = null): bool
+    public function withdrawnSlugs(array $serviceSlugs, int $freshMinutes = 180, ?string $provider = null): array
     {
         $provider = trim((string) ($provider ?? $this->currentProvider()));
-        $lastSynced = $this->latestSyncAt($this->serviceSlugKey($serviceSlug), $provider);
 
-        if ($lastSynced === null || $lastSynced->lt(Carbon::now()->subMinutes(max(1, $freshMinutes)))) {
-            return false;
+        $keys = [];
+        foreach ($serviceSlugs as $slug) {
+            $key = $this->serviceSlugKey((string) $slug);
+            if ($key !== '') {
+                $keys[$key] = true;
+            }
         }
 
-        return $this->activePlanCount($this->serviceSlugKey($serviceSlug), $provider) === 0;
-    }
+        if ($keys === []) {
+            return [];
+        }
 
-    private function latestSyncAt(string $serviceSlug, string $provider): ?Carbon
-    {
-        $raw = ProviderPlanPrice::query()
+        $cutoff = Carbon::now()->subMinutes(max(1, $freshMinutes));
+        $withdrawn = [];
+
+        $grouped = ProviderPlanPrice::query()
             ->where('provider', $provider)
-            ->where('service_slug', $serviceSlug)
-            ->max('last_synced_at');
+            ->whereIn('service_slug', array_keys($keys))
+            ->selectRaw('service_slug, MAX(last_synced_at) AS last_sync, SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS listed')
+            ->groupBy('service_slug')
+            ->get();
 
-        return $raw === null ? null : Carbon::parse($raw);
+        foreach ($grouped as $row) {
+            // Nothing on the shelf, and the provider said so recently. A service
+            // with no rows at all was never answered for, which is an outage
+            // rather than a withdrawal, so it stays listed.
+            $lastSync = $row->last_sync === null ? null : Carbon::parse($row->last_sync);
+
+            if ($lastSync !== null && $lastSync->gte($cutoff) && (int) $row->listed === 0) {
+                $withdrawn[] = (string) $row->service_slug;
+            }
+        }
+
+        return $withdrawn;
     }
 
     private function serviceSlugKey(string $serviceSlug): string

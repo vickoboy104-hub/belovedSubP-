@@ -20,6 +20,8 @@ use App\Services\WalletLedger;
 use App\Support\IssuedKeys;
 use App\Support\NinSlipLayout;
 use App\Support\NinSlipValues;
+use App\Support\ServiceAvailability;
+use App\Support\ServiceCatalogue;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -40,6 +42,8 @@ class VtuController extends Controller
         private readonly ProviderPlanPriceService $planPrices,
         private readonly ManualFulfilmentService $manualServices,
         private readonly WalletLedger $ledger,
+        private readonly ServiceAvailability $availability,
+        private readonly ServiceCatalogue $catalogue,
     )
     {
     }
@@ -89,15 +93,22 @@ class VtuController extends Controller
     // =========================================================
     public function airtimeForm()
     {
+        $split = $this->availability->split($this->catalogue->airtimeServices(), 'airtime');
+
         return view('vtu.airtime-index', [
-            'services' => $this->airtimeServices(),
+            'services' => $split['up'],
+            'down' => $split['down'],
         ]);
     }
 
     public function airtimeServiceForm(string $service)
     {
-        $services = $this->airtimeServices();
+        $services = $this->catalogue->airtimeServices();
         abort_unless(array_key_exists($service, $services), 404);
+
+        if ($refusal = $this->refuseDownService($service, $services, 'airtime', 'vtu.airtime')) {
+            return $refusal;
+        }
 
         return view('vtu.airtime', [
             'serviceSlug' => $service,
@@ -116,6 +127,11 @@ class VtuController extends Controller
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
+
+        if ($refusal = $this->refuseDownPurchase($request, (string) $request->service_id, $this->catalogue->airtimeServices(), 'airtime', 'vtu.airtime', $wallet)) {
+            return $refusal;
+        }
+
         $phone = $this->normalizePhone((string) $request->phone);
         if (!$this->isValidPhone($phone)) {
             return $this->respondResult(
@@ -282,9 +298,26 @@ class VtuController extends Controller
     // =========================================================
     public function dataForm()
     {
+        $catalogue = $this->catalogue->dataServices();
+        $split = $this->availability->split($catalogue, 'data');
+
+        /* The robot has to say the right thing both before the browser has asked
+           the provider and after it has, so the two sentences it might need are
+           worked out here. The page never has to build a sentence itself. */
+        $withoutAwoof = array_diff_key($split['down'], ['mtn_awoof' => 1]);
+        $awoofLabel = $catalogue['mtn_awoof'] ?? 'MTN Awoof';
+        $awoofIsDown = count($split['down']) !== count($withoutAwoof);
+
         return view('vtu.data-index', [
-            'services' => $this->dataServices(),
+            'services' => $split['up'],
+            'down' => $split['down'],
+            'catalogue' => $catalogue,
             'awoofState' => $this->cheapPlanState(),
+            'awoofLabel' => $awoofLabel,
+            'awoofDownNotice' => $awoofIsDown
+                ? ''
+                : $this->availability->notice($split['down'] + ['mtn_awoof' => $awoofLabel]),
+            'awoofUpNotice' => $this->availability->notice($withoutAwoof),
         ]);
     }
 
@@ -295,28 +328,65 @@ class VtuController extends Controller
      */
     private function cheapPlanState(): string
     {
-        if ($this->planPrices->isWithdrawnByProvider('mtn_awoof')) {
+        if ($this->availability->isDown('mtn_awoof', 'data')) {
             return 'unavailable';
         }
 
         return $this->planPrices->activePlanCount('mtn_awoof') > 0 ? 'available' : 'unknown';
     }
 
-    public function dataServiceForm(string $service)
+    /**
+     * A tile that went away is still reachable through a bookmark or an old
+     * shared link, so the page itself has to answer for the service being down.
+     *
+     * @param  array<string, string>  $services
+     */
+    private function refuseDownService(string $service, array $services, string $category, string $routeName)
     {
-        $services = $this->dataServices();
-        $label = $services[$service] ?? str_replace('_', ' ', ucwords($service, '_'));
-
-        // A tile that went away is still reachable through a bookmark or an old
-        // shared link, so the page itself has to answer for the provider having
-        // taken the plan off the shelf.
-        if ($this->planPrices->isWithdrawnByProvider($service)) {
-            return redirect()
-                ->route('vtu.data')
-                ->with('error', $label.' is not available right now. Pick another data service.');
+        if (!$this->availability->isDown($service, $category)) {
+            return null;
         }
 
+        $label = $services[$service] ?? str_replace('_', ' ', ucwords($service, '_'));
+
+        return redirect()
+            ->route($routeName)
+            ->with('error', $this->availability->notice([$service => $label]));
+    }
+
+    /**
+     * Hiding the button is only half of it. A form left open in another tab, or
+     * a POST built by hand, still reaches the checkout, and money must not be
+     * taken for a network the provider is down for.
+     *
+     * @param  array<string, string>  $services
+     */
+    private function refuseDownPurchase(Request $request, ?string $service, array $services, string $category, string $routeName, Wallet $wallet)
+    {
+        if ($service === null || !$this->availability->isDown($service, $category)) {
+            return null;
+        }
+
+        $label = $services[$service] ?? str_replace('_', ' ', ucwords($service, '_'));
+
+        return $this->respondResult(
+            request: $request,
+            routeName: $routeName,
+            ok: false,
+            message: $this->availability->notice([$service => $label]),
+            extra: $this->walletPayload($wallet),
+            status: 422
+        );
+    }
+
+    public function dataServiceForm(string $service)
+    {
+        $services = $this->catalogue->dataServices();
         abort_unless(array_key_exists($service, $services), 404);
+
+        if ($refusal = $this->refuseDownService($service, $services, 'data', 'vtu.data')) {
+            return $refusal;
+        }
 
         return view('vtu.data', [
             'serviceSlug' => $service,
@@ -353,7 +423,7 @@ class VtuController extends Controller
         $provider = (string) setting('provider', 'gsubz');
 
         $serviceSlug = str_replace(' ', '_', strtolower(trim((string) $request->service_id)));
-        $services = $this->dataServices();
+        $services = $this->catalogue->dataServices();
         if (!array_key_exists($serviceSlug, $services)) {
             return $this->respondResult(
                 request: $request,
@@ -363,6 +433,10 @@ class VtuController extends Controller
                 extra: $this->walletPayload($wallet),
                 status: 422
             );
+        }
+
+        if ($refusal = $this->refuseDownPurchase($request, $serviceSlug, $services, 'data', 'vtu.data', $wallet)) {
+            return $refusal;
         }
 
         $baseAmountNaira = (float) $request->amount;
@@ -534,12 +608,13 @@ class VtuController extends Controller
     // =========================================================
     public function rechargeCardForm()
     {
-        $networkLabels = $this->rechargeCardNetworkLabels();
-        $values = $this->rechargeCardValues();
+        $split = $this->availability->split($this->catalogue->rechargeCardNetworkLabels(), 'card');
+        $values = $this->catalogue->rechargeCardValues();
         $markup = (float) setting('markup_recharge_card', 0);
 
         return view('vtu.recharge-card', [
-            'networkLabels' => $networkLabels,
+            'networkLabels' => $split['up'],
+            'down' => $split['down'],
             'values' => $values,
             'markup' => $markup,
         ]);
@@ -547,8 +622,8 @@ class VtuController extends Controller
 
     public function buyRechargeCard(Request $request)
     {
-        $allowedNetworks = array_keys($this->rechargeCardNetworkLabels());
-        $allowedValues = $this->rechargeCardValues();
+        $allowedNetworks = array_keys($this->catalogue->rechargeCardNetworkLabels());
+        $allowedValues = $this->catalogue->rechargeCardValues();
 
         $request->validate([
             'network' => ['required', Rule::in($allowedNetworks)],
@@ -561,6 +636,11 @@ class VtuController extends Controller
         $provider = (string) setting('provider', 'gsubz');
 
         $network = strtolower((string) $request->network);
+
+        if ($refusal = $this->refuseDownPurchase($request, $network, $this->catalogue->rechargeCardNetworkLabels(), 'card', 'vtu.recharge-card', $wallet)) {
+            return $refusal;
+        }
+
         $value = (int) $request->value;
         $numVoucher = (int) $request->num_voucher;
 
@@ -720,13 +800,22 @@ class VtuController extends Controller
     // =========================================================
     public function cableForm()
     {
-        return view('vtu.cable-index', ['services' => $this->cableServices()]);
+        $split = $this->availability->split($this->catalogue->cableServices(), 'cable');
+
+        return view('vtu.cable-index', [
+            'services' => $split['up'],
+            'down' => $split['down'],
+        ]);
     }
 
     public function cableServiceForm(string $service)
     {
-        $services = $this->cableServices();
+        $services = $this->catalogue->cableServices();
         abort_unless(array_key_exists($service, $services), 404);
+
+        if ($refusal = $this->refuseDownService($service, $services, 'cable', 'vtu.cable')) {
+            return $refusal;
+        }
 
         return view('vtu.cable', [
             'selectedService' => $service,
@@ -746,6 +835,10 @@ class VtuController extends Controller
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
+
+        if ($refusal = $this->refuseDownPurchase($request, (string) $request->service_id, $this->catalogue->cableServices(), 'cable', 'vtu.cable', $wallet)) {
+            return $refusal;
+        }
 
         $provider = (string) setting('provider', 'gsubz');
 
@@ -922,13 +1015,22 @@ class VtuController extends Controller
     // =========================================================
     public function electricityForm()
     {
-        return view('vtu.electricity-index', ['services' => $this->electricityServices()]);
+        $split = $this->availability->split($this->catalogue->electricityServices(), 'electricity');
+
+        return view('vtu.electricity-index', [
+            'services' => $split['up'],
+            'down' => $split['down'],
+        ]);
     }
 
     public function electricityServiceForm(string $service)
     {
-        $services = $this->electricityServices();
+        $services = $this->catalogue->electricityServices();
         abort_unless(array_key_exists($service, $services), 404);
+
+        if ($refusal = $this->refuseDownService($service, $services, 'electricity', 'vtu.electricity')) {
+            return $refusal;
+        }
 
         return view('vtu.electricity', [
             'selectedService' => $service,
@@ -948,6 +1050,10 @@ class VtuController extends Controller
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
+
+        if ($refusal = $this->refuseDownPurchase($request, (string) $request->service_id, $this->catalogue->electricityServices(), 'electricity', 'vtu.electricity', $wallet)) {
+            return $refusal;
+        }
 
         $provider = (string) setting('provider', 'gsubz');
 
@@ -1103,13 +1209,22 @@ class VtuController extends Controller
     // =========================================================
     public function examPinForm()
     {
-        return view('vtu.exam-index', ['services' => $this->educationServices()]);
+        $split = $this->availability->split($this->catalogue->educationServices(), 'exam');
+
+        return view('vtu.exam-index', [
+            'services' => $split['up'],
+            'down' => $split['down'],
+        ]);
     }
 
     public function examServiceForm(string $service)
     {
-        $services = $this->educationServices();
+        $services = $this->catalogue->educationServices();
         abort_unless(array_key_exists($service, $services), 404);
+
+        if ($refusal = $this->refuseDownService($service, $services, 'exam', 'vtu.exam')) {
+            return $refusal;
+        }
 
         return view('vtu.exam-pin', [
             'selectedService' => $service,
@@ -1128,7 +1243,7 @@ class VtuController extends Controller
             'amount' => ['nullable', 'numeric', 'min:1'],
         ]);
 
-        $supported = array_keys($this->parseServicesSetting('services_education'));
+        $supported = array_keys($this->catalogue->parseServicesSetting('services_education'));
         if (empty($supported)) {
             $supported = ['jamb', 'waec', 'neco', 'nabteb'];
         }
@@ -1155,6 +1270,11 @@ class VtuController extends Controller
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
+
+        if ($refusal = $this->refuseDownPurchase($request, (string) $request->pin_code, $this->catalogue->educationServices(), 'exam', 'vtu.exam', $wallet)) {
+            return $refusal;
+        }
+
         $phone = $this->normalizePhone((string) $request->phone);
         if (!$this->isValidPhone($phone)) {
             return $this->respondResult(
@@ -1352,7 +1472,7 @@ class VtuController extends Controller
     // =========================================================
     public function premiumAppsForm()
     {
-        $services = $this->parseServicesSetting('services_premium');
+        $services = $this->catalogue->parseServicesSetting('services_premium');
         if (empty($services)) {
             $services = [
                 'canva' => 'Canva Pro',
@@ -4005,251 +4125,6 @@ class VtuController extends Controller
         $payableKobo = max(0, $totalKobo - $discountKobo);
 
         return [$percent, $discountKobo, $payableKobo];
-    }
-
-    private function dataServices(): array
-    {
-        $fallback = [
-            'mtn_awoof' => 'MTN Awoof Data (Cheap)',
-            'mtn_gifting' => 'MTN Data (Gifting)',
-            'mtn_sme' => 'MTN Data (SME)',
-            'mtn_cg' => 'MTN Data (Corporate)',
-            'mtn_cg_lite' => 'MTN Data (CG Lite)',
-            'mtn_coupon' => 'MTN Coupon',
-            'mtncg' => 'MTN CG',
-            'airtel_sme' => 'Airtel Data (SME)',
-            'airtel_cg' => 'Airtel Data (CG)',
-            'airtel_gifting' => 'Airtel Data (Gifting)',
-            'glo_data' => 'Glo Data',
-            'glo_sme' => 'Glo Data (SME)',
-            'etisalat_data' => '9mobile Data',
-        ];
-
-        $displayOrder = [
-            'mtn_awoof',
-            'mtn_gifting',
-            'mtn_sme',
-            'mtn_cg',
-            'mtn_cg_lite',
-            'mtn_coupon',
-            'mtncg',
-            'airtel_sme',
-            'airtel_cg',
-            'airtel_gifting',
-            'glo_data',
-            'glo_sme',
-            'etisalat_data',
-        ];
-
-        $serviceDefaultEnabled = [
-            'mtn_awoof' => '1',
-            'mtn_gifting' => '1',
-            'mtn_sme' => '1',
-            'mtn_cg' => '0',
-            'mtn_cg_lite' => '0',
-            'mtn_coupon' => '0',
-            'mtncg' => '0',
-            'airtel_sme' => '1',
-            'airtel_cg' => '1',
-            'airtel_gifting' => '1',
-            'glo_data' => '1',
-            'glo_sme' => '1',
-            'etisalat_data' => '1',
-        ];
-
-        $customServices = $this->parseServicesSetting('services_data');
-        $baseServices = !empty($customServices) ? $customServices : $fallback;
-        $expectedSlugs = array_values(array_unique(array_merge(array_keys($fallback), array_keys($baseServices))));
-
-        $dbServices = Service::query()
-            ->whereIn('slug', $expectedSlugs)
-            ->orderBy('name')
-            ->pluck('name', 'slug')
-            ->toArray();
-
-        $services = array_replace($baseServices, $dbServices);
-
-        foreach ($serviceDefaultEnabled as $slug => $defaultEnabled) {
-            $enabled = (string) setting('data_service_enabled_' . $slug, $defaultEnabled) === '1';
-            if (!$enabled) {
-                unset($services[$slug]);
-            }
-        }
-
-        $orderedServices = [];
-        foreach ($displayOrder as $slug) {
-            if (!array_key_exists($slug, $services)) {
-                continue;
-            }
-            $orderedServices[$slug] = $services[$slug];
-            unset($services[$slug]);
-        }
-
-        foreach ($services as $slug => $label) {
-            $orderedServices[$slug] = $label;
-        }
-
-        return $orderedServices;
-    }
-
-    private function airtimeServices(): array
-    {
-        $services = $this->parseServicesSetting('services_airtime');
-        if (!empty($services)) {
-            return $services;
-        }
-
-        return [
-            'mtn' => 'MTN Airtime',
-            'airtel' => 'Airtel Airtime',
-            'glo' => 'Glo Airtime',
-            'etisalat' => '9mobile Airtime',
-        ];
-    }
-
-    private function cableServices(): array
-    {
-        $services = $this->parseServicesSetting('services_cable');
-        if (!empty($services)) {
-            return $services;
-        }
-
-        return [
-            'dstv' => 'DSTV Subscription',
-            'gotv' => 'GOTV Subscription',
-            'startimes' => 'Startimes Subscription',
-        ];
-    }
-
-    private function electricityServices(): array
-    {
-        $services = $this->parseServicesSetting('services_electricity');
-        if (!empty($services)) {
-            return $services;
-        }
-
-        // These slugs must match the `services` table, because the same string
-        // is what goes to the provider as serviceID when no service map is set.
-        return [
-            'abuja-electric' => 'Abuja Electric (AEDC)',
-            'eko-electric' => 'Eko Electric (EKEDC)',
-            'ibadan-electric' => 'Ibadan Electric (IBEDC)',
-            'ikeja-electric' => 'Ikeja Electric (IKEDC)',
-            'jos-electric' => 'Jos Electric (JED)',
-            'kaduna-electric' => 'Kaduna Electric (KAEDCO)',
-            'kano-electric' => 'Kano Electric (KEDCO)',
-            'phed-electric' => 'Port Harcourt Electric (PHED)',
-            'yola-electric' => 'Yola Electric (YEDC)',
-            'benin-electric' => 'Benin Electric (BEDC)',
-            'enugu-electric' => 'Enugu Electric (EEDC)',
-        ];
-    }
-
-    private function educationServices(): array
-    {
-        $services = $this->parseServicesSetting('services_education');
-        if (!empty($services)) {
-            return $services;
-        }
-
-        return [
-            'jamb' => 'JAMB PIN (UTME & Direct Entry)',
-            'waec' => 'WAEC Result Checker PIN',
-            'neco' => 'NECO Result Checker PIN',
-            'nabteb' => 'NABTEB Result Checker PIN',
-        ];
-    }
-
-    private function parseServicesSetting(string $key): array
-    {
-        $raw = trim((string) setting($key, ''));
-        if ($raw === '') return [];
-
-        $lines = preg_split('/\r\n|\r|\n/', $raw) ?: [];
-        $out = [];
-
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if ($line === '' || str_starts_with($line, '#')) continue;
-
-            $parts = preg_split('/\\s*\\|\\s*/', $line, 2);
-            if (count($parts) < 2) {
-                $parts = preg_split('/\\s*=\\s*/', $line, 2);
-            }
-
-            $id = trim($parts[0] ?? '');
-            if ($id === '') continue;
-            if (preg_match('/\s/', $id)) {
-                $id = preg_replace('/\s+/', '_', strtolower($id)) ?? $id;
-            }
-            $label = trim($parts[1] ?? $id);
-
-            $out[$id] = $label !== '' ? $label : $id;
-        }
-
-        return $out;
-    }
-
-    private function rechargeCardNetworkLabels(): array
-    {
-        $configured = $this->parseServicesSetting('recharge_card_networks');
-        $cleaned = [];
-
-        foreach ($configured as $key => $label) {
-            $slug = strtolower(trim((string) $key));
-            if ($slug === '') {
-                continue;
-            }
-            $cleaned[$slug] = trim((string) $label) !== '' ? trim((string) $label) : strtoupper($slug);
-        }
-
-        if (!empty($cleaned)) {
-            return $cleaned;
-        }
-
-        return [
-            'mtn' => 'MTN',
-            'airtel' => 'Airtel',
-            'glo' => 'Glo',
-            'etisalat' => '9mobile',
-        ];
-    }
-
-    private function rechargeCardValues(): array
-    {
-        $raw = trim((string) setting('recharge_card_values', ''));
-        if ($raw === '') {
-            return [100, 200, 400, 500, 1000];
-        }
-
-        $parts = preg_split('/[\r\n,]+/', $raw) ?: [];
-        $values = [];
-
-        foreach ($parts as $part) {
-            $line = trim((string) $part);
-            if ($line === '') {
-                continue;
-            }
-
-            $first = trim((string) preg_split('/\\|/', $line, 2)[0]);
-            $digits = preg_replace('/[^0-9]/', '', $first);
-            if ($digits === '') {
-                continue;
-            }
-
-            $amount = (int) $digits;
-            if ($amount > 0) {
-                $values[] = $amount;
-            }
-        }
-
-        $values = array_values(array_unique($values));
-        if (empty($values)) {
-            return [100, 200, 400, 500, 1000];
-        }
-
-        sort($values);
-        return $values;
     }
 
     private function verifyProviderSuccess(string $requestId): ?array
