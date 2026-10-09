@@ -21,7 +21,6 @@
          anchored panel always runs off the bottom. The layer centres it instead,
          and only gives the desktop its anchored dropdown back. --}}
     <div x-cloak x-show="open"
-         @click.outside="open = false"
          @keydown.escape.window="open = false"
          x-transition:enter="transition duration-200 ease-out"
          x-transition:enter-start="opacity-0"
@@ -30,7 +29,11 @@
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
          class="app-bell-layer">
-        <div class="app-glass-card app-bell-panel p-2 text-slate-800">
+        {{-- The dismissal belongs on the card, not on this layer: on a phone the
+             layer is the full-screen shade behind the card, so a tap on the dimmed
+             area lands inside the element and never counts as "outside" it. --}}
+        <div class="app-glass-card app-bell-panel p-2 text-slate-800"
+             @click.outside="open = false">
             <div class="flex items-center justify-between gap-3 px-1 pb-2">
                 <span class="text-sm font-extrabold">Alerts</span>
                 <form method="POST" action="{{ route('notifications.read-all') }}">

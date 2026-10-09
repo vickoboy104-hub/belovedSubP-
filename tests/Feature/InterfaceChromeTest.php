@@ -94,6 +94,23 @@ class InterfaceChromeTest extends TestCase
         $this->assertStringContainsString('.app-bell-panel', $css);
     }
 
+    public function test_the_tray_leaves_the_screen_when_the_customer_taps_past_it(): void
+    {
+        $html = $this->actingAs($this->member())->get('/dashboard')->assertOk()->getContent();
+
+        // Below 768px the layer IS the dimmed shade covering the phone, so a tap
+        // beside the tray lands inside that element. Bound to it, "outside" could
+        // never be true and the tray only ever left when the page reloaded.
+        $this->assertMatchesRegularExpression(
+            '/<div[^>]*class="app-glass-card app-bell-panel[^"]*"[^>]*@click\.outside/',
+            $html,
+        );
+        $this->assertStringNotContainsString('@click.outside="open = false"', explode('app-bell-panel', $html)[0]);
+
+        // Escape closes it from anywhere, including a keyboard.
+        $this->assertStringContainsString('@keydown.escape.window="open = false"', $html);
+    }
+
     public function test_the_sign_in_card_wears_its_emblem_icons_and_notice(): void
     {
         $html = $this->get('/login')->assertOk()->getContent();
