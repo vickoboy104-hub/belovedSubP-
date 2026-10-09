@@ -1244,6 +1244,17 @@
 
                 <div class="mt-3 space-y-3">
                     @foreach($manualServices->catalogue() as $slug => $manual)
+                        @php
+                            // A service that is really several jobs gets one price
+                            // field per job, so the cheap correction and the dearer
+                            // one are never forced to share a number.
+                            $manualTiers = $manualServices->priceTiers($slug);
+                            $manualInputs = $manualTiers !== [] ? $manualTiers : [[
+                                'key' => $manualServices->servicePriceKey($slug),
+                                'label' => $manual['title'].' price',
+                                'options' => [],
+                            ]];
+                        @endphp
                         <div class="rounded-2xl border border-gray-200 bg-white p-4">
                             <div class="font-extrabold text-gray-900">{{ $manual['icon'] }} {{ $manual['title'] }}</div>
                             <div class="text-xs text-gray-500 mt-1">{{ $manual['summary'] }}</div>
@@ -1258,20 +1269,36 @@
                                         </div>
                                     </div>
                                 @else
-                                    <div>
-                                        <label class="text-sm font-bold text-gray-800/80">Price (₦)</label>
-                                        <input type="number" step="0.01" min="0"
-                                               name="{{ $manualServices->priceKey($slug) }}"
-                                               value="{{ old($manualServices->priceKey($slug), $settings[$manualServices->priceKey($slug)] ?? '') }}"
-                                               placeholder="{{ number_format($manualServices->defaultPrice($slug), 2) }}"
-                                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                                        @php
-                                            $manualCost = $manualServices->providerCost($slug);
-                                        @endphp
-                                        <div class="text-xs text-gray-500 mt-1">
-                                            {{ $manualCost === null ? 'No published provider rate for this job.' : 'Provider cost: ₦'.number_format($manualCost, 2) }}
+                                    @foreach($manualInputs as $input)
+                                        <div>
+                                            <label class="text-sm font-bold text-gray-800/80">
+                                                Price (₦)
+                                                @if($manualTiers !== [])<span class="font-medium text-gray-500">— {{ $input['label'] }}</span>@endif
+                                            </label>
+                                            @php $manualCost = identity_cost($input['key']); @endphp
+                                            @if(str_starts_with($input['key'], 'price_manual_'))
+                                                <input type="number" step="0.01" min="0"
+                                                       name="{{ $input['key'] }}"
+                                                       value="{{ old($input['key'], $settings[$input['key']] ?? '') }}"
+                                                       placeholder="{{ number_format(identity_reference_price($input['key']), 2) }}"
+                                                       class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                                                <div class="text-xs text-gray-500 mt-1">
+                                                    {{ $manualCost === null ? 'No published provider rate for this job.' : 'Provider cost: ₦'.number_format($manualCost, 2).' — the customer is never charged less.' }}
+                                                    @if($input['options'] !== [])
+                                                        <div class="mt-0.5">{{ implode(', ', $input['options']) }}</div>
+                                                    @endif
+                                                </div>
+                                            @else
+                                                <div class="mt-1 px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 text-sm text-gray-700">
+                                                    ₦{{ number_format(identity_tier_price($input['key'], $manualServices->servicePriceKey($slug)), 2) }}
+                                                    — same rate as the automatic version of this job.
+                                                    @if($input['options'] !== [])
+                                                        <div class="mt-0.5">{{ implode(', ', $input['options']) }}</div>
+                                                    @endif
+                                                </div>
+                                            @endif
                                         </div>
-                                    </div>
+                                    @endforeach
                                     <div>
                                         <label class="text-sm font-bold text-gray-800/80">Markup (₦)</label>
                                         <input type="number" step="0.01" min="0"

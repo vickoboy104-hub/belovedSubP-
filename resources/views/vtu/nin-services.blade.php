@@ -1,6 +1,5 @@
 <x-app-layout>
     @php
-        $verifyPrice = identity_price('price_nin_verify');
         $printMarkup = (float) setting('markup_nin_print', 0);
         $slipPrices = [
             'standard_slip' => identity_price('price_nin_slip_standard'),
@@ -18,6 +17,13 @@
         // off it and worked from the manual queue. The owner switches between
         // the two in Admin > Settings; the wording here must follow that choice.
         $manualServices = app(\App\Services\ManualFulfilmentService::class);
+        // The three search types are three different amounts of work, so each one
+        // shows the price the server will actually charge for it.
+        $verifyPrices = [
+            'by_nin' => $manualServices->priceNaira('nin_verify', ['verification_type' => 'by_nin']),
+            'by_phone' => $manualServices->priceNaira('nin_verify', ['verification_type' => 'by_phone']),
+            'by_demo' => $manualServices->priceNaira('nin_verify', ['verification_type' => 'by_demo']),
+        ];
         $verifyManual = identity_verify_mode('nin') === 'manual';
         $verifyTurnaround = $manualServices->turnaroundLabel('nin_verify');
         $heroSubtitle = $verifyManual
@@ -259,7 +265,10 @@
             const slipIdleNote = 'Verify a record first to unlock direct printing.';
             const slipReadyNote = (nin) => `Verified NIN ${nin} is ready. Choose Standard, Premium, or Long Slip to print directly.`;
 
-            const verifyPrice = @json($verifyPrice);
+            const verifyPrices = @json($verifyPrices);
+            const currentVerifyPrice = () => Number(
+                verifyPrices[String(verificationType.value || 'by_nin')] ?? verifyPrices.by_nin ?? 0,
+            );
             const printMarkup = Number(@json($printMarkup));
             const slipPrices = @json($slipPrices);
 
@@ -509,7 +518,7 @@
             }
 
             function renderVerifyPrice() {
-                verifyPriceBadge.textContent = `Verification fee: ${formatSlipPrice(verifyPrice)}`;
+                verifyPriceBadge.textContent = `Verification fee: ${formatSlipPrice(currentVerifyPrice())}`;
             }
 
             function lookupPayloadFromFormData(formData) {
@@ -567,11 +576,12 @@
 
             function buildVerifyConfirmationData(lookup) {
                 const mode = lookup?.verification_type || 'by_nin';
+                const price = Number(verifyPrices[mode] ?? currentVerifyPrice());
                 const rows = {
                     service: 'NIN Verification',
                     mode: mode === 'by_phone' ? 'By Phone Number' : (mode === 'by_demo' ? 'By Demographic Data' : 'By NIN'),
-                    amount: formatNaira(verifyPrice),
-                    __debitAmount: verifyPrice,
+                    amount: formatNaira(price),
+                    __debitAmount: price,
                 };
 
                 if (mode === 'by_phone') {
@@ -1082,6 +1092,7 @@
             });
 
             verificationType.addEventListener('change', renderVerificationFields);
+            verificationType.addEventListener('change', renderVerifyPrice);
             refreshReportsBtn?.addEventListener('click', loadReports);
 
             renderVerificationFields();

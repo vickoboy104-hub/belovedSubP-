@@ -22,7 +22,7 @@
                 'title' => $manual['title'],
                 'copy' => $manual['summary'],
                 'url' => route('vtu.manual.form', $slug),
-                'status' => '₦'.number_format($manualServices->totalNaira($slug), 0).' • '.$manualServices->turnaroundLabel($slug),
+                'status' => $manualServices->priceRangeLabel($slug).' • '.$manualServices->turnaroundLabel($slug),
             ];
         }
     @endphp

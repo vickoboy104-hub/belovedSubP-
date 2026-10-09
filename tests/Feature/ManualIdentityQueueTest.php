@@ -71,8 +71,10 @@ class ManualIdentityQueueTest extends TestCase
                 ->assertSessionHasNoErrors();
         }
 
-        // ₦3,000 + ₦3,000 + ₦1,000 + ₦1,000 shipped defaults.
-        $this->assertSame(1_200_000, $this->balance($user));
+        // ₦3,000 + ₦3,000 + ₦400 + ₦1,000 shipped defaults. The premium slip is
+        // charged at the rate the automatic print uses for that same slip, rather
+        // than at a second manual price the owner would have to keep in sync.
+        $this->assertSame(1_260_000, $this->balance($user));
         $this->assertSame(4, Order::query()->where('user_id', $user->id)->count());
 
         $personalization = Order::query()
@@ -84,6 +86,39 @@ class ManualIdentityQueueTest extends TestCase
             ['tracking_id' => 'PQRSTUVWXYZABCD', 'category' => 'get_nin_slip'],
             $personalization->meta['submitted'],
         );
+    }
+
+    public function test_the_option_a_customer_picks_decides_what_they_are_billed(): void
+    {
+        $user = $this->memberWithBalance(9_000_000);
+
+        // A date of birth correction costs the provider ₦33,000 on its own while a
+        // name change is ₦5,000, so the wallet cannot be debited the same amount
+        // for both just because they share one form.
+        $name = $this->submitManualRequest($user, 'nin_modification', [
+            'nin' => '12345678901',
+            'field_to_modify' => 'name',
+            'new_value' => 'AISHA RABIU MOHAMMED',
+        ]);
+
+        $this->assertSame(650_000, (int) $name->amount);
+        $this->assertSame(6500.0, (float) $name->meta['base_amount_naira']);
+
+        $birth = $this->submitManualRequest($user, 'nin_modification', [
+            'nin' => '12345678901',
+            'field_to_modify' => 'dob',
+            'new_value' => '12-08-1994',
+        ]);
+
+        $this->assertSame(4000_000, (int) $birth->amount);
+        $this->assertSame(40000.0, (float) $birth->meta['base_amount_naira']);
+
+        // The queue still reads the correction the same way an admin expects.
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin)
+            ->get('/admin/manual-orders')
+            ->assertOk()
+            ->assertSee('Change of Date of Birth', false);
     }
 
     public function test_admin_types_a_result_and_the_customer_reads_it_on_the_receipt(): void

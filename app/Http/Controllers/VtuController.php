@@ -1699,7 +1699,11 @@ class VtuController extends Controller
         }
 
         $requestId = $this->makeRequestId('NINV');
-        $priceVerifyNaira = identity_price('price_nin_verify');
+        // Finding a record by phone or by demographic data is a different amount
+        // of work from reading it by NIN, so each search type is priced on its own.
+        $priceVerifyNaira = $this->manualServices->priceNaira('nin_verify', [
+            'verification_type' => 'by_'.$searchType,
+        ]);
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
         $priceVerifyKobo = $this->toKobo($priceVerifyNaira);
@@ -2871,6 +2875,8 @@ class VtuController extends Controller
         return view('vtu.manual-service', [
             'definition' => $definition,
             'priceNaira' => $this->manualServices->totalNaira($service),
+            'tierField' => $definition['tiers']['field'] ?? null,
+            'tierPrices' => $this->manualServices->tierPrices($service),
             'turnaroundLabel' => $this->manualServices->turnaroundLabel($service),
             'expectedBy' => $this->manualServices->expectedBy($service),
             'walletBalanceKobo' => (int) (auth()->user()?->wallet?->balance ?? 0),
@@ -2890,7 +2896,7 @@ class VtuController extends Controller
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
         $title = (string) $definition['title'];
-        $payableKobo = $this->manualPayableKobo($service, $user);
+        $payableKobo = $this->manualPayableKobo($service, $user, $submitted);
 
         if (((int) $wallet->balance) < $payableKobo) {
             return back()->with('error', $this->buildErrorMessage(1));
@@ -2928,9 +2934,9 @@ class VtuController extends Controller
             ->with('success', $title.' received. '.$this->manualServices->turnaroundLabel($service).' to complete it.');
     }
 
-    private function manualPayableKobo(string $slug, ?User $user): int
+    private function manualPayableKobo(string $slug, ?User $user, array $submitted = []): int
     {
-        $totalKobo = $this->toKobo($this->manualServices->totalNaira($slug));
+        $totalKobo = $this->toKobo($this->manualServices->totalNaira($slug, $submitted));
         [, , $payableKobo] = $this->applyDiscount($totalKobo, $user);
 
         return $payableKobo;
@@ -2957,7 +2963,7 @@ class VtuController extends Controller
         array $extraMeta = [],
         ?array $pricing = null,
     ): Order {
-        $basePriceNaira = $pricing['base_naira'] ?? $this->manualServices->priceNaira($slug);
+        $basePriceNaira = $pricing['base_naira'] ?? $this->manualServices->priceNaira($slug, $submitted);
         $markupNaira = $pricing['markup_naira'] ?? $this->manualServices->markupNaira($slug);
         $totalNaira = $basePriceNaira + $markupNaira;
         $totalKobo = $this->toKobo($totalNaira);

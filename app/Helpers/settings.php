@@ -93,7 +93,13 @@ if (!function_exists('jhtech_price_reference')) {
     function jhtech_price_reference(): array
     {
         return [
+            // The provider charges the same per verification whichever way the
+            // record is found, but the three ways are not equally likely to come
+            // back with a match, so each is priced separately here and the owner
+            // raises the awkward ones without touching NIN-by-NIN.
             'price_nin_verify' => ['cost' => 160, 'retail' => 250],
+            'price_nin_verify_by_phone' => ['cost' => 160, 'retail' => 250],
+            'price_nin_verify_by_demo' => ['cost' => 160, 'retail' => 250],
             'price_nin_slip_long' => ['cost' => 180, 'retail' => 300],
             'price_nin_slip_standard' => ['cost' => 180, 'retail' => 350],
             'price_nin_slip_premium' => ['cost' => 180, 'retail' => 400],
@@ -109,12 +115,21 @@ if (!function_exists('jhtech_price_reference')) {
             // Manually fulfilled identity jobs. Where one setting covers two JH
             // Tech jobs of different cost, the retail figure clears the dearer one.
             'price_manual_ipe_clearance' => ['cost' => 700, 'retail' => 3000],
+            // Their personalization page asks 250 for the slip and 150 for the NIN
+            // number alone, so the cheaper answer gets its own rate instead of
+            // being sold at the slip price.
             'price_manual_nin_personalization' => ['cost' => 250, 'retail' => 3000],
-            // Their counter charges 5,000 for a single change, 6,000 for name plus
-            // one more detail, 12,000 for a date of birth combined with a name or
-            // phone, and 33,000 for a date of birth on its own. The cost here is
-            // the cheapest real tier, so a saved retail under it is already a loss.
+            'price_manual_nin_personalization_nin_only' => ['cost' => 150, 'retail' => 2500],
+            // Their counter charges one price per correction set, read straight off
+            // the hidden fields on their own modification form: 5,000 for a single
+            // detail, 6,000 when the name moves with phone, email or address,
+            // 12,000 when a date of birth moves with a name or phone, and 33,000
+            // for a date of birth on its own. Each tier below carries its own real
+            // cost, so no correction is ever sold at the cheapest tier's rate.
             'price_manual_nin_modification' => ['cost' => 5000, 'retail' => 6500],
+            'price_manual_nin_modification_name_pair' => ['cost' => 6000, 'retail' => 7500],
+            'price_manual_nin_modification_dob_pair' => ['cost' => 12000, 'retail' => 15000],
+            'price_manual_nin_modification_dob' => ['cost' => 33000, 'retail' => 40000],
             'price_manual_nin_delink' => ['cost' => 2000, 'retail' => 3000],
             'price_manual_nin_agreement' => ['cost' => 0, 'retail' => 2500],
             'price_manual_bvn_print' => ['cost' => 150, 'retail' => 1000],
@@ -151,6 +166,36 @@ if (!function_exists('identity_price')) {
         }
 
         return (float) $stored;
+    }
+}
+
+if (!function_exists('identity_tier_price')) {
+    /**
+     * The price of one tier inside a service that has several.
+     *
+     * A tier is priced by its own setting when the owner has filled it in.
+     * Otherwise the service-level setting still wins, so a price the owner set
+     * before the service was split into tiers keeps applying to every tier
+     * instead of being silently replaced by a built-in number. Only when neither
+     * is saved do the built-in rates speak, and the tier's own rate is the one
+     * that matches the job the customer selected.
+     *
+     * The provider's own charge is the floor: a tier can be raised to any margin
+     * but never sold under what the same job costs us.
+     */
+    function identity_tier_price(string $tierKey, string $serviceKey): float
+    {
+        foreach ([$tierKey, $serviceKey] as $key) {
+            $stored = setting($key);
+            if ($stored !== null && $stored !== '') {
+                return max((float) $stored, identity_cost($tierKey) ?? 0.0);
+            }
+        }
+
+        return max(
+            identity_reference_price($tierKey, identity_reference_price($serviceKey)),
+            identity_cost($tierKey) ?? 0.0,
+        );
     }
 }
 

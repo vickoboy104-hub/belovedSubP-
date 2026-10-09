@@ -111,6 +111,41 @@ class ManualServicePageTest extends TestCase
         $this->assertStringNotContainsString('₦150', $html);
     }
 
+    public function test_the_form_names_the_price_of_every_option_it_offers(): void
+    {
+        $html = $this->actingAs($this->member())
+            ->get('/vtu/manual/nin_modification')
+            ->assertOk()
+            ->getContent();
+
+        // The price line and the deduction warning both follow the correction the
+        // customer picks, so every rate has to be in the page for the browser.
+        $this->assertStringContainsString('data-tier-field="field_to_modify"', $html);
+        $this->assertStringContainsString('&quot;name&quot;:650000', $html);
+        $this->assertStringContainsString('&quot;name_phone&quot;:750000', $html);
+        $this->assertStringContainsString('&quot;name_dob&quot;:1500000', $html);
+        $this->assertStringContainsString('&quot;dob&quot;:4000000', $html);
+    }
+
+    public function test_a_page_of_differently_priced_options_does_not_claim_one_price_yet(): void
+    {
+        $html = $this->actingAs($this->member())
+            ->get('/vtu/manual/nin_modification')
+            ->assertOk()
+            ->getContent();
+
+        // Nothing has been chosen, so the job — and therefore the bill — is not
+        // known. Quoting the cheapest option alone would read as a promise.
+        $this->assertStringContainsString('₦6,500.00 – ₦40,000.00', $html);
+
+        // A page that sells one job at one rate has no span to hide behind.
+        $this->actingAs($this->member())
+            ->get('/vtu/manual/ipe_clearance')
+            ->assertOk()
+            ->assertSee('₦3,000.00', false)
+            ->assertDontSee('choose what you need done', false);
+    }
+
     public function test_a_dropdown_opens_on_the_providers_own_wording(): void
     {
         $user = $this->member();
@@ -118,7 +153,7 @@ class ManualServicePageTest extends TestCase
         $pages = [
             'ipe_clearance' => 'Select IPEs Category',
             'nin_validation' => 'Select Validation Category',
-            'nin_slip_print' => 'Select Slip Type',
+            'nin_slip_print' => 'Choose Slip Type',
             'bvn_retrieve' => 'Choose Category',
         ];
 
@@ -133,6 +168,22 @@ class ManualServicePageTest extends TestCase
             ->assertOk()
             ->assertSee('New Enrollment for ID Retrieval', false)
             ->assertSee('Enrollment is Still Being Process', false);
+
+        // Their slip menu and their validation menu name the products their own
+        // way, and each of those names is a price of its own.
+        $this->actingAs($user)->get('/vtu/manual/nin_slip_print')
+            ->assertOk()
+            ->assertSee('NIN Slip (Long Slip)', false)
+            ->assertSee('Vnin NIN Slip Sample', false);
+
+        $this->actingAs($user)->get('/vtu/manual/nin_validation')
+            ->assertOk()
+            ->assertSee('Update Record(Modification Validation Name/Phone/Address except DOB)', false);
+
+        $this->actingAs($user)->get('/vtu/manual/nin_modification')
+            ->assertOk()
+            ->assertSee('Change of Phone Number', false)
+            ->assertSee('Date of Birth and Phone Number', false);
     }
 
     public function test_the_providers_own_warnings_about_a_slip_are_shown(): void

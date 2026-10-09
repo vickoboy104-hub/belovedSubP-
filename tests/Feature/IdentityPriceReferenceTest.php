@@ -78,8 +78,13 @@ class IdentityPriceReferenceTest extends TestCase
                 continue;
             }
 
-            if ($manual->providerCost($slug) !== null) {
-                $expectedHints++;
+            // A job behind a dropdown gets its own hint with its own cost, because
+            // a date of birth correction and a name correction are not the same
+            // purchase and cannot share one warning.
+            foreach ($this->manualPriceKeys($manual, $slug) as $key) {
+                if (identity_cost($key) !== null) {
+                    $expectedHints++;
+                }
             }
         }
 
@@ -88,6 +93,26 @@ class IdentityPriceReferenceTest extends TestCase
             substr_count($html, 'Provider cost'),
             'Every priced identity job should carry exactly one cost hint.'
         );
+    }
+
+    /**
+     * The keys a manual service is priced by: its own rate, or one rate per
+     * selectable option when the service is really several jobs.
+     *
+     * @return list<string>
+     */
+    private function manualPriceKeys(ManualFulfilmentService $manual, string $slug): array
+    {
+        $tiers = $manual->priceTiers($slug);
+
+        if ($tiers === []) {
+            return [$manual->servicePriceKey($slug)];
+        }
+
+        return array_values(array_filter(
+            array_column($tiers, 'key'),
+            fn (string $key): bool => str_starts_with($key, 'price_manual_'),
+        ));
     }
 
     public function test_the_owner_can_still_override_a_reference_price(): void
@@ -146,5 +171,93 @@ class IdentityPriceReferenceTest extends TestCase
         // the cheapest tier (₦5,000 for a single detail) instead of selling at a loss.
         $this->assertSame(5000.0, identity_cost('price_manual_nin_modification'));
         $this->assertSame(6500.0, app(ManualFulfilmentService::class)->priceNaira('nin_modification'));
+    }
+
+    public function test_each_correction_is_charged_at_the_rate_the_provider_prices_it(): void
+    {
+        $manual = app(ManualFulfilmentService::class);
+
+        // One flat price across ten corrections was selling a date-of-birth
+        // change, which costs ₦33,000 at the counter, at the ₦5,000 rate of a
+        // name change. Each option now carries its own tier.
+        $this->assertSame(6500.0, $manual->priceNaira('nin_modification', ['field_to_modify' => 'name']));
+        $this->assertSame(6500.0, $manual->priceNaira('nin_modification', ['field_to_modify' => 'email']));
+        $this->assertSame(7500.0, $manual->priceNaira('nin_modification', ['field_to_modify' => 'name_phone']));
+        $this->assertSame(15000.0, $manual->priceNaira('nin_modification', ['field_to_modify' => 'dob_phone']));
+        $this->assertSame(40000.0, $manual->priceNaira('nin_modification', ['field_to_modify' => 'dob']));
+
+        // The hub shows the spread rather than the cheapest number, so a customer
+        // is never surprised by the price of the job they then pick.
+        $this->assertSame('₦6,500 – ₦40,000', $manual->priceRangeLabel('nin_modification'));
+    }
+
+    public function test_a_tier_can_be_raised_but_never_sold_under_what_the_provider_charges(): void
+    {
+        $manual = app(ManualFulfilmentService::class);
+
+        \App\Models\Setting::query()->updateOrCreate(
+            ['key' => 'price_manual_nin_modification_dob'],
+            ['value' => '1000'],
+        );
+        settings_flush_cache();
+
+        // ₦33,000 is what the same job costs us, so a figure under it is a loss
+        // the site refuses to bill.
+        $this->assertSame(33000.0, $manual->priceNaira('nin_modification', ['field_to_modify' => 'dob']));
+        $this->assertSame(6500.0, $manual->priceNaira('nin_modification', ['field_to_modify' => 'name']));
+    }
+
+    public function test_a_service_price_set_before_the_split_still_covers_the_tiers(): void
+    {
+        $manual = app(ManualFulfilmentService::class);
+
+        // A number the owner saved while the service had one price must not be
+        // silently replaced by a built-in tier rate after the split.
+        \App\Models\Setting::query()->updateOrCreate(
+            ['key' => 'price_manual_nin_modification'],
+            ['value' => '9000'],
+        );
+        settings_flush_cache();
+
+        $this->assertSame(9000.0, $manual->priceNaira('nin_modification', ['field_to_modify' => 'name']));
+        $this->assertSame(9000.0, $manual->priceNaira('nin_modification', ['field_to_modify' => 'name_email']));
+
+        // ...except where that saved figure would fall under a dearer tier's cost.
+        $this->assertSame(33000.0, $manual->priceNaira('nin_modification', ['field_to_modify' => 'dob']));
+    }
+
+    public function test_each_verification_search_can_be_priced_apart(): void
+    {
+        $manual = app(ManualFulfilmentService::class);
+
+        $this->assertSame(250.0, $manual->priceNaira('nin_verify', ['verification_type' => 'by_nin']));
+        $this->assertSame(250.0, $manual->priceNaira('nin_verify', ['verification_type' => 'by_phone']));
+        $this->assertSame(250.0, $manual->priceNaira('nin_verify', ['verification_type' => 'by_demo']));
+
+        \App\Models\Setting::query()->updateOrCreate(
+            ['key' => 'price_nin_verify_by_demo'],
+            ['value' => '400'],
+        );
+        settings_flush_cache();
+
+        $manual = app(ManualFulfilmentService::class);
+        $this->assertSame(400.0, $manual->priceNaira('nin_verify', ['verification_type' => 'by_demo']));
+        $this->assertSame(250.0, $manual->priceNaira('nin_verify', ['verification_type' => 'by_nin']));
+    }
+
+    public function test_every_declared_tier_has_a_published_rate_behind_it(): void
+    {
+        $manual = app(ManualFulfilmentService::class);
+
+        // A tier pointing at a key nobody priced would be offered for nothing.
+        foreach (array_keys($manual->catalogue()) as $slug) {
+            foreach ($manual->priceTiers($slug) as $tier) {
+                $this->assertArrayHasKey(
+                    $tier['key'],
+                    jhtech_price_reference(),
+                    $slug.' offers the '.$tier['label'].' tier with no rate behind it.'
+                );
+            }
+        }
     }
 }
