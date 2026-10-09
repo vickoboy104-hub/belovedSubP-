@@ -17,6 +17,7 @@ use App\Services\ManualFulfilmentService;
 use App\Services\NinApi;
 use App\Services\ProviderPlanPriceService;
 use App\Services\WalletLedger;
+use App\Support\IssuedKeys;
 use App\Support\NinSlipLayout;
 use App\Support\NinSlipValues;
 use Carbon\Carbon;
@@ -1019,6 +1020,7 @@ class VtuController extends Controller
                         'provider_response' => $resp,
                         'message'           => $this->gsubz->message($resp),
                     ]);
+                    IssuedKeys::capture($order, $resp);
                     $order->save();
                     $this->awardReferralCommission($order);
 
@@ -1027,7 +1029,7 @@ class VtuController extends Controller
                         request: $request,
                         routeName: 'vtu.electricity',
                         ok: true,
-                        message: 'Electricity purchase successful!',
+                        message: $this->keyAnnouncement($order, 'Electricity purchase successful!'),
                         extra: array_merge(['order_id' => $order->id], $this->walletPayload($wallet))
                     );
                 }
@@ -1041,7 +1043,7 @@ class VtuController extends Controller
                         request: $request,
                         routeName: 'vtu.electricity',
                         ok: true,
-                        message: 'Electricity purchase successful (verified)!',
+                        message: $this->keyAnnouncement($order, 'Electricity purchase successful (verified)!'),
                         extra: array_merge(['order_id' => $order->id], $this->walletPayload($wallet))
                     );
                 }
@@ -1267,6 +1269,7 @@ class VtuController extends Controller
                         'provider_response' => $resp,
                         'message'           => $this->gsubz->message($resp),
                     ]);
+                    IssuedKeys::capture($order, $resp);
                     $order->save();
                     $this->awardReferralCommission($order);
 
@@ -1275,7 +1278,7 @@ class VtuController extends Controller
                         request: $request,
                         routeName: 'vtu.exam',
                         ok: true,
-                        message: 'Exam pin purchase successful!',
+                        message: $this->keyAnnouncement($order, 'Exam pin purchase successful!'),
                         extra: array_merge(['order_id' => $order->id], $this->walletPayload($wallet))
                     );
                 }
@@ -1289,7 +1292,7 @@ class VtuController extends Controller
                         request: $request,
                         routeName: 'vtu.exam',
                         ok: true,
-                        message: 'Exam pin purchase successful (verified)!',
+                        message: $this->keyAnnouncement($order, 'Exam pin purchase successful (verified)!'),
                         extra: array_merge(['order_id' => $order->id], $this->walletPayload($wallet))
                     );
                 }
@@ -4278,6 +4281,26 @@ class VtuController extends Controller
         return null;
     }
 
+    /**
+     * The popup that confirms a key purchase has to carry the key: most people
+     * read nothing after the word "successful".
+     */
+    private function keyAnnouncement(Order $order, string $message): string
+    {
+        $keys = IssuedKeys::forOrder($order);
+
+        if ($keys === []) {
+            return $message;
+        }
+
+        $listed = [];
+        foreach ($keys as $key) {
+            $listed[] = $key['label'].': '.$key['value'];
+        }
+
+        return $message.' '.implode(' | ', $listed).'. They are on your receipt too, where you can copy, download and print them.';
+    }
+
     private function finalizeSuccessfulOrder(
         Order $order,
         string $requestId,
@@ -4305,6 +4328,7 @@ class VtuController extends Controller
         $order->status = 'success';
         $order->provider_reference = $providerRef;
         $order->meta = $meta;
+        IssuedKeys::capture($order, $providerResp, $verifyResp ?? []);
         $order->save();
         $this->awardReferralCommission($order);
     }

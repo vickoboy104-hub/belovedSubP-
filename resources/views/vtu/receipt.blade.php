@@ -8,8 +8,7 @@
         $balanceBeforeN = $balanceBeforeKobo !== null ? number_format($balanceBeforeKobo / 100, 2) : null;
         $balanceAfterN = $balanceAfterKobo !== null ? number_format($balanceAfterKobo / 100, 2) : null;
 
-        $token = $meta['token'] ?? null;
-        $pin = $meta['pin'] ?? null;
+        $keys = \App\Support\IssuedKeys::forOrder($order);
 
         $siteName = site_name();
         $support = whatsapp_link();
@@ -144,17 +143,45 @@
                 </div>
             </div>
 
-            @if($token)
-                <div class="mt-5 rounded-2xl border border-green-500/25 bg-green-500/10 p-4">
-                    <div class="text-sm text-green-700 font-extrabold">Electricity Token</div>
-                    <div class="mt-1 font-extrabold break-words">{{ $token }}</div>
-                </div>
-            @endif
+            @if($keys !== [])
+                <div class="mt-5 rounded-2xl border border-green-500/25 bg-green-500/10 p-4"
+                     id="issuedKeys"
+                     data-key-file-header="{{ $siteName }} receipt #{{ $order->id }} — {{ $order->created_at->format('d M Y, h:i A') }}">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <div class="text-sm text-green-700 font-extrabold">Your keys</div>
+                            <p class="mt-1 text-xs text-slate-600">
+                                Nothing else on the site repeats these, so save them now. They stay on this receipt —
+                                you can download and print them again any time.
+                            </p>
+                        </div>
+                        <button type="button"
+                                onclick="downloadKeys()"
+                                class="no-print shrink-0 rounded-xl border border-green-600 bg-white px-3 py-2 text-xs font-extrabold text-green-700 hover:bg-green-50">
+                            Download
+                        </button>
+                    </div>
 
-            @if($pin)
-                <div class="mt-5 rounded-2xl border border-green-500/25 bg-green-500/10 p-4">
-                    <div class="text-sm text-green-700 font-extrabold">Exam PIN</div>
-                    <div class="mt-1 font-extrabold break-words">{{ $pin }}</div>
+                    <div class="mt-3 space-y-3">
+                        @foreach($keys as $key)
+                            <div class="rounded-xl border border-green-500/25 bg-white p-3"
+                                 data-key-row
+                                 data-key-label="{{ $key['label'] }}"
+                                 data-key-value="{{ $key['value'] }}">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $key['label'] }}</div>
+                                    <button type="button"
+                                            data-copy-text="{{ $key['value'] }}"
+                                            data-copy-label="Copy"
+                                            data-copy-done="Copied"
+                                            class="no-print rounded-lg border border-green-600 px-2.5 py-1 text-xs font-extrabold text-green-700 hover:bg-green-50">
+                                        Copy
+                                    </button>
+                                </div>
+                                <div class="key-value mt-1 break-all font-mono text-lg font-extrabold text-slate-900">{{ $key['value'] }}</div>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             @endif
 
@@ -225,6 +252,33 @@
 
             link.href = url;
             link.download = 'Receipt-{{ $order->id }}.html';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        // The values are read off the page rather than baked into this script, so
+        // a key containing a quote can never break the receipt's own JavaScript.
+        function downloadKeys() {
+            const card = document.getElementById('issuedKeys');
+            if (!card) return;
+
+            const lines = [card.dataset.keyFileHeader, ''];
+
+            card.querySelectorAll('[data-key-row]').forEach((row) => {
+                lines.push(row.dataset.keyLabel + ': ' + row.dataset.keyValue);
+            });
+
+            lines.push('', 'Keep this file safe - anyone holding it can use these keys.');
+
+            const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+
+            link.href = url;
+            link.download = 'Keys-receipt-{{ $order->id }}.txt';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);

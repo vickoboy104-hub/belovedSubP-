@@ -130,6 +130,8 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
 Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('admin.dashboard');
     Route::get('/orders', [OrdersController::class, 'index'])->name('admin.orders');
+    Route::get('/orders/{order}/keys', [OrdersController::class, 'keys'])->name('admin.orders.keys');
+    Route::post('/orders/{order}/keys', [OrdersController::class, 'storeKeys'])->name('admin.orders.keys.store');
     Route::get('/manual-orders', [ManualOrdersController::class, 'index'])->name('admin.manual-orders.index');
     Route::get('/manual-orders/{order}', [ManualOrdersController::class, 'show'])->name('admin.manual-orders.show');
     Route::post('/manual-orders/{order}/fulfil', [ManualOrdersController::class, 'fulfil'])->name('admin.manual-orders.fulfil');

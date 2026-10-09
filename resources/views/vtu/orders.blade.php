@@ -34,6 +34,10 @@
             ));
             $balances = $orderBalanceMap[(int) $o->id] ?? [];
 
+            // A key purchase is only worth reopening for the key, so the row says
+            // what is behind the link.
+            $hasKeys = \App\Support\IssuedKeys::forOrder($o) !== [];
+
             $rows[] = [
                 'id' => (int) $o->id,
                 'cells' => [
@@ -46,7 +50,7 @@
                     'date' => optional($o->created_at)->format('Y-m-d, h:i:s A') ?? '',
                 ],
                 'action' => [
-                    'label' => 'View receipt',
+                    'label' => $hasKeys ? 'View keys' : 'View receipt',
                     'href' => route('vtu.receipt', $o->id),
                 ],
             ];
