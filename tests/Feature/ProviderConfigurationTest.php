@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class ProviderConfigurationTest extends TestCase
@@ -60,6 +61,62 @@ class ProviderConfigurationTest extends TestCase
         Http::assertNothingSent();
         $this->assertSame(100_000, $this->balance($user));
         $this->assertSame(0, Order::query()->where('user_id', $user->id)->count());
+    }
+
+    public function test_a_rejected_bvn_request_shows_the_provider_reason_instead_of_the_blanket_failure(): void
+    {
+        // A provider answer carried in a rejected HTTP status used to be thrown
+        // away, so an outage, a wrong number and an empty provider wallet all
+        // reached the customer as the same useless sentence, with nothing logged.
+        $user = $this->memberWithBalance(100_000);
+
+        Setting::create(['key' => 'bvn_api_key', 'value' => 'test-bvn-key']);
+        settings_flush_cache();
+
+        Log::spy();
+
+        Http::fake([
+            'confirmident.com.ng/api/bvn_search' => Http::response(
+                ['success' => false, 'message' => 'Invalid BVN number'],
+                400,
+            ),
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->postJson('/vtu/bvn/verify', ['bvn' => '12345678901']);
+
+        $response
+            ->assertStatus(422)
+            ->assertJson(['ok' => false, 'message' => 'Invalid BVN number']);
+
+        Log::shouldHaveReceived('warning')->once();
+
+        $this->assertSame(100_000, $this->balance($user));
+        $this->assertSame(0, Order::query()->where('user_id', $user->id)->count());
+    }
+
+    public function test_a_bvn_request_that_never_arrives_is_logged_as_a_connection_failure(): void
+    {
+        $user = $this->memberWithBalance(100_000);
+
+        Setting::create(['key' => 'bvn_api_key', 'value' => 'test-bvn-key']);
+        settings_flush_cache();
+
+        Log::spy();
+
+        Http::fake([
+            'confirmident.com.ng/api/bvn_search' => Http::failedConnection('cURL error 7'),
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->postJson('/vtu/bvn/verify', ['bvn' => '12345678901'])
+            ->assertStatus(422)
+            ->assertJson(['ok' => false, 'message' => 'Could not connect to BVN provider.']);
+
+        Log::shouldHaveReceived('warning')->once();
+        $this->assertSame(100_000, $this->balance($user));
     }
 
     public function test_nin_validation_is_charged_and_queued_for_manual_fulfilment_without_a_key(): void
