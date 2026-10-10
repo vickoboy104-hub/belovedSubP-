@@ -3017,11 +3017,24 @@ class VtuController extends Controller
 
     // Identity services with no live provider: the customer pays and fills the
     // form as usual, an admin completes it, and the result lands on the receipt.
-    public function manualServiceForm(string $service)
+    public function manualServiceForm(string $service, Request $request)
     {
         $definition = $this->manualServices->find($service);
         abort_unless($definition !== null, 404);
         abort_if($this->manualServices->wiredOnly($service), 404);
+
+        // A request that failed on another page can hand the customer straight to
+        // the service that can put it right, with the number they already typed
+        // carried across instead of asked for twice. Only fields this service owns
+        // are read, and the value stays untrusted text until the form's own rules
+        // judge it on submission.
+        $prefill = [];
+        foreach ($definition['fields'] as $field) {
+            $value = $request->query($field['name']);
+            if (is_string($value) && trim($value) !== '') {
+                $prefill[$field['name']] = mb_substr(trim($value), 0, 100);
+            }
+        }
 
         // The provider prints the history of the job directly under its form, so
         // the customer can check an earlier request without navigating away.
@@ -3034,6 +3047,7 @@ class VtuController extends Controller
 
         return view('vtu.manual-service', [
             'definition' => $definition,
+            'prefill' => $prefill,
             'priceNaira' => $this->manualServices->totalNaira($service),
             'tierField' => $definition['tiers']['field'] ?? null,
             'tierPrices' => $this->manualServices->tierPrices($service),

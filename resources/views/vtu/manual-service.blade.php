@@ -8,6 +8,7 @@
         // Some services rewrite or reprint the identity record itself, so the terms
         // stand in front of the form rather than in a footnote under it.
         $consent = app(\App\Services\ManualFulfilmentService::class)->consent($slug);
+        $prefill = (array) ($prefill ?? []);
 
         // Several services are really a list of different jobs behind one select,
         // each with its own rate. The provider names that rate the moment the
@@ -204,7 +205,7 @@
                                     class="input-field">
                                 <option value="">{{ $ph }}</option>
                                 @foreach($field['options'] as $value => $label)
-                                    <option value="{{ $value }}" @selected((string) old($field['name']) === (string) $value)>{{ $label }}</option>
+                                    <option value="{{ $value }}" @selected((string) old($field['name'], $prefill[$field['name']] ?? '') === (string) $value)>{{ $label }}</option>
                                 @endforeach
                             </select>
                         @elseif($field['type'] === 'textarea')
@@ -214,12 +215,12 @@
                                       @if($ph !== '') placeholder="{{ $ph }}" @endif
                                       @if($meta['maxlength']) maxlength="{{ $meta['maxlength'] }}" @endif
                                       @if($field['required']) required @endif
-                                      class="input-field">{{ old($field['name']) }}</textarea>
+                                      class="input-field">{{ old($field['name'], $prefill[$field['name']] ?? '') }}</textarea>
                         @else
                             <input id="field-{{ $field['name'] }}"
                                    type="{{ str_contains(implode('|', $field['rules']), 'email') ? 'email' : 'text' }}"
                                    name="{{ $field['name'] }}"
-                                   value="{{ old($field['name']) }}"
+                                   value="{{ old($field['name'], $prefill[$field['name']] ?? '') }}"
                                    @if($ph !== '') placeholder="{{ $ph }}" @endif
                                    @if($meta['maxlength']) maxlength="{{ $meta['maxlength'] }}" @endif
                                    @if($meta['numeric']) inputmode="numeric" @endif

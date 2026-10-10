@@ -74,7 +74,8 @@
                                 <th class="py-2 pr-4 text-left">Type</th>
                                 <th class="py-2 pr-4 text-left">Status</th>
                                 <th class="py-2 pr-4 text-left">Response</th>
-                                <th class="py-2 text-left">Date</th>
+                                <th class="py-2 pr-4 text-left">Date</th>
+                                <th class="py-2 text-left">Next step</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -83,6 +84,7 @@
                                     $meta = is_array($report->meta) ? $report->meta : [];
                                     $validationType = str_replace('_', ' ', (string) ($meta['validation_type'] ?? ''));
                                     $providerMessage = (string) ($meta['message'] ?? '');
+                                    $ninRef = (string) $report->customer_ref;
                                 @endphp
                                 <tr class="border-b border-slate-100">
                                     <td class="py-2 pr-4">{{ $report->customer_ref }}</td>
@@ -93,11 +95,25 @@
                                         </span>
                                     </td>
                                     <td class="py-2 pr-4">{{ $providerMessage ?: '-' }}</td>
-                                    <td class="py-2">{{ optional($report->created_at)->format('d M Y, h:ia') }}</td>
+                                    <td class="py-2 pr-4">{{ optional($report->created_at)->format('d M Y, h:ia') }}</td>
+                                    <td class="py-2">
+                                        {{-- A failed validation is not a dead end: the
+                                             record it could not find is exactly what a
+                                             correction starts from, so the number goes
+                                             with the customer instead of being typed again. --}}
+                                        @if($report->status === 'failed' && preg_match('/^\d{11}$/', $ninRef))
+                                            <a href="{{ route('vtu.manual.form', ['service' => 'nin_modification', 'nin' => $ninRef]) }}"
+                                               class="text-xs font-bold text-blue-700 underline">
+                                                Correct this record
+                                            </a>
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="py-3 text-slate-500">No validation reports yet.</td>
+                                    <td colspan="6" class="py-3 text-slate-500">No validation reports yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
