@@ -59,6 +59,55 @@
         </section>
 
         <section class="app-section p-4 sm:p-6">
+            @php
+                $ninWindows = [
+                    'today' => 'Today',
+                    'month' => 'This month',
+                    'all' => 'All time',
+                ];
+            @endphp
+            <h2 class="text-lg font-extrabold text-slate-900">NIN Verification &amp; Printing</h2>
+            <p class="mt-1 text-sm text-slate-500">
+                Charged is what left customer wallets for these two services. Kept is what remains after the
+                provider is paid for the same job &mdash; and a repeat read back out of a record we already hold
+                is charged again without another provider call, so all of it is kept.
+            </p>
+
+            <div class="mt-4 overflow-x-auto">
+                <table class="w-full min-w-[560px] text-sm">
+                    <thead>
+                        <tr class="text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                            <th class="py-2 pr-3">Window</th>
+                            <th class="py-2 pr-3">Verified</th>
+                            <th class="py-2 pr-3">Read from stored record</th>
+                            <th class="py-2 pr-3">Slips printed</th>
+                            <th class="py-2 pr-3 text-right">Charged</th>
+                            <th class="py-2 text-right">Kept</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($ninWindows as $window => $label)
+                            @php $row = $ninWork[$window] ?? ['verifications' => 0, 'repeats' => 0, 'prints' => 0, 'charged' => 0, 'kept' => 0]; @endphp
+                            <tr class="border-t border-slate-100">
+                                <td class="py-2 pr-3 font-semibold text-slate-700">{{ $label }}</td>
+                                <td class="py-2 pr-3 text-slate-700">{{ number_format($row['verifications']) }}</td>
+                                <td class="py-2 pr-3 text-slate-700">{{ number_format($row['repeats']) }}</td>
+                                <td class="py-2 pr-3 text-slate-700">{{ number_format($row['prints']) }}</td>
+                                <td class="reference-money py-2 pr-3 text-right text-slate-900">&#8358;{{ number_format($row['charged'] / 100, 2) }}</td>
+                                <td class="reference-money py-2 text-right font-extrabold text-emerald-700">&#8358;{{ number_format($row['kept'] / 100, 2) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="mt-3 text-xs text-slate-500">
+                Verifications, printed slips and every other identity job are counted in the profit totals above.
+                If a rate the provider charges us is not on file in Settings, no profit is claimed on that job.
+            </p>
+        </section>
+
+        <section class="app-section p-4 sm:p-6">
             <p class="text-sm font-semibold text-slate-600 mb-3">Reset Totals</p>
             <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <form method="POST" action="{{ route('admin.metrics.reset') }}">

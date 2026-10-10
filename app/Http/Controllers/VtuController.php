@@ -1719,7 +1719,10 @@ class VtuController extends Controller
         $totalNaira = $basePriceNaira + $markupNaira;
         $totalKobo = $this->toKobo($totalNaira);
         [$discountPercent, $discountKobo, $payableKobo] = $this->applyDiscount($totalKobo, $user);
-        $profitKobo = $this->toKobo($markupNaira);
+        $costNaira = $validationType === 'update_record'
+            ? identity_cost('price_nin_validation_update_record')
+            : identity_cost('price_nin_validation_no_record');
+        $profitKobo = $this->identityMarginKobo($payableKobo, $costNaira) ?? $this->toKobo($markupNaira);
         $requestId = $this->makeRequestId('NINVAL');
 
         DB::beginTransaction();
@@ -1746,6 +1749,7 @@ class VtuController extends Controller
                     'validation_type' => $validationType,
                     'base_amount_naira' => $basePriceNaira,
                     'markup_naira' => $markupNaira,
+                    'provider_cost_naira' => $costNaira,
                     'total_amount_naira' => $totalNaira,
                     'discount_percent' => $discountPercent,
                     'discount_kobo' => $discountKobo,
@@ -1899,6 +1903,14 @@ class VtuController extends Controller
         $cachedAt = $response['cached_at'] ?? optional($cacheRecord?->last_verified_at)->toIso8601String();
         $cachedAtLabel = $this->formatNinCacheTimestamp($cachedAt);
 
+        // A repeat answered from the record this site already holds asks the
+        // provider for nothing, so the whole charge is ours to keep. A fresh
+        // lookup costs the rate for the way the customer chose to find it.
+        $costNaira = $cacheHit
+            ? 0.0
+            : $this->manualServices->providerCost('nin_verify', ['verification_type' => 'by_'.$searchType]);
+        $profitKobo = $this->identityMarginKobo($priceVerifyKobo, $costNaira) ?? 0;
+
         if ($ok) {
             DB::beginTransaction();
             try {
@@ -1915,7 +1927,7 @@ class VtuController extends Controller
                     'service_id' => $resolvedServiceId,
                     'customer_ref' => (string) ($normalized['nin'] ?? $searchType),
                     'amount' => $priceVerifyKobo,
-                    'profit' => 0,
+                    'profit' => $profitKobo,
                     'provider' => 'nin_api',
                     'provider_reference' => $requestId,
                     'status' => 'success',
@@ -1924,6 +1936,7 @@ class VtuController extends Controller
                     'service_type' => 'verify',
                     'verification_type' => $searchType,
                     'base_amount_naira' => $priceVerifyNaira,
+                    'provider_cost_naira' => $costNaira,
                     'requestID' => $requestId,
                     'normalized' => $normalized,
                     'provider_response' => $response,
@@ -2105,13 +2118,17 @@ class VtuController extends Controller
         $verificationOrderId = (int) ($validated['verification_order_id'] ?? 0);
         $verificationType = (string) ($validated['verification_type'] ?? '');
         $slipType = (string) $validated['slip_type'];
-        $priceMapNaira = [
-            'long_slip' => identity_price('price_nin_slip_long'),
-            'standard_slip' => identity_price('price_nin_slip_standard'),
-            'premium_slip' => identity_price('price_nin_slip_premium'),
-            'vnin_slip' => identity_price('price_nin_slip_vnin'),
+        // One setting key per slip holds both halves of the money: the rate the
+        // customer is charged and the rate the provider asks for the same slip.
+        $priceKeyMap = [
+            'long_slip' => 'price_nin_slip_long',
+            'standard_slip' => 'price_nin_slip_standard',
+            'premium_slip' => 'price_nin_slip_premium',
+            'vnin_slip' => 'price_nin_slip_vnin',
         ];
-        $basePriceNaira = (float) ($priceMapNaira[$slipType] ?? identity_price('price_nin_slip_long'));
+        $priceKey = $priceKeyMap[$slipType] ?? 'price_nin_slip_long';
+        $basePriceNaira = identity_price($priceKey);
+        $slipCostNaira = identity_cost($priceKey);
         $markupNaira = (float) setting('markup_nin_print', 0);
         $totalNaira = $basePriceNaira + $markupNaira;
         $totalKobo = $this->toKobo($totalNaira);
@@ -2241,6 +2258,12 @@ class VtuController extends Controller
         $orderId = null;
         $issuedAt = now();
 
+        // A slip drawn from a record the customer already paid to verify was made
+        // here from artwork this site ships, so the provider was never asked for
+        // it and there is nothing to pay for it.
+        $costNaira = $sourceVerificationOrderId === null ? $slipCostNaira : 0.0;
+        $profitKobo = $this->identityMarginKobo($totalKobo, $costNaira) ?? $this->toKobo($markupNaira);
+
         if ($ok) {
             $requestId = $this->makeRequestId('NINP');
             DB::beginTransaction();
@@ -2258,7 +2281,7 @@ class VtuController extends Controller
                     'service_id' => $resolvedServiceId,
                     'customer_ref' => (string) ($providerPayload['nin'] ?? $providerPayload['phone'] ?? 'NIN Print'),
                     'amount' => $totalKobo,
-                    'profit' => $this->toKobo($markupNaira),
+                    'profit' => $profitKobo,
                     'provider' => 'nin_api',
                     'provider_reference' => $requestId,
                     'status' => 'success',
@@ -2269,6 +2292,7 @@ class VtuController extends Controller
                         'verification_type' => $verificationType,
                         'base_amount_naira' => $basePriceNaira,
                         'markup_naira' => $markupNaira,
+                        'provider_cost_naira' => $costNaira,
                         'requestID' => $requestId,
                         'source_verification_order_id' => $sourceVerificationOrderId,
                         'normalized' => $normalized,
@@ -2436,6 +2460,7 @@ class VtuController extends Controller
         $wallet = $this->requireWallet($user->wallet);
 
         $basePriceNaira = identity_price('price_bvn_verify');
+        $costNaira = identity_cost('price_bvn_verify');
         $markupNaira = (float) setting('markup_bvn', 0);
         $totalNaira = $basePriceNaira + $markupNaira;
         $totalKobo = $this->toKobo($totalNaira);
@@ -2517,7 +2542,8 @@ class VtuController extends Controller
                 'service_id' => $resolvedServiceId,
                 'customer_ref' => (string) ($normalized['bvn'] ?? $payload['bvn']),
                 'amount' => $totalKobo,
-                'profit' => $this->toKobo($markupNaira),
+                'profit' => $this->identityMarginKobo($totalKobo, $costNaira)
+                    ?? $this->toKobo($markupNaira),
                 'provider' => 'bvn_api',
                 'provider_reference' => $requestId,
                 'status' => 'success',
@@ -2526,6 +2552,7 @@ class VtuController extends Controller
                     'service_type' => 'verify',
                     'base_amount_naira' => $basePriceNaira,
                     'markup_naira' => $markupNaira,
+                    'provider_cost_naira' => $costNaira,
                     'requestID' => $requestId,
                     'provider_response' => $response,
                     'message' => $message,
@@ -2589,9 +2616,9 @@ class VtuController extends Controller
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
-        $basePriceNaira = $retrieveType === 'phone'
-            ? identity_price('price_bvn_retrieve_phone')
-            : identity_price('price_bvn_retrieve_bms');
+        $retrievePriceKey = $retrieveType === 'phone' ? 'price_bvn_retrieve_phone' : 'price_bvn_retrieve_bms';
+        $basePriceNaira = identity_price($retrievePriceKey);
+        $costNaira = identity_cost($retrievePriceKey);
         $markupNaira = (float) setting('markup_bvn', 0);
 
         $endpointAvailable = $retrieveType === 'phone'
@@ -2682,7 +2709,8 @@ class VtuController extends Controller
                 'service_id' => $resolvedServiceId,
                 'customer_ref' => $customerRef,
                 'amount' => $totalKobo,
-                'profit' => $this->toKobo($markupNaira),
+                'profit' => $this->identityMarginKobo($totalKobo, $costNaira)
+                    ?? $this->toKobo($markupNaira),
                 'provider' => 'bvn_api',
                 'provider_reference' => $requestId,
                 'status' => 'pending',
@@ -2690,6 +2718,7 @@ class VtuController extends Controller
                     'type' => 'bvn',
                     'service_type' => 'retrieve',
                     'retrieve_type' => $retrieveType,
+                    'provider_cost_naira' => $costNaira,
                     'phone' => $payload['phone'] ?? null,
                     'bms_no' => $payload['bms_no'] ?? null,
                     'ticket_id' => $payload['ticket_id'] ?? null,
@@ -3091,6 +3120,11 @@ class VtuController extends Controller
         $totalNaira = $basePriceNaira + $markupNaira;
         $totalKobo = $this->toKobo($totalNaira);
         [$discountPercent, $discountKobo, $payableKobo] = $this->applyDiscount($totalKobo, $user);
+        // A job worked by hand costs the same rate at the provider as the wired
+        // version of it, so its profit is the margin and not only the markup
+        // typed on top. Where no rate is on file, markup is all that is claimed.
+        $costNaira = $pricing['cost_naira'] ?? $this->manualServices->providerCost($slug, $submitted);
+        $profitKobo = $this->identityMarginKobo($payableKobo, $costNaira) ?? $this->toKobo($markupNaira);
         $requestId = $this->makeRequestId($requestPrefix);
         $expectedBy = $this->manualServices->expectedBy($slug);
 
@@ -3103,7 +3137,7 @@ class VtuController extends Controller
                 'service_id' => $serviceId ?? $this->resolveServiceId($slug, 'identity'),
                 'customer_ref' => $customerRef,
                 'amount' => $payableKobo,
-                'profit' => $this->toKobo($markupNaira),
+                'profit' => $profitKobo,
                 'provider' => 'manual',
                 'provider_reference' => $requestId,
                 'status' => 'pending',
@@ -3115,6 +3149,7 @@ class VtuController extends Controller
                     'submitted' => $submitted,
                     'base_amount_naira' => $basePriceNaira,
                     'markup_naira' => $markupNaira,
+                    'provider_cost_naira' => $costNaira,
                     'total_amount_naira' => $totalNaira,
                     'discount_percent' => $discountPercent,
                     'discount_kobo' => $discountKobo,
@@ -3538,6 +3573,21 @@ class VtuController extends Controller
     private function toKobo(float $naira): int
     {
         return (int) round($naira * 100);
+    }
+
+    /**
+     * What the identity business keeps from a job: the amount charged minus what
+     * the same job costs the site at the provider.
+     *
+     * An identity price is a retail number, not a margin, so the profit tiles
+     * have been reading these orders as earning nothing. A job answered from a
+     * record already held is passed with a zero cost because no provider call is
+     * made for it at all. Null cost means the rate is not on file, and then no
+     * profit is claimed rather than inventing a margin nobody measured.
+     */
+    private function identityMarginKobo(int $chargedKobo, ?float $costNaira): ?int
+    {
+        return $costNaira === null ? null : max(0, $chargedKobo - $this->toKobo($costNaira));
     }
 
     private function makeRequestId(string $prefix): string
