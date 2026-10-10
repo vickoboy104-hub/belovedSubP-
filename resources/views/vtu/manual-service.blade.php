@@ -5,6 +5,10 @@
         $canAfford = $walletBalanceKobo >= $payableKobo;
         $priceLabel = number_format($payableKobo / 100, 2);
 
+        // Some services rewrite or reprint the identity record itself, so the terms
+        // stand in front of the form rather than in a footnote under it.
+        $consent = app(\App\Services\ManualFulfilmentService::class)->consent($slug);
+
         // Several services are really a list of different jobs behind one select,
         // each with its own rate. The provider names that rate the moment the
         // option is chosen, so the same numbers travel to the browser and update
@@ -142,7 +146,7 @@
     </x-page-hero>
 
     <div class="reference-flow-page mx-auto max-w-3xl space-y-5">
-        <section class="service-form-card">
+        <section class="service-form-card" @if($consent['clauses'] !== []) data-consent-gate @endif>
             <header class="service-form-head">
                 <span class="service-form-icon" aria-hidden="true">{{ $definition['icon'] ?? '▣' }}</span>
                 <h2 class="service-form-title">{{ $definition['title'] }}</h2>
@@ -159,7 +163,30 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('vtu.manual.submit', $slug) }}" class="service-form-body">
+            @if($consent['clauses'] !== [])
+                <section data-consent-terms class="service-form-alert">
+                    <h3 class="text-base font-extrabold">{{ $consent['title'] }}</h3>
+                    @if($consent['intro'] !== '')
+                        <p class="mt-1 text-sm text-slate-600">{{ $consent['intro'] }}</p>
+                    @endif
+                    <ol class="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-700">
+                        @foreach($consent['clauses'] as $clause)
+                            <li>{{ $clause }}</li>
+                        @endforeach
+                    </ol>
+                    <div class="mt-4 flex flex-wrap items-center gap-3">
+                        <button type="button" data-consent-agree class="btn-primary">
+                            I agree, show me the form
+                        </button>
+                        <a href="{{ route('identity.index') }}" class="reference-quiet-button">
+                            Not agreed
+                        </a>
+                    </div>
+                </section>
+            @endif
+
+            <form method="POST" action="{{ route('vtu.manual.submit', $slug) }}" class="service-form-body"
+                  @if($consent['clauses'] !== []) data-consent-form @endif>
                 @csrf
 
                 @foreach($definition['fields'] as $field)
@@ -240,6 +267,20 @@
                         Your wallet balance is &#8358;{{ number_format($walletBalanceKobo / 100, 2) }}, which is not enough for this option.
                         <a href="{{ route('wallet.fund') }}" class="underline">Fund your wallet</a> to continue.
                     </div>
+                @endif
+
+                @if($consent['clauses'] !== [])
+                    {{-- The gate is only the front of the terms; this tick is the
+                         record the server actually checks, and it is what proves on
+                         the order page that the customer read them. --}}
+                    <label class="service-form-field flex items-start gap-3 text-sm text-slate-700">
+                        <input type="checkbox" name="consent_agreed" value="1" required
+                               class="mt-1 h-4 w-4 rounded border-slate-400 text-blue-700">
+                        <span>
+                            I agree to the terms above and authorise BelovedSubP to carry out this request
+                            for {{ $definition['title'] }}.
+                        </span>
+                    </label>
                 @endif
 
                 <div class="service-form-actions">

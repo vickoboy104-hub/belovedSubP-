@@ -3051,7 +3051,10 @@ class VtuController extends Controller
         abort_unless($definition !== null, 404);
         abort_if($this->manualServices->wiredOnly($service), 404);
 
-        $submitted = $request->validate($this->manualServices->validationRules($service));
+        $submitted = $request->validate(
+            $this->manualServices->validationRules($service),
+            ['consent_agreed.accepted' => 'Read and accept the terms above before submitting this request.'],
+        );
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);

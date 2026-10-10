@@ -61,7 +61,7 @@ class ManualIdentityQueueTest extends TestCase
             'ipe_clearance' => ['ipe_type' => 'new_enrollment', 'tracking_id' => 'ABCDEFGHIJKLMNO'],
             'nin_personalization' => ['tracking_id' => 'PQRSTUVWXYZABCD', 'category' => 'get_nin_slip'],
             'nin_slip_print' => ['nin' => '12345678901', 'slip_type' => 'premium_slip'],
-            'bvn_print' => ['bvn' => '22334455667'],
+            'bvn_print' => ['bvn' => '22334455667', 'consent_agreed' => '1'],
         ];
 
         foreach ($jobs as $slug => $payload) {
@@ -375,6 +375,12 @@ class ManualIdentityQueueTest extends TestCase
 
     private function submitManualRequest(User $user, string $slug, array $payload): Order
     {
+        // Services that stand behind terms reject a post that never accepted them,
+        // so a customer acting in good faith ticks the box the page puts there.
+        if (app(\App\Services\ManualFulfilmentService::class)->consent($slug)['clauses'] !== []) {
+            $payload['consent_agreed'] = '1';
+        }
+
         $this->actingAs($user)->post('/vtu/manual/'.$slug, $payload)->assertRedirect();
 
         return $this->latestOrder($user);

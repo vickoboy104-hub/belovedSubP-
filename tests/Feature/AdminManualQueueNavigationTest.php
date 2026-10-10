@@ -144,6 +144,10 @@ class AdminManualQueueNavigationTest extends TestCase
 
     private function submitManualRequest(User $user, string $slug, array $payload): Order
     {
+        if ($this->manualServices()->consent($slug)['clauses'] !== []) {
+            $payload['consent_agreed'] = '1';
+        }
+
         $this->actingAs($user)->post('/vtu/manual/'.$slug, $payload)->assertRedirect();
 
         return Order::query()->where('user_id', $user->id)->latest('id')->firstOrFail();

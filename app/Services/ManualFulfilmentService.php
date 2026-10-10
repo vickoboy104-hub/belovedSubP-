@@ -33,6 +33,37 @@ class ManualFulfilmentService
 
     private const BVN_PLACEHOLDER = 'Enter BVN';
 
+    /**
+     * What a customer accepts before a form that touches their identity record
+     * appears at all. Written for this platform, in our own words, but each line
+     * has to stay true to how the queue actually behaves: the fee is taken at
+     * submission, a job we cannot finish is credited back to the wallet, and the
+     * wallet is spendable here rather than withdrawable.
+     *
+     * @var list<string>
+     */
+    private const CONSENT_IDENTITY = [
+        'I authorise BelovedSubP and the agents it works with to use the details I submit here to carry out this request on my behalf.',
+        'BelovedSubP is not NIMC, NIBSS, a bank or any government registry. Anything it returns is prepared on my behalf, not issued directly by any of them.',
+        'The fee is taken from my wallet when I submit, and it pays for the work attempted as well as the work completed.',
+        'If the request cannot be completed, the amount is returned to my wallet, where it stays spendable on services here.',
+        'I should not send the same request through another channel while this one is still running; doing so can spoil both and the fee is still spent.',
+        'If I am submitting for somebody else, the owner of that record has authorised me to do it.',
+    ];
+
+    /**
+     * Extra terms for the services where the upstream record owner can change the
+     * rules mid-flight, and where the customer's own expectations about speed are
+     * the usual source of complaints.
+     *
+     * @var list<string>
+     */
+    private const CONSENT_MODIFICATION = [
+        'NIMC would rather I make this change myself on its own portal. I am asking BelovedSubP to do it for me, and if NIMC later limits changes to the record owner only, this request may not be possible.',
+        'NIMC updates its own record first; banks and phone networks can take considerably longer to reflect the change. If I need the new detail for banking immediately, I should not submit this request today.',
+        'Any account credential handed to me as part of this job must be used as given; changing it myself before the record has settled can cost me the work.',
+    ];
+
     /** Most useful first: what the job is worked from at the provider. */
     private const QUEUE_PRIORITY_FIELDS = [
         'nin',
@@ -114,6 +145,11 @@ class ManualFulfilmentService
                 'summary' => 'Submit a correction to the details held against a NIN record.',
                 'group' => 'nin',
                 'turnaround_default' => 72,
+                'consent' => [
+                    'title' => 'Consent and authorisation',
+                    'intro' => 'A modification rewrites the details held against your NIN. Read each line - the form stays hidden until you accept them.',
+                    'clauses' => [...self::CONSENT_IDENTITY, ...self::CONSENT_MODIFICATION],
+                ],
                 // The ten corrections below are not one job: their own form ships
                 // a hidden price per correction set, and a date of birth costs
                 // more than six times what a name does. Each option therefore
@@ -205,6 +241,15 @@ class ManualFulfilmentService
                 'turnaround_default' => 24,
                 'cta' => 'Print BVN Slip Now',
                 'cost_text' => 'It costs ₦{{price}} per slip',
+                'consent' => [
+                    'title' => 'Consent and authorisation',
+                    'intro' => 'This prints your own bank verification record back to you. Confirm you understand what that means before the form opens.',
+                    'clauses' => [
+                        ...self::CONSENT_IDENTITY,
+                        'BelovedSubP is not NIBSS or my bank, and the slip it produces is a reprint of my own data rather than a document issued by either of them.',
+                        'The slip is for printing or saving as a copy. It must not be printed on plastic or offered to anyone as an identity card.',
+                    ],
+                ],
                 'fields' => [
                     $this->field('bvn', 'Enter the BVN Number', rules: ['required', 'digits:11'], placeholder: self::BVN_PLACEHOLDER, hint: 'The 11-digit Bank Verification Number.', column: 'BVN'),
                     $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
@@ -641,7 +686,31 @@ class ManualFulfilmentService
             $rules[$field['name']] = $field['rules'];
         }
 
+        // A gated service is not gated if the server still accepts the post from
+        // somebody who never saw the terms, so the tick is checked here too.
+        if ($this->consent($slug)['clauses'] !== []) {
+            $rules['consent_agreed'] = ['accepted'];
+        }
+
         return $rules;
+    }
+
+    /**
+     * The terms that stand between a customer and this service's form. An empty
+     * clause list means the service asks nothing beyond its own fields, so the
+     * form renders straight away.
+     *
+     * @return array{title: string, intro: string, clauses: list<string>}
+     */
+    public function consent(string $slug): array
+    {
+        $consent = (array) ($this->find($slug)['consent'] ?? []);
+
+        return [
+            'title' => (string) ($consent['title'] ?? 'Consent and authorisation'),
+            'intro' => (string) ($consent['intro'] ?? ''),
+            'clauses' => array_values(array_filter((array) ($consent['clauses'] ?? []), 'is_string')),
+        ];
     }
 
     /**
