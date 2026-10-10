@@ -4,10 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\WalletTransaction;
-use App\Notifications\UserWalletActivityNotification;
 use App\Services\FlutterwaveService;
+use App\Services\WalletDepositSync;
+use App\Services\WalletFundingService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -15,6 +15,8 @@ class FlutterwaveController extends Controller
 {
     public function __construct(
         private readonly FlutterwaveService $flutterwave,
+        private readonly WalletFundingService $funding,
+        private readonly WalletDepositSync $deposits,
     ) {
     }
 
@@ -74,7 +76,7 @@ class FlutterwaveController extends Controller
                     'phonenumber' => (string) ($user->phone ?? ''),
                 ],
                 'customizations' => [
-                    'title' => (string) setting('site_name', config('app.name', 'BelovedSubP')),
+                    'title' => site_name(),
                     'description' => 'Wallet funding',
                 ],
                 'meta' => [
@@ -189,62 +191,29 @@ class FlutterwaveController extends Controller
                 return redirect()->route('wallet.fund')->with('error', $reason);
             }
 
-            $credited = DB::transaction(function () use ($tx, $data): bool {
-                $lockedTx = WalletTransaction::query()
-                    ->whereKey($tx->id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (!$lockedTx || $lockedTx->status === 'success') {
-                    return false;
-                }
-
-                $updatedMeta = array_merge($lockedTx->meta ?? [], [
-                    'flutterwave_id' => $data['id'] ?? null,
-                    'flw_ref' => $data['flw_ref'] ?? null,
-                    'gateway_response' => $data['processor_response'] ?? null,
-                    'paid_at' => $data['created_at'] ?? now()->toISOString(),
-                    'channel' => $data['payment_type'] ?? 'flutterwave',
-                    'flutterwave_payload' => $data,
+            if (!$tx->wallet) {
+                Log::warning('Flutterwave checkout returned for a funding request with no wallet.', [
+                    'reference' => $reference,
                 ]);
 
-                $lockedTx->update([
-                    'status' => 'success',
-                    'meta' => $updatedMeta,
-                ]);
+                return redirect()
+                    ->route('wallet.fund')
+                    ->with('error', 'This deposit could not be attached to a wallet. Contact support with reference '.$reference.'.');
+            }
 
-                $wallet = $lockedTx->wallet()->lockForUpdate()->first();
-                if (!$wallet) {
-                    return false;
-                }
-
-                $feeKobo = (int) ($updatedMeta['fee_kobo'] ?? 0);
-                $creditKobo = (int) ($updatedMeta['credited_kobo'] ?? max(0, ((int) $lockedTx->amount) - $feeKobo));
-                $wallet->balance += $creditKobo;
-                $wallet->save();
-
-                $fundedUser = $wallet->user()->lockForUpdate()->first();
-                if ($fundedUser) {
-                    $this->markReferralQualified($fundedUser);
-                    $this->notifyWalletFunding(
-                        $fundedUser,
-                        $creditKobo,
-                        (string) $lockedTx->reference,
-                        (string) ($lockedTx->channel ?? 'flutterwave'),
-                        (int) ($wallet->balance - $creditKobo),
-                        (int) $wallet->balance,
-                    );
-                }
-
-                return true;
-            });
+            $creditedKobo = $this->funding->creditFlutterwaveCharge(
+                $tx->wallet,
+                $data,
+                (string) ($tx->channel ?: 'flutterwave'),
+                'checkout_return',
+            );
 
             $feeNaira = (float) setting('wallet_funding_fee', 50);
             $feeText = $feeNaira > 0 ? ' (N'.number_format($feeNaira, 2).' fee deducted)' : '';
 
             return redirect()
                 ->route('wallet.fund')
-                ->with('success', $credited ? 'Wallet funded successfully'.$feeText : 'Wallet already funded.');
+                ->with('success', $creditedKobo > 0 ? 'Wallet funded successfully'.$feeText : 'Wallet already funded.');
         } catch (\Throwable $e) {
             Log::error('Flutterwave callback exception', [
                 'message' => $e->getMessage(),
@@ -280,7 +249,7 @@ class FlutterwaveController extends Controller
 
             if ($eventName === 'charge.completed') {
                 $data = (array) ($event['data'] ?? []);
-                if ($this->isSuccessfulFlutterwaveStatus($data['status'] ?? '')) {
+                if ($this->flutterwave->isSuccessfulChargeStatus($data['status'] ?? '')) {
                     $eventType = strtoupper(trim((string) ($event['event.type'] ?? '')));
                     $paymentType = strtolower(trim((string) ($data['payment_type'] ?? data_get($data, 'payment_method.type', ''))));
                     $meta = (array) ($event['meta_data'] ?? []);
@@ -291,6 +260,12 @@ class FlutterwaveController extends Controller
                         $this->handleSuccessfulCharge($data);
                     }
                 }
+            } else {
+                // Anything else (a refund, a subscription, a failure) is reported
+                // for the record but must never move a wallet balance here.
+                Log::info('Flutterwave webhook carried an event with nothing to bank.', [
+                    'event' => $eventName,
+                ]);
             }
         } catch (\Throwable $e) {
             Log::error('Flutterwave webhook handling failed.', [
@@ -304,6 +279,26 @@ class FlutterwaveController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /**
+     * Asks Flutterwave directly what has been paid for this customer. A webhook
+     * only arrives when Flutterwave's servers can reach this site, so a machine
+     * on localhost, behind a VPN, or with the wrong URL pasted into the
+     * Flutterwave dashboard would otherwise leave paid-for deposits unbanked.
+     */
+    public function checkDeposits(Request $request)
+    {
+        $result = $this->deposits->sync($request->user(), onDemand: true);
+
+        if ($result['credited_kobo'] > 0) {
+            Log::info('Deposit credited from a customer-initiated check.', [
+                'user_id' => $request->user()->id,
+                'credited_kobo' => $result['credited_kobo'],
+            ]);
+        }
+
+        return back()->with('deposit_check', $result);
+    }
+
     private function verifiedSuccessfulFunding(array $data, WalletTransaction $tx): bool
     {
         $status = (string) ($data['status'] ?? '');
@@ -312,7 +307,7 @@ class FlutterwaveController extends Controller
         $chargedAmount = (float) ($data['charged_amount'] ?? ($data['amount'] ?? 0));
         $expectedAmount = ((int) $tx->amount) / 100;
 
-        return $this->isSuccessfulFlutterwaveStatus($status)
+        return $this->flutterwave->isSuccessfulChargeStatus($status)
             && $txRef === (string) $tx->reference
             && $currency === 'NGN'
             && $chargedAmount >= $expectedAmount;
@@ -322,127 +317,46 @@ class FlutterwaveController extends Controller
     {
         $verifiedData = $this->resolveVerifiedWebhookChargeData($data);
         $reference = trim((string) ($verifiedData['tx_ref'] ?? ($data['tx_ref'] ?? '')));
-        $amountKobo = (int) round(((float) ($verifiedData['charged_amount'] ?? $verifiedData['amount'] ?? 0)) * 100);
-        $flutterwaveChargeId = trim((string) ($verifiedData['id'] ?? ($data['id'] ?? '')));
-        $flutterwaveId = trim((string) ($verifiedData['flw_ref'] ?? ($data['flw_ref'] ?? '')));
-        $gatewayReference = trim((string) ($verifiedData['reference'] ?? ($data['reference'] ?? '')));
-        $customerEmail = trim((string) data_get($verifiedData, 'customer.email', data_get($data, 'customer.email', '')));
 
-        if ($reference === '' || $amountKobo <= 0) {
+        if ($reference === '') {
             return;
         }
 
         $tx = WalletTransaction::query()->where('reference', $reference)->first();
-        if ($tx) {
-            if ($tx->status === 'success') {
-                return;
-            }
-
-            if ($amountKobo < (int) $tx->amount) {
-                Log::warning('Flutterwave webhook amount was lower than expected transaction amount.', [
-                    'reference' => $reference,
-                    'transaction_id' => $tx->id,
-                    'expected_kobo' => (int) $tx->amount,
-                    'received_kobo' => $amountKobo,
-                ]);
-
-                return;
-            }
-
-            DB::transaction(function () use ($tx, $verifiedData, $amountKobo, $flutterwaveChargeId, $flutterwaveId, $gatewayReference, $reference) {
-                $lockedTx = WalletTransaction::query()
-                    ->whereKey($tx->id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (!$lockedTx || $lockedTx->status === 'success') {
-                    return;
-                }
-
-                $wallet = $lockedTx->wallet()->lockForUpdate()->first();
-                if (!$wallet) {
-                    return;
-                }
-
-                $meta = $lockedTx->meta ?? [];
-                $meta['flutterwave_charge_id'] = $flutterwaveChargeId !== '' ? $flutterwaveChargeId : ($meta['flutterwave_charge_id'] ?? null);
-                $meta['flutterwave_id'] = $flutterwaveId !== '' ? $flutterwaveId : ($meta['flutterwave_id'] ?? null);
-                $meta['flw_ref'] = $flutterwaveId !== '' ? $flutterwaveId : (string) ($meta['flw_ref'] ?? '');
-                $meta['flutterwave_reference'] = $gatewayReference !== '' ? $gatewayReference : ($meta['flutterwave_reference'] ?? null);
-                $meta['tx_ref'] = $reference;
-                $meta['gateway_response'] = $this->stringifyGatewayResponse($verifiedData['processor_response'] ?? ($meta['gateway_response'] ?? 'success'));
-                $meta['paid_at'] = $this->resolveChargePaidAt($verifiedData);
-                $meta['channel'] = $this->resolveChargeChannel($verifiedData, (string) ($meta['channel'] ?? 'flutterwave'));
-                $meta['currency'] = (string) ($verifiedData['currency'] ?? ($meta['currency'] ?? 'NGN'));
-                $meta['flutterwave_payload'] = $verifiedData;
-                $meta['webhook_event'] = 'charge.completed';
-                $feeMeta = $this->resolveFundingCredit((int) $lockedTx->amount, $meta);
-                $meta['fee_kobo'] = $feeMeta['fee_kobo'];
-                $meta['fee_naira'] = $feeMeta['fee_naira'];
-                $meta['credited_kobo'] = $feeMeta['credited_kobo'];
-
-                $lockedTx->status = 'success';
-                $lockedTx->channel = $lockedTx->channel ?: 'flutterwave';
-                $lockedTx->meta = $meta;
-                $lockedTx->save();
-
-                $wallet->balance += (int) $feeMeta['credited_kobo'];
-                $wallet->save();
-
-                $user = $wallet->user()->lockForUpdate()->first();
-                if ($user) {
-                    $this->markReferralQualified($user);
-                    $this->notifyWalletFunding(
-                        $user,
-                        (int) $feeMeta['credited_kobo'],
-                        (string) $lockedTx->reference,
-                        (string) ($lockedTx->channel ?? 'flutterwave'),
-                        (int) ($wallet->balance - (int) $feeMeta['credited_kobo']),
-                        (int) $wallet->balance,
-                    );
-                }
-            });
+        if (!$tx || !$tx->wallet) {
+            Log::warning('Flutterwave checkout webhook ignored because it did not match a wallet funding request.', [
+                'tx_ref' => $reference,
+                'customer_email' => trim((string) data_get($verifiedData, 'customer.email', data_get($data, 'customer.email', ''))),
+                'flutterwave_charge_id' => trim((string) ($verifiedData['id'] ?? '')),
+                'flutterwave_id' => trim((string) ($verifiedData['flw_ref'] ?? '')),
+            ]);
 
             return;
         }
 
-        Log::warning('Flutterwave checkout webhook ignored because it did not match a pending wallet funding reference.', [
-            'tx_ref' => $reference,
-            'customer_email' => $customerEmail,
-            'flutterwave_charge_id' => $flutterwaveChargeId,
-            'flutterwave_id' => $flutterwaveId,
-            'flutterwave_reference' => $gatewayReference,
-        ]);
+        $this->funding->creditFlutterwaveCharge(
+            $tx->wallet,
+            $verifiedData,
+            (string) ($tx->channel ?: 'flutterwave'),
+            'webhook',
+            ['webhook_event' => 'charge.completed'],
+        );
     }
 
     private function handleVirtualAccountTransfer(array $data, array $meta): void
     {
         $verifiedData = $this->resolveVerifiedWebhookChargeData($data);
-        $amountKobo = (int) round(((float) ($verifiedData['charged_amount'] ?? $verifiedData['amount'] ?? 0)) * 100);
         $txRef = trim((string) ($verifiedData['tx_ref'] ?? ($data['tx_ref'] ?? '')));
-        $flutterwaveChargeId = trim((string) ($verifiedData['id'] ?? ($data['id'] ?? '')));
-        $flutterwaveId = trim((string) ($verifiedData['flw_ref'] ?? ($data['flw_ref'] ?? '')));
-        $gatewayReference = trim((string) ($verifiedData['reference'] ?? ($data['reference'] ?? '')));
         $customerEmail = trim((string) data_get($verifiedData, 'customer.email', data_get($data, 'customer.email', '')));
         $virtualAccountNumber = trim((string) (
-            $verifiedData['account_number']
-            ?? $data['account_number']
-            ?? data_get($verifiedData, 'meta.authorization.transfer_account')
-            ?? data_get($data, 'meta.authorization.transfer_account')
-            ?? data_get($verifiedData, 'authorization.transfer_account')
-            ?? data_get($data, 'authorization.transfer_account')
-            ?? data_get($meta, 'beneficiaryaccountnumber')
-            ?? data_get($meta, 'accountnumber')
-            ?? ''
+            $this->funding->chargeAccountNumber($verifiedData)
+            ?: $data['account_number']
+            ?: data_get($data, 'meta.authorization.transfer_account')
+            ?: data_get($data, 'authorization.transfer_account')
+            ?: data_get($meta, 'beneficiaryaccountnumber')
+            ?: data_get($meta, 'accountnumber')
+            ?: ''
         ));
-
-        if ($amountKobo <= 0) {
-            Log::warning('Flutterwave virtual account transfer ignored due to invalid amount.', [
-                'data' => $data,
-                'meta' => $meta,
-            ]);
-            return;
-        }
 
         $user = null;
         if ($txRef !== '') {
@@ -451,105 +365,55 @@ class FlutterwaveController extends Controller
         if (!$user && $txRef !== '') {
             $user = User::query()->where('virtual_account_metadata->temporary_virtual_account->tx_ref', $txRef)->first();
         }
+        if (!$user && $txRef !== '') {
+            // A one-time account records the deposit it is waiting for, so the
+            // transfer can be traced back through that request.
+            $user = WalletTransaction::query()
+                ->where('reference', $txRef)
+                ->where('type', 'credit')
+                ->first()?->wallet?->user;
+        }
         if (!$user && $virtualAccountNumber !== '') {
             $user = User::query()->where('virtual_account_number', $virtualAccountNumber)->first();
         }
         if (!$user && $virtualAccountNumber !== '') {
             $user = User::query()->where('virtual_account_metadata->temporary_virtual_account->account_number', $virtualAccountNumber)->first();
         }
+        if (!$user && $virtualAccountNumber !== '') {
+            // One-time accounts get replaced whenever a customer asks for a fresh
+            // one, and the transfer for the old number still arrives. The funding
+            // request that was told about that number is the only record of who
+            // the money belongs to.
+            $user = WalletTransaction::query()
+                ->where('type', 'credit')
+                ->where('meta->virtual_account_number', $virtualAccountNumber)
+                ->first()?->wallet?->user;
+        }
         if (!$user || !$user->wallet) {
             Log::warning('Flutterwave virtual account transfer user not found.', [
                 'tx_ref' => $txRef,
                 'virtual_account_number' => $virtualAccountNumber,
                 'customer_email' => $customerEmail,
-                'flutterwave_charge_id' => $flutterwaveChargeId,
-                'flutterwave_id' => $flutterwaveId,
+                'flutterwave_charge_id' => trim((string) ($verifiedData['id'] ?? '')),
+                'flutterwave_id' => trim((string) ($verifiedData['flw_ref'] ?? '')),
                 'data' => $verifiedData,
                 'meta' => $meta,
             ]);
+
             return;
         }
 
-        DB::transaction(function () use ($verifiedData, $meta, $user, $amountKobo, $flutterwaveChargeId, $flutterwaveId, $gatewayReference, $txRef, $virtualAccountNumber) {
-            $wallet = $user->wallet()->lockForUpdate()->first();
-            if (!$wallet) {
-                return;
-            }
-
-            $existing = $this->findExistingIncomingFundingTransaction(
-                $flutterwaveChargeId,
-                $flutterwaveId,
-                $gatewayReference,
-            );
-
-            if ($existing && $existing->status === 'success') {
-                Log::info('Flutterwave virtual account transfer ignored because it was already credited.', [
-                    'tx_ref' => $txRef,
-                    'flutterwave_charge_id' => $flutterwaveChargeId,
-                    'flutterwave_id' => $flutterwaveId,
-                    'existing_reference' => $existing->reference,
-                ]);
-                return;
-            }
-
-            $baseReference = 'FLW_VA_'.(
-                $flutterwaveChargeId !== ''
-                    ? Str::upper(Str::slug($flutterwaveChargeId, ''))
-                    : ($flutterwaveId !== '' ? Str::upper(Str::slug($flutterwaveId, '')) : Str::upper(Str::random(10)))
-            );
-            $referenceToUse = $existing?->reference ?: $this->ensureUniqueReference($baseReference);
-            $existingMeta = (array) ($existing?->meta ?? []);
-            $feeMeta = $this->resolveFundingCredit($amountKobo, []);
-
-            $transactionPayload = [
-                'wallet_id' => $wallet->id,
-                'type' => 'credit',
-                'amount' => $amountKobo,
-                'reference' => $referenceToUse,
-                'status' => 'success',
-                'channel' => 'flutterwave_virtual_account',
-                'description' => 'Wallet funding via Flutterwave virtual account transfer',
-                'meta' => array_merge($existingMeta, [
-                    'flutterwave_charge_id' => $flutterwaveChargeId !== '' ? $flutterwaveChargeId : null,
-                    'flutterwave_id' => $flutterwaveId !== '' ? $flutterwaveId : null,
-                    'flw_ref' => $flutterwaveId !== '' ? $flutterwaveId : ($existingMeta['flw_ref'] ?? null),
-                    'flutterwave_reference' => $gatewayReference !== '' ? $gatewayReference : ($existingMeta['flutterwave_reference'] ?? null),
-                    'tx_ref' => $txRef !== '' ? $txRef : ($existingMeta['tx_ref'] ?? null),
-                    'virtual_account_number' => $virtualAccountNumber !== '' ? $virtualAccountNumber : ($existingMeta['virtual_account_number'] ?? null),
-                    'amount_naira' => $amountKobo / 100,
-                    'fee_kobo' => $feeMeta['fee_kobo'],
-                    'fee_naira' => $feeMeta['fee_naira'],
-                    'channel' => $this->resolveChargeChannel($verifiedData, 'bank_transfer'),
-                    'currency' => (string) ($verifiedData['currency'] ?? 'NGN'),
-                    'paid_at' => $this->resolveChargePaidAt($verifiedData),
-                    'gateway_response' => $this->stringifyGatewayResponse($verifiedData['processor_response'] ?? 'success'),
-                    'flutterwave_payload' => $verifiedData,
-                    'flutterwave_meta' => $meta,
-                    'webhook_event' => 'BANK_TRANSFER_TRANSACTION',
-                    'credited_kobo' => $feeMeta['credited_kobo'],
-                ]),
-            ];
-
-            if ($existing) {
-                $existing->fill($transactionPayload);
-                $existing->save();
-            } else {
-                WalletTransaction::create($transactionPayload);
-            }
-
-            $wallet->balance += (int) $feeMeta['credited_kobo'];
-            $wallet->save();
-
-            $this->markReferralQualified($user);
-            $this->notifyWalletFunding(
-                $user,
-                (int) $feeMeta['credited_kobo'],
-                $referenceToUse,
-                'flutterwave_virtual_account',
-                (int) ($wallet->balance - (int) $feeMeta['credited_kobo']),
-                (int) $wallet->balance,
-            );
-        });
+        $this->funding->creditFlutterwaveCharge(
+            $user->wallet,
+            $verifiedData,
+            'flutterwave_virtual_account',
+            'webhook',
+            [
+                'webhook_event' => 'BANK_TRANSFER_TRANSACTION',
+                'flutterwave_meta' => $meta,
+                'virtual_account_number' => $virtualAccountNumber,
+            ],
+        );
     }
 
     private function resolveVerifiedWebhookChargeData(array $data): array
@@ -571,7 +435,7 @@ class FlutterwaveController extends Controller
         }
 
         $verifiedData = (array) $verify->json('data', []);
-        if (!$this->isSuccessfulFlutterwaveStatus($verifiedData['status'] ?? '')) {
+        if (!$this->flutterwave->isSuccessfulChargeStatus($verifiedData['status'] ?? '')) {
             Log::warning('Flutterwave webhook verification returned a non-success status.', [
                 'transaction_id' => $transactionId,
                 'verified_data' => $verifiedData,
@@ -594,125 +458,6 @@ class FlutterwaveController extends Controller
         return $verifiedData;
     }
 
-    private function isSuccessfulFlutterwaveStatus(mixed $status): bool
-    {
-        return in_array(strtolower(trim((string) $status)), ['success', 'successful', 'succeeded'], true);
-    }
-
-    private function resolveChargeChannel(array $data, string $fallback = 'flutterwave'): string
-    {
-        $channel = trim((string) ($data['payment_type'] ?? data_get($data, 'payment_method.type', '')));
-
-        return $channel !== '' ? $channel : $fallback;
-    }
-
-    private function resolveChargePaidAt(array $data): string
-    {
-        return trim((string) ($data['created_at'] ?? ($data['created_datetime'] ?? now()->toISOString())));
-    }
-
-    private function stringifyGatewayResponse(mixed $value): string
-    {
-        if (is_string($value)) {
-            return trim($value);
-        }
-
-        if ($value === null) {
-            return '';
-        }
-
-        if (is_scalar($value)) {
-            return trim((string) $value);
-        }
-
-        $encoded = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-        return $encoded !== false ? $encoded : 'success';
-    }
-
-    private function findExistingIncomingFundingTransaction(
-        string $flutterwaveChargeId,
-        string $flutterwaveId,
-        string $gatewayReference
-    ): ?WalletTransaction {
-        $identifiers = [];
-
-        if ($flutterwaveChargeId !== '') {
-            $identifiers[] = ['meta->flutterwave_charge_id', $flutterwaveChargeId];
-            $identifiers[] = ['meta->flutterwave_payload->id', $flutterwaveChargeId];
-        }
-
-        if ($flutterwaveId !== '') {
-            $identifiers[] = ['meta->flutterwave_id', $flutterwaveId];
-            $identifiers[] = ['meta->flw_ref', $flutterwaveId];
-        }
-
-        if ($gatewayReference !== '') {
-            $identifiers[] = ['meta->flutterwave_reference', $gatewayReference];
-            $identifiers[] = ['meta->flutterwave_payload->reference', $gatewayReference];
-        }
-
-        if ($identifiers === []) {
-            return null;
-        }
-
-        return WalletTransaction::query()
-            ->where(function ($query) use ($identifiers) {
-                foreach ($identifiers as $index => [$column, $value]) {
-                    $method = $index === 0 ? 'where' : 'orWhere';
-                    $query->{$method}($column, $value);
-                }
-            })
-            ->lockForUpdate()
-            ->first();
-    }
-
-    private function ensureUniqueReference(string $reference): string
-    {
-        $ref = trim($reference) !== '' ? trim($reference) : 'FLW_TX_'.Str::upper(Str::random(12));
-        if (!WalletTransaction::query()->where('reference', $ref)->exists()) {
-            return $ref;
-        }
-
-        do {
-            $candidate = $ref.'_'.Str::upper(Str::random(4));
-        } while (WalletTransaction::query()->where('reference', $candidate)->exists());
-
-        return $candidate;
-    }
-
-    /**
-     * @param  array<string, mixed>  $meta
-     * @return array{fee_kobo:int,fee_naira:float,credited_kobo:int}
-     */
-    private function resolveFundingCredit(int $grossKobo, array $meta): array
-    {
-        $feeKobo = array_key_exists('fee_kobo', $meta)
-            ? max(0, (int) ($meta['fee_kobo'] ?? 0))
-            : $this->fundingFeeKobo();
-
-        $creditedKobo = array_key_exists('credited_kobo', $meta)
-            ? max(0, (int) ($meta['credited_kobo'] ?? 0))
-            : max(0, $grossKobo - $feeKobo);
-
-        if (!array_key_exists('credited_kobo', $meta) && $creditedKobo === 0 && $grossKobo > 0 && $feeKobo === 0) {
-            $creditedKobo = $grossKobo;
-        }
-
-        return [
-            'fee_kobo' => $feeKobo,
-            'fee_naira' => $feeKobo / 100,
-            'credited_kobo' => $creditedKobo,
-        ];
-    }
-
-    private function fundingFeeKobo(): int
-    {
-        $feeNaira = (float) setting('wallet_funding_fee', 50);
-
-        return max(0, (int) round($feeNaira * 100));
-    }
-
     private function markInitializationFailed(WalletTransaction $tx, string $reason, array $extraMeta = []): void
     {
         $meta = array_merge($tx->meta ?? [], [
@@ -724,53 +469,5 @@ class FlutterwaveController extends Controller
             'status' => 'failed',
             'meta' => $meta,
         ]);
-    }
-
-    private function markReferralQualified(User $user): void
-    {
-        if ((int) ($user->referred_by_user_id ?? 0) <= 0) {
-            return;
-        }
-
-        if ($user->referral_qualified_at !== null) {
-            return;
-        }
-
-        $user->referral_qualified_at = now();
-        $user->save();
-    }
-
-    private function notifyWalletFunding(
-        User $user,
-        int $creditedKobo,
-        string $reference,
-        string $channel,
-        int $balanceBeforeKobo,
-        int $balanceAfterKobo
-    ): void {
-        if ($creditedKobo <= 0) {
-            return;
-        }
-
-        try {
-            $user->notify(new UserWalletActivityNotification(
-                'Wallet Funded',
-                'N' . number_format($creditedKobo / 100, 2) . ' has been added to your wallet.',
-                [
-                    'type' => 'credit',
-                    'channel' => $channel,
-                    'reference' => $reference,
-                    'amount_kobo' => $creditedKobo,
-                    'balance_before_kobo' => $balanceBeforeKobo,
-                    'balance_after_kobo' => $balanceAfterKobo,
-                ]
-            ));
-        } catch (\Throwable $e) {
-            Log::warning('Wallet funding notification failed.', [
-                'user_id' => $user->id,
-                'reference' => $reference,
-                'error' => $e->getMessage(),
-            ]);
-        }
     }
 }

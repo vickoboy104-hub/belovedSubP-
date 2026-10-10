@@ -1,9 +1,13 @@
 <x-app-layout>
     @php
-        $priceVerify = (float) setting('price_bvn_verify', 100);
-        $priceRetrievePhone = (float) setting('price_bvn_retrieve_phone', 2500);
-        $priceRetrieveBms = (float) setting('price_bvn_retrieve_bms', 1000);
+        $priceVerify = identity_price('price_bvn_verify');
+        $priceRetrievePhone = identity_price('price_bvn_retrieve_phone');
+        $priceRetrieveBms = identity_price('price_bvn_retrieve_bms');
         $markup = (float) setting('markup_bvn', 0);
+        $manualServices = app(\App\Services\ManualFulfilmentService::class);
+        $retrieveTurnaround = $manualServices->turnaroundLabel('bvn_retrieve');
+        $verifyManual = identity_verify_mode('bvn') === 'manual';
+        $verifyTurnaround = $manualServices->turnaroundLabel('bvn_verify');
     @endphp
 
     <style>
@@ -16,77 +20,80 @@
         }
     </style>
 
-    <div class="legacy-themed-page max-w-5xl mx-auto w-full px-4 sm:px-0 space-y-5 bvn-print-wrap">
-        <div class="rounded-3xl p-5 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <h2 class="text-2xl font-extrabold">&#128274; BVN Services</h2>
-                    <p class="text-sm text-gray-600 dark:text-white/60 mt-1">
-                        Verify BVN instantly, submit retrieve workflow, and print your result after success.
-                    </p>
-                </div>
-                <div class="w-12 h-12 rounded-2xl bg-black/5 dark:bg-white/10 border border-white/10 flex items-center justify-center text-xl">
-                    &#129534;
-                </div>
-            </div>
-        </div>
+    <x-page-hero class="reference-shared-banner" title="BVN Services"
+                 subtitle="{{ $verifyManual
+                     ? 'Submit a BVN check and our team posts the result to your receipt, or follow an existing retrieval request.'
+                     : 'Verify a BVN instantly, submit a retrieval request, and print the result once it succeeds.' }}">
+        <a href="{{ route('identity.index') }}" class="reference-hero-action">All identity requests</a>
+    </x-page-hero>
 
+    <div class="reference-flow-page max-w-5xl mx-auto w-full px-4 sm:px-0 space-y-5 bvn-print-wrap">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div class="rounded-3xl p-5 sm:p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5">
-                <h3 class="text-lg font-extrabold">Instant BVN Verification</h3>
-                <p class="text-xs text-gray-600 dark:text-white/60 mt-1">
-                    Charge: N{{ number_format($priceVerify + $markup, 2) }} per verification.
+            <div class="app-section p-5 sm:p-6">
+                <h3 class="text-lg font-extrabold">{{ $verifyManual ? 'BVN Verification' : 'Instant BVN Verification' }}</h3>
+                <p class="mt-1 text-xs text-slate-500">
+                    Charge: ₦{{ number_format($priceVerify + $markup, 2) }} per verification.
+                    @if($verifyManual)
+                        A member of our team runs this check and the result appears on your receipt
+                        {{ strtolower($verifyTurnaround) }} after payment.
+                    @endif
                 </p>
                 <form id="bvnVerifyForm" class="mt-4 space-y-4">
                     @csrf
                     <div>
-                        <label class="text-sm font-bold text-gray-700 dark:text-white/80">Enter BVN</label>
-                        <input type="text" name="bvn" maxlength="11" required
-                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white"
-                               placeholder="11-digit BVN">
+                        <label class="block text-sm font-bold text-slate-700">Enter the BVN Number</label>
+                        <input type="text" name="bvn" maxlength="11" inputmode="numeric" required
+                               class="input-field mt-1"
+                               placeholder="Enter BVN">
+                    </div>
+                    <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-6 text-amber-800">
+                        BelovedSubP is not affiliated with NIBSS. By submitting this check you authorise
+                        BelovedSubP and the agents it works with to read the record your BVN points to and
+                        return your own details to you on this site.
                     </div>
                     <button type="submit"
-                            class="w-full px-4 py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold transition">
+                            class="btn-primary w-full justify-center">
                         Verify / Check BVN Details
                     </button>
                 </form>
             </div>
 
-            <div class="rounded-3xl p-5 sm:p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5">
+            <div class="app-section p-5 sm:p-6">
                 <h3 class="text-lg font-extrabold">BVN Retrieval Workflow</h3>
-                <p class="text-xs text-gray-600 dark:text-white/60 mt-1">
-                    Phone retrieval: N{{ number_format($priceRetrievePhone + $markup, 2) }} | BMS retrieval: N{{ number_format($priceRetrieveBms + $markup, 2) }}
+                <p class="mt-1 text-xs text-slate-500">
+                    Lost your BVN? Submit the phone number or the BMS ticket it is linked to and our team
+                    runs the retrieval {{ strtolower($retrieveTurnaround) }} after payment.
                 </p>
                 <form id="bvnRetrieveForm" class="mt-4 space-y-4">
                     @csrf
                     <div>
-                        <label class="text-sm font-bold text-gray-700 dark:text-white/80">Retrieve Type</label>
+                        <label class="block text-sm font-bold text-slate-700">Choose Category</label>
                         <select id="retrieve_type" name="retrieve_type" required
-                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white">
-                            <option value="">Choose type</option>
+                                class="input-field mt-1">
+                            <option value="">--Choose Retrieval Type--</option>
                             <option value="phone">Using Phone Number</option>
                             <option value="bms">Using BMS Ticket</option>
                         </select>
                     </div>
                     <div id="retrieveFields" class="grid grid-cols-1 gap-3"></div>
+                    <x-price-lock id="retrievePrice" label="Retrieval price" />
                     <button type="submit"
-                            class="w-full px-4 py-3 rounded-2xl bg-blue-700 hover:bg-blue-800 text-white font-extrabold transition">
+                            class="btn-primary w-full justify-center">
                         Submit Retrieve Request
                     </button>
                 </form>
             </div>
         </div>
 
-        <div id="bvnResultCard" class="hidden rounded-3xl p-5 sm:p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5">
+        <div id="bvnResultCard" class="app-section hidden p-5 sm:p-6">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h3 class="text-xl font-extrabold">BVN Result</h3>
-                    <p id="bvnResultMessage" class="text-sm mt-1 text-gray-600 dark:text-white/60"></p>
+                    <p id="bvnResultMessage" class="mt-1 text-sm text-slate-600"></p>
                 </div>
                 <div class="flex items-center gap-2 no-print">
                     <span id="bvnStatusBadge" class="px-3 py-1 rounded-full text-xs font-semibold border"></span>
-                    <button type="button" onclick="window.print()"
-                            class="px-3 py-2 rounded-xl bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15 border border-black/10 dark:border-white/10 text-xs font-bold">
+                    <button type="button" onclick="window.print()" class="reference-quiet-button">
                         Print / Save PDF
                     </button>
                 </div>
@@ -94,25 +101,85 @@
 
             <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
                 <div class="sm:col-span-1">
-                    <img id="bvnFaceImage" class="hidden w-40 h-40 object-cover rounded-2xl border border-gray-200 dark:border-white/10" alt="BVN photo">
+                    <img id="bvnFaceImage" class="hidden w-40 h-40 object-cover rounded-2xl border border-slate-200" alt="BVN photo">
                 </div>
                 <div class="sm:col-span-2">
                     <div class="text-2xl font-black" id="bvnName">-</div>
                     <div class="mt-2 flex flex-wrap gap-2 text-sm">
-                        <span class="px-3 py-1 rounded-full bg-blue-50 text-blue-900 border border-blue-200">BVN: <span id="bvnNumber">-</span></span>
-                        <span class="px-3 py-1 rounded-full bg-green-50 text-green-900 border border-green-200">NIN: <span id="bvnNin">-</span></span>
+                        <span class="app-choice-chip">BVN: <span id="bvnNumber">-</span></span>
+                        <span class="app-choice-chip">NIN: <span id="bvnNin">-</span></span>
                     </div>
                 </div>
             </div>
 
             <div id="bvnDetails" class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+
+            <p id="bvnReceiptLink" class="hidden mt-4">
+                <a id="bvnReceiptAnchor" href="#"
+                   class="btn-outline gap-2">
+                    Open receipt and track this request
+                </a>
+            </p>
         </div>
+
+        <section class="app-section p-5 sm:p-6 no-print">
+            <h3 class="text-lg font-extrabold">BVN Requests</h3>
+            <p class="mt-1 text-sm text-slate-500">Every BVN check and retrieval you have submitted, newest first.</p>
+
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-slate-200">
+                            <th class="py-2 pr-4 text-left">BVN</th>
+                            <th class="py-2 pr-4 text-left">Type</th>
+                            <th class="py-2 pr-4 text-left">Status</th>
+                            <th class="py-2 pr-4 text-left">Response</th>
+                            <th class="py-2 pr-4 text-left">Date</th>
+                            <th class="py-2 text-left">Receipt</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($reports as $report)
+                            @php
+                                $meta = is_array($report->meta) ? $report->meta : [];
+                                $serviceType = ($meta['service_type'] ?? '') === 'retrieve' ? 'Retrieve' : 'Verify';
+                                $providerMessage = (string) ($meta['message'] ?? '');
+                            @endphp
+                            <tr class="border-b border-slate-100">
+                                <td class="py-2 pr-4">{{ $report->customer_ref }}</td>
+                                <td class="py-2 pr-4">{{ $serviceType }}</td>
+                                <td class="py-2 pr-4">
+                                    <span class="rounded-full px-2 py-1 text-xs font-bold {{ $report->status === 'success' ? 'bg-emerald-50 text-emerald-700' : ($report->status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700') }}">
+                                        {{ strtoupper($report->status) }}
+                                    </span>
+                                </td>
+                                <td class="py-2 pr-4">{{ $providerMessage ?: '-' }}</td>
+                                <td class="py-2 pr-4">{{ optional($report->created_at)->format('d M Y, h:ia') }}</td>
+                                <td class="py-2">
+                                    <a href="{{ route('vtu.receipt', $report->id) }}" class="text-xs font-bold text-blue-700 underline">
+                                        View
+                                    </a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="py-3 text-slate-500">No BVN requests yet.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
 
     <script>
         (function () {
             const verifyRoute = @json(route('vtu.bvn.verify'));
             const retrieveRoute = @json(route('vtu.bvn.retrieve'));
+            const retrievePrices = {
+                phone: Number(@json($priceRetrievePhone)) + Number(@json($markup)),
+                bms: Number(@json($priceRetrieveBms)) + Number(@json($markup)),
+            };
             const verifyForm = document.getElementById('bvnVerifyForm');
             const retrieveForm = document.getElementById('bvnRetrieveForm');
             const retrieveType = document.getElementById('retrieve_type');
@@ -125,14 +192,6 @@
             const ninEl = document.getElementById('bvnNin');
             const detailsWrap = document.getElementById('bvnDetails');
             const faceImg = document.getElementById('bvnFaceImage');
-
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') {
-                    window.showFlashToast(type, message);
-                    return;
-                }
-                alert(message);
-            }
 
             function esc(value) {
                 return String(value ?? '')
@@ -157,41 +216,74 @@
                 return '';
             }
 
-            function setStatus(ok) {
-                statusBadge.textContent = ok ? 'SUCCESS' : 'FAILED';
-                statusBadge.className = ok
-                    ? 'px-3 py-1 rounded-full text-xs font-semibold border bg-green-50 text-green-800 border-green-200'
-                    : 'px-3 py-1 rounded-full text-xs font-semibold border bg-red-50 text-red-800 border-red-200';
+            function setStatus(state) {
+                const looks = {
+                    success: ['SUCCESS', 'bg-emerald-50 text-emerald-800 border-emerald-200'],
+                    // A retrieval can be accepted and still have no answer yet,
+                    // and the wallet has already been charged for it. Saying
+                    // FAILED there would be a lie the customer could act on.
+                    pending: ['IN PROGRESS', 'bg-amber-50 text-amber-800 border-amber-200'],
+                    failed: ['FAILED', 'bg-rose-50 text-rose-800 border-rose-200'],
+                };
+                const [label, tone] = looks[state] || looks.failed;
+
+                statusBadge.textContent = label;
+                statusBadge.className = 'px-3 py-1 rounded-full text-xs font-semibold border ' + tone;
             }
 
             function detailsRow(label, value) {
                 return `
-                    <div class="rounded-2xl p-3 border border-gray-200 dark:border-white/10">
-                        <div class="text-xs text-gray-500 dark:text-white/50 uppercase">${esc(label)}</div>
-                        <div class="font-semibold break-all">${esc(val(value))}</div>
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <div class="app-record-label">${esc(label)}</div>
+                        <div class="app-record-value break-all">${esc(val(value))}</div>
                     </div>
                 `;
             }
 
-            function renderResult(ok, message, data) {
-                resultCard.classList.remove('hidden');
-                setStatus(ok);
-                resultMessage.textContent = message || (ok ? 'Request completed.' : 'Request failed.');
+            function clearResultFields() {
+                nameEl.textContent = '-';
+                bvnNoEl.textContent = '-';
+                ninEl.textContent = '-';
+                detailsWrap.innerHTML = '';
+                faceImg.src = '';
+                faceImg.classList.add('hidden');
+            }
 
-                if (!ok) {
-                    nameEl.textContent = '-';
-                    bvnNoEl.textContent = '-';
-                    ninEl.textContent = '-';
-                    detailsWrap.innerHTML = '';
-                    faceImg.src = '';
-                    faceImg.classList.add('hidden');
+            function showReceipt(url) {
+                const anchor = document.getElementById('bvnReceiptAnchor');
+                const wrapper = document.getElementById('bvnReceiptLink');
+
+                // Only ever a link this app generated, never whatever a provider said.
+                if (typeof url === 'string' && (url.startsWith('/') || url.startsWith(window.location.origin))) {
+                    anchor.href = url;
+                    wrapper.classList.remove('hidden');
                     return;
                 }
 
+                wrapper.classList.add('hidden');
+                anchor.removeAttribute('href');
+            }
+
+            function fullNameOf(data) {
                 const first = data.first_name || data.firstname || data.firs_tname || '';
                 const middle = data.middle_name || data.middlename || '';
                 const last = data.last_name || data.lastname || '';
-                nameEl.textContent = [first, middle, last].filter(Boolean).join(' ') || '-';
+                return [first, middle, last].filter(Boolean).join(' ');
+            }
+
+            function renderResult(state, message, data) {
+                resultCard.classList.remove('hidden');
+                setStatus(state);
+                resultMessage.textContent = message || (state === 'success'
+                    ? 'Request completed.'
+                    : (state === 'pending' ? 'Request received.' : 'Request failed.'));
+
+                if (state !== 'success') {
+                    clearResultFields();
+                    return;
+                }
+
+                nameEl.textContent = fullNameOf(data) || '-';
                 bvnNoEl.textContent = val(data.bvn || data.BVN);
                 ninEl.textContent = val(data.nin || data.NIN);
 
@@ -220,10 +312,10 @@
                 if (retrieveType.value === 'phone') {
                     retrieveFields.innerHTML = `
                         <div>
-                            <label class="text-sm font-bold text-gray-700 dark:text-white/80">Phone Number</label>
+                            <label class="block text-sm font-bold text-slate-700">Phone Number</label>
                             <div class="contact-picker-row mt-1">
                                 <input type="tel" name="phone" required inputmode="tel" autocomplete="tel-national" data-contact-picker-input
-                                       class="w-full px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white"
+                                       class="input-field w-full"
                                        placeholder="Phone registered with BVN">
                                 <button type="button" class="contact-picker-btn" data-contact-picker-button data-contact-picker-target="#bvnRetrieveForm input[name='phone']" aria-label="Pick phone contact">
                                     <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
@@ -244,37 +336,47 @@
                 if (retrieveType.value === 'bms') {
                     retrieveFields.innerHTML = `
                         <div>
-                            <label class="text-sm font-bold text-gray-700 dark:text-white/80">BMS Ticket</label>
-                            <input type="text" name="bms_no" required
-                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white"
-                                   placeholder="Enter BMS ticket">
+                            <label class="block text-sm font-bold text-slate-700">Enter BMS Ticket</label>
+                            <input type="text" name="bms_no" required inputmode="numeric"
+                                   class="input-field mt-1"
+                                   placeholder="Enter BMS ticket number">
                         </div>
                         <div>
-                            <label class="text-sm font-bold text-gray-700 dark:text-white/80">Ticket ID</label>
-                            <input type="text" name="ticket_id" required
-                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white"
-                                   placeholder="Enter full ticket ID">
+                            <label class="block text-sm font-bold text-slate-700">Enter Full Ticket ID</label>
+                            <input type="text" name="ticket_id" required inputmode="numeric"
+                                   class="input-field mt-1"
+                                   placeholder="Enter Ticket ID e.g 91465122240202030407">
                         </div>
                         <div>
-                            <label class="text-sm font-bold text-gray-700 dark:text-white/80">Agent Code (Optional)</label>
-                            <input type="text" name="agent_code"
-                                   class="w-full mt-1 px-4 py-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-300 dark:border-white/10 text-gray-900 dark:text-white"
-                                   placeholder="Agent code">
+                            <label class="block text-sm font-bold text-slate-700">Agent Code (Optional)</label>
+                            <input type="text" name="agent_code" inputmode="numeric"
+                                   class="input-field mt-1"
+                                   placeholder="Enter Agent Code e.g 91033441">
                         </div>
                     `;
-                    if (typeof window.initContactPickerButtons === 'function') {
-                        window.initContactPickerButtons(retrieveFields);
-                    }
                     return;
                 }
 
                 retrieveFields.innerHTML = '';
-                if (typeof window.initContactPickerButtons === 'function') {
-                    window.initContactPickerButtons(retrieveFields);
-                }
             }
 
-            async function submitForm(form, endpoint) {
+            function renderRetrievePrice() {
+                if (retrieveType.value === 'phone') {
+                    window.setPriceLock('retrievePrice', retrievePrices.phone,
+                        'Charged to your wallet when the request is submitted.');
+                    return;
+                }
+
+                if (retrieveType.value === 'bms') {
+                    window.setPriceLock('retrievePrice', retrievePrices.bms,
+                        'Charged to your wallet when the request is submitted.');
+                    return;
+                }
+
+                window.setPriceLock('retrievePrice', null);
+            }
+
+            async function submitForm(form, endpoint, labels) {
                 if (form.dataset.submitting === '1') return;
                 form.dataset.submitting = '1';
                 if (typeof window.showGlobalLoader === 'function') {
@@ -289,16 +391,36 @@
                     });
                     const data = await response.json().catch(() => ({}));
                     const ok = response.ok && data?.ok === true;
-                    renderResult(ok, data?.message || 'Request completed.', data?.normalized || data?.data || {});
-                    notify(ok ? 'success' : 'error', data?.message || 'Request failed.');
+                    const queued = ok && data?.queued === true;
+                    const message = data?.message || (ok ? 'Request completed.' : 'Request failed.');
+                    const payload = data?.normalized || data?.data || {};
+                    const receiptUrl = data?.receipt_url || '';
+
+                    renderResult(ok ? (queued ? 'pending' : 'success') : 'failed', message, payload);
+                    showReceipt(receiptUrl);
 
                     const balanceKobo = Number(data?.balance_kobo ?? NaN);
                     if (Number.isFinite(balanceKobo) && typeof window.updateWalletBalance === 'function') {
                         window.updateWalletBalance(balanceKobo);
                     }
+
+                    // Naming the customer in the popup is the proof that this is
+                    // their record, not just a green tick on a page.
+                    const identity = ok && !queued ? fullNameOf(payload) : '';
+                    showAppDialog({
+                        tone: ok ? (queued ? 'info' : 'success') : 'error',
+                        title: ok ? (queued ? 'Request received' : labels.done) : labels.failed,
+                        message: [message, identity && ('Record: ' + identity)].filter(Boolean).join(' '),
+                        actions: receiptUrl
+                            ? [
+                                { label: 'View receipt', variant: 'primary', href: receiptUrl },
+                                { label: 'Close', variant: 'muted' },
+                            ]
+                            : [{ label: 'Okay', variant: 'warm' }],
+                    });
                 } catch (error) {
-                    renderResult(false, 'Network error. Please try again.', {});
-                    notify('error', 'Network error. Please try again.');
+                    renderResult('failed', 'Network error. Please try again.', {});
+                    showAppDialog({ tone: 'error', title: labels.failed, message: 'Network error. Please try again.' });
                 } finally {
                     form.dataset.submitting = '0';
                     if (typeof window.hideGlobalLoader === 'function') {
@@ -309,20 +431,24 @@
 
             verifyForm.addEventListener('submit', function (event) {
                 event.preventDefault();
-                submitForm(verifyForm, verifyRoute);
+                submitForm(verifyForm, verifyRoute, { done: 'BVN verified', failed: 'Not verified' });
             });
 
             retrieveForm.addEventListener('submit', function (event) {
                 event.preventDefault();
                 if (!retrieveType.value) {
-                    notify('error', 'Please choose retrieve type.');
+                    showAppDialog({ tone: 'info', title: 'Pick a retrieve type', message: 'Choose which BVN record you want to retrieve.' });
                     return;
                 }
-                submitForm(retrieveForm, retrieveRoute);
+                submitForm(retrieveForm, retrieveRoute, { done: 'BVN retrieved', failed: 'Not retrieved' });
             });
 
-            retrieveType.addEventListener('change', renderRetrieveFields);
+            retrieveType.addEventListener('change', function () {
+                renderRetrieveFields();
+                renderRetrievePrice();
+            });
             renderRetrieveFields();
+            renderRetrievePrice();
         })();
     </script>
 </x-app-layout>

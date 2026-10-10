@@ -1,8 +1,8 @@
 <x-guest-layout>
     <div class="space-y-6">
 
-        <h2 class="text-2xl font-extrabold text-white">Confirm Password</h2>
-        <p class="text-white/60 text-sm">
+        <h1 class="text-3xl font-extrabold text-slate-900">Confirm your password</h1>
+        <p class="text-slate-600 text-sm leading-6">
             For security reasons, please confirm your password before continuing.
         </p>
 
@@ -14,11 +14,11 @@
                 <x-text-input id="password" class="block mt-1 w-full"
                               type="password" name="password"
                               required autocomplete="current-password" />
-                <x-input-error :messages="$errors->get('password')" class="mt-2 text-red-400" />
+                <x-input-error :messages="$errors->get('password')" class="mt-2 text-rose-600" />
             </div>
 
-            <div class="flex items-center justify-end">
-                <x-primary-button>
+            <div>
+                <x-primary-button class="w-full justify-center py-3">
                     {{ __('Confirm') }}
                 </x-primary-button>
             </div>

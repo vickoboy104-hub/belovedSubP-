@@ -9,24 +9,20 @@
         $walletBalanceKobo = (int) ($wallet?->balance ?? 0);
     @endphp
 
-    <div class="mx-auto max-w-6xl space-y-6">
-        <section class="app-section p-6 sm:p-8">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                    <a href="{{ route('admin.users') }}" class="text-sm font-bold text-slate-600 hover:text-slate-900">&larr; Back to users</a>
-                    <h1 class="app-page-title mt-3 text-[2rem] sm:text-[2.5rem]">#{{ $user->id }} {{ $fullName ?: 'Unnamed User' }}</h1>
-                    <p class="app-page-subtitle">{{ $user->email }} @if($user->phone) | {{ $user->phone }} @endif</p>
-                </div>
+    <x-page-hero class="reference-shared-banner" title="#{{ $user->id }} {{ $fullName ?: 'Unnamed User' }}" subtitle="{{ $user->email }}{{ $user->phone ? ' | ' . $user->phone : '' }}">
+        <a href="{{ route('admin.users') }}" class="reference-hero-action">Back to users</a>
+    </x-page-hero>
 
-                <div class="grid gap-3 sm:grid-cols-2 lg:min-w-[360px]">
-                    <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-                        <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Wallet Balance</div>
-                        <div class="amount-fit mt-2 text-2xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceKobo / 100, 2) }}</div>
-                    </div>
-                    <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-                        <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Role</div>
-                        <div class="mt-2 text-2xl font-extrabold {{ $user->is_admin ? 'text-emerald-700' : 'text-slate-900' }}">{{ $user->is_admin ? 'Admin' : 'User' }}</div>
-                    </div>
+    <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
+        <section class="app-section p-6 sm:p-8">
+            <div class="grid gap-3 sm:grid-cols-2 lg:min-w-[360px]">
+                <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                    <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Wallet Balance</div>
+                    <div class="amount-fit mt-2 text-2xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceKobo / 100, 2) }}</div>
+                </div>
+                <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                    <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Role</div>
+                    <div class="mt-2 text-2xl font-extrabold {{ $user->is_admin ? 'text-emerald-700' : 'text-slate-900' }}">{{ $user->is_admin ? 'Admin' : 'User' }}</div>
                 </div>
             </div>
         </section>
@@ -181,14 +177,18 @@
                         <form method="POST" action="{{ route('admin.users.admin', $user) }}">
                             @csrf
                             <input type="hidden" name="is_admin" value="{{ $user->is_admin ? '0' : '1' }}">
-                            <button class="w-full rounded-2xl {{ $user->is_admin ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700' }} px-4 py-3 text-sm font-bold text-white" @disabled($user->id === auth()->id())>
+                            <button class="w-full {{ $user->is_admin ? 'btn-danger' : 'btn-primary' }}" @disabled($user->id === auth()->id())>
                                 {{ $user->is_admin ? 'Remove Admin' : 'Make Admin' }}
                             </button>
                         </form>
 
-                        <form method="POST" action="{{ route('admin.users.reset-password', $user) }}" onsubmit="return confirm('Generate a new temporary password for this user?');">
+                        <form method="POST"
+                              id="resetPasswordForm"
+                              action="{{ route('admin.users.reset-password', $user) }}"
+                              data-confirm-sheet="confirmTempPassword"
+                              data-confirm-details='{"Action":"Generate a temporary password","Effect":"This user must set a new one at the next sign-in."}'>
                             @csrf
-                            <button class="w-full rounded-2xl bg-amber-600 px-4 py-3 text-sm font-bold text-white hover:bg-amber-700">
+                            <button class="btn-outline w-full">
                                 Generate Temp Password
                             </button>
                         </form>
@@ -250,4 +250,6 @@
             </aside>
         </section>
     </div>
+
+    <x-confirm-modal id="confirmTempPassword" title="Confirm Password Reset" confirmText="Generate Password" />
 </x-app-layout>

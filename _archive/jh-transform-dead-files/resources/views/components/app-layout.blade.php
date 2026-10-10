@@ -98,11 +98,18 @@
 
         <div class="p-4 space-y-2 pb-10">
             <a href="{{ route('dashboard') }}" class="nav-item">Dashboard</a>
+            <div class="identity-nav-label">Identity services</div>
+            <a href="{{ route('identity.index') }}" class="nav-item">All identity services</a>
+            <a href="{{ route('vtu.nin') }}" class="nav-item">NIN verification</a>
+            <a href="{{ route('vtu.bvn') }}" class="nav-item">BVN verification</a>
+            <a href="{{ route('vtu.nin-validation') }}" class="nav-item">NIN validation</a>
+            <div class="identity-nav-label">Wallet & activity</div>
             <a href="{{ route('wallet.fund') }}" class="nav-item">Fund Wallet</a>
             <a href="{{ route('wallet.transactions') }}" class="nav-item">Transactions</a>
             <a href="{{ route('vtu.orders') }}" class="nav-item">Orders</a>
 
             <div class="mt-4 pt-4 border-t border-white/10 space-y-2">
+                <div class="identity-nav-label">More services</div>
                 <a href="{{ route('vtu.airtime') }}" class="nav-item">Buy Airtime</a>
                 <a href="{{ route('vtu.data') }}" class="nav-item">Buy Data</a>
                 <a href="{{ route('vtu.cable') }}" class="nav-item">Cable TV</a>
@@ -110,9 +117,6 @@
                 <a href="{{ route('vtu.exam') }}" class="nav-item">Exam Pins</a>
                 <a href="{{ route('vtu.recharge-card') }}" class="nav-item">Recharge PIN</a>
                 <a href="{{ route('vtu.premium-apps') }}" class="nav-item">Premium Apps</a>
-                <a href="{{ route('vtu.nin') }}" class="nav-item">NIN Services</a>
-                <a href="{{ route('vtu.bvn') }}" class="nav-item">BVN Services</a>
-                <a href="{{ route('vtu.nin-validation') }}" class="nav-item">NIN Validation</a>
             </div>
 
             @if(auth()->user()->is_admin ?? false)

@@ -10,9 +10,34 @@
         }
     @endphp
 
-    <form method="post" action="{{ route('profile.update') }}" class="space-y-5">
+    <form method="post" action="{{ route('profile.update') }}" enctype="multipart/form-data" class="space-y-5">
         @csrf
         @method('patch')
+
+        <div x-data="avatarPicker({ current: @js($user->avatar_url), initials: @js($user->initials), name: @js($user->name ?: 'Your profile photo') })">
+            <x-input-label for="image" :value="__('Profile Picture')" />
+            <div class="avatar-picker mt-2">
+                <label class="avatar-picker-target" for="image">
+                    <img x-show="preview" x-cloak x-transition.opacity.duration.300ms :src="preview || null" :alt="name + ' profile photo'" class="avatar-picker-photo">
+                    <span x-show="!preview" x-transition.opacity.duration.300ms class="avatar-picker-initials" x-text="initials" aria-hidden="true"></span>
+                    <span class="avatar-picker-badge">
+                        <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="M4 7h3l1.5-2h7L17 7h3v12H4Z"></path>
+                            <circle cx="12" cy="13" r="3.4"></circle>
+                        </svg>
+                        <span x-text="fileName || 'Change'">Change</span>
+                    </span>
+                    <input id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp" class="sr-only"
+                           autocomplete="off" @change="pick($event.target.files[0])" aria-describedby="image-help">
+                </label>
+                <div class="avatar-picker-meta">
+                    <p class="text-sm font-semibold text-slate-800" x-text="fileName || 'Tap the circle to choose a photo'"></p>
+                    <p id="image-help" class="mt-1 text-xs leading-5 text-slate-500">JPG, PNG or WEBP, up to 2&nbsp;MB. Square photos fit best.</p>
+                    <button type="button" class="avatar-picker-clear" x-show="fileName" x-cloak x-transition.opacity.duration.200ms @click="clear()">Remove selection</button>
+                </div>
+            </div>
+            <x-input-error class="mt-2 text-red-400" :messages="$errors->get('image')" />
+        </div>
 
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

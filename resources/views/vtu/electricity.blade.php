@@ -5,11 +5,10 @@
             'eko-electric' => '/electricity/ekedc.png',
             'ibadan-electric' => '/electricity/ibedc.png',
             'ikeja-electric' => '/electricity/ikedc.png',
-            'jos-electic' => '/electricity/jed.png',
+            'jos-electric' => '/electricity/jed.png',
             'kaduna-electric' => '/electricity/kaduna.png',
             'kano-electric' => '/electricity/kedco.png',
-            'portharcourt-electric' => '/electricity/phed.png',
-            'aba-electric' => '/electricity/aba.png',
+            'phed-electric' => '/electricity/phed.png',
             'yola-electric' => '/electricity/yola.png',
             'benin-electric' => '/electricity/benin.png',
             'enugu-electric' => '/electricity/enugu.png',
@@ -17,20 +16,16 @@
         $markup = (float) setting('markup_electricity', 0);
     @endphp
 
-    <div class="mx-auto max-w-3xl space-y-5 sm:space-y-6">
-        <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <div class="app-kicker">Electricity</div>
-                <h1 class="app-page-title mt-2 text-[1.7rem] leading-tight sm:text-[2.3rem]">Pay {{ $selectedServiceLabel }}</h1>
-            </div>
-            <a href="{{ route('vtu.electricity') }}" class="btn-outline sm:w-auto">All Electricity Services</a>
-        </section>
+    <x-page-hero class="reference-shared-banner" title="Pay {{ $selectedServiceLabel }}">
+        <a href="{{ route('vtu.electricity') }}" class="reference-hero-action">All Electricity Services</a>
+    </x-page-hero>
 
+    <div class="reference-flow-page mx-auto max-w-3xl space-y-5 sm:space-y-6">
         <section class="app-form-shell space-y-4 sm:space-y-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <p class="max-w-xl text-sm leading-6 text-slate-500 sm:text-[0.95rem]">Enter the meter details and amount, then continue to checkout.</p>
                 <div class="app-icon-ring shrink-0">
-                    <img src="{{ asset($logos[$selectedService] ?? '/electricity/electricity.png') }}" alt="{{ $selectedServiceLabel }}" class="h-10 w-10 object-contain">
+                    <img src="{{ asset($logos[$selectedService] ?? '/networks/electricity.png') }}" alt="{{ $selectedServiceLabel }}" class="h-10 w-10 object-contain">
                 </div>
             </div>
 
@@ -76,11 +71,6 @@
             const actionBtn = document.getElementById('electricityActionBtn');
             const form = document.getElementById('electricityPurchaseForm');
             const confirmBtn = document.querySelector('[data-modal-confirm="confirmElectricity"]');
-
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') window.showFlashToast(type, message);
-                else alert(message);
-            }
 
             function getErrorMessage(res, data, fallback) {
                 if (data && typeof data.message === 'string' && data.message.trim() !== '') return data.message;

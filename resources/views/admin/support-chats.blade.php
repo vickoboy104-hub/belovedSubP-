@@ -1,7 +1,5 @@
 <x-app-layout>
-    <x-slot name="header">
-        Support Chats
-    </x-slot>
+    <x-page-hero class="reference-page-compact mx-4 mb-4 sm:mx-6" title="Support Chats" :battery="false" />
 
     <div class="grid min-h-0 grid-cols-1 gap-4 lg:h-[calc(100vh-13rem)] lg:grid-cols-12">
         <div class="lg:col-span-4 rounded-3xl border border-slate-200 bg-white p-4 overflow-hidden flex flex-col">
@@ -84,14 +82,6 @@
             let activeTicketId = null;
             let pollTimer = null;
             let sessionsCache = [];
-
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') {
-                    window.showFlashToast(type, message);
-                } else {
-                    alert(message);
-                }
-            }
 
             function routeForTicket(template, ticketId) {
                 return template.replace('__ID__', encodeURIComponent(String(ticketId)));

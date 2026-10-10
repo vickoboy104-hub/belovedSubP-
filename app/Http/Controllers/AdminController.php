@@ -120,14 +120,14 @@ class AdminController extends Controller
             'price_exam_nabteb' => setting('price_exam_nabteb', '0'),
 
             // Branding
-            'site_name' => setting('site_name', 'My VTU'),
+            'site_name' => site_name(),
             'site_logo' => setting('site_logo', ''),     // public path like /branding/logo.png
             'site_favicon' => setting('site_favicon', ''), // public path like /branding/favicon.ico
 
             // Popup + WhatsApp
             'home_popup_enabled' => setting('home_popup_enabled', '1'),
             'home_popup_message' => setting('home_popup_message', 'Need NIN services? Tap the WhatsApp button to chat with us.'),
-            'whatsapp_link' => setting('whatsapp_link', 'https://wa.me/2348165587119'),
+            'whatsapp_link' => whatsapp_link(),
         ]);
     }
 
@@ -200,7 +200,7 @@ class AdminController extends Controller
             'price_exam_neco' => $validated['price_exam_neco'] ?? setting('price_exam_neco', '0'),
             'price_exam_nabteb' => $validated['price_exam_nabteb'] ?? setting('price_exam_nabteb', '0'),
 
-            'site_name' => $validated['site_name'] ?? setting('site_name', 'My VTU'),
+            'site_name' => $validated['site_name'] ?? site_name(),
 
             'home_popup_enabled' => $validated['home_popup_enabled'] ?? setting('home_popup_enabled', '1'),
             'home_popup_message' => $validated['home_popup_message'] ?? setting('home_popup_message', ''),

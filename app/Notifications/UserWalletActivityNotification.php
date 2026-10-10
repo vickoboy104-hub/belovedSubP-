@@ -22,10 +22,12 @@ class UserWalletActivityNotification extends Notification
 
     public function via(object $notifiable): array
     {
+        // The dashboard copy is written first, so a mail server that is down -
+        // or a customer with no address on file - never costs them the record of
+        // what happened to their money.
         $channels = ['database'];
 
-        $mailer = (string) config('mail.default', 'log');
-        if (!in_array($mailer, ['log', 'array'], true) && (($this->payload['send_mail'] ?? false) === true)) {
+        if (trim((string) ($notifiable->email ?? '')) !== '') {
             $channels[] = 'mail';
         }
 
@@ -34,12 +36,34 @@ class UserWalletActivityNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        return (new MailMessage)
-            ->subject($this->title)
-            ->greeting('Wallet Update')
-            ->line($this->message)
-            ->line('Time: ' . now()->format('d M Y, h:ia'))
-            ->action('Open Wallet Transactions', url('/wallet/transactions'));
+        $creditedKobo = (int) ($this->payload['amount_kobo'] ?? 0);
+        $isCredit = ($this->payload['type'] ?? '') === 'credit';
+        $balanceAfterKobo = $this->payload['balance_after_kobo'] ?? null;
+        $reference = trim((string) ($this->payload['reference'] ?? ''));
+        $firstName = trim((string) ($notifiable->first_name ?? ''));
+
+        $mail = (new MailMessage)
+            ->subject($isCredit && $creditedKobo > 0
+                ? 'Payment received - N'.number_format($creditedKobo / 100, 2).' added to your wallet'
+                : $this->title)
+            ->greeting($firstName !== '' ? 'Hello '.$firstName : 'Hello')
+            ->line($this->message);
+
+        if ($isCredit && $balanceAfterKobo !== null) {
+            $mail->line('Your wallet balance is now N'.number_format(((int) $balanceAfterKobo) / 100, 2).'.');
+        }
+
+        if ($reference !== '') {
+            $mail->line('Reference: '.$reference);
+        }
+
+        $mail->line('Time: '.now()->format('d M Y, h:ia'));
+
+        if (!$isCredit) {
+            $mail->line('If you did not expect this change, contact support before making another payment.');
+        }
+
+        return $mail->action('View my wallet transactions', url('/wallet/transactions'));
     }
 
     /**
@@ -47,10 +71,17 @@ class UserWalletActivityNotification extends Notification
      */
     public function toArray(object $notifiable): array
     {
-        return array_merge([
+        $data = array_merge([
             'title' => $this->title,
             'message' => $this->message,
             'created_at_iso' => now()->toISOString(),
         ], $this->payload);
+
+        // Every one of these is about money, so every one of them leads back to
+        // the ledger unless the caller pointed it somewhere more specific.
+        $data['url'] = trim((string) ($data['url'] ?? '')) ?: url('/wallet/transactions');
+        $data['action_label'] = trim((string) ($data['action_label'] ?? '')) ?: 'View my wallet transactions';
+
+        return $data;
     }
 }

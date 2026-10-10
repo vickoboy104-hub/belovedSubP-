@@ -1,11 +1,9 @@
 <x-app-layout>
-    <div class="mx-auto max-w-6xl space-y-6">
-        <section class="app-section p-6 sm:p-8">
-            <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">Wallet Transactions</h1>
-            <p class="app-page-subtitle">All credits, debits, funding requests, and refunds.</p>
-            <div class="app-divider mt-4"></div>
+    <x-page-hero class="reference-shared-banner" title="Wallet Transactions" subtitle="All credits, debits, funding requests, and refunds." />
 
-            <form method="GET" class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-4">
+    <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
+        <section class="app-section p-6 sm:p-8">
+            <form method="GET" class="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <input
                     type="text"
                     name="search"

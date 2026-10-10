@@ -1,26 +1,21 @@
 <x-app-layout>
-    <div class="mx-auto max-w-6xl space-y-6">
-        <section class="app-section p-6 sm:p-8">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                    <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">User Accounts</h1>
-                    <p class="app-page-subtitle">Manage users, profile data, discounts, and recovery access.</p>
-                </div>
+    <x-page-hero class="reference-shared-banner" title="User Accounts" subtitle="Manage users, profile data, discounts, and recovery access." />
 
-                <form method="GET" action="{{ route('admin.users') }}" class="w-full lg:max-w-md">
-                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
-                        <input type="text"
-                               name="search"
-                               value="{{ $search ?? '' }}"
-                               placeholder="Search email, phone, or username"
-                               class="input-field">
-                        <button class="btn-primary justify-center">Search</button>
-                        @if(!empty($search))
-                            <a href="{{ route('admin.users') }}" class="btn-outline justify-center">Clear</a>
-                        @endif
-                    </div>
-                </form>
-            </div>
+    <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
+        <section class="app-section p-6 sm:p-8">
+            <form method="GET" action="{{ route('admin.users') }}" class="w-full lg:max-w-md">
+                <div class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
+                    <input type="text"
+                           name="search"
+                           value="{{ $search ?? '' }}"
+                           placeholder="Search email, phone, or username"
+                           class="input-field">
+                    <button class="btn-primary justify-center">Search</button>
+                    @if(!empty($search))
+                        <a href="{{ route('admin.users') }}" class="btn-outline justify-center">Clear</a>
+                    @endif
+                </div>
+            </form>
         </section>
 
         <section class="app-section p-4 sm:p-6">
@@ -101,17 +96,19 @@
                             <form method="POST" action="{{ route('admin.users.admin', $u) }}">
                                 @csrf
                                 <input type="hidden" name="is_admin" value="{{ $u->is_admin ? '0' : '1' }}">
-                                <button class="btn-primary w-full justify-center {{ $u->is_admin ? '!bg-rose-600 hover:!bg-rose-700' : '!bg-blue-600 hover:!bg-blue-700' }}"
+                                <button class="{{ $u->is_admin ? 'btn-danger' : 'btn-primary' }} w-full justify-center"
                                         @disabled($u->id === auth()->id())>
                                     {{ $u->is_admin ? 'Remove Admin' : 'Make Admin' }}
                                 </button>
                             </form>
 
                             <form method="POST"
+                                  id="resetPasswordForm-{{ $u->id }}"
                                   action="{{ route('admin.users.reset-password', $u) }}"
-                                  onsubmit="return confirm('Generate a new temporary password for this user?');">
+                                  data-confirm-sheet="confirmTempPassword"
+                                  data-confirm-details='{"Action":"Generate a temporary password","Effect":"This user must set a new one at the next sign-in."}'>
                                 @csrf
-                                <button class="btn-primary w-full justify-center !bg-amber-600 hover:!bg-amber-700">
+                                <button class="btn-outline w-full justify-center">
                                     Generate Temp Password
                                 </button>
                             </form>
@@ -124,7 +121,7 @@
                                 <input type="text" name="note"
                                        placeholder="Reason (optional)"
                                        class="input-field">
-                                <button class="btn-primary w-full justify-center !bg-emerald-600 hover:!bg-emerald-700">
+                                <button class="btn-primary w-full justify-center">
                                     Fund Wallet
                                 </button>
                             </form>
@@ -220,7 +217,7 @@
                                                 <input type="number" min="0" max="100" step="0.01" name="discount_percent"
                                                        value="{{ old('discount_percent', $u->discount_percent ?? 0) }}"
                                                        class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
-                                                <button class="rounded-xl bg-[#17233d] px-3 py-2 text-xs font-bold text-white">
+                                                <button class="btn-primary justify-center px-3 py-2 text-xs">
                                                     Update %
                                                 </button>
                                             </form>
@@ -228,17 +225,19 @@
                                             <form method="POST" action="{{ route('admin.users.admin', $u) }}">
                                                 @csrf
                                                 <input type="hidden" name="is_admin" value="{{ $u->is_admin ? '0' : '1' }}">
-                                                <button class="flex min-h-10 w-full items-center justify-center rounded-xl px-3 py-2 text-xs font-bold text-white {{ $u->is_admin ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700' }}"
+                                                <button class="{{ $u->is_admin ? 'btn-danger' : 'btn-primary' }} w-full justify-center px-3 py-2 text-xs"
                                                         @disabled($u->id === auth()->id())>
                                                     {{ $u->is_admin ? 'Remove Admin' : 'Make Admin' }}
                                                 </button>
                                             </form>
 
                                             <form method="POST"
+                                                  id="resetPasswordTableForm-{{ $u->id }}"
                                                   action="{{ route('admin.users.reset-password', $u) }}"
-                                                  onsubmit="return confirm('Generate a new temporary password for this user?');">
+                                                  data-confirm-sheet="confirmTempPassword"
+                                                  data-confirm-details='{"Action":"Generate a temporary password","Effect":"This user must set a new one at the next sign-in."}'>
                                                 @csrf
-                                                <button class="flex min-h-10 w-full items-center justify-center rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700">
+                                                <button class="btn-outline w-full justify-center px-3 py-2 text-xs">
                                                     Generate Temp Password
                                                 </button>
                                             </form>
@@ -251,7 +250,7 @@
                                                 <input type="text" name="note"
                                                        placeholder="Reason (optional)"
                                                        class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900">
-                                                <button class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">
+                                                <button class="btn-primary px-3 py-2 text-xs">
                                                     Fund Wallet
                                                 </button>
                                             </form>
@@ -273,4 +272,6 @@
             </div>
         </section>
     </div>
+
+    <x-confirm-modal id="confirmTempPassword" title="Confirm Password Reset" confirmText="Generate Password" />
 </x-app-layout>

@@ -5,28 +5,52 @@
 @tailwind utilities;
 
 :root {
-    --brand-navy: #173f8a;
-    --brand-navy-strong: #102a61;
-    --brand-ink: #244f9b;
-    --brand-mist: #edf2eb;
-    --brand-line: #c9d5ca;
-    --brand-text: #1d2f35;
-    --brand-muted: #64767c;
-    --brand-accent: #e09a41;
-    --brand-white: #f6f3ec;
-    --brand-success: #1f8f66;
-    --brand-danger: #c45752;
-    --brand-warning: #d5a43e;
-    --surface-deep: #dce7e0;
-    --surface-base: #e9efe7;
-    --surface-card: rgba(248, 243, 234, 0.88);
-    --surface-soft: rgba(236, 242, 233, 0.82);
-    --surface-muted: rgba(220, 231, 224, 0.9);
-    --app-radius-lg: 20px;
-    --app-radius-xl: 26px;
+    /* The theme is light-only (darkMode is class-based and never enabled), so
+       native selects, date pickers, scrollbars and autofill must not flip to a
+       dark Android palette in the middle of a white form. */
+    color-scheme: light;
     --app-shadow-soft: 0 18px 40px rgba(18, 37, 46, 0.1);
     --app-shadow-card: 0 24px 54px rgba(14, 31, 40, 0.12);
 }
+
+/* Identity-first service hub. The responsive tiles keep actions comfortably tappable on phones. */
+.identity-nav-label { margin: 1rem .75rem .35rem; color: #bd590e; font-size: .7rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.identity-hero, .identity-dashboard-banner { position: relative; overflow: hidden; border-radius: .8rem; background: linear-gradient(125deg,#102a61 0%,#173f8a 62%,#2663bc 100%); color: white; padding: clamp(1.5rem,5vw,3rem); box-shadow: 0 18px 42px rgba(16,42,97,.18); }
+.identity-hero::after, .identity-dashboard-banner::after { content: ''; position: absolute; width: 17rem; height: 17rem; border-radius: 50%; right: -5rem; top: -8rem; border: 3rem solid rgba(255,255,255,.07); pointer-events: none; }
+.identity-eyebrow { display: inline-block; color: #ffd39a; text-transform: uppercase; letter-spacing: .12em; font-weight: 800; font-size: .72rem; }
+.identity-hero h1, .identity-dashboard-banner h2 { max-width: 42rem; margin: 1rem 0 .8rem; font-size: clamp(1.8rem,4vw,3.25rem); line-height: 1.13; letter-spacing: -.04em; font-weight: 850; }
+.identity-hero p, .identity-dashboard-banner p { max-width: 38rem; color: #dbeafe; font-size: .98rem; line-height: 1.65; }
+.identity-hero-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.7rem; }
+.identity-button { display: inline-flex; align-items: center; justify-content: center; gap: .65rem; min-height: 3rem; padding: .7rem 1.2rem; border-radius: .85rem; font-size: .9rem; font-weight: 800; transition: transform .18s ease,box-shadow .18s ease,background .18s ease; }
+.identity-button:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(0,0,0,.16); }
+.identity-button:focus-visible,.identity-tile:focus-visible,.identity-other-links a:focus-visible { outline: 3px solid #fb923c; outline-offset: 3px; }
+.identity-button-white { background: white; color: #173f8a; }
+.identity-button-outline { border: 1px solid rgba(255,255,255,.6); color: white; }
+.identity-dashboard-banner { padding: 1.5rem; }
+.identity-dashboard-banner h2 { font-size: clamp(1.5rem,3vw,2.2rem); }
+.identity-dashboard-banner .identity-button { margin-top: 1.25rem; }
+.identity-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1.15rem; }
+.identity-section-heading h2,.identity-other h2 { margin-top: .35rem; color: #122a50; font-size: clamp(1.4rem,2.8vw,2rem); font-weight: 800; letter-spacing: -.03em; }
+.identity-count { flex-shrink: 0; color: #64748b; font-size: .78rem; font-weight: 700; }
+.identity-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1rem; }
+.identity-tile { display: flex; flex-direction: column; align-items: flex-start; min-height: 14rem; padding: 1.3rem; border-radius: 1.25rem; background: white; border: 1px solid #dce5f1; box-shadow: 0 4px 16px rgba(25,60,120,.04); transition: transform .2s ease,box-shadow .2s ease,border-color .2s ease; }
+a.identity-tile:hover { transform: translateY(-4px); border-color: #7da5ed; box-shadow: 0 16px 32px rgba(23,63,138,.12); }
+.identity-tile strong { color: #172b4d; font-size: 1rem; line-height: 1.35; margin-top: 1.15rem; }
+.identity-description { color: #64748b; font-size: .84rem; line-height: 1.55; margin-top: .4rem; }
+.identity-icon { display: grid; place-items: center; width: 2.8rem; height: 2.8rem; border-radius: 50%; background: #173f74; color: #fff; font-size: 1.4rem; font-weight: 900; }
+.identity-status { align-self: flex-end; margin-top: -2.4rem; font-size: .68rem; font-weight: 800; color: #64748b; background: #f1f5f9; padding: .35rem .55rem; border-radius: 99px; }
+.identity-status-ready { color: #1d4d9d; background: #e9f0ff; }
+.identity-tile-action { margin-top: auto; padding-top: 1rem; color: #d46a10; font-weight: 800; font-size: .82rem; }
+.identity-tile-pending { background: #f8fafc; }
+.identity-other { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,2fr); gap: 2rem; padding: 1.7rem; border-radius: 1.5rem; background: #eaf1ff; }
+.identity-other p { color: #526581; font-size: .9rem; margin-top: .5rem; }
+.identity-other-links { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .7rem; }
+.identity-other-links a { display: flex; justify-content: space-between; gap: .5rem; align-items: center; border-radius: .8rem; background: white; color: #173f8a; font-size: .85rem; font-weight: 750; padding: .85rem; min-height: 3.2rem; }
+.identity-other-links a:hover { color: #b95c0a; }
+@media (max-width: 800px) { .identity-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .identity-other { grid-template-columns: 1fr; gap: 1rem; } }
+@media (max-width: 540px) { .identity-grid { gap: .7rem; } .identity-tile { padding: 1rem; min-height: 14.5rem; } .identity-status { font-size: .61rem; } .identity-other-links { grid-template-columns: repeat(2,minmax(0,1fr)); } .identity-hero-actions .identity-button { width: 100%; } }
+@media (max-width: 370px) { .identity-grid { grid-template-columns: 1fr; } .identity-tile { min-height: 11rem; } }
+@media (prefers-reduced-motion: reduce) { .identity-button,.identity-tile { transition: none; } }
 
 html,
 body {
@@ -34,7 +58,7 @@ body {
     overflow-x: hidden;
     background:
         radial-gradient(circle at top left, rgba(59, 130, 246, 0.16), transparent 34%),
-        radial-gradient(circle at top right, rgba(224, 154, 65, 0.16), transparent 30%),
+        radial-gradient(circle at top right, rgba(189, 89, 14, 0.16), transparent 30%),
         linear-gradient(180deg, #e3ece5 0%, #dbe6df 48%, #edf2eb 100%);
     color: var(--brand-text);
 }
@@ -74,7 +98,7 @@ body::after {
     bottom: 8vh;
     width: 340px;
     height: 340px;
-    background: radial-gradient(circle, rgba(224, 154, 65, 0.16) 0%, rgba(224, 154, 65, 0) 70%);
+    background: radial-gradient(circle, rgba(189, 89, 14, 0.16) 0%, rgba(189, 89, 14, 0) 70%);
 }
 
 body.page-is-entering main {
@@ -134,10 +158,8 @@ button {
     max-height: min(82vh, 620px);
     overflow: auto;
     border-radius: 22px;
-    border: 1px solid rgba(64, 87, 93, 0.16);
-    background:
-        radial-gradient(circle at top right, rgba(224, 154, 65, 0.14), transparent 30%),
-        linear-gradient(180deg, rgba(248, 243, 234, 0.98) 0%, rgba(231, 238, 231, 0.98) 100%);
+    border: 1px solid var(--brand-line);
+    background: linear-gradient(180deg, var(--surface-soft) 0%, var(--surface-base) 100%);
     color: var(--brand-text);
     box-shadow: 0 24px 60px rgba(18, 31, 56, 0.26);
     animation: appModalPanelIn 220ms cubic-bezier(.2, .8, .2, 1) both;
@@ -147,6 +169,420 @@ button {
     max-width: 25.5rem;
 }
 
+/* The popup a customer is reading is the one place where the admin writes prose,
+   so it is the one measurement they are handed: the space between the lines of
+   every written notice. It lives here rather than on the markup because the
+   result sheets are assembled by JavaScript after the page has loaded, and it is
+   unlayered so it outranks whatever utility the box happens to carry. */
+.popup-rich-content {
+    border: 1px solid var(--brand-line);
+    border-radius: 22px;
+    background: var(--surface-card);
+    box-shadow: var(--app-shadow-soft);
+    color: var(--brand-text);
+    font-size: 0.875rem;
+    line-height: var(--popup-line-height, 1.7);
+    padding: 0.95rem 1.05rem;
+}
+
+/* Written text arrives as paragraphs, and the editor leaves a margin on the last
+   one, which reads as a box that clipped its own bottom off. */
+.popup-rich-content > :last-child {
+    margin-bottom: 0;
+}
+
+.app-dialog-message {
+    line-height: var(--popup-line-height, 1.7);
+}
+
+/* One unread/critical language for notification lists and the admin dashboard,
+   so an unread item stops being a random amber box. */
+.app-note-card {
+    border: 1px solid var(--brand-line);
+    border-radius: 22px;
+    background: var(--surface-card);
+    color: var(--brand-text);
+    padding: 1rem;
+}
+
+.app-note-card.is-unread {
+    border-color: var(--brand-accent);
+    background: var(--surface-soft);
+    box-shadow: inset 3px 0 0 var(--brand-accent);
+}
+
+.app-note-card.is-critical {
+    border-color: #e6b3b3;
+    background: #fdf3f3;
+    box-shadow: inset 3px 0 0 #b42318;
+}
+
+.app-meter {
+    height: 0.5rem;
+    overflow: hidden;
+    border: 1px solid var(--brand-line);
+    border-radius: 999px;
+    background: var(--surface-muted);
+}
+
+.app-meter-fill {
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--brand-accent);
+    transition: width 0.28s ease;
+}
+
+.app-flag {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.28rem 0.7rem;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.app-flag-unread {
+    background: var(--surface-muted);
+    color: var(--brand-navy);
+}
+
+.app-flag-critical {
+    background: #fbe2e2;
+    color: #9b1c1c;
+}
+
+/* The header alert tray borrows the unread language of the notifications page,
+   so an alert looks the same whether it is in the shade or on the full list. */
+.app-bell {
+    position: relative;
+}
+
+.app-bell-badge {
+    position: absolute;
+    top: 0.1rem;
+    right: 0.1rem;
+    min-width: 1.1rem;
+    padding: 0 0.28rem;
+    border-radius: 999px;
+    background: var(--brand-accent);
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 800;
+    line-height: 1.1rem;
+    text-align: center;
+}
+
+.app-bell-panel {
+    border-radius: 22px;
+}
+
+/* The tray's own positioning layer. On a phone it is the whole viewport, so the
+   card lands dead centre and the dimmed page behind it says "tap outside to put
+   this away". From the md breakpoint up it collapses to a zero-size anchor pinned
+   under the bell and lets the card hang there like a normal dropdown. */
+.app-bell-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.app-bell-layer > .app-bell-panel {
+    width: 100%;
+    max-width: 24rem;
+}
+
+@media (min-width: 768px) {
+    .app-bell-layer {
+        position: absolute;
+        inset: auto;
+        top: calc(100% + 0.5rem);
+        right: 0;
+        display: block;
+        padding: 0;
+        background: none;
+    }
+
+    .app-bell-layer > .app-bell-panel {
+        width: min(22rem, calc(100vw - 2rem));
+        max-width: none;
+    }
+}
+
+.app-bell-list {
+    max-height: min(58vh, 26rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.app-bell-item {
+    display: block;
+    border: 1px solid var(--brand-line);
+    border-radius: 18px;
+    background: var(--surface-card);
+    padding: 0.7rem 0.8rem;
+}
+
+.app-bell-item + .app-bell-item {
+    margin-top: 0.5rem;
+}
+
+.app-bell-item.is-unread {
+    border-color: var(--brand-accent);
+    background: var(--surface-soft);
+    box-shadow: inset 3px 0 0 var(--brand-accent);
+}
+
+.app-bell-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--brand-navy);
+}
+
+.app-bell-amount {
+    color: #0f7a52;
+    font-variant-numeric: tabular-nums;
+}
+
+.app-bell-text {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.76rem;
+    line-height: 1.3rem;
+    color: var(--brand-text);
+}
+
+.app-bell-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+    font-size: 0.68rem;
+    color: var(--brand-text);
+    opacity: 0.72;
+}
+
+.app-bell-empty {
+    padding: 0.9rem 0.8rem;
+    font-size: 0.78rem;
+    line-height: 1.4rem;
+    color: var(--brand-text);
+}
+
+.app-bell-all {
+    display: block;
+    padding: 0.6rem 0.8rem 0.2rem;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--brand-navy);
+}
+
+/* Result tone inside a flash popup. Kept as a class rather than Tailwind
+   utilities so the Blade flash and the JS flash share one definition. */
+.app-flag-tone-success {
+    border-color: #bfe3cd;
+    background: #f1faf4;
+    color: #145c33;
+}
+
+.app-flag-tone-error {
+    border-color: #f0c4c4;
+    background: #fdf2f2;
+    color: #961c1c;
+}
+
+html[data-theme="ember"] .app-flag-tone-success { border-color: #c6dcbd; background: #f3f8ee; color: #3f6320; }
+html[data-theme="ember"] .app-flag-tone-error { border-color: #e3b8ac; background: #fdf1ec; color: #9c2b14; }
+
+/* Result icon chip. Class-driven because JS swaps it at runtime, and an inline
+   style would outrank the tone classes it is meant to pick up. */
+.app-result-icon {
+    border-color: var(--brand-line);
+    color: var(--brand-muted);
+}
+
+.app-result-icon.is-success {
+    border-color: #bfe3cd;
+    background: #f1faf4;
+    color: #145c33;
+}
+
+.app-result-icon.is-error {
+    border-color: #f0c4c4;
+    background: #fdf2f2;
+    color: #961c1c;
+}
+
+.app-result-icon.is-info {
+    border-color: var(--brand-line);
+    background: var(--surface-soft);
+    color: var(--brand-navy);
+}
+
+/* The one result dialog. A server flash, a fetch answer and a rejected
+   submission all build from this, so the only thing that differs between them
+   is the tone - which is the whole point of showing a dialog at all. */
+.app-dialog {
+    text-align: center;
+}
+
+.app-dialog-accent {
+    height: 5px;
+}
+
+.app-dialog-accent.is-success {
+    background: linear-gradient(90deg, #145c33, #34a065);
+}
+
+.app-dialog-accent.is-error {
+    background: linear-gradient(90deg, #961c1c, #d34a3f);
+}
+
+.app-dialog-accent.is-info {
+    background: linear-gradient(90deg, var(--brand-navy), var(--brand-accent));
+}
+
+.app-dialog-close {
+    position: absolute;
+    top: 0.85rem;
+    right: 0.85rem;
+    z-index: 1;
+}
+
+.app-dialog-message {
+    color: var(--brand-muted);
+}
+
+.app-dialog-actions {
+    justify-content: center;
+}
+
+.app-dialog-actions .app-modal-btn {
+    flex: 1 1 7.5rem;
+    min-width: 7.5rem;
+}
+
+.app-dialog-title {
+    letter-spacing: -0.01em;
+}
+
+/* A ring of the tone's own colour behind the chip is what stops the dialog
+   looking like a box with a glyph pasted into it, and makes the result sheet
+   and the confirm sheet read as one family. */
+.app-dialog .app-result-icon {
+    box-shadow: 0 0 0 7px rgba(17, 45, 87, 0.05);
+}
+
+.app-dialog .app-result-icon.is-success {
+    box-shadow: 0 0 0 7px rgba(20, 92, 51, 0.08);
+}
+
+.app-dialog .app-result-icon.is-error {
+    box-shadow: 0 0 0 7px rgba(150, 28, 28, 0.08);
+}
+
+html[data-theme="ember"] .app-dialog-accent.is-success { background: linear-gradient(90deg, #3f6320, #7aa83c); }
+html[data-theme="ember"] .app-dialog-accent.is-error { background: linear-gradient(90deg, #9c2b14, #e07a4b); }
+html[data-theme="ember"] .app-dialog .app-result-icon.is-success { box-shadow: 0 0 0 7px rgba(63, 99, 32, 0.10); }
+html[data-theme="ember"] .app-dialog .app-result-icon.is-error { box-shadow: 0 0 0 7px rgba(156, 43, 20, 0.10); }
+
+/* Transaction confirm sheet. Its rows are injected by JS, so every colour it
+   needs has to live in a class rather than in Tailwind utilities. */
+.app-confirm-modal {
+    max-width: 30rem;
+}
+
+.app-confirm-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border: 1px solid var(--brand-line);
+    background: var(--surface-soft);
+    padding: 0.4rem 1rem;
+}
+
+.app-confirm-row + .app-confirm-row {
+    border-top-width: 0;
+}
+
+.app-confirm-row:first-child {
+    border-radius: 14px 14px 0 0;
+}
+
+.app-confirm-row:last-child {
+    border-radius: 0 0 14px 14px;
+}
+
+.app-confirm-row:only-child {
+    border-radius: 14px;
+}
+
+.app-confirm-key {
+    font-size: 0.82rem;
+    text-transform: capitalize;
+    color: var(--brand-muted);
+}
+
+.app-confirm-value {
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-align: right;
+    color: var(--brand-text);
+    overflow-wrap: anywhere;
+}
+
+.app-confirm-empty {
+    border: 1px solid var(--brand-line);
+    border-radius: 14px;
+    background: var(--surface-soft);
+    padding: 0.4rem 1rem;
+    font-size: 0.82rem;
+    color: var(--brand-muted);
+}
+
+.app-confirm-balance {
+    border: 1px solid var(--brand-line);
+    border-radius: 16px;
+    background: var(--surface-muted);
+    padding: 0.5rem 0.75rem;
+}
+
+.app-confirm-balance-pill {
+    border-radius: 999px;
+    background: var(--surface-card);
+    padding: 0.25rem 0.5rem;
+}
+
+.app-confirm-help {
+    font-size: 0.78rem;
+    color: var(--brand-muted);
+}
+
+.app-support-link {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--brand-accent);
+    transition: color 0.2s ease;
+}
+
+.app-support-link:hover {
+    color: var(--brand-navy);
+}
+
 .app-modal-close {
     display: inline-flex;
     height: 2.25rem;
@@ -154,16 +590,16 @@ button {
     align-items: center;
     justify-content: center;
     border-radius: 14px;
-    border: 1px solid rgba(64, 87, 93, 0.16);
-    background: rgba(248, 251, 255, 0.86);
-    color: #1e293b;
+    border: 1px solid var(--brand-line);
+    background: var(--surface-card);
+    color: var(--brand-text);
     font-size: 1.25rem;
     font-weight: 800;
     line-height: 1;
 }
 
 .app-modal-close:hover {
-    background: #ffffff;
+    background: var(--surface-muted);
     color: var(--brand-navy);
     transform: translateY(-1px);
 }
@@ -191,25 +627,38 @@ button {
 }
 
 .app-modal-btn-muted {
-    border: 1px solid rgba(64, 87, 93, 0.16);
-    background: rgba(248, 251, 255, 0.78);
-    color: #334155;
+    border: 1px solid var(--brand-line);
+    background: var(--surface-card);
+    color: var(--brand-muted);
 }
 
 .app-modal-btn-muted:hover {
-    background: #ffffff;
+    background: var(--surface-muted);
     color: var(--brand-navy);
 }
 
 .app-modal-btn-warm {
-    background: #a85d1f;
+    background: var(--brand-accent);
     color: #ffffff !important;
 }
 
 .app-modal-btn-warm:hover {
-    background: #8f4d19;
+    background: var(--brand-navy);
 }
 
+/* The main confirm action. Mirrors .btn-primary so a modal never disagrees
+   with the page behind it about what "go" looks like. */
+.app-modal-btn-primary {
+    background: var(--brand-navy);
+    color: #ffffff !important;
+}
+
+.app-modal-btn-primary:hover {
+    background: var(--brand-accent);
+}
+
+/* Reserved for genuine WhatsApp hand-off, not for a generic "continue".
+   Kept deep green on purpose: the brighter brand green fails contrast with white text. */
 .app-modal-btn-success {
     background: #187242;
     color: #ffffff !important;
@@ -217,6 +666,118 @@ button {
 
 .app-modal-btn-success:hover {
     background: #125c35;
+}
+
+/* Destructive / high-impact confirmation. Exists as a class because these
+   buttons used to bolt bg-rose-600 onto .btn-primary, and the ember theme's
+   !important gradient silently repainted them blue-orange. */
+.app-modal-btn-danger {
+    background: #b42318;
+    color: #ffffff !important;
+}
+
+.app-modal-btn-danger:hover {
+    background: #8f1c13;
+}
+
+/* A dialog puts keyboard focus on its go-button by itself, so the browser's
+   default black ring lands on a coloured button and looks like a border the
+   designer forgot. One soft ring in the brand's own ink instead. */
+.app-modal-btn:focus-visible,
+.app-modal-close:focus-visible {
+    outline: none;
+    box-shadow: 0 10px 20px rgba(18, 31, 56, 0.10), 0 0 0 3px rgba(17, 45, 87, 0.30);
+}
+
+html[data-theme="ember"] .app-modal-btn:focus-visible,
+html[data-theme="ember"] .app-modal-close:focus-visible {
+    box-shadow: 0 10px 20px rgba(88, 52, 18, 0.12), 0 0 0 3px rgba(189, 89, 14, 0.38);
+}
+
+/* Suggestion chips (recent phone numbers, quick amounts). One skin for Airtime
+   and Data so the rows under a form field stop wearing a hand-pasted slate
+   look; every token resolves from the theme the page is wearing. */
+.app-choice-chip {
+    border: 1px solid var(--brand-line);
+    border-radius: 999px;
+    background: var(--surface-card);
+    color: var(--brand-text);
+    padding: 0.375rem 0.85rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.12s ease;
+}
+
+.app-choice-chip:hover {
+    border-color: var(--brand-accent);
+    background: var(--surface-soft);
+    color: var(--brand-navy);
+}
+
+.app-choice-chip:active {
+    transform: scale(0.96);
+}
+
+/* Recently used phone numbers sit inside a grid column, and a grid item's
+   default min-width:auto means a row of nowrap pills laid end to end can force
+   that column wider than the screen - which is what skewed the whole form to
+   one side. Wrapping shows every number at once without a hidden scroll, and
+   the max-width keeps a long label inside the viewport. */
+.app-phone-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.app-phone-chip-row .app-choice-chip {
+    flex: 0 1 auto;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* How many times the customer has already topped up with that number, so the
+   list reads as history rather than a random pile of digits. */
+.app-phone-chip-count {
+    margin-left: .4rem;
+    color: var(--brand-muted);
+    font-weight: 700;
+}
+
+/* Chips double as filter tabs on the admin queue pages, where one of them is
+   the state the page is currently showing. */
+.app-choice-chip.is-active {
+    border-color: var(--brand-navy);
+    background: var(--brand-navy);
+    color: #ffffff;
+}
+
+.app-choice-chip:focus-visible {
+    outline: 3px solid var(--brand-accent);
+    outline-offset: 2px;
+}
+
+/* Caption above a chip row, so a strip of bare numbers explains itself. */
+.app-choice-caption {
+    color: var(--brand-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-choice-chip {
+        transition: none;
+    }
+
+    .app-choice-chip:active {
+        transform: none;
+    }
 }
 
 .amount-fit,
@@ -373,42 +934,6 @@ button {
     animation: idleGuideTargetPulse 1.8s ease-in-out infinite;
 }
 
-.tech-loader-core {
-    width: 22px;
-    height: 22px;
-    border-radius: 999px;
-    border: 3px solid rgba(36, 79, 155, 0.16);
-    border-top-color: rgba(23, 63, 138, 0.98);
-    border-right-color: rgba(66, 121, 228, 0.84);
-    animation: techSpin 0.9s linear infinite;
-    box-shadow: 0 0 14px rgba(23, 63, 138, 0.2);
-}
-
-.tech-loader-bar {
-    display: block;
-    height: 4px;
-    flex: 1;
-    border-radius: 999px;
-    background: linear-gradient(90deg, rgba(23,63,138,0.08), rgba(23,63,138,0.9), rgba(66,121,228,0.5));
-    background-size: 200% 100%;
-    animation: techSweep 1.3s ease-in-out infinite;
-}
-
-.tech-loader-bar:nth-child(2) { animation-delay: 0.12s; }
-.tech-loader-bar:nth-child(3) { animation-delay: 0.24s; }
-.tech-loader-bar:nth-child(4) { animation-delay: 0.36s; }
-
-@keyframes techSpin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-@keyframes techSweep {
-    0% { background-position: 200% 0; opacity: 0.45; }
-    50% { background-position: 100% 0; opacity: 1; }
-    100% { background-position: 0% 0; opacity: 0.45; }
-}
-
 .card-glow {
     box-shadow: var(--app-shadow-card);
 }
@@ -416,7 +941,7 @@ button {
 .app-shell-bg {
     background:
         radial-gradient(circle at top, rgba(59, 130, 246, 0.14), transparent 38%),
-        linear-gradient(180deg, rgba(241, 236, 226, 0.6) 0%, rgba(230, 238, 230, 0.48) 100%);
+        linear-gradient(180deg, rgba(234, 241, 255, 0.6) 0%, rgba(233, 240, 251, 0.48) 100%);
 }
 
 .app-header-bar {
@@ -428,28 +953,28 @@ button {
 
 .app-sidebar-surface {
     background:
-        linear-gradient(180deg, rgba(228, 236, 228, 0.95) 0%, rgba(217, 229, 222, 0.92) 100%);
-    border-color: rgba(64, 87, 93, 0.14);
+        linear-gradient(180deg, rgba(233, 240, 251, 0.95) 0%, rgba(217, 229, 222, 0.92) 100%);
+    border-color: rgba(222, 229, 238, 0.14);
 }
 
 .app-glass-card {
     background: var(--surface-card);
-    border: 1px solid rgba(64, 87, 93, 0.14);
+    border: 1px solid rgba(222, 229, 238, 0.14);
     box-shadow: var(--app-shadow-soft);
     backdrop-filter: blur(14px);
 }
 
 .app-soft-panel {
-    background: linear-gradient(180deg, rgba(231, 238, 231, 0.98) 0%, rgba(220, 230, 223, 0.95) 100%);
-    border: 1px solid rgba(64, 87, 93, 0.12);
+    background: linear-gradient(180deg, rgba(231, 238, 231, 0.98) 0%, rgba(228, 237, 250, 0.95) 100%);
+    border: 1px solid rgba(222, 229, 238, 0.12);
     box-shadow: var(--app-shadow-soft);
 }
 
 .app-accent-panel {
     background:
-        radial-gradient(circle at top right, rgba(224, 154, 65, 0.26), transparent 34%),
+        radial-gradient(circle at top right, rgba(189, 89, 14, 0.26), transparent 34%),
         linear-gradient(160deg, rgba(17, 46, 110, 0.96) 0%, rgba(24, 63, 143, 0.92) 100%);
-    border: 1px solid rgba(255, 244, 224, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 0 22px 52px rgba(17, 46, 110, 0.22);
 }
 
@@ -472,7 +997,7 @@ button {
 
 .page-save-overlay-card {
     position: relative;
-    border: 1px solid rgba(64, 87, 93, 0.12);
+    border: 1px solid rgba(222, 229, 238, 0.12);
     background: rgba(255, 255, 255, 0.94);
     box-shadow: 0 20px 44px rgba(17, 46, 110, 0.22);
     backdrop-filter: blur(14px);
@@ -503,48 +1028,68 @@ button {
 @layer components {
     .card {
         @apply rounded-[26px] p-6;
-        border-color: rgba(64, 87, 93, 0.14);
+        border-color: rgba(222, 229, 238, 0.14);
         background: var(--surface-card);
         box-shadow: var(--app-shadow-soft);
         backdrop-filter: blur(12px);
     }
 
     .btn-primary {
-        @apply inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold text-white;
-        background: linear-gradient(135deg, #1c4fa1 0%, #e09a41 100%);
-        box-shadow: 0 14px 28px rgba(28, 79, 161, 0.2);
+        @apply inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-bold text-white;
+        background: #173f74;
+        box-shadow: 0 6px 15px rgba(17, 45, 87, .18);
+        transition: transform .25s ease, background-color .25s ease, box-shadow .25s ease;
     }
 
     .btn-primary:hover {
-        background: linear-gradient(135deg, #173f8a 0%, #cb8433 100%);
+        background: #b45012;
+        box-shadow: 0 10px 22px rgba(17, 45, 87, .2);
+        transform: translateY(-2px);
+    }
+
+    /* Destructive page-level action. These buttons used to paste bg-rose-600 onto
+       .btn-primary, which only looked right in the navy theme: the ember skin's
+       !important gradient sits outside the layers and overwrote the colour.
+       Deliberately red in both themes: danger must not be themable. */
+    .btn-danger {
+        @apply inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-bold text-white;
+        background: #b42318;
+        box-shadow: 0 6px 15px rgba(128, 24, 18, .18);
+        transition: transform .25s ease, background-color .25s ease, box-shadow .25s ease;
+    }
+
+    .btn-danger:hover {
+        background: #8f1c13;
+        box-shadow: 0 10px 22px rgba(128, 24, 18, .22);
+        transform: translateY(-2px);
     }
 
     .btn-soft {
         @apply inline-flex items-center justify-center rounded-2xl border px-5 py-3 text-sm font-semibold;
-        border-color: rgba(64, 87, 93, 0.14);
-        background: rgba(233, 240, 232, 0.9);
+        border-color: rgba(222, 229, 238, 0.14);
+        background: rgba(230, 238, 250, 0.9);
         color: var(--brand-ink);
     }
 
     .btn-soft:hover {
-        background: rgba(220, 230, 223, 0.96);
+        background: rgba(228, 237, 250, 0.96);
     }
 
     .btn-outline {
         @apply inline-flex items-center justify-center rounded-2xl border px-5 py-3 text-sm font-semibold;
-        border-color: rgba(64, 87, 93, 0.16);
-        background: rgba(248, 243, 234, 0.72);
+        border-color: rgba(222, 229, 238, 0.16);
+        background: rgba(248, 251, 255, 0.72);
         color: var(--brand-ink);
         backdrop-filter: blur(10px);
     }
 
     .btn-outline:hover {
-        background: rgba(239, 234, 225, 0.92);
+        background: rgba(248, 251, 255, 0.92);
     }
 
     .input-field {
         @apply w-full rounded-2xl border px-4 py-3 text-sm;
-        border-color: rgba(64, 87, 93, 0.14);
+        border-color: rgba(222, 229, 238, 0.14);
         background: rgba(250, 247, 240, 0.94);
         color: var(--brand-text);
         box-shadow: inset 0 1px 1px rgba(18, 26, 45, 0.02);
@@ -568,7 +1113,7 @@ button {
 
     .app-section {
         @apply rounded-[26px] border;
-        border-color: rgba(64, 87, 93, 0.14);
+        border-color: rgba(222, 229, 238, 0.14);
         background: var(--surface-card);
         box-shadow: var(--app-shadow-soft);
         backdrop-filter: blur(14px);
@@ -576,8 +1121,8 @@ button {
 
     .app-section-muted {
         @apply rounded-[26px] border;
-        border-color: rgba(64, 87, 93, 0.12);
-        background: linear-gradient(180deg, rgba(233, 239, 230, 0.98) 0%, rgba(220, 230, 223, 0.95) 100%);
+        border-color: rgba(222, 229, 238, 0.12);
+        background: linear-gradient(180deg, rgba(230, 238, 250, 0.98) 0%, rgba(228, 237, 250, 0.95) 100%);
         box-shadow: var(--app-shadow-soft);
     }
 
@@ -604,8 +1149,8 @@ button {
 
     .app-stat {
         @apply rounded-3xl border p-4 text-center;
-        border-color: rgba(64, 87, 93, 0.12);
-        background: rgba(248, 243, 234, 0.8);
+        border-color: rgba(222, 229, 238, 0.12);
+        background: rgba(248, 251, 255, 0.8);
         box-shadow: 0 12px 28px rgba(20, 34, 58, 0.06);
         backdrop-filter: blur(12px);
     }
@@ -642,16 +1187,16 @@ button {
     }
 
     .mobile-profile-menu-item:hover {
-        background: rgba(223, 233, 226, 0.84);
+        background: rgba(230, 238, 250, 0.84);
         color: var(--brand-navy);
     }
 
     .app-service-card {
         @apply relative overflow-hidden rounded-[22px] border p-6;
-        border-color: rgba(64, 87, 93, 0.12);
+        border-color: rgba(222, 229, 238, 0.12);
         background:
-            radial-gradient(circle at top right, rgba(224, 154, 65, 0.12), transparent 32%),
-            linear-gradient(180deg, rgba(248, 243, 234, 0.94) 0%, rgba(234, 240, 232, 0.92) 100%);
+            radial-gradient(circle at top right, rgba(189, 89, 14, 0.12), transparent 32%),
+            linear-gradient(180deg, rgba(248, 251, 255, 0.94) 0%, rgba(230, 238, 250, 0.92) 100%);
         box-shadow: 0 16px 34px rgba(21, 34, 59, 0.08);
         overflow-wrap: anywhere;
     }
@@ -671,14 +1216,14 @@ button {
 
     .app-service-arrow {
         @apply inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-500;
-        background: rgba(247, 242, 233, 0.92);
+        background: rgba(248, 251, 255, 0.92);
         box-shadow: 0 4px 16px rgba(18, 31, 56, 0.08);
     }
 
     .app-record-card {
         @apply rounded-[22px] border p-4;
-        border-color: rgba(64, 87, 93, 0.14);
-        background: rgba(248, 243, 234, 0.84);
+        border-color: rgba(222, 229, 238, 0.14);
+        background: rgba(248, 251, 255, 0.84);
         box-shadow: 0 10px 28px rgba(18, 31, 56, 0.05);
         overflow-wrap: anywhere;
     }
@@ -704,6 +1249,10 @@ button {
     .contact-picker-row input,
     .contact-picker-row .block.w-full {
         flex: 1 1 auto;
+        /* A bare <input> has an intrinsic width from its size attribute, and
+           without this it refuses to shrink - the row then grows past the
+           screen and the whole form leans to one side. */
+        min-width: 0;
     }
 
     .contact-picker-row .input-field,
@@ -715,8 +1264,8 @@ button {
 
     .contact-picker-btn {
         @apply hidden h-[50px] items-center justify-center rounded-2xl border text-slate-700;
-        border-color: rgba(64, 87, 93, 0.14);
-        background: rgba(233, 240, 232, 0.88);
+        border-color: rgba(222, 229, 238, 0.14);
+        background: rgba(230, 238, 250, 0.88);
         box-shadow: 0 8px 20px rgba(18, 31, 56, 0.05);
         flex: 0 0 auto;
         gap: 0.55rem;
@@ -727,8 +1276,17 @@ button {
         line-height: 1;
     }
 
+    /* The button only exists on a browser that can actually open the contact
+       book, so the script marks it with this class. It has to be a rule of our
+       own: `hidden` above compiles straight into this selector, and an unlayered
+       declaration outranks the layered `.inline-flex` utility, so adding that
+       utility to the element would never have made it appear. */
+    .contact-picker-btn.is-available {
+        display: inline-flex;
+    }
+
     .contact-picker-btn:hover {
-        background: rgba(220, 230, 223, 0.96);
+        background: rgba(228, 237, 250, 0.96);
         color: var(--brand-navy);
     }
 
@@ -744,24 +1302,24 @@ button {
     .legacy-themed-page .rounded-3xl.border.border-gray-200.bg-white.p-5.sm\:p-6,
     .legacy-themed-page .rounded-3xl.border.border-gray-200.bg-white.p-6.card-glow,
     .legacy-themed-page .rounded-3xl.border.border-gray-200.bg-white.p-6.sm\:p-8 {
-        border-color: rgba(64, 87, 93, 0.14) !important;
-        background: var(--surface-card) !important;
-        box-shadow: var(--app-shadow-soft);
-        backdrop-filter: blur(14px);
+        border-color: #dee5ee !important;
+        background: #ffffff !important;
+        border-radius: .6rem;
+        box-shadow: 0 5px 17px rgba(13,39,79,.06);
     }
 
-    .legacy-themed-page [class*="dark:bg-white/5"],
-    .legacy-themed-page [class*="dark:bg-black/30"],
-    .legacy-themed-page [class*="dark:bg-black/40"],
-    .legacy-themed-page [class*="bg-black/5"],
-    .legacy-themed-page [class*="bg-black/10"] {
-        background: rgba(244, 238, 228, 0.82) !important;
+    .legacy-themed-page :is(div,span,li,article,td,th,button)[class*="dark:bg-white/5"],
+    .legacy-themed-page :is(div,span,li,article,td,th,button)[class*="dark:bg-black/30"],
+    .legacy-themed-page :is(div,span,li,article,td,th,button)[class*="dark:bg-black/40"],
+    .legacy-themed-page :is(div,span,li,article,td,th,button)[class*="bg-black/5"],
+    .legacy-themed-page :is(div,span,li,article,td,th,button)[class*="bg-black/10"] {
+        background: #f3f6fb !important;
     }
 
     .legacy-themed-page [class*="dark:border-white/10"],
     .legacy-themed-page [class*="border-gray-200"],
     .legacy-themed-page [class*="border-gray-300"] {
-        border-color: rgba(64, 87, 93, 0.14) !important;
+        border-color: #dee5ee !important;
     }
 
     .legacy-themed-page .text-white,
@@ -770,6 +1328,9 @@ button {
     .legacy-themed-page [class*="dark:text-white/"] {
         color: var(--brand-text) !important;
     }
+
+    /* ...but a label sitting on its own deep-shade background must stay legible.
+       Handled once, after @tailwind utilities, at the bottom of this file. */
 
     .legacy-themed-page .text-gray-900,
     .legacy-themed-page .text-slate-900 {
@@ -789,18 +1350,31 @@ button {
         color: var(--brand-text);
     }
 
+    /* Tailwind state classes are plain strings in the markup, so "hover:bg-blue-800"
+       has to be gated on :hover or the hover colour shows all the time. */
     .legacy-themed-page .legacy-theme-action,
-    .legacy-themed-page [class*="bg-orange-600"],
     .legacy-themed-page [class*="bg-blue-700"] {
-        background: linear-gradient(135deg, #1c4fa1 0%, #e09a41 100%) !important;
+        background: #173f74 !important;
         color: #ffffff !important;
-        box-shadow: 0 14px 28px rgba(28, 79, 161, 0.18);
+        border-radius: .5rem;
+        box-shadow: 0 6px 15px rgba(17,45,87,.18);
     }
 
-    .legacy-themed-page [class*="hover:bg-orange-700"],
-    .legacy-themed-page [class*="hover:bg-blue-800"] {
-        background: linear-gradient(135deg, #173f8a 0%, #cb8433 100%) !important;
+    .legacy-themed-page [class*="bg-orange-600"] {
+        background: #b45012 !important;
         color: #ffffff !important;
+        border-radius: .5rem;
+        box-shadow: 0 6px 15px rgba(122,54,8,.18);
+    }
+
+    .legacy-themed-page [class*="bg-blue-700"]:hover,
+    .legacy-themed-page [class*="hover:bg-blue-800"]:hover {
+        background: #123059 !important;
+    }
+
+    .legacy-themed-page [class*="bg-orange-600"]:hover,
+    .legacy-themed-page [class*="hover:bg-orange-700"]:hover {
+        background: #a44a0b !important;
     }
 
     .popup-rich-content,
@@ -846,20 +1420,20 @@ button {
         @apply inline-flex items-center justify-center rounded-full;
         width: 74px;
         height: 74px;
-        background: linear-gradient(180deg, rgba(245, 231, 207, 0.9) 0%, rgba(215, 230, 219, 0.96) 100%);
+        background: linear-gradient(180deg, rgba(250, 230, 207, 0.9) 0%, rgba(215, 230, 219, 0.96) 100%);
         box-shadow: inset 0 2px 5px rgba(255, 255, 255, 0.7), 0 10px 25px rgba(26, 43, 73, 0.08);
     }
 
     .app-mini-tile {
         @apply flex flex-col items-center justify-center rounded-[22px] border px-3 py-4 text-center;
-        border-color: rgba(64, 87, 93, 0.12);
-        background: rgba(248, 243, 234, 0.84);
+        border-color: rgba(222, 229, 238, 0.12);
+        background: rgba(248, 251, 255, 0.84);
         min-height: 112px;
         box-shadow: 0 10px 24px rgba(23, 35, 61, 0.04);
     }
 
     .app-mini-tile:hover {
-        background: rgba(241, 235, 226, 0.96);
+        background: rgba(234, 241, 255, 0.96);
         transform: translateY(-1px);
     }
 
@@ -875,16 +1449,16 @@ button {
 
     .app-form-shell {
         @apply rounded-[26px] border p-6 sm:p-8;
-        border-color: rgba(64, 87, 93, 0.14);
-        background: rgba(248, 243, 234, 0.88);
+        border-color: rgba(222, 229, 238, 0.14);
+        background: rgba(248, 251, 255, 0.88);
         box-shadow: var(--app-shadow-card);
         backdrop-filter: blur(14px);
     }
 
     .app-form-card {
         @apply rounded-[26px] border p-6;
-        border-color: rgba(64, 87, 93, 0.12);
-        background: rgba(248, 243, 234, 0.84);
+        border-color: rgba(222, 229, 238, 0.12);
+        background: rgba(248, 251, 255, 0.84);
         box-shadow: 0 16px 38px rgba(18, 32, 57, 0.05);
     }
 
@@ -899,9 +1473,9 @@ button {
 
     .app-balance-card {
         @apply overflow-hidden rounded-[26px] border;
-        border-color: rgba(255, 244, 224, 0.12);
+        border-color: rgba(255, 255, 255, 0.12);
         background:
-            radial-gradient(circle at top right, rgba(224, 154, 65, 0.22), transparent 28%),
+            radial-gradient(circle at top right, rgba(189, 89, 14, 0.22), transparent 28%),
             linear-gradient(180deg, #214f9f 0%, #173f8a 100%);
         color: white;
         box-shadow: 0 20px 45px rgba(23, 63, 138, 0.22);
@@ -909,8 +1483,8 @@ button {
 
     .app-balance-subcard {
         @apply rounded-[22px] border p-4;
-        border-color: rgba(64, 87, 93, 0.1);
-        background: linear-gradient(180deg, rgba(244, 238, 228, 0.96) 0%, rgba(229, 237, 230, 0.95) 100%);
+        border-color: rgba(222, 229, 238, 0.1);
+        background: linear-gradient(180deg, rgba(248, 251, 255, 0.96) 0%, rgba(230, 238, 250, 0.95) 100%);
     }
 
     .app-bottom-safe {
@@ -919,8 +1493,8 @@ button {
 
     .app-mobile-bottom-nav {
         backdrop-filter: blur(16px);
-        background: rgba(238, 233, 223, 0.9);
-        border-top: 1px solid rgba(64, 87, 93, 0.12);
+        background: rgba(243, 246, 251, 0.9);
+        border-top: 1px solid rgba(222, 229, 238, 0.12);
         box-shadow: 0 -12px 35px rgba(18, 31, 56, 0.09);
     }
 
@@ -940,20 +1514,21 @@ button {
     align-items: center;
     gap: 12px;
     padding: 14px 16px;
-    border-radius: 18px;
-    border: 1px solid rgba(64, 87, 93, 0.12);
-    background: rgba(241, 235, 226, 0.84);
+    border-radius: .5rem;
+    border: 1px solid #dee5ee;
+    background: #f8fbff;
     color: var(--brand-ink);
     font-weight: 700;
 }
 
 .nav-item:hover {
-    background: rgba(229, 237, 230, 0.96);
+    background: #eaf1ff;
+    border-color: #c4d3ea;
 }
 
 .nav-item-active {
-    background: linear-gradient(135deg, rgba(28, 79, 161, 0.18) 0%, rgba(224, 154, 65, 0.14) 100%);
-    border-color: rgba(28, 79, 161, 0.22);
+    background: #e2ecfb;
+    border-color: #b9cbe8;
     color: var(--brand-navy);
 }
 
@@ -1011,6 +1586,10 @@ button {
 [class*="bg-black/30"] [class*="text-white/"] {
     color: var(--brand-muted) !important;
 }
+
+/* The remaps above turn leftover `text-white` labels dark. On an element that
+   paints its own solid brand background that produces navy-on-navy text; the
+   fix lives at the end of this file, after @tailwind utilities. */
 
 .app-form-shell [class*="border-white/10"],
 .app-section [class*="border-white/10"],
@@ -1078,11 +1657,18 @@ button {
     color: #9aa7bc !important;
 }
 
+/* Leftover-theme remaps paint any button that sits inside a light surface dark.
+   Component buttons have to answer with !important or the surface wins. */
 .btn-primary,
 .btn-primary:hover,
 .btn-primary:focus,
 .btn-primary:active,
-.btn-primary * {
+.btn-danger,
+.btn-danger:hover,
+.btn-danger:focus,
+.btn-danger:active,
+.btn-primary *,
+.btn-danger * {
     color: #ffffff !important;
 }
 
@@ -1419,3 +2005,1322 @@ button {
         animation: none !important;
     }
 }
+
+/* Signed-in layout, based on the supplied 386px Android walkthrough and desktop reference. */
+.reference-header { height: 64px; background: #1b3f74; color: white; box-shadow: none; }
+.reference-header img { max-width: 152px; }
+.reference-install { align-items: center; border: 1px solid rgba(255,255,255,.45); border-radius: 2rem; color: white; padding: .4rem .7rem; font-size: .72rem; font-weight: 700; white-space: nowrap; }
+.reference-install:hover { background: rgba(255,255,255,.14); }
+.reference-sidebar { background: #fff; color: #24334a; border-right: 1px solid #e5eaf4; }
+.reference-profile { background: #1b3f74; color: white; text-align: center; padding: 1.2rem .8rem; }
+.reference-avatar { width: 3.3rem; height: 3.3rem; margin: 0 auto .5rem; display: grid; place-items: center; border: 2px solid rgba(255,255,255,.35); border-radius: 50%; font-size: 1.7rem; }
+.reference-nav { padding: .6rem .65rem 1.4rem; }
+.reference-nav-heading { margin: 1.2rem .65rem .35rem; color: #69788d; font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.reference-nav-link { display: block; width: 100%; color: #34445d; border-radius: .45rem; padding: .72rem .75rem; font-size: .86rem; font-weight: 600; text-align: left; transition: background .18s ease, color .18s ease; }
+.reference-nav-link:hover, .reference-nav-active { color: #17407b; background: #eaf1fc; }
+.reference-dashboard { margin: -1rem -1.1rem 0; }
+.reference-page-banner { min-height: 185px; padding: 2rem 2rem 4rem; background: linear-gradient(115deg,#142f5b,#285a99); color: #fff; }
+.reference-page-banner h1 { font-size: clamp(1.45rem,2.5vw,2rem); font-weight: 700; line-height: 1.25; }
+.reference-page-banner p { color: #d7e6ff; font-size: .88rem; margin-top: .45rem; }
+.reference-dashboard-body { max-width: 1120px; padding: 0 1.5rem 2rem; margin: -2.1rem auto 0; position: relative; }
+.reference-summary-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; margin-bottom: 1.65rem; }
+.reference-summary-card { display: flex; flex-direction: column; min-height: 145px; border: 1px solid #dee5f1; border-radius: .75rem; background: white; padding: 1.1rem; box-shadow: 0 5px 15px rgba(26,50,92,.08); }
+.reference-summary-blue { background: #1d4c8b; color: white; border-color: #1d4c8b; }
+.reference-card-caption { font-size: .83rem; font-weight: 650; display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
+.reference-money { display: block; margin: .55rem 0; font-size: clamp(1.25rem,2vw,1.65rem); line-height: 1.2; }
+.reference-full-button { display: block; text-align: center; padding: .48rem; margin-top: auto; background: #1b3f74; color: white; border-radius: .2rem; font-size: .76rem; font-weight: 700; }
+.reference-full-button:hover { background: #2961a6; }
+.reference-light-button { background: white; color: #1b3f74; }
+.reference-light-button:hover { background: #eaf1ff; }
+.reference-soon { text-transform: uppercase; font-size: .59rem; border: 1px solid rgba(255,255,255,.45); border-radius: .3rem; padding: .2rem .35rem; }
+.reference-section-title { color: #213b62; font-size: 1.03rem; font-weight: 800; margin: 1.5rem 0 .8rem; }
+.reference-tile-grid { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: .9rem; }
+.reference-service-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .6rem; min-height: 116px; padding: .8rem .5rem; background: white; border: 1px solid #e0e7f0; border-radius: .8rem; box-shadow: 0 3px 10px rgba(25,50,85,.06); color: #26354b; text-align: center; transition: transform .18s ease, box-shadow .18s ease; }
+a.reference-service-tile:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(25,50,85,.13); }
+.reference-service-tile strong { font-size: .72rem; line-height: 1.3; font-weight: 800; }
+.reference-service-tile small { color: #7a8595; font-size: .62rem; }
+.reference-service-pending { background: #f8faff; }
+.reference-tile-icon { display: grid; place-items: center; flex-shrink: 0; width: 3rem; height: 3rem; border-radius: 50%; background: #285792; color: #fff; font-size: 1.5rem; font-weight: 700; }
+.reference-recent { background: white; border: 1px solid #e0e7f0; padding: 1.1rem; border-radius: .8rem; margin-top: 1.4rem; }
+.reference-recent .reference-section-title { margin: 0; }
+.reference-recent > div a { color: #174b8e; font-size: .8rem; font-weight: 700; }
+.reference-order-row { display: flex; justify-content: space-between; gap: .75rem; border-top: 1px solid #edf0f5; padding: .75rem 0; }
+.reference-order-row:first-of-type { margin-top: .8rem; }
+.reference-order-row span { display: flex; flex-direction: column; gap: .15rem; color: #26354b; font-size: .78rem; }
+.reference-order-row span:last-child { text-align: right; }
+.reference-order-row small { color: #748097; }
+@media (max-width: 1100px) { .reference-tile-grid { grid-template-columns: repeat(4,minmax(0,1fr)); } }
+@media (max-width: 720px) { .reference-summary-grid { grid-template-columns: 1fr; gap: .9rem; } .reference-tile-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: .8rem; } .reference-page-banner { min-height: 180px; padding: 1.5rem 1.25rem 4rem; } .reference-dashboard-body { padding: 0 1rem 2rem; } .reference-service-tile { min-height: 114px; } .reference-dashboard { margin: -1rem -1.1rem 0; } }
+@media (max-width: 360px) { .reference-dashboard-body { padding-left: .75rem; padding-right: .75rem; } .reference-service-tile { min-height: 106px; } }
+@media (prefers-reduced-motion: reduce) { .reference-nav-link,.reference-service-tile { transition: none; } }
+
+/* Mobile account hierarchy from the supplied Android recording. */
+.reference-progress { display: inline-flex; margin-top: .85rem; border: 1px solid rgba(255,255,255,.35); padding: .38rem 1rem; border-radius: 2rem; color: white; font-size: .78rem; font-weight: 700; background: rgba(255,255,255,.08); }
+.reference-wallet-icon { display: grid; place-items: center; width: 2.1rem; height: 2.1rem; border-radius: 50%; background: #204d85; color: white; font-size: 1.1rem; }
+.reference-whatsapp { position: fixed; z-index: 45; right: 1.1rem; bottom: 1.1rem; display: grid; place-items: center; width: 3.4rem; height: 3.4rem; border-radius: 50%; color: white; background: #21bf5b; box-shadow: 0 7px 20px rgba(0,0,0,.24); font-size: .59rem; font-weight: 800; transition: transform .2s ease; }
+.reference-whatsapp:hover { transform: scale(1.07); }
+@media (max-width: 767px) {
+    .reference-header a:has(> img) { display: none; }
+    .reference-sidebar { width: min(280px, 78vw); box-shadow: 8px 0 26px rgba(5,27,61,.2); }
+    .reference-profile { min-height: 172px; padding: 1.5rem .8rem 1rem; }
+    .reference-nav { padding: .6rem .45rem 1.5rem; }
+    .reference-nav-link { padding: .68rem .75rem; font-weight: 500; }
+    .reference-dashboard { background: #f6f8fc; }
+    .reference-page-banner { min-height: 218px; padding: 2rem 2.1rem 4.4rem; background: linear-gradient(100deg,rgba(20,48,90,.95),rgba(32,72,123,.82)), linear-gradient(25deg,#2c5384,#112c55); }
+    .reference-page-banner h1 { font-size: 1.5rem; }
+    .reference-dashboard-body { margin-top: -2rem; padding: 0 2.1rem 2rem; }
+    .reference-summary-card { min-height: 128px; border-radius: .22rem; padding: 1rem 1.1rem; box-shadow: 0 7px 20px rgba(25,50,85,.1); }
+    .reference-summary-blue { min-height: 124px; }
+    .reference-service-tile { min-height: 130px; border-radius: .8rem; }
+    .reference-section-title { margin: 1.35rem 0 .6rem; }
+    .reference-dashboard-body > section:nth-child(2) > .reference-section-title { margin-top: .7rem; }
+}
+@media (max-width: 360px) { .reference-dashboard-body { padding-left: 1rem; padding-right: 1rem; } }
+
+/* Shared BelovedSubP visual system: deep blue, white and dark orange. */
+:root {
+    --brand-navy: #112d57;
+    --brand-navy-strong: #0c2347;
+    --brand-ink: #193e72;
+    --brand-accent: #bd590e;
+    --brand-mist: #f3f6fb;
+    --brand-line: #d7dfeb;
+    --brand-text: #18263b;
+    --brand-muted: #617189;
+    --brand-white: #ffffff;
+    --surface-deep: #e9eff8;
+    --surface-base: #f4f7fc;
+    --surface-card: #ffffff;
+    --surface-soft: #f9fbfe;
+    --surface-muted: #eaf0f9;
+}
+html, body, .app-shell-bg { background: #f5f7fb; color: #18263b; }
+body::before, body::after { display: none; }
+.app-header-bar, .reference-header { background: #123461; color: white; box-shadow: 0 3px 14px rgba(12,35,71,.13); }
+.app-soft-panel, .app-section-muted, .app-sidebar-surface { background: #f0f4fb; border-color: #dce4f0; }
+.app-glass-card, .app-section, .app-form-shell, .app-form-card, .app-service-card, .app-stat { background: #fff; border-color: #dfe5ee; }
+.app-accent-panel { background: linear-gradient(90deg,rgba(12,35,71,.93),rgba(17,49,92,.78)),url('/images/office-team.webp') center/cover; }
+.app-chip { color: #173b6b; background: #e9eff8; }
+.app-stat { border-radius: .5rem; }
+.app-divider { background: linear-gradient(90deg,#112d57,#bd590e 60%,#e7ebf1); }
+.reference-sidebar { background: #fff; }
+.reference-profile, .reference-summary-blue { background: #153a6c; }
+.reference-page-banner, .reference-page-banner.reference-shared-banner, .identity-hero, .identity-dashboard-banner {
+    color: white;
+    background: linear-gradient(90deg,rgba(11,37,78,.96),rgba(18,55,105,.82)),url('/images/office-team.webp') center center/cover;
+}
+.reference-page-banner { min-height: 220px; padding: 2rem 2rem 4rem; }
+.reference-breadcrumb { font-size: .8rem; color: #dce8f9; margin-bottom: .7rem; }
+.reference-breadcrumb a:hover { color: #ffb36d; }
+.reference-page-banner .reference-progress { color: white; }
+.reference-shared-banner { margin: -1rem -1.1rem 1.3rem; }
+.reference-menu-toggle { display: grid; place-items: center; flex: none; min-width: 44px; height: 44px; color: white; }
+.reference-guest-drawer { padding: .4rem 1rem 1rem; background: #fff; box-shadow: 0 12px 25px rgba(12,35,71,.18); }
+.reference-guest-drawer a { display: block; padding: .85rem 1rem; color: #193e72; font-weight: 700; border-bottom: 1px solid #e9eef5; }
+.reference-home-intro { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(270px,.7fr); align-items: center; gap: 1.5rem; margin: -1rem -1rem 0; }
+.reference-home-hero { min-height: 540px; display: flex; flex-direction: column; justify-content: center; padding: clamp(2rem,5vw,4rem); color: white; background: linear-gradient(90deg,rgba(9,32,68,.97),rgba(16,54,105,.83)),url('/images/office-team.webp') center/cover; }
+.reference-home-hero h1 { font-size: clamp(2rem,4.7vw,3.8rem); font-weight: 800; letter-spacing: -.045em; line-height: 1.12; }
+.reference-home-hero p { color: #e3edff; line-height: 1.65; font-size: clamp(.9rem,1.3vw,1.08rem); }
+.reference-home-eyebrow { color: #ffc28d; font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .14em; }
+.reference-home-hero .btn-primary { background: #b84d0d; color: white; }
+.reference-home-hero .btn-outline { border-color: #f5f7fb; color: white; background: transparent; }
+.reference-home-hero .btn-soft { background: white; color: #123461; }
+.reference-home-hero .app-stat { background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.25); box-shadow: none; }
+.reference-home-hero .app-stat-value, .reference-home-hero .app-stat p { color: white; }
+.reference-home-quick { background: white; border: 1px solid #dfe5ee; border-radius: .35rem; box-shadow: 0 12px 34px rgba(16,45,88,.12); }
+.reference-service-tile { border-radius: .55rem; }
+.reference-tile-icon { background: #173f74; }
+.reference-soon { color: white; }
+.identity-tile, .identity-other-links a { border-radius: .55rem; }
+.identity-other { background: #e9f0fa; }
+.reference-whatsapp { background: #21bf5b; }
+/* These pages still ship the old utility soup, so the brand colours for their form
+   controls have to outrank the theme layer's !important patches (a layered
+   !important beats an unlayered one, whatever the specificity). */
+.legacy-themed-page input:not([type="checkbox"]), .legacy-themed-page select, .legacy-themed-page textarea,
+.app-form-shell input:not([type="checkbox"]), .app-form-shell select {
+    border: 1px solid #cbd6e4 !important;
+    background-color: #fff !important;
+    color: #1b2e48 !important;
+    border-radius: .5rem;
+}
+.legacy-themed-page input[type="checkbox"] { accent-color: #173f74; }
+.input-field:focus-visible, .reference-menu-toggle:focus-visible,
+.reference-header button:focus-visible, .reference-guest-drawer a:focus-visible {
+    outline: 3px solid #c46617;
+    outline-offset: 2px;
+}
+.app-form-card, .app-form-shell, .app-section, .app-section-muted {
+    border-color: #dee5ee;
+    border-radius: .65rem;
+    background-color: #fff;
+    box-shadow: 0 5px 17px rgba(13,39,79,.06);
+    backdrop-filter: none;
+}
+.input-field { border-color: #cbd6e4; background-color: #fff; color: #1b2e48; box-shadow: none; }
+.legacy-themed-page :is(div, span, td, th, li)[class*="bg-black/"],
+.legacy-themed-page :is(div, span, td, th, li)[class*="dark:bg-white/"] {
+    background: #f3f6fb !important;
+    border-color: #dee5ee !important;
+}
+
+/* Brand palette applied everywhere, not only inside .legacy-themed-page, so a
+   call-to-action cannot render in raw Tailwind orange on one page and brand
+   orange on the next. Declared after @tailwind utilities, so it wins. */
+.bg-orange-600 { background-color: #bd590e; }
+.hover\:bg-orange-700:hover { background-color: #a44a0b; }
+.bg-orange-500 { background-color: #c96a1e; }
+.bg-blue-700 { background-color: #173f74; }
+.hover\:bg-blue-800:hover { background-color: #123059; }
+.bg-blue-600 { background-color: #1f4d88; }
+.hover\:bg-blue-700:hover { background-color: #173f74; }
+.text-orange-600 { color: #bd590e; }
+.text-orange-700 { color: #a44a0b; }
+.border-orange-600 { border-color: #bd590e; }
+
+/* Form controls that still carry the old dark-glass utilities: on a white card
+   they read as greyed-out and un-clickable. */
+input[class*="bg-black/"]:not([type="checkbox"]), select[class*="bg-black/"], textarea[class*="bg-black/"],
+input[class*="dark:bg-black/"]:not([type="checkbox"]), select[class*="dark:bg-black/"], textarea[class*="dark:bg-black/"] {
+    background-color: #fff;
+    border-color: #cbd6e4;
+    color: #1b2e48;
+}
+.admin-light-page [class*="text-white"] { color: #34445d; }
+.admin-light-page input[type="checkbox"] { accent-color: #173f74; }
+input[class*="bg-black/"]::placeholder, textarea[class*="bg-black/"]::placeholder { color: #94a2b8; }
+
+/* The cream glass buttons and inputs left over from the previous theme. */
+.btn-outline { border-color: #cbd6e4; background: #fff; color: #173f74; border-radius: .5rem; backdrop-filter: none; }
+.btn-outline:hover { background: #eaf1ff; border-color: #b9c7db; color: #123059; }
+.btn-soft { background: #eaf1fc; color: #173b6b; border-radius: .5rem; }
+.input-field { border: 1px solid #cbd6e4; background-color: #fff; color: #1b2e48; border-radius: .5rem; box-shadow: none; }
+.btn-primary { border-radius: .5rem; }
+.rounded-\[22px\] { border-radius: .6rem; }
+.bg-slate-50 { background-color: #f3f6fb; }
+.text-slate-900 { color: #18263b; }
+.text-slate-500, .text-slate-600 { color: #617189; }
+.reference-nav-active { border-left: 3px solid #bd590e; }
+.reference-home-quick .app-service-card { border-radius: .45rem; }
+[x-cloak] { display: none !important; }
+
+/* Keep the desktop brand rail, blue top bar, sidebar and page on one motion curve. */
+.reference-sidebar-brand { position: fixed; top: 0; left: 0; z-index: 41; width: 246px; height: 64px; align-items: center; padding: 0 1rem; background: #123461; border-right: 1px solid rgba(255,255,255,.1); transition: transform .7s cubic-bezier(.22,1,.36,1); }
+@media (min-width: 768px) {
+    .reference-app-shell .reference-header { left: 246px; transition: left .7s cubic-bezier(.22,1,.36,1); }
+    .reference-app-shell .reference-main { margin-left: 246px; transition: margin-left .7s cubic-bezier(.22,1,.36,1); }
+    .reference-app-shell #desktop-navigation { transition: transform .7s cubic-bezier(.22,1,.36,1); }
+    .reference-app-shell.desktop-nav-collapsed .reference-sidebar-brand,
+    .reference-app-shell.desktop-nav-collapsed #desktop-navigation { transform: translateX(-100%); }
+    .reference-app-shell.desktop-nav-collapsed .reference-header { left: 0; }
+    .reference-app-shell.desktop-nav-collapsed .reference-main { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    /* Reduced motion means "do not throw me across the screen", not "snap
+       everything instantly" - a change nobody can see is a change that reads as
+       broken. The chrome keeps moving, just briefly. */
+    .reference-app-shell .reference-header, .reference-app-shell .reference-main,
+    .reference-app-shell #desktop-navigation, .reference-sidebar-brand { transition-duration: .18s; }
+}
+
+/* One number decides how far the page steps aside, so the rail, the shift and
+   the tap catcher can never disagree about the width. */
+.reference-app-shell { --drawer-w: min(280px, 78vw); }
+.reference-drawer { width: var(--drawer-w); }
+
+@media (max-width: 767.98px) {
+    /* Push, not overlay. The rail is bolted to the left edge and the top bar and
+       the page slide off it together, the way a page swipes aside to show what is
+       underneath. Width is pinned to the viewport on purpose: the content must
+       travel, not reflow into a sliver, and the shell clips what hangs off the
+       right. Nothing here uses transform, because a transformed ancestor would
+       re-anchor every fixed popup inside the page. */
+    .reference-app-shell { overflow-x: hidden; }
+    .reference-app-shell .reference-main { width: 100vw; }
+    .reference-app-shell .reference-header {
+        transition: left .42s cubic-bezier(.22, 1, .36, 1), right .42s cubic-bezier(.22, 1, .36, 1);
+    }
+    .reference-app-shell .reference-main { transition: margin-left .42s cubic-bezier(.22, 1, .36, 1); }
+    .reference-app-shell.mobile-nav-open .reference-header { left: var(--drawer-w); right: calc(-1 * var(--drawer-w)); }
+    .reference-app-shell.mobile-nav-open .reference-main { margin-left: var(--drawer-w); }
+    .reference-drawer-scrim { left: var(--drawer-w); background: rgba(10, 31, 61, .34); }
+}
+
+/* Auth pages carry the same blue and orange language as the dashboard. */
+.reference-auth-page .app-form-shell { border-radius: .55rem; box-shadow: 0 12px 32px rgba(16,43,82,.1); }
+.reference-auth-page .app-form-shell h1 { color: #123461; }
+.reference-auth-page .app-form-shell a:not(.btn-primary) { color: #173f74; }
+.reference-auth-page .app-form-shell a:not(.btn-primary):hover { color: #ae4c10; }
+.reference-auth-page .app-form-shell button[type="submit"] { background: #173f74; color: white; }
+.reference-auth-page .app-form-shell button[type="submit"]:hover { background: #225697; }
+.reference-auth-page .app-accent-panel { min-height: 510px; }
+.reference-auth-page .app-accent-panel h2 { color: white; }
+.legacy-themed-page button[type="submit"][class*="bg-blue"],
+.legacy-themed-page button[type="submit"][class*="bg-orange"],
+.legacy-themed-page a[class*="bg-blue"], .legacy-themed-page a[class*="bg-orange"] { color: white; }
+.reference-form-heading { text-align: center; font-size: clamp(1.2rem,2.2vw,1.55rem); font-weight: 800; color: #173f74; }
+.reference-form-intro { margin: .45rem 0 1.3rem; text-align: center; font-size: .85rem; color: #617189; }
+/* Shared service flow: page context sits above the form, as on the reference. */
+.reference-flow-page { position: relative; margin-top: -2.7rem; padding-bottom: 1.5rem; min-width: 0; }
+.reference-flow-page > :first-child:not(.reference-tile-grid):not(.grid):not(.svc-outage) {
+    position: relative;
+    background: #fff;
+    border: 1px solid #dfe5ee;
+    border-top: 3px solid #b45012;
+    border-radius: .6rem;
+    padding: 1.3rem clamp(1rem,3vw,1.7rem);
+    box-shadow: 0 9px 24px rgba(12,35,71,.12);
+}
+.reference-flow-page > :first-child :is(h1,h2) { color: #173f74; }
+.reference-hero-action { display: inline-block; margin-top: 1rem; padding: .52rem 1.15rem; border-radius: .35rem; background: #fff; color: #1b3f74; font-size: .8rem; font-weight: 700; }
+.reference-page-banner.reference-page-compact { min-height: 0; padding: .85rem 1.1rem; }
+.reference-page-compact h1 { font-size: 1.05rem; }
+.reference-hero-action:hover { background: #eaf1ff; color: #123059; }
+.reference-hero-action.reference-hero-accent { background: #b45012; color: #fff; }
+.reference-hero-action.reference-hero-accent:hover { background: #a44a0b; color: #fff; }
+.reference-quiet-button { display: inline-flex; align-items: center; justify-content: center; padding: .5rem 1rem; border: 1px solid #cbd6e4; border-radius: .5rem; background: #fff; color: #173f74; font-size: .8rem; font-weight: 700; }
+.reference-quiet-button:hover { background: #eaf1ff; color: #123059; }
+.reference-flow-page .app-form-shell,
+.reference-flow-page .app-section,
+.reference-flow-page.legacy-themed-page > .rounded-3xl { border-radius: .6rem; }
+.reference-flow-page :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),select,textarea) {
+    min-height: 44px;
+    max-width: 100%;
+}
+.reference-flow-page label[class*="text-white"] { color: #34445d; }
+.reference-flow-page #amountToPay { color: #173f74; }
+.reference-flow-page :is(.app-form-shell,.legacy-themed-page) :is(input,select,textarea):focus-visible,
+.reference-flow-page > form :is(input,select,textarea):focus-visible {
+    outline: 2px solid #b45012;
+    outline-offset: 2px;
+}
+@media (max-width: 767px) {
+    .reference-flow-page { margin-top: -2rem; padding-inline: .35rem; }
+    .reference-flow-page > :first-child { padding: 1rem; }
+    .reference-flow-page :is(.btn-primary, button[type="submit"]) { min-height: 44px; }
+}
+@media print { .reference-flow-page { margin-top: 0; } .reference-flow-page > :first-child { box-shadow: none; } }
+
+/* Public guide pages: same blue hero and overlapping white cards as the app. */
+.reference-page-banner.reference-guest-banner { min-height: 190px; padding: 1.9rem 1.6rem 4.2rem; border-radius: .6rem; margin-bottom: -4.2rem; }
+.reference-guide-page > .rounded-3xl { border: 1px solid #dee5ee; border-radius: .6rem; background: #fff; box-shadow: 0 5px 17px rgba(13,39,79,.06); }
+.reference-guide-page h2 { color: #173f74; }
+
+/* Match account screens to the shared white form and blue photo header on small devices. */
+.reference-auth-page .reference-auth-layout { align-items: start; }
+.reference-auth-page .app-form-shell { border-top: 4px solid #b45012; }
+.reference-auth-page .app-form-shell :is(input:not([type="checkbox"]),select) { min-height: 44px; }
+.reference-auth-page .app-form-shell input[type="checkbox"] { min-width: 20px; min-height: 20px; accent-color: #173f74; }
+.reference-auth-page .app-form-shell :is(input,button,a):focus-visible { outline: 3px solid #b45012; outline-offset: 2px; }
+.reference-auth-page .app-form-shell button[type="submit"] { min-height: 44px; }
+.reference-drawer-close { border-radius: .45rem; color: #173f74; background: #e9f0fa; }
+.reference-drawer-close:hover { background: #dbe7f8; }
+
+/* Corner badge on service tiles, matching the reference "New" marker. */
+.reference-service-tile { position: relative; }
+
+/* Tailwind puts its utilities in a layer, so the `display:flex` above wins over
+   a layered `.hidden` whatever the specificity - which is how the Awoof tile
+   stayed on the shelf after the provider withdrew it. Naming the tile again
+   outside the layer is what makes the switch actually switch. */
+.reference-service-tile.hidden { display: none; }
+.reference-tile-badge { position: absolute; top: .5rem; right: .5rem; padding: .15rem .45rem; border-radius: .35rem; background: #d9363e; color: #fff; font-size: .58rem; font-weight: 800; letter-spacing: .02em; }
+
+/* Brand logos (MTN, Glo, DSTV…) sit in the same circle as the glyph icons,
+   but need white behind them or dark logos disappear. */
+.reference-tile-icon-image { background: #fff; border: 1px solid #e0e7f0; }
+.reference-tile-icon-image img { width: 2.1rem; height: 2.1rem; object-fit: contain; }
+
+/* Dashboard summary cards must float over the blue hero, not sit below it. */
+.reference-dashboard .reference-page-banner { padding-bottom: 5.5rem; }
+.reference-dashboard .reference-dashboard-body { margin-top: -4.25rem; }
+.reference-dashboard .reference-summary-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.reference-money-compact { font-size: clamp(1.05rem,1.6vw,1.35rem); letter-spacing: .04em; }
+.reference-account-bank { display: block; margin-top: auto; color: #617189; font-size: .72rem; font-weight: 700; }
+@media (max-width: 900px) {
+    .reference-dashboard .reference-summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 720px) {
+    .reference-dashboard .reference-summary-grid { grid-template-columns: 1fr; }
+    .reference-dashboard .reference-dashboard-body { margin-top: -3.5rem; }
+}
+.reference-drawer-close:focus-visible { outline: 3px solid #b45012; outline-offset: 2px; }
+@media (max-width: 767px) {
+    .reference-auth-page { background: linear-gradient(180deg,rgba(12,35,71,.91),rgba(18,55,105,.83)) top/100% 165px no-repeat, #f5f7fb; }
+    .reference-auth-page .reference-auth-layout { gap: 0; }
+    .reference-auth-page .app-form-shell { padding: 1.3rem; }
+}
+
+/* ==========================================================================
+   SIGN-IN CARD — the mark rides on the panel's top edge, each field carries
+   its own icon, and the notice is a strip the visitor can put away instead of
+   a wall of text that repeats on every visit.
+   ========================================================================== */
+.reference-auth-page .app-form-shell { position: relative; margin-top: 54px; padding-top: 3.3rem; }
+.reference-auth-crest { position: absolute; left: 50%; top: -54px; transform: translateX(-50%); display: grid; place-items: center; width: 104px; height: 104px; padding: 5px; border-radius: 50%; background: #fff; box-shadow: 0 16px 34px rgba(16, 43, 82, .2); }
+.reference-auth-crest img { width: 92px; height: 92px; border-radius: 50%; object-fit: cover; }
+
+.reference-auth-notice { display: flex; align-items: flex-start; gap: .6rem; padding: .8rem .9rem; border: 1px solid #f0c8c1; border-left: 4px solid #b42318; border-radius: .55rem; background: #fdf1ef; color: #7a271a; font-size: .84rem; line-height: 1.6; }
+.reference-auth-notice strong { display: block; font-weight: 800; }
+.reference-auth-notice-close { flex: none; margin-left: auto; display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: .4rem; color: #a2402f; font-size: 1.05rem; line-height: 1; }
+.reference-auth-notice-close:hover { background: rgba(180, 35, 24, .1); }
+
+.app-field { position: relative; }
+.app-field-icon { position: absolute; left: .8rem; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 1.35rem; color: #7d8aa3; pointer-events: none; }
+.app-field :is(input, select):not([type="checkbox"]) { padding-left: 2.5rem; }
+.app-field-reveal { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 2.1rem; height: 2.1rem; border-radius: .45rem; color: #5a6b86; }
+.app-field-reveal:hover { background: rgba(23, 63, 116, .08); color: #173f74; }
+.app-field :is(input)[data-revealable] { padding-right: 3.1rem; }
+/* Shared customer actions and support control. */
+.btn-primary:focus-visible, .btn-danger:focus-visible,
+.reference-full-button:focus-visible,
+.reference-whatsapp:focus-visible, .reference-nav-link:focus-visible {
+    outline: 3px solid #c46617;
+    outline-offset: 3px;
+}
+.btn-primary:disabled, .btn-primary[aria-disabled="true"],
+.btn-danger:disabled, .btn-danger[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: .55;
+    transform: none;
+    box-shadow: none;
+}
+/* In-progress state driven by the form-submit handler in app.js. */
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+    color: transparent !important;
+    cursor: progress;
+}
+.btn-loading::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .45);
+    border-top-color: #fff;
+    animation: btn-spin .7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+.reference-full-button { transition: background-color .25s ease, transform .25s ease, box-shadow .25s ease; }
+a.reference-full-button:hover { background: #b45012; color: white; transform: translateY(-2px); box-shadow: 0 8px 16px rgba(17,45,87,.16); }
+.reference-whatsapp {
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    width: 3.5rem;
+    height: 3.5rem;
+    font-size: initial;
+    background: #19a653;
+    isolation: isolate;
+}
+.reference-whatsapp svg { width: 1.85rem; height: 1.85rem; fill: none; stroke: white; }
+.reference-whatsapp::before {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border: 2px solid rgba(25,166,83,.6);
+    border-radius: 50%;
+    animation: support-pulse 2.8s ease-out infinite;
+    pointer-events: none;
+    z-index: -1;
+}
+@keyframes support-pulse { 0%, 45% { transform: scale(.85); opacity: .65; } 85%, 100% { transform: scale(1.3); opacity: 0; } }
+.reference-whatsapp-tooltip {
+    position: absolute;
+    right: calc(100% + .75rem);
+    top: 50%;
+    transform: translate(6px,-50%);
+    padding: .55rem .75rem;
+    border-radius: .45rem;
+    background: #123461;
+    color: white;
+    font-size: .78rem;
+    font-weight: 700;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+}
+.reference-whatsapp:hover .reference-whatsapp-tooltip,
+.reference-whatsapp:focus-visible .reference-whatsapp-tooltip { opacity: 1; transform: translate(0,-50%); }
+@media (max-width: 767px) {
+    .reference-whatsapp { right: max(.85rem, env(safe-area-inset-right)); bottom: max(.85rem, env(safe-area-inset-bottom)); }
+    .reference-whatsapp-tooltip { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .reference-whatsapp::before { animation: none; opacity: .3; transform: none; }
+    .reference-whatsapp, .reference-whatsapp-tooltip, .btn-primary, .reference-full-button { transition: none; }
+    .btn-primary:hover, a.reference-full-button:hover, .reference-whatsapp:hover { transform: none; }
+    .btn-loading::after { animation-duration: 1.6s; }
+}
+@media (max-width: 767px) {
+    .reference-page-banner, .reference-page-banner.reference-shared-banner { min-height: 218px; padding: 2rem 2rem 4.4rem; background-position: 60% center; }
+    .reference-home-intro { grid-template-columns: 1fr; margin: -1rem -1rem 0; gap: 0; }
+    .reference-home-hero { min-height: 450px; padding: 2.5rem 1.5rem 4rem; background-position: 65% center; }
+    .reference-home-quick { margin: -1.5rem 1rem 0; position: relative; z-index: 1; }
+}
+@media print {
+    .reference-shared-banner, .reference-whatsapp { display: none !important; }
+}
+
+/* Action buttons still written with raw Tailwind colour utilities. Matching the
+   exact utility class (not a substring) is deliberate: `hover:bg-blue-800` would
+   otherwise read as a solid navy background. Every compound stays on one line
+   because a line break between :is() groups is a descendant combinator. */
+:is(button, a, input[type="submit"], .btn-primary):is(.bg-blue-500, .bg-blue-600, .bg-blue-700, .bg-blue-800, .bg-blue-900, .bg-indigo-500, .bg-indigo-600, .bg-indigo-700, .bg-sky-600, .bg-sky-700)[class*="bg-"] {
+    background-color: #173f74 !important;
+    border: 1px solid #173f74 !important;
+    color: #ffffff !important;
+    border-radius: .5rem;
+    box-shadow: 0 6px 15px rgba(17, 45, 87, .18);
+}
+
+:is(button, a, input[type="submit"], .btn-primary):is(.bg-orange-500, .bg-orange-600, .bg-orange-700, .bg-amber-600, .bg-amber-700)[class*="bg-"] {
+    background-color: #b45012 !important;
+    border: 1px solid #b45012 !important;
+    color: #ffffff !important;
+    border-radius: .5rem;
+    box-shadow: 0 6px 15px rgba(180, 80, 18, .18);
+}
+
+/* Destructive actions keep a red so a reset can never look like a save. */
+:is(button, a, input[type="submit"], .btn-primary):is(.bg-red-500, .bg-red-600, .bg-red-700, .bg-rose-500, .bg-rose-600, .bg-rose-700)[class*="bg-"] {
+    background-color: #b3261e !important;
+    border: 1px solid #b3261e !important;
+    color: #ffffff !important;
+    border-radius: .5rem;
+    box-shadow: 0 6px 15px rgba(179, 38, 30, .18);
+}
+
+:is(button, a, input[type="submit"]):is(.bg-emerald-500, .bg-emerald-600, .bg-emerald-700, .bg-green-500, .bg-green-600, .bg-green-700, .bg-teal-600)[class*="bg-"] {
+    color: #ffffff !important;
+    border-radius: .5rem;
+}
+
+/* Labels and icons inside those buttons follow the button, whatever the theme
+   remaps further up. */
+:is(button, a):is(.bg-blue-500, .bg-blue-600, .bg-blue-700, .bg-blue-800, .bg-indigo-600, .bg-sky-600, .bg-orange-500, .bg-orange-600, .bg-orange-700, .bg-amber-600, .bg-red-500, .bg-red-600, .bg-red-700, .bg-rose-500, .bg-rose-600, .bg-rose-700, .bg-emerald-500, .bg-emerald-600, .bg-green-500, .bg-green-600) :is(.text-white, [class*="text-white/"]) {
+    color: #ffffff !important;
+}
+
+:is(button, a, input[type="submit"], .btn-primary):is(.bg-blue-700, .bg-blue-800, .bg-blue-900, .bg-indigo-700, .bg-sky-700)[class*="bg-"]:hover { background-color: #123059 !important; border-color: #123059 !important; }
+:is(button, a, input[type="submit"], .btn-primary):is(.bg-orange-600, .bg-orange-700, .bg-amber-700)[class*="bg-"]:hover { background-color: #a44a0b !important; border-color: #a44a0b !important; }
+:is(button, a, input[type="submit"], .btn-primary):is(.bg-red-600, .bg-red-700, .bg-rose-600, .bg-rose-700)[class*="bg-"]:hover { background-color: #9a1f18 !important; border-color: #9a1f18 !important; }
+
+/* The card radius used by the pre-redesign pages is 24px; the system sits at
+   about 10px, so cards no longer look borrowed from the old theme. */
+.rounded-3xl { border-radius: .75rem; }
+
+/* Amber was borrowed from the old theme as the general "notice" tint. Pulling it
+   onto the brand orange scale keeps alerts readable without looking foreign. */
+.bg-amber-50 { background-color: #fdf4e9; }
+.bg-amber-100 { background-color: #fae6cf; }
+.border-amber-200 { border-color: #f0d5b4; }
+.text-amber-700 { color: #8f4410; }
+.text-amber-800 { color: #7a3a0d; }
+/* slate-400 timestamps fell to 2.5:1 on the tinted cards. */
+.text-slate-400 { color: #56677f; }
+/* Guide list rows and a few cards still ask for a 20px corner. */
+.rounded-\[20px\] { border-radius: .6rem; }
+
+/* Important-variant utilities (used by the admin user actions) bypass the brand
+   remaps because Tailwind emits them with !important, so they need matching
+   !important rules of their own. */
+.\!bg-blue-600, .\!bg-blue-700 { background-color: #173f74 !important; }
+.\!bg-amber-600, .\!bg-amber-700 { background-color: #b45012 !important; }
+.\!bg-rose-600, .\!bg-rose-700 { background-color: #b3261e !important; }
+.\!bg-emerald-600, .\!bg-emerald-700 { background-color: #067a55 !important; }
+.bg-amber-50\/70 { background-color: rgba(253, 244, 233, .7); }
+.border-amber-300\/40 { border-color: rgba(240, 213, 180, .8); }
+
+/* Sidebar / drawer identity block: the avatar now comes from the user's own photo,
+   so it needs to crop to the circle instead of letterboxing. */
+.reference-profile-link { display: block; color: inherit; text-decoration: none; border-radius: .55rem; padding: .35rem 0; transition: background .22s ease, transform .22s ease; }
+.reference-profile-link:hover { background: rgba(255,255,255,.09); transform: translateY(-1px); }
+img.reference-avatar { display: block; object-fit: cover; background: #153a6c; }
+
+/* Profile photo picker. The preview is a local blob until the form saves, so the
+   circle reacts on tap and never shows a broken image while choosing. */
+.avatar-picker { display: flex; align-items: center; gap: 1rem; }
+.avatar-picker-target { position: relative; display: block; flex: none; width: 5.6rem; height: 5.6rem; overflow: hidden; border-radius: 50%; background: #e2ecfb; color: #173f74; border: 2px solid #cbd6e4; cursor: pointer; transition: transform .25s cubic-bezier(.22,.61,.36,1), box-shadow .25s ease, border-color .25s ease; -webkit-tap-highlight-color: transparent; }
+.avatar-picker-target:hover, .avatar-picker-target:focus-within { transform: scale(1.04); border-color: #b45012; box-shadow: 0 10px 22px rgba(17,45,87,.18); }
+.avatar-picker-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.avatar-picker-initials { position: absolute; inset: 0; display: grid; place-items: center; font-size: 1.6rem; font-weight: 800; }
+.avatar-picker-badge { position: absolute; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; gap: .3rem; overflow: hidden; padding: .34rem .2rem; background: rgba(17,45,87,.78); color: #fff; font-size: .58rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; text-overflow: ellipsis; }
+.avatar-picker-meta { min-width: 0; }
+.avatar-picker-clear { margin-top: .55rem; color: #b3261e; font-size: .78rem; font-weight: 700; text-decoration: underline; }
+
+/* Signed-in dashboard greets the user by face, not just by name. */
+.reference-hero-user { display: inline-flex; align-items: center; gap: .6rem; margin-top: 1rem; padding: .3rem .95rem .3rem .3rem; border-radius: 2rem; background: rgba(255,255,255,.15); color: #fff; font-size: .85rem; font-weight: 700; }
+.reference-hero-avatar { width: 2.5rem; height: 2.5rem; margin: 0; font-size: 1rem; background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.45); }
+
+/* One aligned foot row under the heading: identity or action on the left,
+   battery on the right, instead of three stacked blocks with mismatched gaps. */
+.reference-hero-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .65rem; margin-top: 1.15rem; }
+.reference-hero-foot > * { margin-top: 0; }
+.reference-hero-greet.is-swapped { animation: heroGreetSwap .55s cubic-bezier(.22,.61,.36,1) both; }
+@keyframes heroGreetSwap { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+
+/* The one loading visual, shared by the boot splash and the page-transition
+   loader: brand mark inside a white ring with a dark orange counter-arc.
+   Transform-only animation, so it stays cheap on low-end Android. */
+.reference-brand-stack { display: flex; flex-direction: column; align-items: center; color: #fff; text-align: center; }
+.reference-brand-loader { position: relative; display: grid; place-items: center; width: 92px; height: 92px; }
+.reference-brand-ring { position: absolute; inset: 0; border: 4px solid rgba(255,255,255,.22); border-top-color: #fff; border-radius: 50%; animation: referenceBrandSpin 1s linear infinite; }
+.reference-brand-ring-accent { position: absolute; inset: -9px; border: 3px solid transparent; border-right-color: #bd590e; border-bottom-color: rgba(189,89,14,.55); border-radius: 50%; animation: referenceBrandSpin 2.2s linear infinite reverse; }
+.reference-brand-mark { position: relative; z-index: 1; width: 60px; height: 60px; border-radius: 50%; object-fit: cover; background: rgba(255,255,255,.92); box-shadow: 0 0 0 4px rgba(255,255,255,.12); }
+.reference-brand-caption { display: block; margin-top: 1.25rem; }
+.reference-brand-loading { display: block; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; opacity: .82; }
+.reference-brand-name { display: block; margin-top: .35rem; font-size: 1rem; font-weight: 800; letter-spacing: .3px; }
+@keyframes referenceBrandSpin { to { transform: rotate(360deg); } }
+
+/* Boot splash over the navy gradient. It only paints while <html> carries
+   .splash-active, so a browser with JS switched off never sees it. */
+.reference-splash { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 1.5rem; background: radial-gradient(1100px 620px at 12% -8%, rgba(255,255,255,.1), transparent 60%), radial-gradient(900px 560px at 108% 12%, rgba(42,90,160,.55), transparent 55%), linear-gradient(160deg, #153d77 0%, #0f2c57 55%, #0a1f3d 100%); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .34s ease, visibility .34s ease; }
+html.splash-active .reference-splash { opacity: 1; visibility: visible; pointer-events: auto; }
+
+/* Page-transition loader: same brand mark, on a veil dark enough to keep the
+   white caption legible without a blur filter (blurs cost frames on mobile). */
+.reference-loader-veil { position: absolute; inset: 0; background: linear-gradient(160deg, rgba(21,61,119,.9), rgba(10,31,61,.92)); }
+.reference-loader-body { position: relative; z-index: 1; }
+.reference-loader-body .reference-brand-loader { width: 76px; height: 76px; }
+.reference-loader-body .reference-brand-mark { width: 50px; height: 50px; }
+
+/* Auth panels rise in sequence, the way the SPARKTECH login card does. */
+.reference-auth-page .app-form-shell { animation: fadeInUp .5s ease both; }
+.reference-auth-page .app-accent-panel { animation: fadeInUp .55s .05s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+    .reference-splash { transition: none; }
+    /* A loader that stops moving is not a calm loader - it reads as a site that
+       has hung, which is the one thing this animation exists to disprove. So the
+       working ring keeps turning, just slowly, and only the decorative outer arc
+       is silenced. */
+    .reference-brand-ring { animation-duration: 1.9s; }
+    .reference-brand-ring-accent { animation: none; }
+    .reference-auth-page .app-form-shell,
+    .reference-auth-page .app-accent-panel { animation: none; }
+}
+
+/* Loading placeholders, ported from the SPARKTECH wave skeletons. */
+.reference-skeleton-wave { background-color: #cfdcee; -webkit-mask-image: linear-gradient(130deg, #000 55%, rgba(0, 0, 0, .8) 75%, #000 95%); mask-image: linear-gradient(130deg, #000 55%, rgba(0, 0, 0, .8) 75%, #000 95%); -webkit-mask-size: 200% 100%; mask-size: 200% 100%; animation: referenceSkeletonWave 2s linear infinite; }
+@keyframes referenceSkeletonWave { to { -webkit-mask-position: -200% 0; mask-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .reference-skeleton-wave { animation: none; } }
+
+/* ==========================================================================
+   MOTION — scroll reveals, press feedback, staggered drawer links.
+   Transform and opacity only, so the compositor does the work, and all of it
+   disappears for visitors who ask their device for reduced motion.
+   ========================================================================== */
+html.motion-ready [data-motion="reveal"] { opacity: 0; transform: translateY(14px); transition: opacity .44s ease var(--motion-delay, 0ms), transform .44s cubic-bezier(.22, .61, .36, 1) var(--motion-delay, 0ms); }
+html.motion-ready [data-motion="reveal"].is-revealed { opacity: 1; transform: none; }
+
+/* Tap targets answer the press on phones, where there is no hover to give feedback. */
+.btn-primary,
+.btn-danger,
+.reference-full-button,
+.reference-quiet-button,
+.reference-hero-action,
+.reference-service-tile,
+.reference-tile,
+.reference-nav-link,
+.reference-install,
+.mobile-topbar-icon,
+.reference-menu-toggle { transition: transform .16s cubic-bezier(.22, .61, .36, 1), box-shadow .2s ease, background-color .18s ease, color .18s ease; }
+
+.btn-primary:active,
+.btn-danger:active,
+.reference-full-button:active,
+.reference-quiet-button:active,
+.reference-hero-action:active,
+.reference-service-tile:active,
+.reference-tile:active,
+.reference-nav-link:active,
+.reference-install:active,
+.mobile-topbar-icon:active { transform: translateY(1px) scale(.984); }
+
+@media (hover: hover) {
+    a.reference-service-tile:hover,
+    .reference-tile:hover,
+    .reference-summary-card:hover,
+    .app-service-card:hover { transform: translateY(-4px); }
+}
+
+/* The drawer panel already slides; the links behind it now follow in sequence. */
+.drawer-is-open .reference-nav-link { animation: drawerLinkRise .38s cubic-bezier(.22, .61, .36, 1) both; }
+.drawer-is-open .reference-nav-link:nth-child(2) { animation-delay: .045s; }
+.drawer-is-open .reference-nav-link:nth-child(3) { animation-delay: .09s; }
+.drawer-is-open .reference-nav-link:nth-child(4) { animation-delay: .135s; }
+.drawer-is-open .reference-nav-link:nth-child(n+5) { animation-delay: .18s; }
+@keyframes drawerLinkRise { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+    html.motion-ready [data-motion="reveal"] { opacity: 1; transform: none; transition: none; }
+    .drawer-is-open .reference-nav-link { animation: none; }
+    .reference-hero-greet.is-swapped { animation: none; }
+    .btn-primary:active,
+    .reference-full-button:active,
+    .reference-service-tile:active,
+    .reference-tile:active,
+    .reference-nav-link:active { transform: none; }
+}
+
+/* ==========================================================================
+   WALLET STATISTICS — the admin's money view. The shapes are drawn by the
+   server, so a browser with JavaScript off still gets the whole picture; the
+   animation only draws the eye along a bar that is already there.
+   ========================================================================== */
+.app-bar-track { height: var(--bar-h, .62rem); border-radius: 999px; background: var(--surface-muted, #eef3fa); overflow: hidden; }
+.app-bar-fill { height: 100%; width: var(--bar-w, 0%); border-radius: 999px; background: linear-gradient(90deg, var(--brand-navy), var(--brand-accent)); transform-origin: left center; animation: appBarGrow .78s cubic-bezier(.22, .61, .36, 1) both; animation-delay: var(--bar-delay, 0ms); }
+@keyframes appBarGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.app-chart { display: block; width: 100%; height: auto; }
+.app-chart-grid { stroke: var(--brand-line); stroke-width: 1; }
+.app-chart-area { fill: url(#appChartShade); opacity: 0; animation: appChartFade .9s ease-out .45s both; }
+.app-chart-line { fill: none; stroke: var(--brand-navy); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: var(--chart-length, 2600); stroke-dashoffset: var(--chart-length, 2600); animation: appChartDraw 1.6s ease-out .05s both; }
+.app-chart-dot { fill: #fff; stroke: var(--brand-accent); stroke-width: 2.5; opacity: 0; animation: appChartFade .5s ease-out both; animation-delay: 1.15s; }
+@keyframes appChartDraw { to { stroke-dashoffset: 0; } }
+@keyframes appChartFade { to { opacity: 1; } }
+
+.app-chart-scale { display: flex; justify-content: space-between; gap: .5rem; margin-top: .4rem; font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--brand-muted); }
+
+.app-wallet-row { padding: 1rem; border: 1px solid var(--brand-line); border-radius: .55rem; background: var(--surface-card); }
+.app-wallet-open { display: inline-block; margin-top: .7rem; font-size: .78rem; font-weight: 800; color: var(--brand-navy); }
+.app-wallet-trail > summary { display: flex; align-items: center; gap: .4rem; margin-top: .75rem; font-size: .76rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--brand-muted); cursor: pointer; list-style: none; }
+.app-wallet-trail > summary::-webkit-details-marker { display: none; }
+.app-wallet-trail > summary::before { content: '\203A'; font-size: 1.1rem; line-height: 1; transition: transform .2s ease; }
+.app-wallet-trail[open] > summary::before { transform: rotate(90deg); }
+.app-wallet-trail[open] > div { animation: fadeInUp .32s ease both; }
+.app-trail-row { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; font-size: .82rem; }
+.app-trail-label { color: var(--brand-muted); font-weight: 700; }
+.app-trail-amount { color: var(--brand-text); font-weight: 800; font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+    .app-bar-fill { animation: none; }
+    .app-chart-line { animation: none; stroke-dasharray: none; stroke-dashoffset: 0; }
+    .app-chart-area,
+    .app-chart-dot { animation: none; opacity: 1; }
+    .app-wallet-trail > summary::before { transition: none; }
+    .app-wallet-trail[open] > div { animation: none; }
+}
+
+/* ==========================================================================
+   EMBER THEME — the second skin the admin picks in Settings.
+   Blue still leads everywhere; what changes is that every plain blue surface
+   now runs into dark orange instead of stopping at flat navy. Nothing here
+   paints unless <html> carries data-theme="ember", so Classic Navy is left
+   exactly as it ships today.
+   ========================================================================== */
+html[data-theme="ember"] {
+    --brand-navy: #1b3f74;
+    --brand-navy-strong: #123059;
+    --brand-ink: #22508c;
+    --brand-accent: #c25c0f;
+    --brand-mist: #f7efe5;
+    --brand-line: #e8dccb;
+    --brand-text: #23201c;
+    --brand-muted: #7c6b58;
+    --surface-deep: #f2e6d7;
+    --surface-base: #fbf6ef;
+    --surface-card: #ffffff;
+    --surface-soft: #fdf9f3;
+    --surface-muted: #f6ece0;
+    --ember-header: linear-gradient(100deg, #16325c 0%, #22508c 54%, #a44a0c 122%);
+    --ember-button: linear-gradient(120deg, #1e4a86 0%, #2a5c9e 62%, #c25c0f 134%);
+    --ember-button-quiet: linear-gradient(120deg, #123059 0%, #1e4a86 60%, #a44a0c 128%);
+    --ember-icon: linear-gradient(142deg, #22508c 8%, #d0691a 96%);
+    --ember-rule: linear-gradient(90deg, #1b3f74, #c25c0f 56%, #f4e6d6);
+}
+
+html[data-theme="ember"] body,
+html[data-theme="ember"] .app-shell-bg { background: linear-gradient(180deg, #fdf9f3 0%, #f6ece0 100%); color: var(--brand-text); }
+html[data-theme="ember"] .app-header-bar,
+html[data-theme="ember"] .reference-header { background: var(--ember-header); }
+html[data-theme="ember"] .reference-sidebar { background: #fffdf9; border-right-color: var(--brand-line); }
+html[data-theme="ember"] .reference-profile { background: var(--ember-header); }
+html[data-theme="ember"] .reference-nav-link { color: #4a4033; }
+html[data-theme="ember"] .reference-nav-link:hover,
+html[data-theme="ember"] .reference-nav-active { color: var(--brand-navy); background: var(--surface-muted); }
+
+/* Banners keep the office photo but drop the orange into the wash. */
+html[data-theme="ember"] .reference-page-banner,
+html[data-theme="ember"] .reference-shared-banner,
+html[data-theme="ember"] .identity-hero,
+html[data-theme="ember"] .identity-dashboard-banner { background: linear-gradient(96deg, rgba(20, 52, 100, .95), rgba(164, 74, 12, .7)), url('/images/office-team.webp') center/cover; }
+html[data-theme="ember"] .reference-home-hero { background: linear-gradient(92deg, rgba(18, 48, 92, .96), rgba(180, 84, 16, .78)), url('/images/office-team.webp') center/cover; }
+html[data-theme="ember"] .app-accent-panel { background: linear-gradient(92deg, rgba(18, 48, 92, .94), rgba(164, 74, 12, .72)), url('/images/office-team.webp') center/cover; }
+html[data-theme="ember"] .app-divider { background: var(--ember-rule); }
+
+/* Every solid blue button becomes a blue-to-ember sweep. */
+html[data-theme="ember"] .btn-primary,
+html[data-theme="ember"] .reference-full-button,
+html[data-theme="ember"] .reference-quiet-button,
+html[data-theme="ember"] .reference-hero-action,
+html[data-theme="ember"] .bg-blue-700,
+html[data-theme="ember"] .bg-blue-600,
+html[data-theme="ember"] .legacy-themed-page [class*="bg-blue-700"],
+html[data-theme="ember"] .admin-light-page [class*="bg-blue"],
+html[data-theme="ember"] .reference-auth-page .app-form-shell button[type="submit"],
+html[data-theme="ember"] :is(button, a, input[type="submit"], .btn-primary):is(.bg-blue-500, .bg-blue-600, .bg-blue-700, .bg-blue-800, .bg-blue-900, .bg-indigo-500, .bg-indigo-600, .bg-indigo-700, .bg-sky-600, .bg-sky-700)[class*="bg-"] {
+    background: var(--ember-button) !important;
+    border-color: transparent;
+}
+html[data-theme="ember"] .btn-primary:hover,
+html[data-theme="ember"] .reference-full-button:hover,
+html[data-theme="ember"] a.reference-full-button:hover,
+html[data-theme="ember"] .reference-auth-page .app-form-shell button[type="submit"]:hover,
+html[data-theme="ember"] .legacy-themed-page [class*="bg-blue-700"]:hover,
+html[data-theme="ember"] .hover\:bg-blue-800:hover,
+html[data-theme="ember"] .hover\:bg-blue-700:hover,
+html[data-theme="ember"] :is(button, a, input[type="submit"], .btn-primary):is(.bg-blue-700, .bg-blue-800, .bg-blue-900, .bg-indigo-700, .bg-sky-700)[class*="bg-"]:hover {
+    background: var(--ember-button-quiet) !important;
+}
+html[data-theme="ember"] .reference-light-button { background: #fff; color: var(--brand-navy); }
+html[data-theme="ember"] .reference-light-button:hover { background: var(--surface-muted); }
+html[data-theme="ember"] .identity-button-white { background: #fff; color: var(--brand-ink); }
+html[data-theme="ember"] .btn-soft,
+html[data-theme="ember"] .reference-home-hero .btn-soft { background: var(--surface-muted); color: var(--brand-navy); }
+html[data-theme="ember"] .btn-outline:hover { background: var(--surface-muted); color: var(--brand-navy-strong); }
+html[data-theme="ember"] .reference-drawer-close { background: var(--surface-muted); color: var(--brand-ink); }
+
+/* Circular service icons, avatars and stat tiles. */
+html[data-theme="ember"] .identity-icon,
+html[data-theme="ember"] .reference-tile-icon,
+html[data-theme="ember"] .reference-wallet-icon,
+html[data-theme="ember"] img.reference-avatar,
+html[data-theme="ember"] .avatar-picker-target { background: var(--ember-icon); color: #fff; }
+html[data-theme="ember"] .avatar-picker-target { border-color: var(--brand-line); }
+html[data-theme="ember"] .app-balance-card,
+html[data-theme="ember"] .reference-summary-blue { background: linear-gradient(180deg, #2a5c9e 0%, #b4540f 138%); border-color: transparent; }
+html[data-theme="ember"] .reference-progress { border-color: rgba(255, 255, 255, .42); }
+
+/* Surfaces that were pale blue go warm cream instead. */
+html[data-theme="ember"] .app-soft-panel,
+html[data-theme="ember"] .app-section-muted,
+html[data-theme="ember"] .app-sidebar-surface,
+html[data-theme="ember"] .identity-other,
+html[data-theme="ember"] .nav-item-active,
+html[data-theme="ember"] .nav-item:hover,
+html[data-theme="ember"] .app-chip { background: var(--surface-muted); }
+html[data-theme="ember"] .app-chip,
+html[data-theme="ember"] .reference-guest-drawer a { color: var(--brand-navy); }
+html[data-theme="ember"] .reference-guest-drawer a { border-bottom-color: var(--brand-line); }
+html[data-theme="ember"] .identity-status { background: var(--surface-deep); color: var(--brand-muted); }
+html[data-theme="ember"] .identity-status-ready { background: #fbeadb; color: var(--brand-accent); }
+html[data-theme="ember"] .identity-eyebrow { color: #ffcf9a; }
+
+/* Cards and inputs keep white paper but take warm edges. */
+html[data-theme="ember"] .app-glass-card,
+html[data-theme="ember"] .app-section,
+html[data-theme="ember"] .app-form-shell,
+html[data-theme="ember"] .app-form-card,
+html[data-theme="ember"] .app-service-card,
+html[data-theme="ember"] .app-stat,
+html[data-theme="ember"] .reference-service-tile,
+html[data-theme="ember"] .reference-summary-card,
+html[data-theme="ember"] .identity-tile,
+html[data-theme="ember"] .reference-home-quick,
+html[data-theme="ember"] .reference-recent,
+html[data-theme="ember"] .nav-item { border-color: var(--brand-line); }
+
+/* Headings stay blue; only the muted greys pick up a warm cast. */
+html[data-theme="ember"] .reference-section-title,
+html[data-theme="ember"] .identity-section-heading h2,
+html[data-theme="ember"] .identity-other h2,
+html[data-theme="ember"] .identity-tile strong,
+html[data-theme="ember"] .reference-form-heading,
+html[data-theme="ember"] .reference-guide-page h2,
+html[data-theme="ember"] .reference-flow-page > :first-child :is(h1, h2),
+html[data-theme="ember"] .reference-auth-page .app-form-shell h1,
+html[data-theme="ember"] .reference-auth-page .app-form-shell a:not(.btn-primary),
+html[data-theme="ember"] .reference-recent > div a,
+html[data-theme="ember"] .identity-other-links a,
+html[data-theme="ember"] .reference-flow-page #amountToPay { color: var(--brand-navy); }
+html[data-theme="ember"] .reference-service-tile,
+html[data-theme="ember"] .reference-order-row span { color: #3b3229; }
+html[data-theme="ember"] .input-field { color: var(--brand-text); }
+html[data-theme="ember"] .identity-tile-action,
+html[data-theme="ember"] .identity-nav-label,
+html[data-theme="ember"] .reference-breadcrumb a:hover { color: var(--brand-accent); }
+html[data-theme="ember"] .legacy-themed-page input[type="checkbox"],
+html[data-theme="ember"] .admin-light-page input[type="checkbox"],
+html[data-theme="ember"] .reference-auth-page .app-form-shell input[type="checkbox"] { accent-color: var(--brand-accent); }
+
+/* The boot splash and the page loader follow the active skin. */
+html[data-theme="ember"] .reference-splash { background: radial-gradient(1100px 620px at 12% -8%, rgba(255, 255, 255, .12), transparent 60%), radial-gradient(900px 560px at 108% 14%, rgba(194, 92, 15, .5), transparent 55%), linear-gradient(160deg, #1e4a86 0%, #123059 52%, #6d3208 118%); }
+html[data-theme="ember"] .reference-loader-veil { background: linear-gradient(160deg, rgba(30, 74, 134, .9), rgba(109, 50, 8, .9)); }
+html[data-theme="ember"] .reference-auth-page { background: linear-gradient(180deg, rgba(18, 48, 92, .92), rgba(150, 68, 12, .82)) top/100% 165px no-repeat, #fbf6ef; }
+
+/* ==========================================================================
+   ADMIN OVERLAY NAVIGATION
+   A single floating handle on admin pages that opens a left panel: every admin
+   page plus the settings groups found on the page at runtime.
+   ========================================================================== */
+.admin-quick-nav-toggle {
+    position: fixed;
+    left: 1rem;
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    z-index: 70;
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .8rem 1.05rem;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(120deg, #173f74 0%, #22508c 58%, #b45012 142%);
+    color: white;
+    font-size: .82rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 12px 26px rgba(17, 45, 87, .3);
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+.admin-quick-nav-toggle svg { width: 1.1rem; height: 1.1rem; }
+.admin-quick-nav-toggle:hover { transform: translateY(-2px); box-shadow: 0 16px 30px rgba(17, 45, 87, .34); }
+.admin-quick-nav-toggle:active { transform: translateY(1px) scale(.984); }
+.admin-quick-nav-toggle:focus-visible { outline: 3px solid #c46617; outline-offset: 3px; }
+
+/* The settings page keeps its Save card in the same corner, so the handle lifts. */
+.admin-quick-nav.is-lifted .admin-quick-nav-toggle { bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 5.8rem); }
+@media (max-width: 640px) {
+    .admin-quick-nav.is-lifted .admin-quick-nav-toggle { bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 9.6rem); }
+}
+
+.admin-quick-nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 71;
+    background: rgba(8, 24, 46, .55);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .3s ease, visibility .3s ease;
+}
+.admin-quick-nav-panel {
+    position: fixed;
+    left: 0;
+    top: 64px;
+    bottom: 0;
+    z-index: 72;
+    display: flex;
+    flex-direction: column;
+    width: min(340px, 86vw);
+    background: #f7fafd;
+    box-shadow: 8px 0 30px rgba(5, 27, 61, .25);
+    transform: translateX(-102%);
+    visibility: hidden;
+    transition: transform .38s cubic-bezier(.22, .68, .32, 1), visibility .38s ease;
+}
+.admin-quick-nav.is-open .admin-quick-nav-backdrop { opacity: 1; visibility: visible; }
+.admin-quick-nav.is-open .admin-quick-nav-panel { transform: translateX(0); visibility: visible; }
+
+.admin-quick-nav-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: 1rem 1.1rem .5rem; }
+.admin-quick-nav-title { font-size: 1.02rem; font-weight: 800; color: #173f74; }
+.admin-quick-nav-close {
+    display: grid;
+    place-items: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border: 1px solid #dbe5f2;
+    border-radius: 14px;
+    background: white;
+    color: #173f74;
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.admin-quick-nav-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: .2rem .8rem 1.6rem; }
+.admin-quick-nav-heading { margin: .9rem .35rem .35rem; font-size: .68rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #7d8da5; }
+.admin-quick-nav-list { display: grid; gap: .3rem; }
+.admin-quick-nav-link {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .72rem .85rem;
+    border: 1px solid #e4ebf5;
+    border-radius: 14px;
+    background: white;
+    color: #1b3557;
+    font-size: .86rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: background-color .2s ease, transform .2s ease;
+}
+.admin-quick-nav-link:hover { background: #eaf1ff; transform: translateX(2px); }
+.admin-quick-nav-link.is-active { border-color: #173f74; background: #173f74; color: white; }
+.admin-quick-nav-link > span:first-child { flex: 1; }
+.admin-quick-nav-exit { margin-top: 1.1rem; justify-content: center; }
+
+/* Pending volume for the manual identity queue, so the admin knows before
+   opening the page whether work is waiting on them. */
+.admin-quick-nav-count {
+    min-width: 1.75rem;
+    padding: .15rem .5rem;
+    border-radius: 999px;
+    background: #b42318;
+    color: white;
+    font-size: .72rem;
+    font-weight: 800;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.admin-quick-nav-link.is-active .admin-quick-nav-count { background: white; color: #b42318; }
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-quick-nav-toggle, .admin-quick-nav-link, .admin-quick-nav-panel, .admin-quick-nav-backdrop { transition: none; }
+    .admin-quick-nav-toggle:hover, .admin-quick-nav-link:hover { transform: none; }
+}
+
+/* Buttons that sit inside the blue summary card need a filled face, or white
+   label text would disappear against the card. */
+.reference-summary-blue .reference-light-button { background: #b45012; color: white; border-radius: .55rem; }
+.reference-summary-blue .reference-light-button:hover { background: #c4661a; color: white; }
+/* In Ember the shared loader-blue gradient face wins, so only the label is pinned. */
+html[data-theme="ember"] .reference-summary-blue .reference-light-button,
+html[data-theme="ember"] .reference-summary-blue .reference-light-button:hover { color: white; }
+html[data-theme="ember"] .admin-quick-nav-toggle,
+html[data-theme="ember"] .admin-quick-nav-link.is-active { background: var(--ember-button); }
+html[data-theme="ember"] .admin-quick-nav-panel { background: #fbf6ef; }
+html[data-theme="ember"] .admin-quick-nav-title { color: var(--brand-navy); }
+html[data-theme="ember"] .admin-quick-nav-heading { color: #97806c; }
+html[data-theme="ember"] .admin-quick-nav-close { border-color: var(--brand-line); color: var(--brand-navy); }
+html[data-theme="ember"] .admin-quick-nav-link { border-color: var(--brand-line); background: white; color: var(--brand-navy); }
+html[data-theme="ember"] .admin-quick-nav-link:hover { background: var(--surface-muted); }
+html[data-theme="ember"] .admin-quick-nav-link.is-active { border-color: transparent; color: white; }
+
+/* Popups follow the active skin. Without these a modal stays cool-white while the
+   whole page around it has gone warm. */
+html[data-theme="ember"] .app-modal-overlay { background: rgba(38, 26, 16, 0.55); }
+html[data-theme="ember"] .app-modal-panel {
+    background:
+        radial-gradient(circle at top right, rgba(194, 92, 15, 0.16), transparent 32%),
+        linear-gradient(180deg, var(--surface-soft) 0%, var(--surface-base) 100%);
+}
+html[data-theme="ember"] .app-modal-btn { box-shadow: 0 10px 20px rgba(88, 52, 18, 0.12); }
+html[data-theme="ember"] .app-modal-btn-warm,
+html[data-theme="ember"] .app-modal-btn-primary { background: var(--ember-button); }
+html[data-theme="ember"] .app-modal-btn-warm:hover,
+html[data-theme="ember"] .app-modal-btn-primary:hover { background: var(--ember-button-quiet); }
+html[data-theme="ember"] .app-modal-btn-muted,
+html[data-theme="ember"] .app-modal-close { background: var(--surface-card); }
+
+/* Wallet ledger rows on a phone. The shared record card breaks long tokens on
+   purpose, which is exactly wrong for an amount, a status badge or a date, so
+   these undo it for the money list where every line has to stay whole. */
+.app-record-card > .app-ledger-head {
+    align-items: baseline;
+    gap: 0.75rem;
+}
+
+.app-ledger-amount {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: normal;
+    white-space: nowrap;
+    word-break: normal;
+}
+
+.app-ledger-status {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    flex: none;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    overflow-wrap: normal;
+    padding: 0.38rem 0.62rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.app-ledger-success {
+    background: #e6f6ee;
+    color: #12674a;
+}
+
+.app-ledger-failed {
+    background: #fbe9e9;
+    color: #96201d;
+}
+
+.app-ledger-pending {
+    background: #fdf2dd;
+    color: #8a5a12;
+}
+
+.app-ledger-ref {
+    color: #74849a;
+    font-size: 0.72rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+/* ── Records history block ───────────────────────────────────────────────
+   Mirrors the provider's own transaction screens: a "Total Record(n) - page x
+   of y" heading beside a search box and page-size select, a flat table whose
+   first cell is a "+" that opens the rest of the row, coloured status badges
+   and an em dash wherever a value has not arrived yet. */
+.records-panel {
+    border: 1px solid #dfe5ee;
+    border-radius: .6rem;
+    background: #fff;
+    box-shadow: 0 5px 17px rgba(13,39,79,.06);
+    overflow: hidden;
+}
+
+.records-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .8rem 1rem;
+    border-bottom: 1px solid #e6ebf3;
+    background: #f7f9fd;
+}
+
+.records-count { color: #213b62; font-size: .86rem; font-weight: 800; }
+.records-count-page { color: #6b7c95; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+.records-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+
+.records-search,
+.records-select,
+.records-search-button {
+    min-height: 38px;
+    border: 1px solid #cbd6e4;
+    border-radius: .4rem;
+    background: #fff;
+    color: #1b2b44;
+    font-size: .82rem;
+}
+
+.records-search { width: clamp(170px, 38vw, 260px); padding: .35rem .6rem; }
+.records-search::placeholder { color: #93a1b5; }
+.records-size { display: inline-flex; align-items: center; gap: .35rem; color: #617189; font-size: .78rem; font-weight: 700; }
+.records-select { padding: .25rem .45rem; }
+.records-search-button { padding: .3rem .9rem; font-weight: 800; color: #173f74; }
+.records-search-button:hover { background: #eaf1ff; }
+
+.records-table-wrap { display: none; overflow-x: auto; }
+
+.records-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .82rem;
+    color: #33445e;
+    font-variant-numeric: tabular-nums;
+}
+
+.records-table th {
+    text-align: left;
+    padding: .7rem .75rem;
+    border-bottom: 1px solid #dfe5ee;
+    background: #fbfcfe;
+    color: #69788d;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.records-table td {
+    padding: .72rem .75rem;
+    border-bottom: 1px solid #edf1f6;
+    vertical-align: middle;
+    overflow-wrap: anywhere;
+}
+
+.records-cell-toggle { width: 2.4rem; text-align: center; }
+
+.records-expand {
+    display: inline-grid;
+    place-items: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    border: 1px solid #cbd6e4;
+    border-radius: 50%;
+    background: #fff;
+    color: #173f74;
+    font-size: .95rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.records-expand:hover { background: #eaf1ff; border-color: #b9cbe8; }
+.records-cell-strong { color: #1b2b44; font-weight: 800; }
+.records-note { display: block; color: #7c8aa0; font-size: .72rem; font-weight: 600; }
+.records-detail-row > td { background: #f8fafd; padding-bottom: .9rem; padding-top: .1rem; }
+
+.records-detail {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: .4rem 1.1rem;
+    padding-top: .5rem;
+}
+
+.records-detail-label {
+    display: block;
+    color: #7c8aa0;
+    font-size: .64rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.records-detail-value {
+    display: block;
+    margin-top: .15rem;
+    color: #25354b;
+    font-size: .82rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.records-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: .6rem;
+    padding: .45rem .95rem;
+    border-radius: .4rem;
+    background: #173f74;
+    color: #fff !important;
+    font-size: .76rem;
+    font-weight: 800;
+}
+
+.records-action:hover { background: #225697; }
+.records-action-block { width: 100%; }
+.records-empty { color: #6b7c95; font-size: .82rem; }
+
+/* Status blocks are the provider's green, red and grey badges. */
+.records-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: .3rem;
+    padding: .3rem .6rem;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.records-badge-success { background: #d4edda; color: #155724; }
+.records-badge-danger { background: #f8d7da; color: #721c24; }
+.records-badge-warning { background: #fff3cd; color: #856404; }
+.records-badge-info { background: #e2e3e5; color: #383d41; }
+
+.records-cards { display: grid; gap: .6rem; padding: .75rem; }
+
+.records-card {
+    border: 1px solid #e2e8f0;
+    border-radius: .5rem;
+    background: #fff;
+    padding: .7rem .8rem;
+    box-shadow: 0 3px 10px rgba(25,50,85,.05);
+}
+
+.records-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .6rem; }
+.records-card-lines { display: grid; gap: .2rem; min-width: 0; }
+.records-card-line { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.records-card-label { color: #7c8aa0; font-size: .62rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.records-card-value { color: #25354b; font-size: .85rem; font-weight: 700; overflow-wrap: anywhere; }
+.records-card .records-detail { grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid #edf1f6; margin-top: .6rem; }
+.records-empty-card { border: 1px dashed #d6deea; border-radius: .5rem; background: #f8fafd; padding: .9rem; color: #6b7c95; font-size: .82rem; }
+
+/* One markup, two shapes: the flat table from 768px up, the "+" cards below it.
+   Written here rather than as utility classes so nothing can out-order it. */
+@media (min-width: 768px) {
+    .records-table-wrap { display: block; }
+    .records-cards { display: none; }
+}
+
+@media (max-width: 767px) {
+    .records-toolbar { padding: .7rem .8rem; }
+    .records-tools { width: 100%; }
+    .records-search { flex: 1 1 150px; width: auto; }
+    .records-expand { min-width: 1.7rem; min-height: 1.7rem; }
+    .records-card-label { font-size: .58rem; }
+    .records-card-value { font-size: .8rem; }
+    .records-badge { font-size: .62rem; padding: .26rem .5rem; }
+}
+
+/* ── Service request form ─────────────────────────────────────────────────
+   The provider's data-entry screens: one card, a centred icon over the name of
+   the job, heavy labels sitting above full-width boxes, the price stated as a
+   red line once the fields are filled, a caution block under the form, and
+   Previous beside Submit. */
+.service-form-head { text-align: center; padding-bottom: .3rem; }
+
+.service-form-icon {
+    display: grid;
+    place-items: center;
+    width: 3.6rem;
+    height: 3.6rem;
+    margin: 0 auto .6rem;
+    border-radius: 50%;
+    background: #eaf1fc;
+    color: #173f74;
+    font-size: 1.5rem;
+}
+
+.service-form-title { color: #173f74; font-size: clamp(1.15rem, 2.2vw, 1.4rem); font-weight: 800; }
+.service-form-body { display: grid; gap: 1.05rem; margin-top: 1.1rem; }
+.service-form-label { display: block; margin-bottom: .4rem; color: #25354b; font-size: 1.02rem; font-weight: 800; }
+.service-form-required { color: #d9363e; }
+.service-form-hint { margin-top: .35rem; color: #74849a; font-size: .76rem; line-height: 1.45; }
+
+.service-form-cost {
+    margin-top: .3rem;
+    color: #d9363e;
+    font-size: .95rem;
+    font-weight: 800;
+}
+
+.service-form-alert {
+    border: 1px solid;
+    border-radius: .5rem;
+    padding: .8rem .95rem;
+    font-size: .82rem;
+    line-height: 1.6;
+}
+
+.service-form-alert-warning { border-color: #f3ddae; background: #fdf6e6; color: #7a5410; }
+.service-form-alert-danger { border-color: #f2c4c6; background: #fdecec; color: #8f1f22; }
+.service-form-alert a { text-decoration: underline; }
+
+.service-form-actions { display: flex; align-items: stretch; gap: .7rem; margin-top: .3rem; }
+.service-form-actions .btn-primary { flex: 1 1 auto; justify-content: center; }
+.service-form-actions .reference-quiet-button { flex: 0 0 auto; min-height: 44px; }
+
+@media (max-width: 767px) {
+    .service-form-label { font-size: .98rem; }
+    .service-form-actions { flex-wrap: wrap; }
+    .service-form-actions .reference-quiet-button { flex: 1 1 100%; justify-content: center; }
+}
+
+/* ==========================================================================
+   OUTAGE STRIP — the robot that reads out every service the provider or the
+   owner has taken off the shelf. It stays in the page for the whole visit,
+   because an alert that fades away is an alert nobody saw.
+   ========================================================================== */
+.svc-outage { display: flex; align-items: flex-start; gap: .7rem; padding: .85rem .95rem; border: 1px solid #f0d5b4; border-left: 4px solid #c46617; border-radius: .6rem; background: #fdf4e9; color: #7a3a0d; }
+.svc-outage.hidden { display: none; }
+.svc-outage-robot { flex: none; display: grid; place-items: center; width: 2.1rem; height: 2.1rem; border-radius: .6rem; background: rgba(196, 102, 23, .13); color: #8f4410; }
+.svc-outage-robot svg { width: 1.4rem; height: 1.4rem; }
+.svc-outage-copy { min-width: 0; }
+.svc-outage-copy strong { display: block; font-size: .8rem; font-weight: 850; letter-spacing: -.01em; }
+.svc-outage-copy p { margin-top: .15rem; font-size: .82rem; line-height: 1.6; }
+.svc-outage-chips { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .5rem; }
+.svc-outage-chips:empty { display: none; }
+.svc-outage-chip { padding: .2rem .55rem; border-radius: 999px; border: 1px solid #ecc9a0; background: #fff; color: #8f4410; font-size: .72rem; font-weight: 800; }
+.svc-outage-chip.is-arriving { animation: svcOutageIn .35s ease; }
+@keyframes svcOutageIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .svc-outage-chip.is-arriving { animation: none; } }

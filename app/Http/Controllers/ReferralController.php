@@ -9,19 +9,94 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\View\View;
 
 class ReferralController extends Controller
 {
+    private const REFERRAL_CHANNELS = ['referral_commission', 'referral_withdrawal'];
+
+    /** Service types the admin can price commission for => customer-facing label. */
+    private const RATE_LABELS = [
+        'airtime' => 'Airtime',
+        'data' => 'Data',
+        'cable' => 'TV / Cable',
+        'electricity' => 'Electricity',
+        'exam' => 'Education / Exam PIN',
+        'recharge_card' => 'Recharge PIN',
+        'premium' => 'Premium Apps',
+    ];
+
     public function visit(Request $request, string $code): RedirectResponse
     {
         $normalized = strtoupper(trim($code));
-        if ($normalized !== '') {
-            $request->session()->put('referral_code', $normalized);
+        $referrerExists = $normalized !== '' && User::query()->where('referral_code', $normalized)->exists();
+
+        if (!$referrerExists) {
+            return redirect()->route('register')->withErrors([
+                'ref' => 'That referral code is not valid.',
+            ]);
         }
+
+        $request->session()->put('referral_code', $normalized);
 
         return redirect()
             ->route('register', ['ref' => $normalized])
             ->with('success', 'Referral code applied. Complete registration to continue.');
+    }
+
+    public function index(Request $request): View
+    {
+        $user = $request->user();
+        $code = $user->ensureReferralCode();
+
+        $invited = User::query()
+            ->where('referred_by_user_id', $user->id)
+            ->orderByDesc('created_at')
+            ->get(['id', 'first_name', 'last_name', 'name', 'phone', 'referral_qualified_at', 'created_at']);
+
+        $activity = $user->notifications()
+            ->latest()
+            ->get()
+            ->filter(fn ($notification) => in_array(
+                (string) ($notification->data['channel'] ?? ''),
+                self::REFERRAL_CHANNELS,
+                true
+            ))
+            ->take(20)
+            ->map(fn ($notification) => [
+                'label' => (string) ($notification->data['title'] ?? 'Referral activity'),
+                'message' => (string) ($notification->data['message'] ?? ''),
+                'amount_kobo' => (int) ($notification->data['amount_kobo'] ?? 0),
+                'is_credit' => ($notification->data['channel'] ?? '') === 'referral_commission',
+                'at' => $notification->created_at,
+            ]);
+
+        $defaultPercent = (float) setting('referral_default_percent', 1);
+        $serviceRates = collect(self::RATE_LABELS)
+            ->map(fn (string $label, string $type) => [
+                'label' => $label,
+                'percent' => (float) setting('referral_percent_' . $type, $defaultPercent),
+                'enabled' => (string) setting('referral_enabled_' . $type, '1') === '1',
+            ])
+            ->filter(fn (array $rate) => $rate['enabled'] && $rate['percent'] > 0)
+            ->values()
+            ->all();
+
+        return view('referral.index', [
+            'user' => $user,
+            'referralCode' => $code,
+            'referralLink' => $user->referralLink(),
+            'whatsAppShareLink' => $this->shareLink($user->referralLink(), $user->first_name ?: $user->name),
+            'balanceKobo' => (int) ($user->referral_earnings_balance ?? 0),
+            'totalKobo' => (int) ($user->referral_earnings_total ?? 0),
+            'withdrawnKobo' => (int) ($user->referral_earnings_withdrawn ?? 0),
+            'invitedCount' => $invited->count(),
+            'qualifiedCount' => $invited->whereNotNull('referral_qualified_at')->count(),
+            'invitedUsers' => $invited->take(12),
+            'activity' => $activity,
+            'serviceRates' => $serviceRates,
+            'systemEnabled' => (string) setting('referral_system_enabled', '1') === '1',
+        ]);
     }
 
     public function generate(Request $request): RedirectResponse
@@ -31,10 +106,7 @@ class ReferralController extends Controller
             return back()->with('error', 'User not found.');
         }
 
-        if (trim((string) $user->referral_code) === '') {
-            $user->referral_code = $this->generateUniqueReferralCode();
-            $user->save();
-        }
+        $user->ensureReferralCode();
 
         return back()->with('success', 'Referral link generated successfully.');
     }
@@ -66,7 +138,7 @@ class ReferralController extends Controller
 
                 $availableKobo = (int) ($lockedUser->referral_earnings_balance ?? 0);
                 if ($availableKobo < $amountKobo) {
-                    throw new \RuntimeException('Insufficient referral earnings balance.');
+                    throw new \RuntimeException('You do not have that much in referral earnings.');
                 }
 
                 $lockedUser->referral_earnings_balance = $availableKobo - $amountKobo;
@@ -118,13 +190,11 @@ class ReferralController extends Controller
         return back()->with('success', 'Referral earnings withdrawn to wallet successfully.');
     }
 
-    private function generateUniqueReferralCode(): string
+    private function shareLink(string $referralLink, string $firstName): string
     {
-        do {
-            $candidate = Str::upper(Str::random(8));
-        } while (User::query()->where('referral_code', $candidate)->exists());
+        $message = 'Hi ' . trim($firstName) . ", join me on BelovedSubP and get airtime, data, TV and electricity bills at a discount. Use my link: " . $referralLink;
 
-        return $candidate;
+        return 'https://wa.me/?text=' . rawurlencode($message);
     }
 
     private function generateUniqueWalletReference(): string

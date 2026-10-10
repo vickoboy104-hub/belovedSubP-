@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class BvnApi
 {
@@ -18,7 +19,15 @@ class BvnApi
     public function __construct()
     {
         $configuredKey = trim((string) setting('bvn_api_key', ''));
-        $this->apiKey = $configuredKey !== '' ? $configuredKey : trim((string) config('services.bvn.key', ''));
+        if ($configuredKey === '') {
+            // ConfirmIdent issues one key per account for all four endpoints, so an empty
+            // BVN field means "reuse the NIN key", not "BVN is not configured".
+            $configuredKey = trim((string) setting('nin_api_key', ''));
+        }
+
+        $this->apiKey = $configuredKey !== ''
+            ? $configuredKey
+            : (trim((string) config('services.bvn.key', '')) ?: trim((string) config('services.nin.key', '')));
 
         $configuredBase = trim((string) setting('bvn_base_url', ''));
         $fallbackBase = trim((string) config('services.bvn.base', 'https://confirmident.com.ng/api'));
@@ -177,17 +186,44 @@ class BvnApi
                 'raw' => $json,
             ];
         } catch (ConnectionException $e) {
+            Log::warning('BVN provider connection failed', [
+                'method' => strtoupper($method),
+                'url' => $url,
+                'payload_keys' => array_keys($payload),
+                'error' => $e->getMessage(),
+            ]);
+
             return [
                 'success' => false,
                 'message' => 'Could not connect to BVN provider.',
                 'error' => $e->getMessage(),
             ];
         } catch (RequestException $e) {
+            $providerResponse = optional($e->response)->json();
+            $providerMessage = '';
+
+            if (is_array($providerResponse)) {
+                $providerMessage = trim((string) ($providerResponse['message'] ?? $providerResponse['error'] ?? ''));
+            }
+
+            // A rejected HTTP status still carries the provider's own reason, and
+            // that reason is the only thing separating an outage from a wrong
+            // number from an exhausted provider wallet.
+            Log::warning('BVN provider request failed', [
+                'method' => strtoupper($method),
+                'url' => $url,
+                'status' => optional($e->response)->status(),
+                'payload_keys' => array_keys($payload),
+                'provider_response' => $providerResponse,
+                'error' => $e->getMessage(),
+            ]);
+
             return [
                 'success' => false,
-                'message' => 'BVN provider request failed.',
+                'message' => $providerMessage !== '' ? $providerMessage : 'BVN provider request failed.',
                 'error' => $e->getMessage(),
-                'response' => optional($e->response)->json(),
+                'response' => $providerResponse,
+                'status' => optional($e->response)->status(),
             ];
         }
     }

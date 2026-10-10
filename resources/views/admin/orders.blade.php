@@ -1,11 +1,9 @@
 <x-app-layout>
-    <div class="mx-auto max-w-6xl space-y-6">
-        <section class="app-section p-6 sm:p-8">
-            <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">All Orders</h1>
-            <p class="app-page-subtitle">View, search and monitor all transactions.</p>
-            <div class="app-divider mt-4"></div>
+    <x-page-hero class="reference-shared-banner" title="All Orders" subtitle="View, search and monitor every transaction." />
 
-            <form method="GET" class="mt-6 grid grid-cols-1 gap-3 md:grid-cols-4">
+    <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
+        <section class="app-section p-6 sm:p-8">
+            <form method="GET" class="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <input
                     type="text"
                     name="search"
@@ -91,6 +89,12 @@
                                 <div class="app-record-value">{{ $o->created_at->format('d M Y, h:i A') }}</div>
                             </div>
                         </div>
+
+                        @if(in_array((string) ($meta['type'] ?? ''), ['exam', 'electricity'], true))
+                            <a href="{{ route('admin.orders.keys', $o->id) }}" class="btn-outline mt-3 w-full justify-center">
+                                {{ \App\Support\IssuedKeys::forOrder($o) !== [] ? 'View issued keys' : 'Issue keys' }}
+                            </a>
+                        @endif
                     </article>
                 @empty
                     <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No orders found.</div>
@@ -110,6 +114,7 @@
                             <th class="p-4 text-left">Status</th>
                             <th class="p-4 text-left">Provider Ref</th>
                             <th class="p-4 text-left">Date</th>
+                            <th class="p-4 text-left">Keys</th>
                         </tr>
                     </thead>
 
@@ -149,6 +154,16 @@
                                 </td>
                                 <td class="p-4 text-xs text-slate-500">{{ $o->provider_reference ?? '-' }}</td>
                                 <td class="p-4">{{ $o->created_at->format('d M Y, h:i A') }}</td>
+                                <td class="p-4">
+                                    @if(in_array((string) ($meta['type'] ?? ''), ['exam', 'electricity'], true))
+                                        <a href="{{ route('admin.orders.keys', $o->id) }}"
+                                           class="text-xs font-bold text-emerald-700 hover:text-emerald-800">
+                                            {{ \App\Support\IssuedKeys::forOrder($o) !== [] ? 'Issued' : 'Issue keys' }}
+                                        </a>
+                                    @else
+                                        <span class="text-xs text-slate-400">-</span>
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>

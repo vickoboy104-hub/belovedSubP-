@@ -2,6 +2,36 @@ import './bootstrap';
 
 import Alpine from 'alpinejs';
 
+// The Battery Status API is available only in some secure-context browsers.
+// Never show a guessed percentage when the device declines to expose it.
+async function showDeviceBattery() {
+    const badges = document.querySelectorAll('[data-device-battery]');
+    if (!badges.length) return;
+
+    const setText = (value) => badges.forEach((badge) => { badge.textContent = value; });
+    if (!window.isSecureContext || typeof navigator.getBattery !== 'function') {
+        setText('Battery unavailable');
+        return;
+    }
+
+    try {
+        const battery = await navigator.getBattery();
+        const refresh = () => {
+            const level = Number(battery.level);
+            setText(Number.isFinite(level) && level >= 0 && level <= 1
+                ? `▰ ${Math.round(level * 100)}%${battery.charging ? ' · Charging' : ''}`
+                : 'Battery unavailable');
+        };
+        refresh();
+        battery.addEventListener('levelchange', refresh);
+        battery.addEventListener('chargingchange', refresh);
+    } catch (_error) {
+        setText('Battery unavailable');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', showDeviceBattery);
+
 window.Alpine = Alpine;
 document.body.classList.add('page-is-entering');
 
@@ -16,15 +46,154 @@ document.body.classList.add('page-is-entering');
 
 
 // ==============================
+// BOOT SPLASH
+// ==============================
+(function () {
+    // The markup adds .splash-active before first paint; this is the only thing
+    // that takes it away, so it also runs on a timer in case 'load' never fires.
+    const html = document.documentElement;
+    let dismissed = false;
+
+    const dismiss = () => {
+        if (dismissed) return;
+        dismissed = true;
+        clearTimeout(failSafe);
+        window.removeEventListener('load', dismiss);
+        html.classList.remove('splash-active');
+    };
+
+    const failSafe = setTimeout(dismiss, 2500);
+
+    if (document.readyState === 'complete') {
+        dismiss();
+    } else {
+        window.addEventListener('load', dismiss);
+    }
+})();
+
+
+// ==============================
+// HERO GREETING
+// ==============================
+(function () {
+    // The dashboard says "Welcome back" the moment you land, then settles into
+    // the time of day. Only the arrival copy is server rendered.
+    const el = document.querySelector('[data-hero-greeting]');
+    if (!el) return;
+
+    const name = (el.dataset.heroGreeting || '').trim();
+    if (!name) return;
+
+    const phrase = (hour) => {
+        if (hour >= 5 && hour < 12) return 'Good morning';
+        if (hour >= 12 && hour < 17) return 'Good afternoon';
+        return 'Good evening';
+    };
+
+    setTimeout(() => {
+        el.textContent = `${phrase(new Date().getHours())}, ${name}`;
+        el.classList.add('is-swapped');
+    }, 10000);
+})();
+
+
+// ==============================
+// SCROLL REVEALS
+// ==============================
+(function () {
+    const html = document.documentElement;
+
+    if (!('IntersectionObserver' in window) ||
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return;
+    }
+
+    // Only the grids of repeated cards, so long lists stay readable and the
+    // page never looks like it is still arriving.
+    const cards = '.reference-summary-card, .reference-service-tile, .identity-tile, .app-service-card, .reference-order-row';
+    const targets = Array.prototype.slice.call(document.querySelectorAll(cards), 0, 30);
+    if (targets.length < 2) return;
+
+    html.classList.add('motion-ready');
+
+    targets.forEach((el, index) => {
+        el.style.setProperty('--motion-delay', Math.min(index * 55, 330) + 'ms');
+        el.setAttribute('data-motion', 'reveal');
+    });
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            entry.target.classList.add('is-revealed');
+            observer.unobserve(entry.target);
+        });
+    }, { rootMargin: '0px 0px -4% 0px', threshold: 0.06 });
+
+    targets.forEach((el) => observer.observe(el));
+
+    // A backgrounded tab never reports an intersection, so anything already on
+    // screen is released on a timer rather than staying invisible.
+    setTimeout(() => {
+        const view = window.innerHeight || 800;
+        targets.forEach((el) => {
+            if (el.classList.contains('is-revealed')) return;
+            if (el.getBoundingClientRect().top < view) el.classList.add('is-revealed');
+        });
+    }, 1200);
+})();
+
+
+// ==============================
+// MONEY COUNT-UP
+// ==============================
+(function () {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const figures = Array.prototype.slice.call(document.querySelectorAll('.reference-money'), 0, 4);
+
+    const animate = (el) => {
+        const original = el.textContent;
+        const match = original.match(/^([^\d]*)([\d,]+(?:\.\d+)?)(.*)$/s);
+        if (!match) return;
+
+        const value = parseFloat(match[2].replace(/,/g, ''));
+        if (!isFinite(value) || value < 1) return;
+
+        const decimals = (match[2].split('.')[1] || '').length;
+        const started = performance.now();
+        const duration = 850;
+
+        const step = (now) => {
+            const progress = Math.min((now - started) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const current = (value * eased).toFixed(decimals);
+            el.textContent = match[1] + Number(current).toLocaleString('en-NG', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals,
+            }) + match[3];
+
+            if (progress < 1) {
+                requestAnimationFrame(step);
+            } else {
+                el.textContent = original;
+            }
+        };
+
+        requestAnimationFrame(step);
+    };
+
+    figures.forEach(animate);
+})();
+
+
+// ==============================
 // VIEWPORT LAYERS
 // ==============================
 (function () {
     const layerSelector = [
         '#globalLoader',
         '#ninPopupOverlay',
-        '#flashToast',
-        '#transactionResultOverlay',
-        '#transactionContinueOverlay',
+        '#appDialog',
         '#maintenanceOverlay',
         '.page-save-overlay',
         '[id$="_overlay"]',
@@ -217,6 +386,52 @@ document.body.classList.add('page-is-entering');
 })();
 
 // ==============================
+// FORM SUBMIT FEEDBACK
+// ==============================
+// Locks a form to one submission so a double tap cannot send two wallet or bill
+// payments, and shows a spinner on the button that was pressed.
+(function () {
+    const LOCK = 'data-submit-locked';
+
+    const release = (form) => {
+        if (!form || !form.hasAttribute(LOCK)) return;
+        form.removeAttribute(LOCK);
+        form.querySelectorAll('.btn-loading').forEach((button) => {
+            button.classList.remove('btn-loading');
+            button.removeAttribute('aria-busy');
+        });
+    };
+
+    const releaseAll = () => {
+        document.querySelectorAll('form[' + LOCK + ']').forEach(release);
+    };
+
+    document.addEventListener('submit', (event) => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement)) return;
+
+        // A page script owns this submission (fetch/Ajax); it manages its own state.
+        if (event.defaultPrevented) return;
+
+        if (form.hasAttribute(LOCK)) {
+            event.preventDefault();
+            return;
+        }
+
+        const submitter = event.submitter;
+        if (!(submitter instanceof HTMLButtonElement) && !(submitter instanceof HTMLInputElement)) return;
+
+        form.setAttribute(LOCK, '1');
+        submitter.classList.add('btn-loading');
+        submitter.setAttribute('aria-busy', 'true');
+    });
+
+    // Back/forward cache restores the page with the button still spinning.
+    window.addEventListener('pageshow', releaseAll);
+    window.addEventListener('pagehide', releaseAll);
+})();
+
+// ==============================
 // CONTACT PICKER
 // ==============================
 (function () {
@@ -274,7 +489,7 @@ document.body.classList.add('page-is-entering');
 
         if (supported) {
             button.classList.remove('hidden');
-            button.classList.add('inline-flex');
+            button.classList.add('is-available');
         }
 
         button.addEventListener('click', async () => {
@@ -335,6 +550,69 @@ document.body.classList.add('page-is-entering');
             subtree: true,
         });
     }
+})();
+
+// ==============================
+// SERVICE PAGES: LOCKED PRICE FIELD, CONSENT GATE, CARD SCAN
+// ==============================
+(function () {
+    const naira = (value) => {
+        const amount = Number(value);
+        if (!Number.isFinite(amount)) return '';
+        return '₦' + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    // SparkTech shows the price inside a disabled input that only appears once the
+    // choice which fixes it has been made, so the figure can never be read as an
+    // estimate. Call with null or an empty string to hide it again.
+    window.setPriceLock = function (id, amount, caption) {
+        const field = document.getElementById(id);
+        if (!field) return;
+
+        const wrapper = field.closest('[data-price-lock]') || field;
+        const text = naira(amount);
+
+        if (text === '') {
+            field.value = '';
+            wrapper.classList.add('hidden');
+            const note = wrapper.querySelector('[data-price-lock-caption]');
+            if (note) note.textContent = '';
+            return;
+        }
+
+        field.value = text;
+        wrapper.classList.remove('hidden');
+        const note = wrapper.querySelector('[data-price-lock-caption]');
+        if (note) note.textContent = caption || '';
+    };
+
+    // A gated service hides its whole form until the customer accepts the terms.
+    // Nothing is disabled part-way: the fields simply do not exist yet.
+    window.initConsentGate = function (root) {
+        const gate = root instanceof HTMLElement ? root : document.querySelector('[data-consent-gate]');
+        if (!gate) return;
+
+        const form = gate.querySelector('[data-consent-form]');
+        const agree = gate.querySelector('[data-consent-agree]');
+        const decline = gate.querySelector('[data-consent-decline]');
+        const scrollTarget = gate.getAttribute('data-consent-scroll');
+
+        if (form) form.classList.add('hidden');
+
+        agree?.addEventListener('click', function () {
+            if (form) form.classList.remove('hidden');
+            gate.querySelectorAll('[data-consent-terms]').forEach((panel) => panel.classList.add('hidden'));
+            if (scrollTarget) {
+                document.querySelector(scrollTarget)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+
+        decline?.addEventListener('click', function () {
+            if (form) form.classList.add('hidden');
+        });
+    };
+
+    document.querySelectorAll('[data-consent-gate]').forEach((gate) => window.initConsentGate(gate));
 })();
 
 // ==============================
@@ -473,10 +751,8 @@ document.body.classList.add('page-is-entering');
     function isBlockingUiVisible() {
         const selectors = [
             '#globalLoader',
-            '#flashToast',
+            '#appDialog',
             '#ninPopupOverlay',
-            '#transactionResultOverlay',
-            '#transactionContinueOverlay',
             '[id$="_overlay"]',
             '[aria-modal="true"]',
         ];
@@ -739,5 +1015,265 @@ document.body.classList.add('page-is-entering');
 
     scheduleGuide();
 })();
+
+Alpine.data('avatarPicker', ({ current = '', initials = '', name = 'Your' } = {}) => ({
+    current: current || '',
+    preview: current || '',
+    initials: initials || '',
+    name: name || 'Your',
+    fileName: '',
+    pick(file) {
+        if (!file) {
+            this.clear();
+            return;
+        }
+        if (this.preview.startsWith('blob:')) URL.revokeObjectURL(this.preview);
+        this.fileName = file.name;
+        this.preview = URL.createObjectURL(file);
+    },
+    clear() {
+        if (this.preview.startsWith('blob:')) URL.revokeObjectURL(this.preview);
+        this.fileName = '';
+        this.preview = this.current;
+        // The picker is used through an x-data expression, so Alpine's $el magic is
+        // not attached to `this`; the input is addressed directly.
+        document.getElementById('image').value = '';
+    },
+}));
+
+// ==============================
+// ADMIN OVERLAY NAVIGATION
+// ==============================
+(function () {
+    const root = document.getElementById('adminQuickNav');
+    if (!root) return;
+
+    const panel = root.querySelector('.admin-quick-nav-panel');
+    const toggle = root.querySelector('.admin-quick-nav-toggle');
+    const backdrop = root.querySelector('.admin-quick-nav-backdrop');
+    const closeBtn = root.querySelector('.admin-quick-nav-close');
+    const sectionHost = document.getElementById('adminQuickNavSections');
+    const sectionList = sectionHost ? sectionHost.querySelector('nav') : null;
+
+    function isOpen() {
+        return root.classList.contains('is-open');
+    }
+
+    function setOpen(open) {
+        root.classList.toggle('is-open', open);
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) {
+            panel.querySelector('a')?.focus({ preventScroll: true });
+        } else {
+            toggle.focus({ preventScroll: true });
+        }
+    }
+
+    toggle.addEventListener('click', () => setOpen(!isOpen()));
+    closeBtn.addEventListener('click', () => setOpen(false));
+    backdrop.addEventListener('click', () => setOpen(false));
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && isOpen()) setOpen(false);
+    });
+
+    // The settings list is read off the page itself, so adding a settings group
+    // never means keeping a second list of anchors in sync.
+    const sectionLinks = new Map();
+    if (sectionList) {
+        document.querySelectorAll('#adminSettingsForm [id^="group-"]').forEach((group) => {
+            if (group.classList.contains('hidden')) return;
+            const heading = group.querySelector('.text-lg.font-extrabold');
+            const label = (heading ? heading.textContent : group.id).trim();
+            if (!label) return;
+
+            const link = document.createElement('a');
+            link.href = '#' + group.id;
+            link.className = 'admin-quick-nav-link';
+
+            const text = document.createElement('span');
+            text.textContent = label;
+            link.appendChild(text);
+
+            link.addEventListener('click', () => setOpen(false));
+            sectionList.appendChild(link);
+            sectionLinks.set(group, link);
+        });
+
+        if (sectionList.childElementCount > 0) sectionHost.classList.remove('hidden');
+    }
+
+    function syncSections() {
+        sectionLinks.forEach((link, group) => {
+            link.style.display = group.style.display === 'none' ? 'none' : '';
+        });
+
+        let current = null;
+        sectionLinks.forEach((link) => {
+            if (link.style.display === 'none') return;
+            const group = document.querySelector(link.getAttribute('href'));
+            if (group && group.getBoundingClientRect().top <= 220) current = link;
+        });
+        sectionLinks.forEach((link) => link.classList.toggle('is-active', link === current));
+    }
+
+    let lastSync = 0;
+    window.addEventListener('scroll', () => {
+        const now = Date.now();
+        if (now - lastSync < 90) return;
+        lastSync = now;
+        syncSections();
+    }, { passive: true });
+
+    document.addEventListener('admin-settings-filtered', syncSections);
+    syncSections();
+})();
+
+/**
+ * One delegated handler so any view can offer a copy button with markup only.
+ * Falls back to execCommand because navigator.clipboard is unavailable over
+ * plain http on a LAN address, which is how most resellers reach this app.
+ */
+(function () {
+    function legacyCopy(text) {
+        const field = document.createElement('textarea');
+        field.value = text;
+        field.setAttribute('readonly', '');
+        field.style.position = 'fixed';
+        field.style.opacity = '0';
+        document.body.appendChild(field);
+        field.select();
+
+        let copied = false;
+        try {
+            copied = document.execCommand('copy');
+        } catch (error) {
+            copied = false;
+        }
+
+        document.body.removeChild(field);
+
+        return copied;
+    }
+
+    function flash(button) {
+        const label = button.dataset.copyLabel || button.textContent.trim();
+        const done = button.dataset.copyDone || 'Copied';
+
+        button.textContent = done;
+        button.disabled = true;
+        window.setTimeout(() => {
+            button.textContent = label;
+            button.disabled = false;
+        }, 1600);
+    }
+
+    document.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-copy-text]');
+        if (!button) return;
+
+        event.preventDefault();
+
+        const text = String(button.dataset.copyText || '').trim();
+        if (text === '') return;
+
+        let copied = false;
+        if (navigator.clipboard && window.isSecureContext) {
+            try {
+                await navigator.clipboard.writeText(text);
+                copied = true;
+            } catch (error) {
+                copied = false;
+            }
+        }
+
+        if (!copied) copied = legacyCopy(text);
+        if (copied) flash(button);
+    });
+})();
+
+// ==============================
+// HEADER ALERT TRAY
+// ==============================
+Alpine.data('notificationBell', (feedUrl, readUrl) => ({
+    feedUrl,
+    readUrl,
+    open: false,
+    loading: false,
+    unread: 0,
+    items: [],
+
+    init() {
+        this.refresh();
+
+        setInterval(() => {
+            if (!document.hidden) this.refresh();
+        }, 60000);
+
+        // Coming back to the tab is exactly when a person wants to know whether
+        // anything landed while they were away.
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) this.refresh();
+        });
+    },
+
+    get badge() {
+        return this.unread > 99 ? '99+' : String(this.unread);
+    },
+
+    toggle() {
+        this.open = !this.open;
+        if (this.open) this.refresh();
+    },
+
+    async refresh() {
+        if (this.loading) return;
+
+        this.loading = true;
+        try {
+            const response = await fetch(this.feedUrl, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            });
+            const payload = await response.json();
+
+            this.unread = Number(payload.unread) || 0;
+            this.items = Array.isArray(payload.notifications) ? payload.notifications : [];
+        } catch (error) {
+            // A lost request is not worth interrupting somebody who is trying to
+            // spend money; the next heartbeat asks again.
+        } finally {
+            this.loading = false;
+        }
+    },
+
+    async follow(item) {
+        const target = String(item.url || '');
+
+        if (item.unread) {
+            item.unread = false;
+            this.unread = Math.max(0, this.unread - 1);
+
+            // Settled before navigating away, so the badge does not come back
+            // the same number on the next page.
+            try {
+                await fetch(this.readUrl.replace('__NOTIFICATION_ID__', encodeURIComponent(item.id)), {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin',
+                });
+            } catch (error) {
+                // The alert stays unread on the server. Reading it later costs one
+                // more tap, which is not worth failing the navigation over.
+            }
+        }
+
+        this.open = false;
+        if (target) window.location.href = target;
+    },
+}));
 
 Alpine.start();

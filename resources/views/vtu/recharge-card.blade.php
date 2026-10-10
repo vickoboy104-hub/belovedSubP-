@@ -18,50 +18,48 @@
         $markup = (float) ($markup ?? 0);
     @endphp
 
-    <div class="legacy-themed-page max-w-3xl mx-auto w-full px-4 sm:px-0 space-y-5">
-        <div class="rounded-3xl p-5 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 card-glow">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <h2 class="text-2xl font-extrabold">Recharge Card Printing</h2>
-                    <p class="text-gray-600 dark:text-white/60 text-sm mt-1">
-                        Select network, value, and number of pins then confirm before purchase.
-                    </p>
-                </div>
-                <div class="w-12 h-12 rounded-2xl bg-black/5 dark:bg-white/10 border border-white/10 flex items-center justify-center">
-                    <svg viewBox="0 0 24 24" class="w-7 h-7 text-orange-500" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="7" width="18" height="10" rx="2"></rect>
-                        <path d="M7 11h10"></path>
-                    </svg>
-                </div>
-            </div>
-        </div>
+    <style>
+        /* A tile that looks identical whether or not it is chosen is the one
+           complaint this page kept getting. */
+        .card-network.is-selected {
+            border-color: #ea580c !important;
+            box-shadow: 0 0 0 2px rgba(234, 88, 12, .35);
+            background: #fff7ed;
+        }
+    </style>
 
+    <x-page-hero class="reference-shared-banner" title="Recharge Card Printing" subtitle="Select network, value and number of PINs, then confirm before purchase." />
+
+    <div class="reference-flow-page max-w-3xl mx-auto w-full px-4 sm:px-0 space-y-5">
+        <x-service-outage-notice :down="$down ?? []" />
+
+        @if(($networkLabels ?? []) !== [])
         <div class="grid grid-cols-4 gap-2"
              style="display:grid !important;grid-template-columns:repeat(4,minmax(0,1fr)) !important;gap:0.5rem;">
             @foreach($networkLabels as $key => $label)
                 <button type="button"
-                        class="card-network rounded-xl p-2 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-center"
+                        class="card-network rounded-xl p-2 border border-gray-200 bg-white text-center"
                         data-network="{{ $key }}"
                         style="min-width:0;">
-                    <div class="w-8 h-8 mx-auto rounded-lg overflow-hidden border border-white/10 bg-black/5 dark:bg-white/10 flex items-center justify-center">
+                    <div class="w-8 h-8 mx-auto rounded-lg overflow-hidden border border-gray-200 bg-slate-100 flex items-center justify-center">
                         <img src="{{ $networkLogos[$key] ?? '' }}" alt="{{ $label }}" class="w-full h-full object-cover"
-                             onerror="this.style.display='none';this.parentElement.innerHTML='<span class=&quot;text-xs font-extrabold text-white/70&quot;>{{ $label }}</span>';">
+                             onerror="this.style.display='none';this.parentElement.innerHTML='<span class=&quot;text-xs font-extrabold text-gray-500&quot;>{{ $label }}</span>';">
                     </div>
                     <div class="mt-1 font-extrabold text-xs">{{ $label }}</div>
-                    <div class="text-[10px] text-gray-600 dark:text-white/50">Tap</div>
+                    <div class="card-network-state text-[10px] text-gray-600">Tap</div>
                 </button>
             @endforeach
         </div>
 
-        <div class="rounded-3xl p-6 border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5">
+        <div class="rounded-3xl p-6 border border-gray-200 bg-white">
             <form id="rechargeCardForm" method="POST" action="{{ route('vtu.recharge-card.buy') }}" class="space-y-4">
                 @csrf
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="text-sm font-extrabold text-white/80">Network</label>
+                        <label class="text-sm font-extrabold text-gray-500">Network</label>
                         <select id="network" name="network" required
-                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
+                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                             <option value="">Select Network</option>
                             @foreach($networkLabels as $id => $label)
                                 <option value="{{ $id }}">{{ $label }}</option>
@@ -70,9 +68,9 @@
                     </div>
 
                     <div>
-                        <label class="text-sm font-extrabold text-white/80">Recharge Value</label>
+                        <label class="text-sm font-extrabold text-gray-500">Recharge Value</label>
                         <select id="value" name="value" required
-                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white">
+                                class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                             <option value="">Select Value</option>
                             @foreach($values as $value)
                                 <option value="{{ $value }}">N{{ number_format($value) }}</option>
@@ -83,16 +81,16 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="text-sm font-extrabold text-white/80">Number of Pins</label>
+                        <label class="text-sm font-extrabold text-gray-500">Number of Pins</label>
                         <input id="num_voucher" name="num_voucher" type="number" min="1" step="1" required placeholder="e.g. 10"
-                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/5 dark:bg-black/30 border border-gray-200 dark:border-white/10 text-white placeholder:text-white/30">
+                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900 placeholder:text-gray-500">
                     </div>
 
                     <div>
-                        <label class="text-sm font-extrabold text-white/80">You Will Pay</label>
+                        <label class="text-sm font-extrabold text-gray-500">You Will Pay</label>
                         <input id="amount_display" type="text" readonly value="N0"
-                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-black/10 dark:bg-black/40 border border-gray-200 dark:border-white/10 text-white">
-                        <div class="mt-2 text-xs text-white/50">Markup: N{{ number_format($markup, 2) }}</div>
+                               class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                        <div class="mt-2 text-xs text-gray-500">Markup: N{{ number_format($markup, 2) }}</div>
                     </div>
                 </div>
 
@@ -101,11 +99,12 @@
                     Proceed
                 </button>
 
-                <div class="text-xs text-gray-600 dark:text-white/50">
+                <div class="text-xs text-gray-600">
                     You will confirm these details before final submission.
                 </div>
             </form>
         </div>
+        @endif
 
         <x-confirm-modal id="confirmRechargeCard" title="Confirm Recharge Card Purchase" confirmText="Confirm & Buy" />
     </div>
@@ -117,18 +116,15 @@
 
             const form = document.getElementById('rechargeCardForm');
             const network = document.getElementById('network');
+            if (!form || !network) {
+                return;
+            }
+
+
             const value = document.getElementById('value');
             const qty = document.getElementById('num_voucher');
             const amountDisplay = document.getElementById('amount_display');
             const actionBtn = document.getElementById('rechargeCardAction');
-
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') {
-                    window.showFlashToast(type, message);
-                } else {
-                    alert(message);
-                }
-            }
 
             function computeTotal() {
                 const v = Number(value.value || 0);
@@ -142,11 +138,29 @@
                 return total;
             }
 
-            document.querySelectorAll('.card-network').forEach(btn => {
+            const networkTiles = Array.from(document.querySelectorAll('.card-network'));
+
+            function markSelectedNetwork() {
+                networkTiles.forEach(btn => {
+                    const isSelected = btn.dataset.network === network.value;
+                    btn.classList.toggle('is-selected', isSelected);
+
+                    const state = btn.querySelector('.card-network-state');
+                    if (state) {
+                        state.textContent = isSelected ? 'Selected' : 'Tap';
+                    }
+                });
+            }
+
+            networkTiles.forEach(btn => {
                 btn.addEventListener('click', () => {
                     network.value = btn.dataset.network || '';
+                    markSelectedNetwork();
                 });
             });
+
+            network.addEventListener('change', markSelectedNetwork);
+            markSelectedNetwork();
 
             value.addEventListener('change', computeTotal);
             qty.addEventListener('input', computeTotal);

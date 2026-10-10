@@ -3,11 +3,14 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\VtuController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\ManualOrdersController;
 use App\Http\Controllers\Admin\OrdersController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\WalletTransactionsController;
+use App\Http\Controllers\Admin\WalletStatsController;
 use App\Http\Controllers\Admin\SupportChatsController;
+use App\Http\Controllers\Admin\BroadcastController;
 use App\Http\Controllers\FlutterwaveController;
 use App\Http\Controllers\VirtualAccountController;
 use App\Http\Controllers\SupportBotController;
@@ -41,6 +44,7 @@ require __DIR__.'/auth.php';
 Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
 
     Route::get('/dashboard', [VtuController::class, 'dashboard'])->name('dashboard');
+    Route::view('/identity', 'identity.index')->name('identity.index');
 
     Route::get('/vtu/airtime', [VtuController::class, 'airtimeForm'])->name('vtu.airtime');
     Route::get('/vtu/airtime/{service}', [VtuController::class, 'airtimeServiceForm'])->name('vtu.airtime.service');
@@ -71,6 +75,7 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::get('/vtu/nin', [VtuController::class, 'ninForm'])->name('vtu.nin');
     Route::post('/vtu/nin/search', [VtuController::class, 'ninSearch'])->name('vtu.nin.search');
     Route::post('/vtu/nin/print', [VtuController::class, 'ninPrint'])->name('vtu.nin.print');
+    Route::get('/vtu/nin/slip/{order}', [VtuController::class, 'ninSlip'])->name('vtu.nin.slip');
     Route::get('/vtu/nin/reports', [VtuController::class, 'ninSlipReports'])->name('vtu.nin.reports');
     Route::get('/vtu/nin-validation', [VtuController::class, 'ninValidationForm'])->name('vtu.nin-validation');
     Route::post('/vtu/nin-validation', [VtuController::class, 'ninValidationSubmit'])->name('vtu.nin-validation.submit');
@@ -80,7 +85,10 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::post('/vtu/bvn/retrieve', [VtuController::class, 'bvnRetrieve'])->name('vtu.bvn.retrieve');
 
     Route::get('/vtu/orders', [VtuController::class, 'orders'])->name('vtu.orders');
+    Route::get('/vtu/manual/{service}', [VtuController::class, 'manualServiceForm'])->name('vtu.manual.form');
+    Route::post('/vtu/manual/{service}', [VtuController::class, 'manualServiceSubmit'])->name('vtu.manual.submit');
     Route::get('/vtu/receipt/{id}', [VtuController::class, 'receipt'])->name('vtu.receipt');
+    Route::get('/vtu/receipt/{id}/result-file', [VtuController::class, 'receiptFile'])->name('vtu.receipt.file');
     Route::get('/vtu/profit-calculator', [VtuController::class, 'profitCalculator'])->name('vtu.profit-calculator');
 
     // ✅ Wallet pages still handled by WalletController
@@ -95,13 +103,21 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::post('/wallet/virtual-account/temporary', [VirtualAccountController::class, 'assignTemporary'])
         ->name('wallet.virtual-account.temporary');
 
+    // A webhook only ever arrives if Flutterwave can reach this site from the
+    // outside, so the customer can always ask directly what has been paid in.
+    Route::post('/wallet/deposits/check', [FlutterwaveController::class, 'checkDeposits'])
+        ->name('wallet.deposits.check');
+
     // Wallet transactions page
     Route::get('/wallet/transactions', [WalletController::class, 'transactions'])->name('wallet.transactions');
 
     Route::get('/ajax/gsubz/plans', [VtuController::class, 'gsubzPlans'])->name('gsubz.plans');
+    Route::get('/referral', [ReferralController::class, 'index'])->name('referral.index');
     Route::post('/referral/link/generate', [ReferralController::class, 'generate'])->name('referral.generate');
     Route::post('/referral/withdraw', [ReferralController::class, 'withdraw'])->name('referral.withdraw');
+    Route::get('/notifications/feed', [VtuController::class, 'notificationFeed'])->name('notifications.feed');
     Route::post('/notifications/read-all', [VtuController::class, 'markUserNotificationsRead'])->name('notifications.read-all');
+    Route::post('/notifications/{notificationId}/read', [VtuController::class, 'markUserNotificationRead'])->name('notifications.read');
     Route::get('/notifications', [VtuController::class, 'notificationsIndex'])->name('notifications.index');
 
     Route::get('/support/bot', [SupportBotController::class, 'index'])->name('support.bot');
@@ -114,6 +130,12 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
 Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('admin.dashboard');
     Route::get('/orders', [OrdersController::class, 'index'])->name('admin.orders');
+    Route::get('/orders/{order}/keys', [OrdersController::class, 'keys'])->name('admin.orders.keys');
+    Route::post('/orders/{order}/keys', [OrdersController::class, 'storeKeys'])->name('admin.orders.keys.store');
+    Route::get('/manual-orders', [ManualOrdersController::class, 'index'])->name('admin.manual-orders.index');
+    Route::get('/manual-orders/{order}', [ManualOrdersController::class, 'show'])->name('admin.manual-orders.show');
+    Route::post('/manual-orders/{order}/fulfil', [ManualOrdersController::class, 'fulfil'])->name('admin.manual-orders.fulfil');
+    Route::post('/manual-orders/{order}/reject', [ManualOrdersController::class, 'reject'])->name('admin.manual-orders.reject');
     Route::get('/users', [UsersController::class, 'index'])->name('admin.users');
     Route::get('/users/{user}', [UsersController::class, 'show'])->name('admin.users.show');
     Route::post('/users/{user}/profile', [UsersController::class, 'updateProfile'])->name('admin.users.profile');
@@ -123,6 +145,7 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::post('/users/{user}/fund-wallet', [UsersController::class, 'fundWallet'])->name('admin.users.fund-wallet');
     Route::post('/users/{user}/adjust-wallet', [UsersController::class, 'adjustWallet'])->name('admin.users.adjust-wallet');
     Route::get('/wallet-transactions', [WalletTransactionsController::class, 'index'])->name('admin.wallet.transactions');
+    Route::get('/wallet-stats', [WalletStatsController::class, 'index'])->name('admin.wallet-stats');
     Route::post('/notifications/read-all', [DashboardController::class, 'markNotificationsRead'])->name('admin.notifications.read-all');
     Route::get('/notifications', [DashboardController::class, 'notificationsIndex'])->name('admin.notifications.index');
     Route::get('/support/chats', [SupportChatsController::class, 'index'])->name('admin.support.chats');
@@ -133,4 +156,7 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::get('/settings', [SettingsController::class, 'edit'])->name('admin.settings');
     Route::post('/settings', [SettingsController::class, 'update'])->name('admin.settings.update');
     Route::post('/settings/provider-prices/sync', [SettingsController::class, 'syncProviderPrices'])->name('admin.settings.provider-prices.sync');
+    Route::get('/broadcast', [BroadcastController::class, 'index'])->name('admin.broadcast');
+    Route::post('/broadcast/send', [BroadcastController::class, 'send'])->name('admin.broadcast.send');
+    Route::get('/broadcast/export', [BroadcastController::class, 'export'])->name('admin.broadcast.export');
 });

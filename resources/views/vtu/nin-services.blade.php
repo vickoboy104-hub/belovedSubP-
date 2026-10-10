@@ -1,55 +1,34 @@
-﻿<x-app-layout>
+<x-app-layout>
     @php
-        $resolveInlineImage = static function (array $relativePaths): ?string {
-            foreach ($relativePaths as $relativePath) {
-                $absolutePath = public_path($relativePath);
-
-                if (!is_file($absolutePath) || !is_readable($absolutePath)) {
-                    continue;
-                }
-
-                $contents = file_get_contents($absolutePath);
-                if ($contents === false) {
-                    continue;
-                }
-
-                $extension = strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION));
-                $mimeType = match ($extension) {
-                    'svg' => 'image/svg+xml',
-                    'png' => 'image/png',
-                    'jpg', 'jpeg' => 'image/jpeg',
-                    'webp' => 'image/webp',
-                    default => null,
-                };
-
-                if ($mimeType === null) {
-                    continue;
-                }
-
-                return 'data:' . $mimeType . ';base64,' . base64_encode($contents);
-            }
-
-            return null;
-        };
-
-        $verifyPrice = (float) setting('price_nin_verify', 250);
-        $premiumCardBackground = asset('images/nin/premium-card-bg.png');
-        $nimcLogo = $resolveInlineImage([
-            'images/nin/nimc-logo-modern.svg',
-            'images/nin/nimc-logo.png',
-        ]) ?? asset('images/nin/nimc-logo-modern.svg');
-        $coatOfArmsLogo = $resolveInlineImage([
-            'images/nin/coat-of-arms.png',
-        ]) ?? asset('images/nin/coat-of-arms.png');
-        $internetExplorerLogo = $resolveInlineImage([
-            'images/nin/internet-explorer-logo.png',
-        ]) ?? asset('images/nin/internet-explorer-logo.png');
         $printMarkup = (float) setting('markup_nin_print', 0);
         $slipPrices = [
-            'standard_slip' => (float) setting('price_nin_slip_standard', 350),
-            'premium_slip' => (float) setting('price_nin_slip_premium', 400),
-            'long_slip' => (float) setting('price_nin_slip_long', 300),
+            'standard_slip' => identity_price('price_nin_slip_standard'),
+            'premium_slip' => identity_price('price_nin_slip_premium'),
+            'long_slip' => identity_price('price_nin_slip_long'),
         ];
+
+        // The slip is drawn by this site from the record it stores, so printing
+        // never depends on the provider having a print endpoint. Only the
+        // provider's own download report list does.
+        $ninProvider = app(\App\Services\NinApi::class);
+        $slipReportsAvailable = $ninProvider->supportsSlipReports();
+
+        // A verification can be answered by the provider on the spot, or taken
+        // off it and worked from the manual queue. The owner switches between
+        // the two in Admin > Settings; the wording here must follow that choice.
+        $manualServices = app(\App\Services\ManualFulfilmentService::class);
+        // The three search types are three different amounts of work, so each one
+        // shows the price the server will actually charge for it.
+        $verifyPrices = [
+            'by_nin' => $manualServices->priceNaira('nin_verify', ['verification_type' => 'by_nin']),
+            'by_phone' => $manualServices->priceNaira('nin_verify', ['verification_type' => 'by_phone']),
+            'by_demo' => $manualServices->priceNaira('nin_verify', ['verification_type' => 'by_demo']),
+        ];
+        $verifyManual = identity_verify_mode('nin') === 'manual';
+        $verifyTurnaround = $manualServices->turnaroundLabel('nin_verify');
+        $heroSubtitle = $verifyManual
+            ? 'Send us the record you need checked and our team posts the result to your receipt.'
+            : 'Verify the record once, then print a Standard, Premium or Long slip from the result.';
     @endphp
 
     <style>
@@ -59,30 +38,23 @@
         }
     </style>
 
-    <div class="legacy-themed-page mx-auto w-full max-w-5xl space-y-5 px-4 sm:px-0">
-        <div class="rounded-3xl border border-gray-200 bg-white p-5 card-glow dark:border-white/10 dark:bg-white/5">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <h2 class="text-2xl font-extrabold text-gray-900 dark:text-white">NIN Verification & Direct Slip Print</h2>
-                    <p class="mt-1 text-sm text-gray-600 dark:text-white/60">
-                        Verify the NIN record once, then print Standard, Premium, or Long Slip directly from the verified result.
-                    </p>
-                </div>
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl border border-gray-200 bg-black/5 text-xl dark:border-white/10 dark:bg-white/10">
-                    ID
-                </div>
-            </div>
-        </div>
+    <x-page-hero class="reference-shared-banner" title="Verify NIN" subtitle="{{ $heroSubtitle }}" />
 
-        <div class="rounded-3xl border border-gray-200 bg-white p-5 sm:p-6 dark:border-white/10 dark:bg-white/5">
+    <div class="reference-flow-page mx-auto w-full max-w-5xl space-y-5 px-4 sm:px-0">
+        <div class="app-section p-5 sm:p-6">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <div class="text-lg font-extrabold text-gray-900 dark:text-white">Verify Identity Record</div>
-                    <p class="mt-1 text-sm text-gray-600 dark:text-white/60">
-                        Search by NIN, phone number, or demographic data. A successful result unlocks direct slip printing below.
+                    <div class="text-lg font-extrabold text-slate-900">Identity record search</div>
+                    <p class="mt-1 text-sm text-slate-600">
+                        @if($verifyManual)
+                            Search by NIN, phone number, or demographic data. Our team runs the check and the result
+                            appears on your receipt {{ strtolower($verifyTurnaround) }} after payment.
+                        @else
+                            Search by NIN, phone number, or demographic data. A successful result unlocks direct slip printing below.
+                        @endif
                     </p>
                 </div>
-                <div id="verifyPriceBadge" class="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 dark:bg-blue-500/15 dark:text-blue-200">
+                <div id="verifyPriceBadge" class="app-choice-chip">
                     Verification fee
                 </div>
             </div>
@@ -91,10 +63,10 @@
                 @csrf
 
                 <div>
-                    <label class="text-sm font-bold text-gray-700 dark:text-white/80">Verification Type</label>
+                    <label class="text-sm font-bold text-slate-700">Verification Type</label>
                     <select id="verification_type"
                             name="verification_type"
-                            class="mt-1 w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-gray-900 dark:border-white/10 dark:bg-black/30 dark:text-white">
+                            class="input-field mt-1 w-full">
                         <option value="by_nin">By NIN</option>
                         <option value="by_phone">By Phone Number</option>
                         <option value="by_demo">By Demographic Data</option>
@@ -106,28 +78,28 @@
                 <div class="flex flex-col gap-3 sm:flex-row">
                     <button type="button"
                             id="resetFormBtn"
-                            class="w-full rounded-2xl border border-gray-300 px-4 py-3 font-bold text-gray-700 dark:border-white/20 dark:text-white sm:w-auto">
+                            class="btn-outline w-full sm:w-auto justify-center">
                         Reset
                     </button>
                     <button type="button"
                             id="ninSubmitBtn"
-                            class="w-full rounded-2xl bg-blue-700 px-4 py-3 font-extrabold text-white transition hover:bg-blue-800 sm:flex-1">
+                            class="btn-primary w-full sm:flex-1 justify-center">
                         Verify NIN Record
                     </button>
                 </div>
             </form>
         </div>
 
-        <div id="ninResultCard" class="hidden rounded-3xl border border-gray-200 bg-white p-5 sm:p-6 dark:border-white/10 dark:bg-white/5">
+        <div id="ninResultCard" class="app-section hidden p-5 sm:p-6">
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                    <h3 class="text-xl font-extrabold text-gray-900 dark:text-white">Verified NIN Result</h3>
-                    <p id="ninResultMessage" class="mt-1 text-sm text-gray-600 dark:text-white/60"></p>
-                    <div class="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-gray-400 dark:text-white/40">
+                    <h3 id="ninResultTitle" class="text-xl font-extrabold text-slate-900">Verified NIN Result</h3>
+                    <p id="ninResultMessage" class="mt-1 text-sm text-slate-600"></p>
+                    <div class="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
                         <span id="ninResultSourceHint"></span>
                         <button type="button"
                                 id="ninRefreshLiveBtn"
-                                class="hidden font-medium text-gray-400 transition hover:text-gray-600 dark:text-white/40 dark:hover:text-white/70">
+                                class="hidden font-medium text-slate-400 transition hover:text-slate-600">
                             refresh live
                         </button>
                     </div>
@@ -135,93 +107,99 @@
                 <span id="ninStatusBadge" class="rounded-full border px-3 py-1 text-xs font-semibold"></span>
             </div>
 
-            <div id="profileSummaryWrap" class="mt-4 hidden rounded-3xl border border-gray-200 p-4 sm:p-5 dark:border-white/10">
+            <p id="ninQueuedReceipt" class="mt-3 hidden">
+                <a id="ninQueuedReceiptAnchor" href="#" class="btn-outline gap-2">
+                    Open receipt and track this request
+                </a>
+            </p>
+
+            <div id="profileSummaryWrap" class="mt-4 hidden rounded-2xl border border-slate-200 p-4 sm:p-5">
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-[160px,1fr]">
                     <div class="flex items-center justify-center sm:justify-start">
-                        <div class="overflow-hidden rounded-3xl border border-gray-200 bg-slate-50 dark:border-white/10 dark:bg-white/5">
+                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                             <img id="ninFaceImage" alt="NIN Photo" class="hidden h-40 w-36 object-cover">
-                            <div id="ninFaceFallback" class="flex h-40 w-36 items-center justify-center text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
+                            <div id="ninFaceFallback" class="flex h-40 w-36 items-center justify-center text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
                                 No Photo
                             </div>
                         </div>
                     </div>
 
                     <div>
-                        <div class="text-2xl font-black text-gray-900 dark:text-white" id="ninFullName">-</div>
+                        <div class="text-2xl font-black text-slate-900" id="ninFullName">-</div>
                         <div class="mt-2 flex flex-wrap gap-2 text-sm">
-                            <span class="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-blue-800 dark:border-blue-500/20 dark:bg-blue-500/15 dark:text-blue-200">
+                            <span class="app-choice-chip">
                                 NIN: <span id="ninNumberText">-</span>
                             </span>
-                            <span class="rounded-full border border-green-100 bg-green-50 px-3 py-1 text-green-800 dark:border-green-500/20 dark:bg-green-500/15 dark:text-green-200">
+                            <span class="app-choice-chip">
                                 Tracking: <span id="ninTrackingText">-</span>
                             </span>
                         </div>
 
                         <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div class="rounded-2xl border border-gray-200 px-4 py-3 dark:border-white/10">
-                                <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-white/50">Date of Birth</div>
-                                <div id="ninBirthText" class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">-</div>
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div class="app-record-label">Date of Birth</div>
+                                <div id="ninBirthText" class="app-record-value">-</div>
                             </div>
-                            <div class="rounded-2xl border border-gray-200 px-4 py-3 dark:border-white/10">
-                                <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-white/50">Gender</div>
-                                <div id="ninGenderText" class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">-</div>
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div class="app-record-label">Gender</div>
+                                <div id="ninGenderText" class="app-record-value">-</div>
                             </div>
-                            <div class="rounded-2xl border border-gray-200 px-4 py-3 dark:border-white/10">
-                                <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-white/50">Phone</div>
-                                <div id="ninPhoneText" class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">-</div>
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div class="app-record-label">Phone</div>
+                                <div id="ninPhoneText" class="app-record-value">-</div>
                             </div>
-                            <div class="rounded-2xl border border-gray-200 px-4 py-3 dark:border-white/10">
-                                <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-white/50">Address</div>
-                                <div id="ninAddressText" class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">-</div>
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div class="app-record-label">Address</div>
+                                <div id="ninAddressText" class="app-record-value">-</div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div id="directPrintWrap" class="mt-5 hidden rounded-3xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
+            <div id="directPrintWrap" class="mt-5 hidden rounded-3xl border border-amber-200 bg-amber-50 p-4">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <div class="text-lg font-extrabold text-gray-900 dark:text-white">Direct Slip Print</div>
-                        <p id="directPrintNote" class="mt-1 text-sm text-gray-600 dark:text-white/60">
+                        <div class="text-lg font-extrabold text-slate-900">Direct Slip Print</div>
+                        <p id="directPrintNote" class="mt-1 text-sm text-slate-600">
                             Verify a record first to unlock direct printing.
                         </p>
                     </div>
-                    <div class="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-200">
+                    <div class="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
                         Print or Save as PDF
                     </div>
                 </div>
 
                 <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                     <button type="button"
-                            class="nin-slip-action rounded-2xl border border-gray-300 bg-white px-4 py-4 text-left transition hover:bg-gray-50 dark:border-white/10 dark:bg-black/20 dark:hover:bg-white/10"
+                            class="nin-slip-action rounded-2xl border border-slate-300 bg-white px-4 py-4 text-left transition hover:bg-slate-50"
                             data-slip-type="standard_slip"
                             disabled>
-                        <div class="text-base font-extrabold text-gray-900 dark:text-white">Standard Slip</div>
-                        <div class="mt-1 text-sm text-gray-600 dark:text-white/60">Classic printable NIN card layout.</div>
-                        <div class="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-blue-700 dark:text-blue-200">
+                        <div class="text-base font-extrabold text-slate-900">Standard Slip</div>
+                        <div class="mt-1 text-sm text-slate-600">Classic printable NIN card layout.</div>
+                        <div class="amount-fit mt-3 text-base font-extrabold text-slate-900">
                             {!! '&#8358;' . number_format($slipPrices['standard_slip'], 2) !!}
                         </div>
                     </button>
 
                     <button type="button"
-                            class="nin-slip-action rounded-2xl border border-gray-300 bg-white px-4 py-4 text-left transition hover:bg-gray-50 dark:border-white/10 dark:bg-black/20 dark:hover:bg-white/10"
+                            class="nin-slip-action rounded-2xl border border-slate-300 bg-white px-4 py-4 text-left transition hover:bg-slate-50"
                             data-slip-type="premium_slip"
                             disabled>
-                        <div class="text-base font-extrabold text-gray-900 dark:text-white">Premium Slip</div>
-                        <div class="mt-1 text-sm text-gray-600 dark:text-white/60">Digital green card style with issue date.</div>
-                        <div class="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-blue-700 dark:text-blue-200">
+                        <div class="text-base font-extrabold text-slate-900">Premium Slip</div>
+                        <div class="mt-1 text-sm text-slate-600">Digital green card style with issue date.</div>
+                        <div class="amount-fit mt-3 text-base font-extrabold text-slate-900">
                             {!! '&#8358;' . number_format($slipPrices['premium_slip'], 2) !!}
                         </div>
                     </button>
 
                     <button type="button"
-                            class="nin-slip-action rounded-2xl border border-gray-300 bg-white px-4 py-4 text-left transition hover:bg-gray-50 dark:border-white/10 dark:bg-black/20 dark:hover:bg-white/10"
+                            class="nin-slip-action rounded-2xl border border-slate-300 bg-white px-4 py-4 text-left transition hover:bg-slate-50"
                             data-slip-type="long_slip"
                             disabled>
-                        <div class="text-base font-extrabold text-gray-900 dark:text-white">Long Slip</div>
-                        <div class="mt-1 text-sm text-gray-600 dark:text-white/60">Landscape NIMS table slip printout.</div>
-                        <div class="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-blue-700 dark:text-blue-200">
+                        <div class="text-base font-extrabold text-slate-900">Long Slip</div>
+                        <div class="mt-1 text-sm text-slate-600">Landscape NIMS table slip printout.</div>
+                        <div class="amount-fit mt-3 text-base font-extrabold text-slate-900">
                             {!! '&#8358;' . number_format($slipPrices['long_slip'], 2) !!}
                         </div>
                     </button>
@@ -231,27 +209,28 @@
             <div id="ninDetailsWrap" class="mt-4 space-y-4"></div>
 
             <details class="mt-4">
-                <summary class="cursor-pointer text-sm font-semibold text-gray-700 dark:text-white/80">Show Raw Provider Fields</summary>
+                <summary class="cursor-pointer text-sm font-semibold text-slate-700">Show Raw Provider Fields</summary>
                 <div id="ninRawTableWrap" class="mt-3 overflow-x-auto"></div>
             </details>
         </div>
 
-        <div class="rounded-3xl border border-gray-200 bg-white p-5 sm:p-6 dark:border-white/10 dark:bg-white/5">
+        @if($slipReportsAvailable)
+        <div class="app-section p-5 sm:p-6">
             <div class="flex items-center justify-between gap-3">
-                <h3 class="text-lg font-extrabold text-gray-900 dark:text-white">NIN Slip Reports</h3>
+                <h3 class="text-lg font-extrabold text-slate-900">NIN Slip Reports</h3>
                 <button type="button"
                         id="refreshReportsBtn"
-                        class="rounded-xl bg-orange-600 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-700">
+                        class="btn-primary px-3 py-2 text-sm">
                     Refresh
                 </button>
             </div>
-            <p id="reportsMessage" class="mt-2 text-xs text-gray-600 dark:text-white/60">
+            <p id="reportsMessage" class="mt-2 text-xs text-slate-600">
                 Provider download reports appear here when available.
             </p>
             <div class="mt-3 overflow-x-auto">
                 <table class="min-w-full text-sm">
                     <thead>
-                        <tr class="border-b border-gray-200 dark:border-white/10">
+                        <tr class="border-b border-slate-200">
                             <th class="py-2 pr-4 text-left">NIN</th>
                             <th class="py-2 pr-4 text-left">Slip Type</th>
                             <th class="py-2 pr-4 text-left">Date</th>
@@ -260,12 +239,13 @@
                     </thead>
                     <tbody id="slipReportsBody">
                         <tr>
-                            <td colspan="4" class="py-3 text-gray-500 dark:text-white/50">No records loaded yet.</td>
+                            <td colspan="4" class="py-3 text-slate-500">No records loaded yet.</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
+        @endif
     </div>
 
     <form id="ninVerifyBridgeForm" class="hidden"></form>
@@ -282,11 +262,13 @@
                 reports: @json(route('vtu.nin.reports')),
             };
 
-            const verifyPrice = @json($verifyPrice);
-            const premiumCardBackground = @json($premiumCardBackground);
-            const nimcLogo = @json($nimcLogo);
-            const coatOfArmsLogo = @json($coatOfArmsLogo);
-            const internetExplorerLogo = @json($internetExplorerLogo);
+            const slipIdleNote = 'Verify a record first to unlock direct printing.';
+            const slipReadyNote = (nin) => `Verified NIN ${nin} is ready. Choose Standard, Premium, or Long Slip to print directly.`;
+
+            const verifyPrices = @json($verifyPrices);
+            const currentVerifyPrice = () => Number(
+                verifyPrices[String(verificationType.value || 'by_nin')] ?? verifyPrices.by_nin ?? 0,
+            );
             const printMarkup = Number(@json($printMarkup));
             const slipPrices = @json($slipPrices);
 
@@ -301,6 +283,7 @@
             const refreshReportsBtn = document.getElementById('refreshReportsBtn');
 
             const resultCard = document.getElementById('ninResultCard');
+            const resultTitle = document.getElementById('ninResultTitle');
             const statusBadge = document.getElementById('ninStatusBadge');
             const resultMessage = document.getElementById('ninResultMessage');
             const resultSourceHint = document.getElementById('ninResultSourceHint');
@@ -322,18 +305,12 @@
             const directPrintButtons = Array.from(document.querySelectorAll('[data-slip-type]'));
             const slipReportsBody = document.getElementById('slipReportsBody');
             const reportsMessage = document.getElementById('reportsMessage');
+            const queuedReceiptWrap = document.getElementById('ninQueuedReceipt');
+            const queuedReceiptAnchor = document.getElementById('ninQueuedReceiptAnchor');
 
             let verifiedState = null;
             let pendingVerifyLookup = null;
             let pendingSlipType = null;
-
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') {
-                    window.showFlashToast(type, message);
-                    return;
-                }
-                alert(message);
-            }
 
             function escapeHtml(value) {
                 return String(value ?? '')
@@ -438,11 +415,11 @@
             function inputBlock(label, name, placeholder, type = 'text', span2 = false) {
                 return `
                     <div class="${span2 ? 'sm:col-span-2' : ''}">
-                        <label class="text-sm font-bold text-gray-700 dark:text-white/80">${escapeHtml(label)}</label>
+                        <label class="text-sm font-bold text-slate-700">${escapeHtml(label)}</label>
                         <input type="${escapeHtml(type)}"
                                name="${escapeHtml(name)}"
                                placeholder="${escapeHtml(placeholder)}"
-                               class="mt-1 w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 dark:border-white/10 dark:bg-black/30 dark:text-white dark:placeholder:text-white/40">
+                               class="input-field mt-1 w-full">
                     </div>
                 `;
             }
@@ -452,7 +429,7 @@
 
                 return `
                     <div class="${span2 ? 'sm:col-span-2' : ''}">
-                        <label class="text-sm font-bold text-gray-700 dark:text-white/80">${escapeHtml(label)}</label>
+                        <label class="text-sm font-bold text-slate-700">${escapeHtml(label)}</label>
                         <div class="contact-picker-row mt-1">
                             <input type="tel"
                                    name="${safeName}"
@@ -460,7 +437,7 @@
                                    autocomplete="tel-national"
                                    data-contact-picker-input
                                    placeholder="${escapeHtml(placeholder)}"
-                                   class="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 dark:border-white/10 dark:bg-black/30 dark:text-white dark:placeholder:text-white/40">
+                                   class="input-field w-full">
                             <button type="button" class="contact-picker-btn" data-contact-picker-button data-contact-picker-target="#ninServiceForm input[name='${safeName}']" aria-label="Pick phone contact">
                                 <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
@@ -475,15 +452,15 @@
 
             function sectionCard(title, rows) {
                 const rowHtml = rows.map((row) => `
-                    <div class="border-b border-gray-100 py-2 dark:border-white/10">
-                        <div class="text-xs uppercase tracking-wide text-gray-500 dark:text-white/50">${escapeHtml(row.label)}</div>
-                        <div class="break-all text-sm font-medium text-gray-900 dark:text-white">${escapeHtml(normalizeValue(row.value))}</div>
+                    <div class="border-b border-slate-100 py-2">
+                        <div class="text-xs uppercase tracking-wide text-slate-500">${escapeHtml(row.label)}</div>
+                        <div class="break-all text-sm font-medium text-slate-900">${escapeHtml(normalizeValue(row.value))}</div>
                     </div>
                 `).join('');
 
                 return `
-                    <div class="rounded-2xl border border-gray-200 p-4 dark:border-white/10">
-                        <div class="mb-2 font-bold text-gray-900 dark:text-white">${escapeHtml(title)}</div>
+                    <div class="rounded-2xl border border-slate-200 p-4">
+                        <div class="mb-2 font-bold text-slate-900">${escapeHtml(title)}</div>
                         ${rowHtml}
                     </div>
                 `;
@@ -498,39 +475,6 @@
                 ].map((value) => normalizeValue(value)).filter((value) => value !== '-');
 
                 return parts.length > 0 ? parts.join(', ') : '-';
-            }
-
-            function givenNames(normalized) {
-                const parts = [
-                    normalizeValue(normalized?.first_name),
-                    normalizeValue(normalized?.middle_name),
-                ].filter((value) => value !== '-');
-
-                return parts.length > 0 ? parts.join(' ') : normalizeValue(normalized?.full_name);
-            }
-
-            function surname(normalized) {
-                return normalizeValue(normalized?.last_name);
-            }
-
-            function safeFilenamePart(value) {
-                return String(value ?? '')
-                    .replace(/[\\/:*?"<>|]+/g, ' ')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-            }
-
-            function buildPrintFilename(normalized, slipType) {
-                const fullName = safeFilenamePart(normalized?.full_name);
-                const fallbackName = [safeFilenamePart(normalized?.first_name), safeFilenamePart(normalized?.last_name)]
-                    .filter(Boolean)
-                    .join(' ')
-                    .trim();
-                const namePart = fullName || fallbackName || 'NIN Record';
-                const slipPart = safeFilenamePart(String(slipType || 'nin_slip').replace(/_/g, ' ')) || 'NIN Slip';
-                const ninPart = digitsOnly(normalized?.nin);
-
-                return `${namePart} ${slipPart}${ninPart ? ` ${ninPart}` : ''}`.trim();
             }
 
             function renderVerificationFields() {
@@ -556,9 +500,9 @@
                     ${inputBlock('Last Name', 'lastname', 'Enter last name')}
                     ${inputBlock('Date of Birth (dd-mm-yyyy)', 'dob', '16-02-1994')}
                     <div>
-                        <label class="text-sm font-bold text-gray-700 dark:text-white/80">Gender</label>
+                        <label class="text-sm font-bold text-slate-700">Gender</label>
                         <select name="gender"
-                                class="mt-1 w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-gray-900 dark:border-white/10 dark:bg-black/30 dark:text-white">
+                                class="input-field mt-1 w-full">
                             <option value="">Select gender</option>
                             <option value="male">Male</option>
                             <option value="female">Female</option>
@@ -574,7 +518,7 @@
             }
 
             function renderVerifyPrice() {
-                verifyPriceBadge.textContent = `Verification fee: ${formatSlipPrice(verifyPrice)}`;
+                verifyPriceBadge.textContent = `Verification fee: ${formatSlipPrice(currentVerifyPrice())}`;
             }
 
             function lookupPayloadFromFormData(formData) {
@@ -632,11 +576,12 @@
 
             function buildVerifyConfirmationData(lookup) {
                 const mode = lookup?.verification_type || 'by_nin';
+                const price = Number(verifyPrices[mode] ?? currentVerifyPrice());
                 const rows = {
                     service: 'NIN Verification',
                     mode: mode === 'by_phone' ? 'By Phone Number' : (mode === 'by_demo' ? 'By Demographic Data' : 'By NIN'),
-                    amount: formatNaira(verifyPrice),
-                    __debitAmount: verifyPrice,
+                    amount: formatNaira(price),
+                    __debitAmount: price,
                 };
 
                 if (mode === 'by_phone') {
@@ -652,42 +597,74 @@
                 return rows;
             }
 
-            function buildPrintConfirmationData(slipType) {
-                const normalized = verifiedState?.normalized || {};
-                const slipLabelMap = {
+            function slipLabel(slipType) {
+                const labels = {
                     standard_slip: 'Standard Slip',
                     premium_slip: 'Premium Slip',
                     long_slip: 'Long Slip',
                 };
+                return labels[slipType] || String(slipType || 'slip').replace(/_/g, ' ');
+            }
+
+            function buildPrintConfirmationData(slipType) {
+                const normalized = verifiedState?.normalized || {};
                 const amount = Number(slipPrices?.[slipType] || 0) + printMarkup;
 
                 return {
                     service: 'NIN Slip Print',
-                    slip: slipLabelMap[slipType] || slipType,
+                    slip: slipLabel(slipType),
                     nin: formatNin(normalized?.nin || '-'),
                     amount: formatNaira(amount),
                     __debitAmount: amount,
                 };
             }
 
-            function setResultStatus(ok) {
+            function setResultStatus(state) {
+                const looks = {
+                    verified: ['VERIFIED', 'rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800'],
+                    // A queued verification has been paid for but has no answer
+                    // yet, so calling it FAILED would send the customer away
+                    // while their money is already spent.
+                    pending: ['IN PROGRESS', 'rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800'],
+                    failed: ['FAILED', 'rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-800'],
+                };
+                const [label, tone] = looks[state] || looks.failed;
+
                 resultCard.classList.remove('hidden');
-                statusBadge.textContent = ok ? 'VERIFIED' : 'FAILED';
-                statusBadge.className = ok
-                    ? 'rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-800 dark:border-green-500/20 dark:bg-green-500/15 dark:text-green-200'
-                    : 'rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-800 dark:border-red-500/20 dark:bg-red-500/15 dark:text-red-200';
+                statusBadge.textContent = label;
+                statusBadge.className = tone;
+            }
+
+            function showQueuedReceipt(url) {
+                // Only ever a link this app generated, never whatever a provider said.
+                const isInternal = typeof url === 'string'
+                    && (url.startsWith('/') || url.startsWith(window.location.origin));
+
+                if (!isInternal) {
+                    queuedReceiptWrap.classList.add('hidden');
+                    queuedReceiptAnchor.removeAttribute('href');
+
+                    return;
+                }
+
+                queuedReceiptAnchor.href = url;
+                queuedReceiptWrap.classList.remove('hidden');
             }
 
             function clearVerifiedState() {
                 verifiedState = null;
                 directPrintWrap.classList.add('hidden');
-                directPrintNote.textContent = 'Verify a record first to unlock direct printing.';
+                directPrintNote.textContent = slipIdleNote;
                 resultSourceHint.textContent = '';
                 refreshLiveBtn.classList.add('hidden');
                 refreshLiveBtn.disabled = false;
                 directPrintButtons.forEach((button) => {
                     button.disabled = true;
                 });
+            }
+
+            function revealDirectPrint() {
+                directPrintWrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
 
             function enableDirectPrint(orderId, normalized, payload, meta = {}) {
@@ -700,7 +677,7 @@
                 };
 
                 directPrintWrap.classList.remove('hidden');
-                directPrintNote.textContent = `Verified NIN ${formatNin(normalized?.nin)} is ready. Choose Standard, Premium, or Long Slip to print directly.`;
+                directPrintNote.textContent = slipReadyNote(formatNin(normalized?.nin));
                 directPrintButtons.forEach((button) => {
                     button.disabled = false;
                 });
@@ -711,14 +688,14 @@
                 const entries = Object.entries(data || {}).filter(([key]) => !skipKeys.has(String(key).toLowerCase()));
 
                 if (entries.length === 0) {
-                    ninRawTableWrap.innerHTML = '<div class="text-sm text-gray-500 dark:text-white/60">No extra fields returned.</div>';
+                    ninRawTableWrap.innerHTML = '<div class="text-sm text-slate-500">No extra fields returned.</div>';
                     return;
                 }
 
                 const rows = entries.map(([key, value]) => `
-                    <tr class="border-b border-gray-100 dark:border-white/10">
-                        <td class="py-2 pr-4 text-xs uppercase tracking-wide text-gray-500 dark:text-white/50">${escapeHtml(key)}</td>
-                        <td class="break-all py-2 text-sm text-gray-900 dark:text-white">${escapeHtml(normalizeValue(value))}</td>
+                    <tr class="border-b border-slate-100">
+                        <td class="py-2 pr-4 text-xs uppercase tracking-wide text-slate-500">${escapeHtml(key)}</td>
+                        <td class="break-all py-2 text-sm text-slate-900">${escapeHtml(normalizeValue(value))}</td>
                     </tr>
                 `).join('');
 
@@ -726,7 +703,24 @@
             }
 
             function renderVerifyResult(ok, message, payload, normalized, orderId, meta = {}) {
-                setResultStatus(ok);
+                if (meta.queued) {
+                    setResultStatus('pending');
+                    resultTitle.textContent = 'Verification in progress';
+                    resultMessage.textContent = message || 'Request received.';
+                    resultSourceHint.textContent = 'Your result will appear on the receipt page and in your notifications.';
+                    refreshLiveBtn.classList.add('hidden');
+                    profileSummaryWrap.classList.add('hidden');
+                    ninDetailsWrap.innerHTML = '';
+                    ninRawTableWrap.innerHTML = '';
+                    clearVerifiedState();
+                    showQueuedReceipt(meta.receiptUrl);
+
+                    return;
+                }
+
+                showQueuedReceipt('');
+                resultTitle.textContent = 'Verified NIN Result';
+                setResultStatus(ok ? 'verified' : 'failed');
                 resultMessage.textContent = message || (ok ? 'Verification successful.' : 'Verification failed.');
 
                 if (!ok) {
@@ -818,1088 +812,10 @@
                 return fallback;
             }
 
-            function qrImageSource(normalized, providerData) {
-                const candidates = ['qr_code', 'qrcode', 'barcode', 'bar_code', 'qr'];
-                for (const key of candidates) {
-                    const value = providerData?.[key];
-                    const imageSrc = toImageSrc(value);
-                    if (imageSrc) return imageSrc;
-                    if (typeof value === 'string' && /^https?:\/\//i.test(value)) {
-                        return value;
-                    }
-                }
-
-                const qrPayload = [
-                    `NIN:${digitsOnly(normalized?.nin)}`,
-                    `NAME:${normalizeValue(normalized?.full_name)}`,
-                    `DOB:${formatDisplayDate(normalized?.birthdate)}`,
-                    `TRACKING:${normalizeValue(normalized?.tracking_id)}`,
-                ].join('|');
-
-                return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(qrPayload)}`;
-            }
-
-            function slipDisclaimerHtml() {
-                return `
-                    <div class="nin-back-copy">
-                        <div class="nin-back-tag">Trust, but verify</div>
-                        <div class="nin-back-title">DISCLAIMER</div>
-                        <p>Kindly ensure each time this ID is presented, that you verify the credentials using a Government-approved verification resource.</p>
-                        <p>The details on the front of this NIN Slip must EXACTLY match the verification result.</p>
-                        <div class="nin-back-caution">CAUTION!</div>
-                        <p>If this NIN was not issued to the person on the front of this document, please DO NOT attempt to scan, photocopy or replicate the personal data contained herein.</p>
-                        <p>You are only permitted to scan the barcode for the purpose of identity verification.</p>
-                        <p>The FEDERAL GOVERNMENT OF NIGERIA assumes no responsibility if you accept any variance in the scan result or do not scan the 2D barcode.</p>
-                    </div>
-                `;
-            }
-
-            function buildCardBackPanel() {
-                return `
-                    <div class="nin-id-card nin-card-back">
-                        ${slipDisclaimerHtml()}
-                    </div>
-                `;
-            }
-
-            function longSlipAddress(normalized) {
-                const top = normalizeValue(
-                    normalized?.address_line_1 ||
-                    normalized?.address ||
-                    normalized?.residence_address ||
-                    normalized?.residence_town
-                );
-
-                const bottomParts = [
-                    normalized?.residence_town,
-                    normalized?.residence_lga,
-                    normalized?.residence_state,
-                    normalized?.state,
-                ].map((value) => normalizeValue(value)).filter(Boolean);
-
-                return {
-                    top: top || '-',
-                    bottom: bottomParts.join(', ') || normalizeValue(normalized?.state) || '-',
-                };
-            }
-
-            function longSlipFooterIcon(kind) {
-                const icons = {
-                    email: `
-                        <svg viewBox="0 0 64 64" aria-hidden="true">
-                            <defs>
-                                <linearGradient id="emailGrad" x1="0" x2="1" y1="0" y2="1">
-                                    <stop offset="0%" stop-color="#2d2b72"/>
-                                    <stop offset="100%" stop-color="#5a46b8"/>
-                                </linearGradient>
-                            </defs>
-                            <circle cx="32" cy="32" r="22" fill="url(#emailGrad)"/>
-                            <path d="M18 23h28v18H18z" rx="3" fill="#f3f4ff"/>
-                            <path d="M20 25l12 9 12-9" fill="none" stroke="#4637a3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    `,
-                    phone: `
-                        <svg viewBox="0 0 64 64" aria-hidden="true">
-                            <rect x="10" y="10" width="44" height="44" rx="10" fill="#33b56f"/>
-                            <path d="M41.5 39.5c-1.8 1.8-4 2.7-6.4 2.3-4.8-.9-12-8-12.8-12.8-.4-2.4.5-4.6 2.3-6.4l2.6-2.6c.8-.8 2.1-.9 3-.1l4.4 4c.9.8 1 2.2.2 3.1l-2.1 2.2c1.1 2 2.9 3.8 4.9 4.9l2.2-2.1c.9-.8 2.3-.7 3.1.2l4 4.4c.8.9.7 2.2-.1 3l-2.6 2.6z" fill="#fff"/>
-                        </svg>
-                    `,
-                    card: `
-                        <svg viewBox="0 0 64 64" aria-hidden="true">
-                            <rect x="9" y="14" width="46" height="36" rx="5" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
-                            <rect x="14" y="20" width="14" height="16" rx="2" fill="#86c5da"/>
-                            <path d="M19 26c0-2.4 1.9-4.3 4.3-4.3S27.6 23.6 27.6 26c0 2.3-1.9 4.2-4.3 4.2S19 28.3 19 26z" fill="#5b8aa0"/>
-                            <path d="M16 36c1.8-3.5 5.2-5.6 7.4-5.6s5.6 2.1 7.4 5.6" fill="#5b8aa0"/>
-                            <rect x="32" y="22" width="17" height="3" rx="1.5" fill="#64748b"/>
-                            <rect x="32" y="29" width="14" height="3" rx="1.5" fill="#94a3b8"/>
-                            <rect x="32" y="36" width="12" height="3" rx="1.5" fill="#94a3b8"/>
-                        </svg>
-                    `,
-                };
-
-                return `<span class="nin-footer-icon nin-footer-icon-${kind}">${icons[kind] || ''}</span>`;
-            }
-
-            function fitTextClass(value, compactAt, tinyAt) {
-                const normalized = normalizeValue(value).replace(/\s+/g, '');
-                const length = normalized.length;
-
-                if (length > tinyAt) {
-                    return ' fit-xs';
-                }
-
-                if (length > compactAt) {
-                    return ' fit-sm';
-                }
-
-                return '';
-            }
-
-            function buildStandardSlip(normalized, providerData) {
-                const photoSrc = toImageSrc(normalized?.photo || providerData?.photo || providerData?.image || '');
-                const qrSrc = qrImageSource(normalized, providerData);
-                const formattedNin = formatNin(normalized?.nin);
-                const serialText = digitsOnly(normalized?.nin) || digitsOnly(normalized?.tracking_id) || formattedNin.replace(/\s+/g, '');
-                const surnameText = surname(normalized).toUpperCase();
-                const givenNamesText = givenNames(normalized).toUpperCase();
-                const birthText = formatDisplayDate(normalized?.birthdate);
-                const surnameFitClass = fitTextClass(surnameText, 9, 12);
-                const givenNamesFitClass = fitTextClass(givenNamesText, 15, 20);
-                const birthFitClass = fitTextClass(birthText, 9, 12);
-
-                return `
-                    <div class="nin-sheet nin-sheet-portrait">
-                        <div class="nin-id-card standard">
-                            <div class="nin-card-watermark">
-                                <img src="${escapeHtml(coatOfArmsLogo)}" alt="">
-                            </div>
-                            <img class="nin-card-badge standard-badge" src="${escapeHtml(coatOfArmsLogo)}" alt="">
-                            <div class="nin-diagonal left">${escapeHtml(serialText)}</div>
-                            <div class="nin-diagonal right">${escapeHtml(serialText)}</div>
-                            <div class="nin-id-front-grid">
-                                <div class="nin-front-photo standard-photo">
-                                    ${photoSrc ? `<img src="${escapeHtml(photoSrc)}" alt="NIN Photo">` : '<div class="nin-photo-placeholder">NO PHOTO</div>'}
-                                </div>
-
-                                <div class="nin-front-content">
-                                    <div class="nin-front-emblem"></div>
-                                    <div class="nin-front-row">
-                                        <div class="nin-front-label">Surname/Nom</div>
-                                        <div class="nin-front-value${surnameFitClass}">${escapeHtml(surnameText)}</div>
-                                    </div>
-                                    <div class="nin-front-row">
-                                        <div class="nin-front-label">Given Names/Pr\u00e9noms</div>
-                                        <div class="nin-front-value wide${givenNamesFitClass}">${escapeHtml(givenNamesText)}</div>
-                                    </div>
-                                    <div class="nin-front-row">
-                                        <div class="nin-front-label">Date of Birth</div>
-                                        <div class="nin-front-value emphasis${birthFitClass}">${escapeHtml(birthText)}</div>
-                                    </div>
-                                </div>
-
-                                <div class="nin-front-qr-wrap">
-                                    <div class="nin-qr-serial standard-qr-serial">${escapeHtml(serialText)}</div>
-                                    <div class="nin-country-code standard-country">NGA</div>
-                                    <div class="nin-qr-box">
-                                        <img src="${escapeHtml(qrSrc)}" alt="QR Code" referrerpolicy="no-referrer">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="nin-number-title">National Identification Number (NIN)</div>
-                            <div class="nin-number-line standard-number">${escapeHtml(formattedNin)}</div>
-                            <div class="nin-front-note">Kindly ensure you scan the barcode to verify the credentials.</div>
-                        </div>
-
-                        ${buildCardBackPanel()}
-                    </div>
-                `;
-            }
-
-            function buildPremiumSlip(normalized, providerData, issuedAtLabel) {
-                const photoSrc = toImageSrc(normalized?.photo || providerData?.photo || providerData?.image || '');
-                const qrSrc = qrImageSource(normalized, providerData);
-                const formattedNin = formatNin(normalized?.nin);
-                const serialText = digitsOnly(normalized?.nin) || digitsOnly(normalized?.tracking_id) || formattedNin.replace(/\s+/g, '');
-                const surnameText = surname(normalized).toUpperCase();
-                const givenNamesText = givenNames(normalized).toUpperCase();
-                const birthText = formatDisplayDate(normalized?.birthdate);
-                const genderText = normalizeValue(normalized?.gender).toUpperCase();
-                const issueDateText = normalizeValue(issuedAtLabel).toUpperCase();
-                const surnameFitClass = fitTextClass(surnameText, 9, 12);
-                const givenNamesFitClass = fitTextClass(givenNamesText, 15, 20);
-                const birthFitClass = fitTextClass(birthText, 9, 12);
-                const genderFitClass = fitTextClass(genderText, 5, 8);
-                const issueDateFitClass = fitTextClass(issueDateText, 10, 14);
-
-                return `
-                    <div class="nin-sheet nin-sheet-portrait">
-                        <div class="nin-id-card premium">
-                            <div class="nin-card-watermark premium-watermark">
-                                <img src="${escapeHtml(coatOfArmsLogo)}" alt="">
-                            </div>
-                            <img class="nin-card-badge premium-badge" src="${escapeHtml(coatOfArmsLogo)}" alt="">
-                            <div class="nin-diagonal left">${escapeHtml(serialText)}</div>
-                            <div class="nin-diagonal right">${escapeHtml(serialText)}</div>
-                            <div class="nin-premium-heading">FEDERAL REPUBLIC OF NIGERIA</div>
-                            <div class="nin-premium-subheading">DIGITAL NIN SLIP</div>
-
-                            <div class="nin-premium-grid">
-                                <div class="nin-front-photo premium-photo">
-                                    ${photoSrc ? `<img src="${escapeHtml(photoSrc)}" alt="NIN Photo">` : '<div class="nin-photo-placeholder">NO PHOTO</div>'}
-                                </div>
-
-                                <div class="nin-front-content premium-content">
-                                    <div class="nin-front-row">
-                                        <div class="nin-front-label">Surname/Nom</div>
-                                        <div class="nin-front-value${surnameFitClass}">${escapeHtml(surnameText)}</div>
-                                    </div>
-                                    <div class="nin-front-row">
-                                        <div class="nin-front-label">Given Names/Pr\u00e9noms</div>
-                                        <div class="nin-front-value wide${givenNamesFitClass}">${escapeHtml(givenNamesText)}</div>
-                                    </div>
-                                    <div class="nin-premium-info-row">
-                                        <div>
-                                            <div class="nin-front-label">Date of Birth</div>
-                                            <div class="nin-front-value emphasis${birthFitClass}">${escapeHtml(birthText)}</div>
-                                        </div>
-                                        <div>
-                                            <div class="nin-front-label">Sex/Sexe</div>
-                                            <div class="nin-front-value emphasis${genderFitClass}">${escapeHtml(genderText)}</div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="nin-premium-side">
-                                    <div class="nin-qr-box premium-qr">
-                                        <img src="${escapeHtml(qrSrc)}" alt="QR Code" referrerpolicy="no-referrer">
-                                    </div>
-                                    <div class="nin-country-code premium-country">NGA</div>
-                                    <div class="nin-front-label issue-label">ISSUE DATE</div>
-                                    <div class="nin-front-value issue-date${issueDateFitClass}">${escapeHtml(issueDateText)}</div>
-                                </div>
-                            </div>
-
-                            <div class="nin-number-title premium-title">National Identification Number (NIN)</div>
-                            <div class="nin-number-line premium-number">${escapeHtml(formattedNin)}</div>
-                        </div>
-
-                        ${buildCardBackPanel()}
-                    </div>
-                `;
-            }
-
-            function buildLongSlip(normalized, providerData) {
-                const photoSrc = toImageSrc(normalized?.photo || providerData?.photo || providerData?.image || '');
-                const address = longSlipAddress(normalized);
-                const trackingText = normalizeValue(normalized?.tracking_id);
-                const ninText = digitsOnly(normalized?.nin) || normalizeValue(normalized?.nin);
-                const surnameText = surname(normalized).toUpperCase();
-                const firstNameText = normalizeValue(normalized?.first_name).toUpperCase();
-                const middleNameText = normalizeValue(normalized?.middle_name).toUpperCase();
-                const genderText = normalizeValue(normalized?.gender).toUpperCase();
-                const trackingFitClass = fitTextClass(trackingText, 14, 18);
-                const ninFitClass = fitTextClass(ninText, 11, 14);
-                const surnameFitClass = fitTextClass(surnameText, 10, 14);
-                const firstNameFitClass = fitTextClass(firstNameText, 10, 14);
-                const middleNameFitClass = fitTextClass(middleNameText, 10, 14);
-                const genderFitClass = fitTextClass(genderText, 6, 9);
-                const addressFitClass = fitTextClass(`${address.top} ${address.bottom}`, 24, 36);
-
-                return `
-                    <div class="nin-sheet nin-sheet-landscape">
-                        <div class="nin-long-slip">
-                            <div class="nin-long-slip-inner">
-                                <div class="nin-long-head">
-                                    <div class="nin-long-logo left">
-                                        <img src="${escapeHtml(coatOfArmsLogo)}" alt="Coat of Arms">
-                                    </div>
-                                    <div class="nin-long-title">
-                                        <div class="main">National Identity Management System</div>
-                                        <div class="sub">Federal Republic of Nigeria</div>
-                                        <div class="mini">National Identification Number Slip (NINS)</div>
-                                    </div>
-                                    <div class="nin-long-logo right">
-                                        <img src="${escapeHtml(nimcLogo)}" alt="NIMC">
-                                    </div>
-                                </div>
-
-                                <div class="nin-long-grid">
-                                <div class="nin-long-col left">
-                                    <div class="nin-long-row">
-                                        <div class="label">Tracking ID:</div>
-                                        <div class="value accent${trackingFitClass}">${escapeHtml(trackingText)}</div>
-                                    </div>
-                                    <div class="nin-long-row">
-                                        <div class="label">NIN:</div>
-                                        <div class="value accent${ninFitClass}">${escapeHtml(ninText)}</div>
-                                    </div>
-                                    <div class="nin-long-empty left"></div>
-                                </div>
-
-                                <div class="nin-long-col middle">
-                                    <div class="nin-long-row">
-                                        <div class="label">Surname:</div>
-                                        <div class="value${surnameFitClass}">${escapeHtml(surnameText)}</div>
-                                    </div>
-                                    <div class="nin-long-row">
-                                        <div class="label">First Name:</div>
-                                        <div class="value${firstNameFitClass}">${escapeHtml(firstNameText)}</div>
-                                    </div>
-                                    <div class="nin-long-row">
-                                        <div class="label">Middle Name:</div>
-                                        <div class="value${middleNameFitClass}">${escapeHtml(middleNameText)}</div>
-                                    </div>
-                                    <div class="nin-long-row">
-                                        <div class="label">Gender:</div>
-                                        <div class="value${genderFitClass}">${escapeHtml(genderText)}</div>
-                                    </div>
-                                    <div class="nin-long-empty middle"></div>
-                                </div>
-
-                                <div class="nin-long-col address">
-                                    <div class="label">Address:</div>
-                                    <div class="value multiline${addressFitClass}">
-                                        <div class="address-top">${escapeHtml(address.top)}</div>
-                                        <div class="address-bottom">${escapeHtml(address.bottom)}</div>
-                                    </div>
-                                </div>
-
-                                    <div class="nin-long-photo">
-                                        ${photoSrc ? `<img src="${escapeHtml(photoSrc)}" alt="NIN Photo">` : '<div class="nin-photo-placeholder">NO PHOTO</div>'}
-                                    </div>
-                                </div>
-
-                                <div class="nin-long-note-row">
-                                    <div class="note-left"><span class="note-label">Note:</span> The <em>National Identification Number (NIN) is your identity.</em></div>
-                                    <div class="note-right">It is confidential and may only be released for legitimate transactions.</div>
-                                </div>
-
-                                <div class="nin-long-foot-note">
-                                    You will be notified when your National Identity Card is ready (for any enquiries please contact)
-                                </div>
-
-                                <div class="nin-long-footer">
-                                    <div>
-                                        ${longSlipFooterIcon('email')}
-                                        <strong>helpdesk@nimc.gov.ng</strong>
-                                    </div>
-                                    <div>
-                                        <span class="nin-footer-icon nin-footer-icon-image"><img src="${escapeHtml(internetExplorerLogo)}" alt="Internet"></span>
-                                        <strong>www.nimc.gov.ng</strong>
-                                    </div>
-                                    <div>
-                                        ${longSlipFooterIcon('phone')}
-                                        <strong>0700-CALL-NIMC</strong>
-                                        <span>(0700-2255-646)</span>
-                                    </div>
-                                    <div>
-                                        ${longSlipFooterIcon('card')}
-                                        <strong>National Identity Management Commission</strong>
-                                        <span>11, Sokode Crescent, Off Dalaba Street, Zone 5 Wuse, Abuja Nigeria</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            function buildPrintHtml(slipType, normalized, providerData, issuedAtLabel) {
-                const documentTitle = buildPrintFilename(normalized, slipType);
-                const safeIssuedAt = normalizeValue(issuedAtLabel).toUpperCase();
-                const isLongSlip = slipType === 'long_slip';
-                const idCardPrintWidth = '85.6mm';
-                const idCardPrintHeight = '54mm';
-                const idCardPrintStackHeight = '113.5mm';
-                const longSlipPrintWidth = '196mm';
-                const longSlipPrintHeight = '92mm';
-                const bodyClass = isLongSlip ? 'nin-print-landscape' : 'nin-print-portrait';
-                const pageRule = isLongSlip
-                    ? `@page { size: ${longSlipPrintWidth} ${longSlipPrintHeight}; margin: 0; }`
-                    : `@page { size: ${idCardPrintWidth} ${idCardPrintStackHeight}; margin: 0; }`;
-                const body = slipType === 'premium_slip'
-                    ? buildPremiumSlip(normalized, providerData, safeIssuedAt)
-                    : (isLongSlip
-                        ? buildLongSlip(normalized, providerData)
-                        : buildStandardSlip(normalized, providerData));
-
-                return `
-                    <!doctype html>
-                    <html lang="en">
-                    <head>
-                        <meta charset="utf-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1">
-                        <title>${escapeHtml(documentTitle)}</title>
-                        <style>
-                            ${pageRule}
-                            * { box-sizing: border-box; }
-                            html, body {
-                                margin: 0;
-                                padding: 0;
-                            }
-                            body {
-                                background: #e5e7eb;
-                                color: #111827;
-                                font-family: Arial, Helvetica, sans-serif;
-                                -webkit-print-color-adjust: exact;
-                                print-color-adjust: exact;
-                            }
-                            body.nin-print-portrait {
-                                min-height: ${idCardPrintStackHeight};
-                                background: #fff;
-                            }
-                            body.nin-print-landscape {
-                                width: ${longSlipPrintWidth};
-                                min-height: ${longSlipPrintHeight};
-                                background: #fff;
-                            }
-                            .nin-sheet {
-                                width: 100%;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                            }
-                            .nin-sheet-portrait {
-                                width: ${idCardPrintWidth};
-                                min-height: ${idCardPrintStackHeight};
-                                flex-direction: column;
-                                gap: 5.5mm;
-                                padding: 0;
-                                margin: 0 auto;
-                            }
-                            .nin-sheet-landscape {
-                                width: ${longSlipPrintWidth};
-                                min-height: ${longSlipPrintHeight};
-                                padding: 0;
-                                margin: 0 auto;
-                            }
-                            .nin-id-card,
-                            .nin-long-slip {
-                                background: #fff;
-                                color: #111;
-                                box-shadow: 0 10px 30px rgba(15, 23, 42, 0.16);
-                            }
-                            .nin-id-card {
-                                position: relative;
-                                width: ${idCardPrintWidth};
-                                height: ${idCardPrintHeight};
-                                overflow: hidden;
-                                border: 0.35mm solid #c9ccd1;
-                            }
-                            .nin-id-card::before {
-                                content: '';
-                                position: absolute;
-                                inset: 0;
-                                pointer-events: none;
-                            }
-                            .nin-id-card.standard {
-                                padding: 2.1mm 2.6mm 1.7mm;
-                                background: #fff;
-                            }
-                            .nin-id-card.standard::before {
-                                background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.04));
-                                opacity: 1;
-                            }
-                            .nin-id-card.standard::after {
-                                content: '';
-                                position: absolute;
-                                inset: 0;
-                                background: linear-gradient(180deg, rgba(17, 24, 39, 0.015), transparent 40%);
-                                pointer-events: none;
-                            }
-                            .nin-id-card.premium {
-                                padding: 2.1mm 2.65mm 1.7mm;
-                                background: #eef3e2;
-                            }
-                            .nin-id-card.premium::before {
-                                background: center/cover no-repeat url('${premiumCardBackground}');
-                                opacity: 0.98;
-                            }
-                            .nin-id-card.premium::after {
-                                content: '';
-                                position: absolute;
-                                inset: 0;
-                                background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.1));
-                                pointer-events: none;
-                            }
-                            .nin-id-card > * {
-                                position: relative;
-                                z-index: 1;
-                            }
-                            .nin-card-watermark {
-                                position: absolute;
-                                inset: 0;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                opacity: 0.075;
-                                pointer-events: none;
-                            }
-                            .nin-card-watermark img {
-                                width: 35.2mm;
-                                height: auto;
-                                object-fit: contain;
-                            }
-                            .nin-card-watermark.premium-watermark {
-                                opacity: 0.12;
-                                transform: translateY(-0.3mm);
-                            }
-                            .nin-card-badge {
-                                position: absolute;
-                                top: 1.1mm;
-                                left: 50%;
-                                transform: translateX(-50%);
-                                width: 8.9mm;
-                                height: auto;
-                                object-fit: contain;
-                                pointer-events: none;
-                            }
-                            .premium-badge {
-                                top: 1.2mm;
-                                width: 8.8mm;
-                            }
-                            .nin-front-emblem {
-                                display: none;
-                            }
-                            .nin-premium-heading,
-                            .nin-premium-subheading {
-                                font-weight: 800;
-                                text-transform: uppercase;
-                            }
-                            .nin-premium-heading {
-                                font-size: 2.18mm;
-                                line-height: 1.05;
-                                letter-spacing: 0.08mm;
-                                color: #0f6f3b;
-                            }
-                            .nin-premium-subheading {
-                                font-size: 2.03mm;
-                                line-height: 1.05;
-                                letter-spacing: 0.05mm;
-                                color: #1b3e25;
-                                margin-top: 0.1mm;
-                            }
-                            .nin-diagonal {
-                                position: absolute;
-                                color: rgba(31, 41, 55, 0.3);
-                                font-size: 2mm;
-                                letter-spacing: 0.03mm;
-                                font-family: "Arial Narrow", Arial, sans-serif;
-                                pointer-events: none;
-                            }
-                            .nin-diagonal.left {
-                                left: 0.6mm;
-                                bottom: 7.95mm;
-                                transform: rotate(-31deg);
-                            }
-                            .nin-diagonal.right {
-                                right: 0.45mm;
-                                bottom: 7.7mm;
-                                transform: rotate(31deg);
-                            }
-                            .nin-id-front-grid,
-                            .nin-premium-grid {
-                                display: grid;
-                                align-items: start;
-                            }
-                            .nin-id-front-grid {
-                                grid-template-columns: 16.4mm 1fr 19.6mm;
-                                column-gap: 2.1mm;
-                                margin-top: 3.8mm;
-                            }
-                            .nin-premium-grid {
-                                grid-template-columns: 16.4mm 1fr 20.8mm;
-                                column-gap: 2mm;
-                                margin-top: 2mm;
-                            }
-                            .nin-front-photo {
-                                overflow: hidden;
-                                background: rgba(255, 255, 255, 0.72);
-                            }
-                            .nin-front-photo.standard-photo {
-                                width: 16.1mm;
-                                height: 19.1mm;
-                                border: 0.18mm solid rgba(17, 24, 39, 0.2);
-                            }
-                            .nin-front-photo.premium-photo {
-                                width: 16.1mm;
-                                height: 19.1mm;
-                                border: 0.18mm solid rgba(17, 24, 39, 0.12);
-                            }
-                            .nin-front-photo img,
-                            .nin-long-photo img {
-                                display: block;
-                                width: 100%;
-                                height: 100%;
-                                object-fit: cover;
-                            }
-                            .nin-front-content {
-                                position: relative;
-                                min-width: 0;
-                            }
-                            .nin-id-front-grid .nin-front-content {
-                                padding-top: 1.05mm;
-                            }
-                            .premium-content {
-                                padding-top: 0.8mm;
-                            }
-                            .nin-front-row {
-                                margin-bottom: 0.75mm;
-                            }
-                            .nin-front-row:last-child {
-                                margin-bottom: 0;
-                            }
-                            .nin-front-label {
-                                font-size: 1.48mm;
-                                font-weight: 700;
-                                line-height: 1.03;
-                                color: rgba(17, 24, 39, 0.58);
-                                text-transform: none;
-                            }
-                            .nin-front-value {
-                                margin-top: 0.2mm;
-                                font-size: 2.7mm;
-                                font-weight: 800;
-                                line-height: 1.03;
-                                letter-spacing: 0.03mm;
-                                color: #111827;
-                                word-break: break-word;
-                                overflow-wrap: anywhere;
-                            }
-                            .nin-front-value.wide {
-                                letter-spacing: 0.05mm;
-                            }
-                            .nin-front-value.emphasis {
-                                font-size: 3.65mm;
-                                line-height: 1.02;
-                                letter-spacing: 0.04mm;
-                            }
-                            .nin-front-value.issue-date {
-                                font-size: 2.85mm;
-                                line-height: 1.04;
-                                letter-spacing: 0.02mm;
-                            }
-                            .nin-front-value.fit-sm {
-                                font-size: 2.38mm;
-                                letter-spacing: 0.02mm;
-                            }
-                            .nin-front-value.fit-xs {
-                                font-size: 2.04mm;
-                                line-height: 1.02;
-                                letter-spacing: 0;
-                            }
-                            .nin-front-value.emphasis.fit-sm {
-                                font-size: 3.18mm;
-                            }
-                            .nin-front-value.emphasis.fit-xs {
-                                font-size: 2.8mm;
-                            }
-                            .nin-front-value.issue-date.fit-sm {
-                                font-size: 2.5mm;
-                            }
-                            .nin-front-value.issue-date.fit-xs {
-                                font-size: 2.2mm;
-                            }
-                            .nin-premium-info-row {
-                                display: grid;
-                                grid-template-columns: 1fr 1fr;
-                                gap: 1mm;
-                                margin-top: 0.15mm;
-                            }
-                            .nin-premium-side {
-                                text-align: center;
-                            }
-                            .nin-front-qr-wrap {
-                                display: flex;
-                                flex-direction: column;
-                                align-items: center;
-                                justify-content: flex-start;
-                                gap: 0.45mm;
-                            }
-                            .nin-qr-serial {
-                                color: rgba(17, 24, 39, 0.62);
-                                font-size: 1.85mm;
-                                line-height: 1;
-                                letter-spacing: 0.03mm;
-                                font-family: "Arial Narrow", Arial, sans-serif;
-                            }
-                            .standard-qr-serial {
-                                transform: rotate(180deg);
-                                margin-bottom: 0.05mm;
-                            }
-                            .nin-country-code {
-                                font-weight: 800;
-                                letter-spacing: 0.08mm;
-                                color: #111827;
-                            }
-                            .nin-country-code.premium-country {
-                                font-size: 5.4mm;
-                                margin-top: 0.35mm;
-                                line-height: 1;
-                            }
-                            .nin-country-code.standard-country {
-                                font-size: 5.45mm;
-                                margin-bottom: 0.15mm;
-                                line-height: 1;
-                            }
-                            .issue-label {
-                                margin-top: 0.35mm;
-                            }
-                            .nin-qr-box {
-                                display: inline-flex;
-                                align-items: center;
-                                justify-content: center;
-                                width: 18.2mm;
-                                height: 18.2mm;
-                                padding: 0.42mm;
-                                background: rgba(255, 255, 255, 0.92);
-                                border: 0.18mm solid rgba(17, 24, 39, 0.18);
-                            }
-                            .nin-qr-box img {
-                                display: block;
-                                width: 100%;
-                                height: 100%;
-                                object-fit: contain;
-                            }
-                            .premium-qr {
-                                width: 19.4mm;
-                                height: 19.4mm;
-                            }
-                            .nin-number-title {
-                                margin-top: 1.05mm;
-                                font-size: 2mm;
-                                text-align: center;
-                                font-weight: 700;
-                                line-height: 1.08;
-                            }
-                            .nin-number-title.premium-title {
-                                margin-top: 1.2mm;
-                            }
-                            .nin-number-line {
-                                text-align: center;
-                                font-weight: 800;
-                                line-height: 1;
-                                color: #111;
-                                font-family: "Arial Black", Arial, Helvetica, sans-serif;
-                            }
-                            .nin-number-line.standard-number {
-                                margin-top: 0.42mm;
-                                font-size: 6.05mm;
-                                letter-spacing: 0.28mm;
-                            }
-                            .nin-number-line.premium-number {
-                                margin-top: 0.4mm;
-                                font-size: 5.85mm;
-                                letter-spacing: 0.26mm;
-                            }
-                            .nin-front-note {
-                                margin-top: 0.35mm;
-                                font-size: 1.18mm;
-                                text-align: center;
-                                color: rgba(17, 24, 39, 0.62);
-                                font-style: italic;
-                            }
-                            .nin-card-back {
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                background: #fff;
-                                border: 0.4mm solid #222;
-                                transform: rotate(180deg);
-                                padding: 1.95mm 2.1mm;
-                            }
-                            .nin-back-copy {
-                                position: relative;
-                                width: 100%;
-                                border: 0;
-                                padding: 1.7mm 2.2mm 1.65mm 4.9mm;
-                                text-align: center;
-                                background: transparent;
-                            }
-                            .nin-back-copy::before {
-                                content: '';
-                                position: absolute;
-                                left: 2.95mm;
-                                top: 0;
-                                bottom: 0;
-                                width: 0.22mm;
-                                background: #333;
-                            }
-                            .nin-back-tag {
-                                font-size: 2.5mm;
-                                font-family: Georgia, "Times New Roman", serif;
-                                font-style: italic;
-                                margin-bottom: 0.55mm;
-                            }
-                            .nin-back-title {
-                                font-size: 6.15mm;
-                                font-weight: 900;
-                                line-height: 1;
-                                margin-bottom: 0.68mm;
-                                letter-spacing: 0.08mm;
-                            }
-                            .nin-back-copy p {
-                                margin: 0 0 0.78mm;
-                                font-size: 1.58mm;
-                                line-height: 1.16;
-                            }
-                            .nin-back-copy p:last-child {
-                                margin-bottom: 0;
-                            }
-                            .nin-back-caution {
-                                font-size: 4.75mm;
-                                font-weight: 900;
-                                line-height: 1;
-                                margin: 0.82mm 0 0.62mm;
-                            }
-                            .nin-long-slip {
-                                position: relative;
-                                width: ${longSlipPrintWidth};
-                                height: ${longSlipPrintHeight};
-                                min-height: ${longSlipPrintHeight};
-                                border: 0.35mm solid #1d1d1d;
-                                background: #fff;
-                                overflow: hidden;
-                            }
-                            .nin-long-slip-inner {
-                                position: relative;
-                                width: 100%;
-                                min-height: 100%;
-                                transform: none;
-                            }
-                            .nin-long-head {
-                                display: grid;
-                                grid-template-columns: 19mm 1fr 18mm;
-                                align-items: stretch;
-                                border-bottom: 0.35mm solid #222;
-                                min-height: 15.8mm;
-                                background: #fff;
-                            }
-                            .nin-long-logo {
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                padding: 0.45mm 0.6mm;
-                            }
-                            .nin-long-logo img {
-                                max-width: 100%;
-                                max-height: 11.4mm;
-                                object-fit: contain;
-                            }
-                            .nin-long-logo.left {
-                                border-right: 0.35mm solid #222;
-                            }
-                            .nin-long-logo.right {
-                                border-left: 0.35mm solid #222;
-                            }
-                            .nin-long-title {
-                                text-align: center;
-                                padding: 0.45mm 1.7mm 0.35mm;
-                            }
-                            .nin-long-title .main {
-                                font-size: 5.95mm;
-                                font-weight: 900;
-                                line-height: 1.02;
-                            }
-                            .nin-long-title .sub {
-                                margin-top: 0.22mm;
-                                font-size: 3.8mm;
-                                font-weight: 800;
-                            }
-                            .nin-long-title .mini {
-                                margin-top: 0.18mm;
-                                font-size: 3.05mm;
-                                font-weight: 700;
-                            }
-                            .nin-long-grid {
-                                display: grid;
-                                grid-template-columns: 50mm 60mm 51mm 34.3mm;
-                                min-height: 48.4mm;
-                                background: #fff;
-                            }
-                            .nin-long-col,
-                            .nin-long-photo {
-                                border-right: 0.35mm solid #222;
-                                height: 100%;
-                            }
-                            .nin-long-col.left {
-                                display: grid;
-                                grid-template-rows: 11.4mm 11.4mm 1fr;
-                            }
-                            .nin-long-col.middle {
-                                display: grid;
-                                grid-template-rows: 9.25mm 9.25mm 9.25mm 9.25mm 1fr;
-                            }
-                            .nin-long-row,
-                            .nin-long-col.address {
-                                display: grid;
-                                grid-template-columns: 12.8mm 1fr;
-                                min-height: auto;
-                                border-bottom: 0.35mm solid #222;
-                            }
-                            .nin-long-col.address {
-                                grid-template-columns: 13.8mm 1fr;
-                                min-height: 100%;
-                            }
-                            .nin-long-row .label,
-                            .nin-long-row .value,
-                            .nin-long-col.address .label,
-                            .nin-long-col.address .value {
-                                padding: 1.1mm 1.35mm;
-                                font-size: 2.14mm;
-                                line-height: 1.14;
-                            }
-                            .nin-long-row .label,
-                            .nin-long-col.address .label {
-                                font-weight: 700;
-                                border-right: 0.35mm solid #222;
-                            }
-                            .nin-long-row .value,
-                            .nin-long-col.address .value {
-                                font-weight: 700;
-                                overflow-wrap: anywhere;
-                                color: #111;
-                            }
-                            .nin-long-row .value.accent {
-                                color: #173f95;
-                            }
-                            .nin-long-row .value.fit-sm,
-                            .nin-long-col.address .value.fit-sm {
-                                font-size: 1.96mm;
-                            }
-                            .nin-long-row .value.fit-xs,
-                            .nin-long-col.address .value.fit-xs {
-                                font-size: 1.7mm;
-                                line-height: 1.08;
-                            }
-                            .nin-long-empty {
-                                background: #fff;
-                            }
-                            .nin-long-col.address .value.multiline {
-                                display: flex;
-                                flex-direction: column;
-                                justify-content: space-between;
-                                gap: 0.28mm;
-                                line-height: 1.16;
-                            }
-                            .nin-long-col.address .address-top {
-                                font-size: 2.08mm;
-                                color: #173f95;
-                                text-transform: uppercase;
-                            }
-                            .nin-long-col.address .address-bottom {
-                                font-size: 1.9mm;
-                                color: #111;
-                            }
-                            .nin-long-col.address .value.multiline.fit-sm .address-top {
-                                font-size: 1.92mm;
-                            }
-                            .nin-long-col.address .value.multiline.fit-sm .address-bottom {
-                                font-size: 1.76mm;
-                            }
-                            .nin-long-col.address .value.multiline.fit-xs .address-top {
-                                font-size: 1.72mm;
-                            }
-                            .nin-long-col.address .value.multiline.fit-xs .address-bottom {
-                                font-size: 1.58mm;
-                            }
-                            .nin-long-photo {
-                                display: flex;
-                                align-items: stretch;
-                                justify-content: center;
-                                min-height: 48.4mm;
-                                background: #e6e6e6;
-                                border-right: 0;
-                            }
-                            .nin-long-note-row {
-                                display: grid;
-                                grid-template-columns: 1fr 1fr;
-                                border-top: 0.35mm solid #222;
-                                border-bottom: 0.35mm solid #222;
-                                background: #fff;
-                            }
-                            .nin-long-note-row > div {
-                                padding: 1.05mm 1.55mm;
-                                font-size: 1.82mm;
-                                line-height: 1.15;
-                            }
-                            .nin-long-note-row .note-label {
-                                font-weight: 700;
-                                margin-right: 0.35mm;
-                            }
-                            .nin-long-foot-note {
-                                padding: 1.05mm 1.55mm;
-                                font-size: 1.78mm;
-                                line-height: 1.14;
-                                border-bottom: 0.35mm solid #222;
-                                background: #fff;
-                            }
-                            .nin-long-footer {
-                                display: grid;
-                                grid-template-columns: 31.5mm 31.5mm 36.5mm 1fr;
-                                background: #fff;
-                            }
-                            .nin-long-footer > div {
-                                min-height: 15.5mm;
-                                padding: 0.95mm 1.1mm 0.75mm;
-                                border-right: 0.35mm solid #222;
-                                font-size: 1.72mm;
-                                text-align: center;
-                                line-height: 1.12;
-                                font-weight: 700;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                flex-direction: column;
-                                gap: 0.4mm;
-                            }
-                            .nin-long-footer > div:last-child {
-                                border-right: 0;
-                            }
-                            .nin-long-footer strong {
-                                font-size: 1.86mm;
-                                line-height: 1.1;
-                            }
-                            .nin-long-footer span {
-                                font-size: 1.48mm;
-                                font-weight: 600;
-                            }
-                            .nin-footer-icon {
-                                display: inline-flex;
-                                align-items: center;
-                                justify-content: center;
-                                width: 4.8mm;
-                                height: 4.8mm;
-                            }
-                            .nin-footer-icon img,
-                            .nin-footer-icon svg {
-                                width: 100%;
-                                height: 100%;
-                                object-fit: contain;
-                                display: block;
-                            }
-                            .nin-footer-icon-image {
-                                width: 5.6mm;
-                                height: 5.6mm;
-                            }
-                            .nin-photo-placeholder {
-                                width: 100%;
-                                height: 100%;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                background: rgba(255, 255, 255, 0.7);
-                                color: rgba(17, 24, 39, 0.45);
-                                font-size: 2.6mm;
-                                font-weight: 700;
-                                letter-spacing: 0.2mm;
-                            }
-                            @media print {
-                                body {
-                                    background: #fff;
-                                }
-                                .nin-id-card,
-                                .nin-long-slip {
-                                    box-shadow: none;
-                                }
-                            }
-                        </style>
-                    </head>
-                    <body class="${bodyClass}">
-                        ${body}
-                        <script>
-                            window.addEventListener('load', function () {
-                                setTimeout(function () { window.print(); }, 350);
-                            });
-                        <\/script>
-                    </body>
-                    </html>
-                `;
-            }
-
             async function loadReports() {
-                slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-gray-500 dark:text-white/50">Loading...</td></tr>';
+                if (!slipReportsBody) return;
+
+                slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-slate-500">Loading...</td></tr>';
 
                 try {
                     const response = await fetch(routes.reports, { headers: { Accept: 'application/json' } });
@@ -1909,7 +825,7 @@
                     if (!ok) {
                         const message = getErrorMessage(response, data, 'Unable to load reports.');
                         reportsMessage.textContent = message;
-                        slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-gray-500 dark:text-white/50">No report data available.</td></tr>';
+                        slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-slate-500">No report data available.</td></tr>';
                         return;
                     }
 
@@ -1919,7 +835,7 @@
                         : 'No reports returned yet.';
 
                     if (rows.length === 0) {
-                        slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-gray-500 dark:text-white/50">No report data available.</td></tr>';
+                        slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-slate-500">No report data available.</td></tr>';
                         return;
                     }
 
@@ -1929,11 +845,11 @@
                         const date = normalizeValue(row.date || row.created_at);
                         const href = row.slip_path || row.url || row.download_url || '';
                         const action = href
-                            ? `<a href="${escapeHtml(href)}" target="_blank" class="font-semibold text-blue-600 underline dark:text-blue-300">Download</a>`
+                            ? `<a href="${escapeHtml(href)}" target="_blank" class="font-semibold text-blue-600 underline">Download</a>`
                             : '-';
 
                         return `
-                            <tr class="border-b border-gray-100 dark:border-white/10">
+                            <tr class="border-b border-slate-100">
                                 <td class="py-2 pr-4">${escapeHtml(nin)}</td>
                                 <td class="py-2 pr-4">${escapeHtml(type)}</td>
                                 <td class="py-2 pr-4">${escapeHtml(date)}</td>
@@ -1943,19 +859,19 @@
                     }).join('');
                 } catch (error) {
                     reportsMessage.textContent = 'Network error while loading reports.';
-                    slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-gray-500 dark:text-white/50">No report data available.</td></tr>';
+                    slipReportsBody.innerHTML = '<tr><td colspan="4" class="py-3 text-slate-500">No report data available.</td></tr>';
                 }
             }
 
             async function printVerifiedSlip(slipType) {
                 if (!verifiedState?.orderId) {
-                    notify('error', 'Verify a NIN record first before printing.');
+                    showAppDialog({ tone: 'info', title: 'Nothing verified yet', message: 'Verify a NIN record first, then the slip buttons become usable.' });
                     return;
                 }
 
                 const popup = window.open('', '_blank');
                 if (!popup) {
-                    notify('error', 'Allow popups to print the slip.');
+                    showAppDialog({ tone: 'error', title: 'Pop-ups blocked', message: 'Allow pop-ups for this site so the slip can open in its own tab, then press the button again.' });
                     return;
                 }
 
@@ -1985,13 +901,14 @@
 
                     const data = await response.json().catch(() => ({}));
                     const ok = response.ok && data && data.ok === true;
-                    const message = ok
-                        ? (data.message || 'Slip generated successfully.')
-                        : getErrorMessage(response, data, 'Unable to generate the slip right now.');
 
                     if (!ok) {
                         popup.close();
-                        notify('error', message);
+                        showAppDialog({
+                            tone: 'error',
+                            title: 'Slip not ready',
+                            message: getErrorMessage(response, data, 'Unable to generate the slip right now.'),
+                        });
                         return;
                     }
 
@@ -1999,20 +916,31 @@
                         window.updateWalletBalance(Number(data.balance_kobo));
                     }
 
-                    const normalized = data?.data?.normalized || verifiedState.normalized || {};
-                    const providerData = data?.data?.provider_data || verifiedState.payload || {};
-                    const issuedAtLabel = data?.data?.issued_at_label || '';
-                    const html = buildPrintHtml(slipType, normalized, providerData, issuedAtLabel);
+                    const slipUrl = data?.data?.slip_url;
+                    if (!slipUrl) {
+                        popup.close();
+                        showAppDialog({ tone: 'error', title: 'Slip not ready', message: 'The slip could not be prepared. Please try again.' });
+                        return;
+                    }
 
-                    popup.document.open();
-                    popup.document.write(html);
-                    popup.document.close();
+                    popup.location.href = slipUrl;
 
-                    notify('success', message);
+                    // The new tab does the printing, so it is the one thing the
+                    // customer cannot undo from here - say what happened and give
+                    // them the tab back if the browser swallowed it.
+                    showAppDialog({
+                        tone: 'success',
+                        title: slipLabel(slipType) + ' ready',
+                        message: 'The slip has opened in a new tab and should be printing now. If no tab appeared, your browser blocked it - open it from here.',
+                        actions: [
+                            { label: 'Open the slip', variant: 'primary', onClick: () => window.open(slipUrl, '_blank') },
+                            { label: 'Close', variant: 'muted' },
+                        ],
+                    });
                     await loadReports();
                 } catch (error) {
                     popup.close();
-                    notify('error', 'Network error. Please try again.');
+                    showAppDialog({ tone: 'error', title: 'Slip not ready', message: 'Network error. Please try again.' });
                 } finally {
                     if (typeof window.hideGlobalLoader === 'function') {
                         window.hideGlobalLoader();
@@ -2050,22 +978,53 @@
                     const message = ok
                         ? (data.message || 'Verification successful.')
                         : getErrorMessage(response, data, 'Verification failed. Please check your details.');
+                    const queued = data?.queued === true;
 
                     renderVerifyResult(ok, message, data?.data || {}, data?.normalized || {}, data?.order_id || null, {
                         cacheHit: data?.cache_hit === true,
                         cachedAtLabel: data?.cached_at_label || '',
                         forceRefresh: data?.force_refresh === true,
+                        queued,
+                        receiptUrl: data?.receipt_url || '',
                         lookup,
                     });
 
                     if (!ok) {
-                        notify('error', message);
-                    } else if (typeof window.updateWalletBalance === 'function' && Number.isFinite(Number(data.balance_kobo))) {
-                        window.updateWalletBalance(Number(data.balance_kobo));
+                        showAppDialog({ tone: 'error', title: 'Not verified', message });
+                    } else if (queued) {
+                        showAppDialog({
+                            tone: 'info',
+                            title: 'Request received',
+                            message,
+                            actions: data?.receipt_url
+                                ? [
+                                    { label: 'View receipt', variant: 'primary', href: data.receipt_url },
+                                    { label: 'Close', variant: 'muted' },
+                                ]
+                                : [{ label: 'Okay', variant: 'warm' }],
+                        });
+                    } else {
+                        if (typeof window.updateWalletBalance === 'function' && Number.isFinite(Number(data.balance_kobo))) {
+                            window.updateWalletBalance(Number(data.balance_kobo));
+                        }
+
+                        const record = data?.normalized || {};
+                        showAppDialog({
+                            tone: 'success',
+                            title: 'Verified',
+                            message: [
+                                normalizeValue(record.full_name) + ' - NIN ' + formatNin(record.nin),
+                                message,
+                            ].filter(Boolean).join(' '),
+                            actions: [
+                                { label: 'Print a slip', variant: 'primary', onClick: revealDirectPrint },
+                                { label: 'Close', variant: 'muted' },
+                            ],
+                        });
                     }
                 } catch (error) {
                     renderVerifyResult(false, 'Network error. Please try again.', {}, {}, null);
-                    notify('error', 'Network error. Please try again.');
+                    showAppDialog({ tone: 'error', title: 'Not verified', message: 'Network error. Please try again.' });
                 } finally {
                     if (typeof window.hideGlobalLoader === 'function') {
                         window.hideGlobalLoader();
@@ -2133,7 +1092,8 @@
             });
 
             verificationType.addEventListener('change', renderVerificationFields);
-            refreshReportsBtn.addEventListener('click', loadReports);
+            verificationType.addEventListener('change', renderVerifyPrice);
+            refreshReportsBtn?.addEventListener('click', loadReports);
 
             renderVerificationFields();
             renderVerifyPrice();

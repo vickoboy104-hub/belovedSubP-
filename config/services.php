@@ -53,6 +53,11 @@ return [
         'base' => env('ALT_PROVIDER_BASE_URL', ''),
     ],
 
+    'jhtech' => [
+        'enabled' => env('JHTECH_ENABLED', false),
+        'key' => env('JHTECH_API_KEY', ''),
+    ],
+
     'nin' => [
         'key' => env('NIN_API_KEY', ''),
         'base' => env('NIN_BASE_URL', 'https://confirmident.com.ng/api'),
@@ -68,6 +73,18 @@ return [
         'retrieve_phone_endpoint' => env('BVN_RETRIEVE_PHONE_ENDPOINT', ''),
         'retrieve_bms_endpoint' => env('BVN_RETRIEVE_BMS_ENDPOINT', ''),
         'print_endpoint' => env('BVN_PRINT_ENDPOINT', ''),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Bulk SMS. Admin Settings can supply all of this; the env values are here
+    | so a gateway can be connected from the server without touching the UI.
+    |--------------------------------------------------------------------------
+    */
+    'sms' => [
+        'key' => env('SMS_API_KEY', ''),
+        'endpoint' => env('SMS_ENDPOINT', ''),
+        'sender' => env('SMS_SENDER_ID', ''),
     ],
 
 

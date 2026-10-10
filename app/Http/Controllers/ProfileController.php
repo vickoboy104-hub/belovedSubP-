@@ -7,6 +7,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class ProfileController extends Controller
@@ -44,6 +45,15 @@ class ProfileController extends Controller
 
         if ($user->isDirty('email')) {
             $user->email_verified_at = null;
+        }
+
+        if ($request->hasFile('image')) {
+            $previous = trim((string) $user->getRawOriginal('avatar'));
+            $user->avatar = $request->file('image')->store('avatars', 'public');
+
+            if ($previous !== '' && !str_starts_with($previous, 'http')) {
+                Storage::disk('public')->delete($previous);
+            }
         }
 
         $user->save();

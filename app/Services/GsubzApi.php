@@ -37,13 +37,27 @@ class GsubzApi
         }
     }
 
-    public function plans(string $serviceId): array
+    public function configured(): bool
+    {
+        return $this->apiKey !== '';
+    }
+
+    private function unconfiguredResponse(): array
+    {
+        return [
+            'ok' => false,
+            'unconfigured' => true,
+            'message' => 'No provider API key is configured. Add it in Admin → Settings.',
+        ];
+    }
+
+    public function plans(string $serviceId, int $timeout = 30, int $retries = 2): array
     {
         try {
             $url = $this->baseUrl . '/api/plans';
 
-            $resp = Http::timeout(30)
-                ->retry(2, 300)
+            $resp = Http::timeout($timeout)
+                ->retry($retries, 300)
                 ->acceptJson()
                 ->get($url, ['service' => $serviceId])
                 ->throw()
@@ -107,6 +121,10 @@ class GsubzApi
 
     public function pay(array $payload): array
     {
+        if (!$this->configured()) {
+            return $this->unconfiguredResponse();
+        }
+
         try {
             $url = $this->baseUrl . '/api/pay/';
 
@@ -154,6 +172,10 @@ class GsubzApi
 
     public function balance(): array
     {
+        if (!$this->configured()) {
+            return $this->unconfiguredResponse();
+        }
+
         try {
             $url = $this->baseUrl . '/api/balance/';
 
@@ -223,6 +245,10 @@ class GsubzApi
 
     public function verify(string $requestId): array
     {
+        if (!$this->configured()) {
+            return $this->unconfiguredResponse();
+        }
+
         try {
             $url = $this->baseUrl . '/api/verify/';
 

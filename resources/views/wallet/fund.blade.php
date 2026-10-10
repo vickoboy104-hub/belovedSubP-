@@ -31,21 +31,18 @@
         $temporaryExpectedCredit = max(0, $temporaryAmount - (float) ($funding_fee_naira ?? 0));
     @endphp
 
-    <div class="mx-auto max-w-5xl space-y-5">
+    <x-page-hero class="reference-shared-banner" title="Fund Wallet" subtitle="Use checkout, a one-time transfer account, or your permanent transfer account." />
+
+    <div class="reference-flow-page mx-auto max-w-5xl space-y-5">
         <section class="app-section p-5 sm:p-6">
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                    <div class="app-kicker">Wallet Funding</div>
-                    <h1 class="app-page-title mt-2 text-[1.8rem] sm:text-[2.2rem]">Fund Wallet</h1>
-                    <p class="mt-2 text-sm text-slate-500">Use checkout, a one-time transfer account, or your permanent transfer account.</p>
-                </div>
-                <div class="rounded-[24px] border border-slate-200 bg-slate-50 px-5 py-4">
-                    <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Balance</div>
-                    <div class="amount-fit mt-1 text-3xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
-                    <div class="mt-1 text-xs text-slate-500">Flutterwave deposit fee: &#8358;{{ number_format((float) ($funding_fee_naira ?? 0), 2) }}</div>
-                </div>
+            <div class="rounded-[24px] w-fit sm:ml-auto border border-slate-200 bg-slate-50 px-5 py-4">
+                <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Balance</div>
+                <div class="amount-fit mt-1 text-3xl font-extrabold text-slate-900" id="walletBalance" data-wallet-kobo="{{ (int) ($walletBalanceKobo ?? 0) }}">&#8358;{{ number_format($walletBalanceNaira, 2) }}</div>
+                <div class="mt-1 text-xs text-slate-500">Flutterwave deposit fee: &#8358;{{ number_format((float) ($funding_fee_naira ?? 0), 2) }}</div>
             </div>
         </section>
+
+        <x-deposit-status :check="$depositCheck" :pending="$pendingDeposits" :asked="$depositCheckAsked" />
 
         @if($errors->any())
             <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
@@ -78,6 +75,11 @@
                             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                                 <div class="text-xs text-slate-500">Account Number</div>
                                 <div class="mt-1 text-lg font-extrabold tracking-[0.08em] text-slate-900">{{ $temporaryAccount['account_number'] ?? '-' }}</div>
+                                <button type="button"
+                                        class="mt-2 text-xs font-bold text-slate-600 underline decoration-dotted underline-offset-4 hover:text-slate-900"
+                                        data-copy-text="{{ $temporaryAccount['account_number'] ?? '' }}"
+                                        data-copy-label="Copy account number"
+                                        data-copy-done="Copied">Copy account number</button>
                             </div>
                             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                                 <div class="text-xs text-slate-500">Expected Transfer</div>
@@ -144,10 +146,20 @@
                             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                                 <div class="text-xs text-slate-500">Account Number</div>
                                 <div class="mt-1 text-lg font-extrabold tracking-[0.08em] text-slate-900">{{ $virtual_account['account_number'] }}</div>
+                                <button type="button"
+                                        class="mt-2 text-xs font-bold text-slate-600 underline decoration-dotted underline-offset-4 hover:text-slate-900"
+                                        data-copy-text="{{ $virtual_account['account_number'] }}"
+                                        data-copy-label="Copy account number"
+                                        data-copy-done="Copied">Copy account number</button>
                             </div>
                             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                                 <div class="text-xs text-slate-500">Account Name</div>
                                 <div class="mt-1 text-lg font-extrabold text-slate-900">{{ $virtual_account['account_name'] ?: '-' }}</div>
+                                <button type="button"
+                                        class="mt-2 text-xs font-bold text-slate-600 underline decoration-dotted underline-offset-4 hover:text-slate-900"
+                                        data-copy-text="{{ $virtual_account['account_name'] }}"
+                                        data-copy-label="Copy account name"
+                                        data-copy-done="Copied">Copy account name</button>
                             </div>
                             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                                 <div class="text-xs text-slate-500">Identity on file</div>
@@ -270,6 +282,13 @@
                                    placeholder="e.g. 2000">
                             <div class="mt-2 text-xs text-slate-500">Minimum &#8358;100</div>
                             <div class="mt-1 text-xs text-slate-500" id="fundNetText">Wallet gets: <span class="font-extrabold text-slate-900">&#8358;0.00</span></div>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                @foreach([500, 1000, 2000, 5000, 10000] as $quickAmount)
+                                    <button type="button" class="fund-quick-amount app-choice-chip shrink-0" data-amount="{{ $quickAmount }}">
+                                        &#8358;{{ number_format($quickAmount) }}
+                                    </button>
+                                @endforeach
+                            </div>
                         </div>
 
                         <button class="btn-primary w-full justify-center">Pay with Flutterwave</button>
@@ -322,6 +341,16 @@
                 checkoutInput.addEventListener('input', () => updateNet(checkoutInput, checkoutNetEl));
                 updateNet(checkoutInput, checkoutNetEl);
             }
+
+            // Most people fund the same round amounts every time.
+            document.querySelectorAll('.fund-quick-amount').forEach((chip) => {
+                chip.addEventListener('click', () => {
+                    if (!checkoutInput) return;
+                    checkoutInput.value = chip.dataset.amount || '';
+                    updateNet(checkoutInput, checkoutNetEl);
+                    checkoutInput.focus();
+                });
+            });
 
             if (temporaryInput) {
                 temporaryInput.addEventListener('input', () => updateNet(temporaryInput, temporaryNetEl));

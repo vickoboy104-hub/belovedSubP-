@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\WalletTransaction;
 use App\Services\FlutterwaveService;
+use App\Services\WalletFundingService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,6 +16,7 @@ class VirtualAccountController extends Controller
 {
     public function __construct(
         private readonly FlutterwaveService $flutterwave,
+        private readonly WalletFundingService $funding,
     ) {
     }
 
@@ -112,6 +115,8 @@ class VirtualAccountController extends Controller
             $expiryMessage = $expiresAt
                 ? ' This account expires '.strtolower($expiresAt->diffForHumans()).'.'
                 : ' This account is temporary and will expire soon.';
+
+            $this->recordPendingTransfer($user, $txRef, $accountNumber, $bankName, $amountNaira);
 
             return back()->with('success', 'Temporary virtual account generated successfully.'.$expiryMessage);
         } catch (\Throwable $e) {
@@ -228,6 +233,20 @@ class VirtualAccountController extends Controller
                 return back()->with('error', 'Virtual account response was incomplete. Please try again in a few seconds.');
             }
 
+            // Money keeps arriving at an account number this call is about to
+            // replace, so the one being retired is kept on record beside the new
+            // one rather than overwritten out of existence.
+            $superseded = $existingMeta['previous_virtual_accounts'] ?? [];
+            if (!empty($user->virtual_account_number) && $user->virtual_account_number !== $accountNumber) {
+                $superseded[] = [
+                    'tx_ref' => (string) ($existingMeta['tx_ref'] ?? ''),
+                    'account_number' => (string) $user->virtual_account_number,
+                    'bank_name' => (string) ($user->virtual_account_bank ?? ''),
+                    'replaced_at' => now()->toIso8601String(),
+                ];
+                $superseded = array_slice($superseded, -5);
+            }
+
             $user->first_name = $firstName;
             $user->last_name = $lastName;
             $user->name = trim($firstName.' '.$lastName);
@@ -242,7 +261,7 @@ class VirtualAccountController extends Controller
             $user->virtual_account_name = $accountName;
             $user->virtual_account_number = $accountNumber;
             $user->virtual_account_assigned_at = now();
-            $user->virtual_account_metadata = [
+            $user->virtual_account_metadata = array_merge($existingMeta, [
                 'tx_ref' => $txRef,
                 'flw_ref' => (string) ($data['flw_ref'] ?? ''),
                 'order_ref' => (string) ($data['order_ref'] ?? ''),
@@ -253,7 +272,8 @@ class VirtualAccountController extends Controller
                 'identity_masked' => str_repeat('*', max(strlen($identityValue) - 4, 0)).substr($identityValue, -4),
                 'assigned_using_customer_identity' => true,
                 'raw_response' => $data,
-            ];
+                'previous_virtual_accounts' => $superseded,
+            ]);
             $user->save();
 
             return back()->with('success', 'Permanent virtual account generated successfully. You can now fund your wallet with direct transfer.');
@@ -266,6 +286,59 @@ class VirtualAccountController extends Controller
 
             return back()->with('error', 'Could not generate virtual account at the moment. Please try again later.');
         }
+    }
+
+    /**
+     * A one-time account is a deposit the customer is about to make, so it is
+     * written down as one. They see it waiting in their transactions, the amount
+     * they have to send is on record, and the arrival of the transfer has a row
+     * of its own to turn into a completed credit.
+     */
+    private function recordPendingTransfer(
+        object $user,
+        string $txRef,
+        string $accountNumber,
+        string $bankName,
+        float $amountNaira,
+    ): void {
+        $wallet = $user->wallet;
+        if (!$wallet) {
+            return;
+        }
+
+        // The account this row was waiting for is being replaced, so stop calling
+        // it pending rather than leaving a deposit that will never arrive.
+        WalletTransaction::query()
+            ->where('wallet_id', $wallet->id)
+            ->where('status', 'pending')
+            ->where('channel', 'flutterwave_virtual_account')
+            ->update([
+                'status' => 'failed',
+                'description' => 'Wallet funding request abandoned: a new one-time account was generated',
+            ]);
+
+        $grossKobo = (int) round($amountNaira * 100);
+        $feeKobo = $this->funding->fundingFeeKobo();
+
+        WalletTransaction::create([
+            'wallet_id' => $wallet->id,
+            'type' => 'credit',
+            'amount' => $grossKobo,
+            'reference' => $txRef,
+            'status' => 'pending',
+            'channel' => 'flutterwave_virtual_account',
+            'description' => 'Waiting for a bank transfer to '.$accountNumber.' ('.$bankName.')',
+            'meta' => [
+                'amount_naira' => $amountNaira,
+                'fee_kobo' => $feeKobo,
+                'fee_naira' => $feeKobo / 100,
+                'credited_kobo' => max(0, $grossKobo - $feeKobo),
+                'tx_ref' => $txRef,
+                'virtual_account_number' => $accountNumber,
+                'virtual_account_bank' => $bankName,
+                'expected_credit_kobo' => max(0, $grossKobo - $feeKobo),
+            ],
+        ]);
     }
 
     private function makeVirtualAccountDisplayName(string $value): string

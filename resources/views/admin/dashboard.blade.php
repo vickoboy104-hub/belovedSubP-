@@ -8,21 +8,18 @@
         $criticalAdminNotification = $criticalAdminNotifications->first();
     @endphp
 
-    <div class="mx-auto max-w-6xl space-y-6">
-        <section class="app-section p-6 sm:p-8">
-            <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">Admin Dashboard</h1>
-            <p class="app-page-subtitle">Monitor users, orders, funding, profits, notifications, and system activity.</p>
-        </section>
+    <x-page-hero class="reference-shared-banner" title="Admin Dashboard" subtitle="Monitor users, orders, funding, profits, notifications, and system activity." />
 
+    <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
         @if($criticalAdminNotification)
-            <section class="rounded-3xl border border-rose-200 bg-rose-50 p-5 shadow-[0_18px_48px_rgba(190,24,93,0.12)]">
+            <section class="app-note-card is-critical">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <div class="text-sm font-extrabold uppercase tracking-[0.18em] text-rose-700">Urgent Admin Warning</div>
-                        <div class="mt-2 text-xl font-extrabold text-rose-900">{{ $criticalAdminNotification->data['title'] ?? 'Critical alert' }}</div>
-                        <div class="mt-2 text-sm text-rose-800">{{ $criticalAdminNotification->data['message'] ?? '' }}</div>
+                        <span class="app-flag app-flag-critical">Urgent Admin Warning</span>
+                        <div class="mt-2 text-xl font-extrabold">{{ $criticalAdminNotification->data['title'] ?? 'Critical alert' }}</div>
+                        <div class="mt-2 text-sm opacity-80">{{ $criticalAdminNotification->data['message'] ?? '' }}</div>
                     </div>
-                    <a href="{{ route('admin.notifications.index') }}" class="btn-primary justify-center bg-rose-600 hover:bg-rose-700">Open Alerts</a>
+                    <a href="{{ route('admin.notifications.index') }}" class="btn-danger shrink-0">Open Alerts</a>
                 </div>
             </section>
         @endif
@@ -62,27 +59,76 @@
         </section>
 
         <section class="app-section p-4 sm:p-6">
+            @php
+                $ninWindows = [
+                    'today' => 'Today',
+                    'month' => 'This month',
+                    'all' => 'All time',
+                ];
+            @endphp
+            <h2 class="text-lg font-extrabold text-slate-900">NIN Verification &amp; Printing</h2>
+            <p class="mt-1 text-sm text-slate-500">
+                Charged is what left customer wallets for these two services. Kept is what remains after the
+                provider is paid for the same job &mdash; and a repeat read back out of a record we already hold
+                is charged again without another provider call, so all of it is kept.
+            </p>
+
+            <div class="mt-4 overflow-x-auto">
+                <table class="w-full min-w-[560px] text-sm">
+                    <thead>
+                        <tr class="text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                            <th class="py-2 pr-3">Window</th>
+                            <th class="py-2 pr-3">Verified</th>
+                            <th class="py-2 pr-3">Read from stored record</th>
+                            <th class="py-2 pr-3">Slips printed</th>
+                            <th class="py-2 pr-3 text-right">Charged</th>
+                            <th class="py-2 text-right">Kept</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($ninWindows as $window => $label)
+                            @php $row = $ninWork[$window] ?? ['verifications' => 0, 'repeats' => 0, 'prints' => 0, 'charged' => 0, 'kept' => 0]; @endphp
+                            <tr class="border-t border-slate-100">
+                                <td class="py-2 pr-3 font-semibold text-slate-700">{{ $label }}</td>
+                                <td class="py-2 pr-3 text-slate-700">{{ number_format($row['verifications']) }}</td>
+                                <td class="py-2 pr-3 text-slate-700">{{ number_format($row['repeats']) }}</td>
+                                <td class="py-2 pr-3 text-slate-700">{{ number_format($row['prints']) }}</td>
+                                <td class="reference-money py-2 pr-3 text-right text-slate-900">&#8358;{{ number_format($row['charged'] / 100, 2) }}</td>
+                                <td class="reference-money py-2 text-right font-extrabold text-emerald-700">&#8358;{{ number_format($row['kept'] / 100, 2) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="mt-3 text-xs text-slate-500">
+                Verifications, printed slips and every other identity job are counted in the profit totals above.
+                If a rate the provider charges us is not on file in Settings, no profit is claimed on that job.
+            </p>
+        </section>
+
+        <section class="app-section p-4 sm:p-6">
             <p class="text-sm font-semibold text-slate-600 mb-3">Reset Totals</p>
             <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <form method="POST" action="{{ route('admin.metrics.reset') }}">
                     @csrf
                     <input type="hidden" name="metric" value="funding">
-                    <button class="w-full rounded-xl bg-rose-600 px-3 py-3 text-sm font-bold text-white hover:bg-rose-700">Reset Funding Total</button>
+                    <button class="btn-danger w-full">Reset Funding Total</button>
                 </form>
                 <form method="POST" action="{{ route('admin.metrics.reset') }}">
                     @csrf
                     <input type="hidden" name="metric" value="purchases">
-                    <button class="w-full rounded-xl bg-rose-600 px-3 py-3 text-sm font-bold text-white hover:bg-rose-700">Reset Purchases Total</button>
+                    <button class="btn-danger w-full">Reset Purchases Total</button>
                 </form>
                 <form method="POST" action="{{ route('admin.metrics.reset') }}">
                     @csrf
                     <input type="hidden" name="metric" value="profit">
-                    <button class="w-full rounded-xl bg-rose-600 px-3 py-3 text-sm font-bold text-white hover:bg-rose-700">Reset Profit Total</button>
+                    <button class="btn-danger w-full">Reset Profit Total</button>
                 </form>
                 <form method="POST" action="{{ route('admin.metrics.reset') }}">
                     @csrf
                     <input type="hidden" name="metric" value="all">
-                    <button class="w-full rounded-xl bg-rose-700 px-3 py-3 text-sm font-extrabold text-white hover:bg-rose-800">Reset All Totals</button>
+                    <button class="btn-danger w-full">Reset All Totals</button>
                 </form>
             </div>
         </section>
@@ -108,35 +154,43 @@
         </section>
 
         <section class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            @php $waitingManualRequests = (int) ($waitingManualRequests ?? 0); @endphp
+            <a href="{{ route('admin.manual-orders.index', ['status' => 'pending']) }}"
+               class="{{ $waitingManualRequests > 0 ? 'btn-danger' : 'btn-outline' }} justify-between gap-3">
+                <span>Manual Requests</span>
+                <span class="rounded-full bg-white/20 px-3 py-1 text-xs font-bold">
+                    {{ $waitingManualRequests > 0 ? $waitingManualRequests.' waiting' : 'All clear' }}
+                </span>
+            </a>
             <a href="{{ route('admin.users') }}" class="btn-outline justify-center">Manage Users</a>
             <a href="{{ route('admin.orders') }}" class="btn-primary justify-center">View Orders</a>
             <a href="{{ route('admin.wallet.transactions') }}" class="btn-outline justify-center">Wallet Transactions</a>
             <a href="{{ route('admin.support.chats') }}" class="btn-outline justify-center">Support Chats</a>
+            <a href="{{ route('admin.broadcast') }}" class="btn-outline justify-center">Announcements</a>
             <a href="{{ route('admin.settings') }}" class="btn-outline justify-center">Settings</a>
             <button type="button"
                     id="openWebsiteEditorWarning"
-                    class="rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white hover:bg-rose-700">
+                    class="btn-outline justify-center">
                 Website Editor
             </button>
         </section>
 
-        <div id="websiteEditorWarningOverlay" class="fixed inset-0 z-[92] hidden items-center justify-center px-4">
-            <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
-            <div class="relative w-full max-w-lg rounded-3xl border border-red-500/30 bg-[#1a0f14] shadow-2xl overflow-hidden">
+        <div id="websiteEditorWarningOverlay" class="app-modal-overlay fixed inset-0 z-[92] hidden items-center justify-center px-4">
+            <div class="app-modal-panel relative w-full overflow-hidden">
                 <div class="p-6">
-                    <div class="text-red-300 font-extrabold text-xl">Warning: High Impact Area</div>
-                    <p class="text-red-100/90 text-sm mt-3">
+                    <span class="app-flag app-flag-critical">High Impact Area</span>
+                    <p class="app-flag-tone-error mt-3 rounded-2xl border px-4 py-3 text-sm leading-6">
                         Any change in Website Editor affects the live website immediately.
                         Do not continue unless you are sure.
                     </p>
-                    <div class="mt-6 flex flex-wrap justify-end gap-3">
+                    <div class="mt-6 app-modal-actions">
                         <button type="button"
                                 id="closeWebsiteEditorWarning"
-                                class="px-4 py-2 rounded-xl border border-white/15 text-white hover:bg-white/10">
+                                class="app-modal-btn app-modal-btn-muted">
                             Cancel
                         </button>
                         <a href="{{ route('admin.website-editor') }}"
-                           class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold">
+                           class="app-modal-btn app-modal-btn-danger">
                             I Understand, Continue
                         </a>
                     </div>
@@ -167,19 +221,19 @@
                         $severity = (string) ($data['severity'] ?? 'info');
                         $isCritical = $severity === 'critical';
                     @endphp
-                    <div class="rounded-2xl border {{ $isCritical ? 'border-rose-200 bg-rose-50' : ($isUnread ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-slate-50') }} p-4">
+                    <div class="app-note-card {{ $isCritical ? 'is-critical' : ($isUnread ? 'is-unread' : '') }}">
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <div class="font-bold text-slate-900">{{ $data['title'] ?? 'Notification' }}</div>
-                                <div class="text-sm {{ $isCritical ? 'text-rose-800' : 'text-slate-600' }} mt-1">{{ $data['message'] ?? '' }}</div>
-                                <div class="text-xs text-slate-400 mt-2">{{ optional($notification->created_at)->format('d M Y, h:ia') }}</div>
+                                <div class="text-sm opacity-80 mt-1">{{ $data['message'] ?? '' }}</div>
+                                <div class="text-xs opacity-70 mt-2">{{ optional($notification->created_at)->format('d M Y, h:ia') }}</div>
                             </div>
                             <div class="flex flex-col items-end gap-2">
                                 @if($isCritical)
-                                    <span class="rounded-full bg-rose-100 px-2 py-1 text-xs font-bold text-rose-700">Critical</span>
+                                    <span class="app-flag app-flag-critical">Critical</span>
                                 @endif
                                 @if($isUnread)
-                                    <span class="px-2 py-1 rounded-full text-xs font-bold {{ $isCritical ? 'bg-rose-200 text-rose-900' : 'bg-orange-100 text-slate-900' }}">Unread</span>
+                                    <span class="app-flag {{ $isCritical ? 'app-flag-critical' : 'app-flag-unread' }}">Unread</span>
                                 @endif
                             </div>
                         </div>
@@ -300,18 +354,17 @@
     </div>
 
     @if($criticalAdminNotification)
-        <div id="adminCriticalAlertOverlay" class="fixed inset-0 z-[110] hidden items-center justify-center px-4">
-            <div class="absolute inset-0 bg-black/65 backdrop-blur-sm"></div>
-            <div class="relative w-full max-w-lg overflow-hidden rounded-3xl border border-rose-200 bg-white shadow-[0_24px_60px_rgba(159,18,57,0.22)]">
+        <div id="adminCriticalAlertOverlay" class="app-modal-overlay fixed inset-0 z-[110] hidden items-center justify-center px-4">
+            <div class="app-modal-panel relative w-full overflow-hidden">
                 <div class="p-6">
-                    <div class="text-sm font-extrabold uppercase tracking-[0.18em] text-rose-700">Critical Alert</div>
-                    <div class="mt-3 text-2xl font-extrabold text-slate-900">{{ $criticalAdminNotification->data['title'] ?? 'Critical alert' }}</div>
-                    <div class="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm leading-6 text-rose-800">
+                    <span class="app-flag app-flag-critical">Critical Alert</span>
+                    <div class="mt-3 text-2xl font-extrabold">{{ $criticalAdminNotification->data['title'] ?? 'Critical alert' }}</div>
+                    <div class="app-flag-tone-error mt-3 rounded-2xl border px-4 py-4 text-sm leading-6">
                         {{ $criticalAdminNotification->data['message'] ?? '' }}
                     </div>
-                    <div class="mt-6 flex flex-wrap justify-end gap-3">
-                        <button type="button" id="dismissAdminCriticalAlert" class="btn-outline">Close</button>
-                        <a href="{{ route('admin.notifications.index') }}" class="btn-primary justify-center bg-rose-600 hover:bg-rose-700">View Notifications</a>
+                    <div class="mt-6 app-modal-actions">
+                        <button type="button" id="dismissAdminCriticalAlert" class="app-modal-btn app-modal-btn-muted">Close</button>
+                        <a href="{{ route('admin.notifications.index') }}" class="app-modal-btn app-modal-btn-danger">View Notifications</a>
                     </div>
                 </div>
             </div>

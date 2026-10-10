@@ -10,15 +10,11 @@
         $markupAirtime = (float) setting('markup_airtime', 0);
     @endphp
 
-    <div class="mx-auto max-w-4xl space-y-5 sm:space-y-6">
-        <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <div class="app-kicker">Airtime Purchase</div>
-                <h1 class="app-page-title mt-2 text-[1.7rem] leading-tight sm:text-[2.3rem]">Buy {{ $serviceLabel }}</h1>
-            </div>
-            <a href="{{ route('vtu.airtime') }}" class="btn-outline sm:w-auto">All Airtime Services</a>
-        </section>
+    <x-page-hero class="reference-shared-banner" title="Buy {{ $serviceLabel }}">
+        <a href="{{ route('vtu.airtime') }}" class="reference-hero-action">All Airtime Services</a>
+    </x-page-hero>
 
+    <div class="reference-flow-page mx-auto max-w-4xl space-y-5 sm:space-y-6">
         <section class="app-form-shell space-y-5 sm:space-y-6">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <p class="max-w-xl text-sm leading-6 text-slate-500 sm:text-[0.95rem]">Enter the phone number, choose the amount, and continue with wallet checkout.</p>
@@ -32,7 +28,7 @@
                 <input type="hidden" id="service_id" name="service_id" value="{{ $serviceSlug }}">
 
                 <div class="grid gap-5 md:grid-cols-2">
-                    <div>
+                    <div class="min-w-0">
                         <label class="block text-sm font-bold text-slate-700">Phone Number</label>
                         <div class="contact-picker-row mt-2">
                             <input id="phone" type="tel" name="phone" required placeholder="Enter Phone Number" list="airtimePhoneSuggestionList" class="input-field" inputmode="tel" autocomplete="tel-national" data-contact-picker-input>
@@ -50,10 +46,11 @@
                                     <option value="{{ $suggestion['phone'] }}">{{ $suggestion['label'] }}</option>
                                 @endforeach
                             </datalist>
-                            <div class="mt-3 flex flex-nowrap gap-2 overflow-x-auto pb-1">
+                            <p class="app-choice-caption mt-3">Recently used numbers</p>
+                            <div class="app-phone-chip-row mt-2">
                                 @foreach(($phoneSuggestions ?? []) as $suggestion)
-                                    <button type="button" class="airtime-phone-suggestion shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100" data-phone="{{ $suggestion['phone'] }}">
-                                        {{ $suggestion['phone'] }}
+                                    <button type="button" class="airtime-phone-suggestion app-choice-chip" data-phone="{{ $suggestion['phone'] }}" title="{{ $suggestion['label'] }}">
+                                        {{ $suggestion['phone'] }}@if(($suggestion['count'] ?? 1) > 1)<span class="app-phone-chip-count">{{ $suggestion['count'] }}&times;</span>@endif
                                     </button>
                                 @endforeach
                             </div>
@@ -68,12 +65,15 @@
                     </div>
                 </div>
 
-                <div class="flex flex-wrap gap-2">
-                    @foreach([100, 200, 500, 1000, 2000, 5000] as $presetAmount)
-                        <button type="button" class="airtime-amount-preset rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100" data-amount="{{ $presetAmount }}">
-                            &#8358;{{ number_format($presetAmount) }}
-                        </button>
-                    @endforeach
+                <div class="space-y-2">
+                    <p class="app-choice-caption">Quick amounts</p>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach([100, 200, 500, 1000, 2000, 5000] as $presetAmount)
+                            <button type="button" class="airtime-amount-preset app-choice-chip" data-amount="{{ $presetAmount }}">
+                                &#8358;{{ number_format($presetAmount) }}
+                            </button>
+                        @endforeach
+                    </div>
                 </div>
 
                 <button type="button" id="airtimeActionBtn" class="btn-primary w-full justify-center py-3.5 text-[0.98rem]">
@@ -123,14 +123,6 @@
             }
 
             amountInput.addEventListener('input', updatePayTotal);
-
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') {
-                    window.showFlashToast(type, message);
-                } else {
-                    alert(message);
-                }
-            }
 
             function getErrorMessage(res, data, fallback) {
                 if (data && typeof data.message === 'string' && data.message.trim() !== '') return data.message;

@@ -17,15 +17,11 @@
         ];
     @endphp
 
-    <div class="mx-auto max-w-4xl space-y-5 sm:space-y-6">
-        <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <div class="app-kicker">Data Subscription</div>
-                <h1 class="app-page-title mt-2 text-[1.7rem] leading-tight sm:text-[2.3rem]">Buy {{ $serviceLabel }}</h1>
-            </div>
-            <a href="{{ route('vtu.data') }}" class="btn-outline sm:w-auto">All Data Services</a>
-        </section>
+    <x-page-hero class="reference-shared-banner" title="Buy {{ $serviceLabel }}">
+        <a href="{{ route('vtu.data') }}" class="reference-hero-action">All Data Services</a>
+    </x-page-hero>
 
+    <div class="reference-flow-page mx-auto max-w-4xl space-y-5 sm:space-y-6">
         <section class="app-form-shell space-y-5 sm:space-y-6">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <p class="max-w-xl text-sm leading-6 text-slate-500 sm:text-[0.95rem]">Select a plan, enter the phone number and continue with wallet checkout.</p>
@@ -43,10 +39,14 @@
                     <select id="plan" name="plan" required disabled class="input-field mt-2">
                         <option value="">Loading plans...</option>
                     </select>
+                    <div id="planNotice" class="hidden mt-2 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                        <p id="planNoticeText" class="text-xs font-medium text-amber-800"></p>
+                        <button type="button" id="planRetryBtn" class="btn-outline px-3 py-1.5 text-xs font-bold">Try again</button>
+                    </div>
                 </div>
 
                 <div class="grid gap-5 md:grid-cols-2">
-                    <div>
+                    <div class="min-w-0">
                         <label class="block text-sm font-bold text-slate-700">Phone Number</label>
                         <div class="contact-picker-row mt-2">
                             <input id="phone" type="tel" name="phone" required placeholder="Enter Phone Number" list="dataPhoneSuggestionList" class="input-field" inputmode="tel" autocomplete="tel-national" data-contact-picker-input>
@@ -64,10 +64,11 @@
                                     <option value="{{ $suggestion['phone'] }}">{{ $suggestion['label'] }}</option>
                                 @endforeach
                             </datalist>
-                            <div class="mt-3 flex flex-nowrap gap-2 overflow-x-auto pb-1">
+                            <p class="app-choice-caption mt-3">Recently used numbers</p>
+                            <div class="app-phone-chip-row mt-2">
                                 @foreach(($phoneSuggestions ?? []) as $suggestion)
-                                    <button type="button" class="data-phone-suggestion shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100" data-phone="{{ $suggestion['phone'] }}">
-                                        {{ $suggestion['phone'] }}
+                                    <button type="button" class="data-phone-suggestion app-choice-chip" data-phone="{{ $suggestion['phone'] }}" title="{{ $suggestion['label'] }}">
+                                        {{ $suggestion['phone'] }}@if(($suggestion['count'] ?? 1) > 1)<span class="app-phone-chip-count">{{ $suggestion['count'] }}&times;</span>@endif
                                     </button>
                                 @endforeach
                             </div>
@@ -81,8 +82,10 @@
                     </div>
                 </div>
 
-                <div id="planLoader" class="rounded-2xl bg-slate-50 px-4 py-2.5 text-xs font-medium text-slate-600">
-                    Loading plans from provider...
+                <div id="planLoader" class="space-y-2 rounded-2xl bg-slate-50 px-4 py-3">
+                    <p class="text-xs font-medium text-slate-600">Loading plans from provider...</p>
+                    <span class="reference-skeleton-wave block h-3 w-full rounded-full" aria-hidden="true"></span>
+                    <span class="reference-skeleton-wave block h-3 w-4/5 rounded-full" aria-hidden="true"></span>
                 </div>
 
                 <button type="button" id="dataActionBtn" class="btn-primary w-full justify-center py-3.5 text-[0.98rem]">
@@ -105,6 +108,9 @@
             const actionBtn = document.getElementById('dataActionBtn');
             const form = document.getElementById('dataPurchaseForm');
             const loader = document.getElementById('planLoader');
+            const planNotice = document.getElementById('planNotice');
+            const planNoticeText = document.getElementById('planNoticeText');
+            const planRetryBtn = document.getElementById('planRetryBtn');
             const payTotalText = document.getElementById('payTotalText').querySelector('span');
             const confirmBtn = document.querySelector('[data-modal-confirm="confirmData"]');
 
@@ -137,7 +143,19 @@
                 return label;
             }
 
+            function setPlanNotice(message) {
+                if (message === '') {
+                    planNotice.classList.add('hidden');
+                    planNoticeText.textContent = '';
+                    return;
+                }
+
+                planNoticeText.textContent = message;
+                planNotice.classList.remove('hidden');
+            }
+
             async function loadPlans() {
+                setPlanNotice('');
                 try {
                     const url = `{{ route('gsubz.plans') }}?service=${encodeURIComponent(serviceId)}`;
                     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
@@ -145,8 +163,12 @@
                     const plans = data.plans || data.data || data || [];
 
                     if (!Array.isArray(plans) || plans.length === 0) {
-                        planSelect.innerHTML = '<option value="">No plans found</option>';
+                        planSelect.innerHTML = '<option value="">No plans available</option>';
                         planSelect.disabled = true;
+                        // A silent empty dropdown reads as a broken button. Say what
+                        // is missing and let the customer try again without a reload.
+                        setPlanNotice(data?.message
+                            || `${serviceLabel} has no plans right now. Try again in a moment or choose another network.`);
                         return;
                     }
 
@@ -164,10 +186,16 @@
                 } catch (e) {
                     planSelect.innerHTML = '<option value="">Failed to load plans</option>';
                     planSelect.disabled = true;
+                    setPlanNotice('Plans could not be loaded. Check your connection and try again.');
                 } finally {
                     loader.classList.add('hidden');
                 }
             }
+
+            planRetryBtn.addEventListener('click', () => {
+                loader.classList.remove('hidden');
+                loadPlans();
+            });
 
             planSelect.addEventListener('change', () => {
                 const opt = planSelect.options[planSelect.selectedIndex];
@@ -180,14 +208,6 @@
                 amountInput.value = base;
                 payTotalText.textContent = '₦' + Number(base).toLocaleString();
             });
-
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') {
-                    window.showFlashToast(type, message);
-                } else {
-                    alert(message);
-                }
-            }
 
             function getErrorMessage(res, data, fallback) {
                 if (data && typeof data.message === 'string' && data.message.trim() !== '') return data.message;

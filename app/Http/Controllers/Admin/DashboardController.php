@@ -7,14 +7,17 @@ use App\Models\Order;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Services\ManualFulfilmentService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, ManualFulfilmentService $manualServices)
     {
         $totalUsers = User::count();
 
@@ -72,8 +75,11 @@ class DashboardController extends Controller
             'profit' => (int) (clone $profitQuery)->sum('profit'),
         ];
 
+        $ninWork = $this->ninWork();
+
         $recentOrders = Order::latest()->take(10)->get();
         $recentTransactions = WalletTransaction::latest()->take(10)->get();
+        $waitingManualRequests = $manualServices->waitingCount();
         $adminNotifications = collect();
         $unreadAdminNotifications = 0;
 
@@ -104,13 +110,65 @@ class DashboardController extends Controller
             'todayProfit',
             'monthProfit',
             'yearProfit',
+            'ninWork',
             'profitFilter',
             'profitFilterResult',
             'recentOrders',
             'recentTransactions',
             'adminNotifications',
-            'unreadAdminNotifications'
+            'unreadAdminNotifications',
+            'waitingManualRequests'
         ));
+    }
+
+    /**
+     * The NIN business, counted the way the owner sells it: a verification, the
+     * repeats answered from a record this site already holds, and a printed slip.
+     *
+     * "Charged" is what left the customer's wallet; "kept" is what is still ours
+     * after the provider was paid for the same job. A repeat is broken out
+     * because nothing was paid to the provider for it at all, which is the money
+     * that used to disappear from these totals.
+     *
+     * @return array<string, array<string, int>>
+     */
+    private function ninWork(): array
+    {
+        $windows = [
+            'today' => [now()->startOfDay(), now()->endOfDay()],
+            'month' => [now()->startOfMonth(), now()->endOfMonth()],
+            'all' => [null, null],
+        ];
+
+        $board = [];
+        foreach ($windows as $name => [$from, $until]) {
+            $verify = $this->ninQuery('verify', $from, $until);
+            $print = $this->ninQuery('print', $from, $until);
+
+            $board[$name] = [
+                'verifications' => (clone $verify)->count(),
+                'repeats' => (clone $verify)->where('meta->cache_hit', true)->count(),
+                'prints' => (clone $print)->count(),
+                'charged' => (int) (clone $verify)->sum('amount') + (int) (clone $print)->sum('amount'),
+                'kept' => (int) (clone $verify)->sum('profit') + (int) (clone $print)->sum('profit'),
+            ];
+        }
+
+        return $board;
+    }
+
+    private function ninQuery(string $serviceType, ?Carbon $from, ?Carbon $until): Builder
+    {
+        $query = Order::query()
+            ->where('status', 'success')
+            ->where('meta->type', 'nin')
+            ->where('meta->service_type', $serviceType);
+
+        if ($from !== null) {
+            $query->whereBetween('created_at', [$from, $until]);
+        }
+
+        return $query;
     }
 
     public function markNotificationsRead(Request $request): RedirectResponse
