@@ -29,11 +29,10 @@
                     <div>
                         <label class="block text-sm font-bold text-slate-700">Validation Category</label>
                         <select id="validation_type" name="validation_type" required class="input-field mt-2">
-                            <option value="">Select validation category</option>
+                            <option value="">--Select Validation Category--</option>
                             <option value="no_record" @selected(old('validation_type') === 'no_record')>No Record Found</option>
-                            <option value="update_record" @selected(old('validation_type') === 'update_record')>Update Record</option>
+                            <option value="update_record" @selected(old('validation_type') === 'update_record')>Update Record (Name / Phone / Address, not date of birth)</option>
                         </select>
-                        <div id="validationPrice" class="mt-2 text-sm font-semibold text-rose-600"></div>
                     </div>
 
                     <div>
@@ -46,11 +45,14 @@
                                maxlength="11"
                                inputmode="numeric"
                                class="input-field mt-2"
-                               placeholder="Enter 11-digit NIN">
+                               placeholder="Enter NIN e.g 74227342856">
                     </div>
 
+                    <x-price-lock id="validationPrice" label="Price for this validation" />
+
                     <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-6 text-amber-800">
-                        Validation requests are not refundable once successfully submitted to the provider.
+                        Once the request has been sent it cannot be cancelled. If the provider fails the
+                        job, the amount is returned to your wallet.
                         @if($validationMarkup > 0)
                             Additional service charge: &#8358;{{ number_format($validationMarkup, 2) }}.
                         @endif
@@ -119,19 +121,16 @@
             const bridgeForm = document.getElementById('ninValidationBridgeForm');
             const typeSelect = document.getElementById('validation_type');
             const ninInput = document.getElementById('ninValidationNumber');
-            const priceEl = document.getElementById('validationPrice');
 
             function updatePrice() {
                 const key = typeSelect.value;
                 if (!key || !prices[key]) {
-                    priceEl.textContent = '';
+                    window.setPriceLock('validationPrice', null);
                     return;
                 }
 
-                priceEl.textContent = 'This request costs ' + '\u20A6' + prices[key].toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                });
+                window.setPriceLock('validationPrice', prices[key],
+                    'Charged to your wallet when the request is sent.');
             }
 
             function validationLabel(value) {
