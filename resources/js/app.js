@@ -553,6 +553,69 @@ document.body.classList.add('page-is-entering');
 })();
 
 // ==============================
+// SERVICE PAGES: LOCKED PRICE FIELD, CONSENT GATE, CARD SCAN
+// ==============================
+(function () {
+    const naira = (value) => {
+        const amount = Number(value);
+        if (!Number.isFinite(amount)) return '';
+        return '₦' + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    // SparkTech shows the price inside a disabled input that only appears once the
+    // choice which fixes it has been made, so the figure can never be read as an
+    // estimate. Call with null or an empty string to hide it again.
+    window.setPriceLock = function (id, amount, caption) {
+        const field = document.getElementById(id);
+        if (!field) return;
+
+        const wrapper = field.closest('[data-price-lock]') || field;
+        const text = naira(amount);
+
+        if (text === '') {
+            field.value = '';
+            wrapper.classList.add('hidden');
+            const note = wrapper.querySelector('[data-price-lock-caption]');
+            if (note) note.textContent = '';
+            return;
+        }
+
+        field.value = text;
+        wrapper.classList.remove('hidden');
+        const note = wrapper.querySelector('[data-price-lock-caption]');
+        if (note) note.textContent = caption || '';
+    };
+
+    // A gated service hides its whole form until the customer accepts the terms.
+    // Nothing is disabled part-way: the fields simply do not exist yet.
+    window.initConsentGate = function (root) {
+        const gate = root instanceof HTMLElement ? root : document.querySelector('[data-consent-gate]');
+        if (!gate) return;
+
+        const form = gate.querySelector('[data-consent-form]');
+        const agree = gate.querySelector('[data-consent-agree]');
+        const decline = gate.querySelector('[data-consent-decline]');
+        const scrollTarget = gate.getAttribute('data-consent-scroll');
+
+        if (form) form.classList.add('hidden');
+
+        agree?.addEventListener('click', function () {
+            if (form) form.classList.remove('hidden');
+            gate.querySelectorAll('[data-consent-terms]').forEach((panel) => panel.classList.add('hidden'));
+            if (scrollTarget) {
+                document.querySelector(scrollTarget)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+
+        decline?.addEventListener('click', function () {
+            if (form) form.classList.add('hidden');
+        });
+    };
+
+    document.querySelectorAll('[data-consent-gate]').forEach((gate) => window.initConsentGate(gate));
+})();
+
+// ==============================
 // ADMIN RICH TEXT EDITORS
 // ==============================
 (function () {

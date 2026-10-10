@@ -2447,7 +2447,15 @@ class VtuController extends Controller
     // =========================================================
     public function bvnForm()
     {
-        return view('vtu.bvn-services');
+        $user = auth()->user();
+        $reports = Order::query()
+            ->where('user_id', $user->id)
+            ->where('meta->type', 'bvn')
+            ->latest()
+            ->take(100)
+            ->get();
+
+        return view('vtu.bvn-services', compact('reports'));
     }
 
     public function bvnVerify(Request $request)

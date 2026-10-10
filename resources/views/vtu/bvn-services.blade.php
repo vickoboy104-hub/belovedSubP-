@@ -23,14 +23,16 @@
     <x-page-hero class="reference-shared-banner" title="BVN Services"
                  subtitle="{{ $verifyManual
                      ? 'Submit a BVN check and our team posts the result to your receipt, or follow an existing retrieval request.'
-                     : 'Verify a BVN instantly, submit a retrieval request, and print the result once it succeeds.' }}" />
+                     : 'Verify a BVN instantly, submit a retrieval request, and print the result once it succeeds.' }}">
+        <a href="{{ route('identity.index') }}" class="reference-hero-action">All identity requests</a>
+    </x-page-hero>
 
     <div class="reference-flow-page max-w-5xl mx-auto w-full px-4 sm:px-0 space-y-5 bvn-print-wrap">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div class="app-section p-5 sm:p-6">
                 <h3 class="text-lg font-extrabold">{{ $verifyManual ? 'BVN Verification' : 'Instant BVN Verification' }}</h3>
                 <p class="mt-1 text-xs text-slate-500">
-                    Charge: N{{ number_format($priceVerify + $markup, 2) }} per verification.
+                    Charge: ₦{{ number_format($priceVerify + $markup, 2) }} per verification.
                     @if($verifyManual)
                         A member of our team runs this check and the result appears on your receipt
                         {{ strtolower($verifyTurnaround) }} after payment.
@@ -40,9 +42,14 @@
                     @csrf
                     <div>
                         <label class="block text-sm font-bold text-slate-700">Enter the BVN Number</label>
-                        <input type="text" name="bvn" maxlength="11" required
+                        <input type="text" name="bvn" maxlength="11" inputmode="numeric" required
                                class="input-field mt-1"
                                placeholder="Enter BVN">
+                    </div>
+                    <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-6 text-amber-800">
+                        BelovedSubP is not affiliated with NIBSS. By submitting this check you authorise
+                        BelovedSubP and the agents it works with to read the record your BVN points to and
+                        return your own details to you on this site.
                     </div>
                     <button type="submit"
                             class="btn-primary w-full justify-center">
@@ -54,8 +61,8 @@
             <div class="app-section p-5 sm:p-6">
                 <h3 class="text-lg font-extrabold">BVN Retrieval Workflow</h3>
                 <p class="mt-1 text-xs text-slate-500">
-                    Phone retrieval: N{{ number_format($priceRetrievePhone + $markup, 2) }} | BMS retrieval: N{{ number_format($priceRetrieveBms + $markup, 2) }}.
-                    Retrieval is completed by our team {{ strtolower($retrieveTurnaround) }} after payment.
+                    Lost your BVN? Submit the phone number or the BMS ticket it is linked to and our team
+                    runs the retrieval {{ strtolower($retrieveTurnaround) }} after payment.
                 </p>
                 <form id="bvnRetrieveForm" class="mt-4 space-y-4">
                     @csrf
@@ -63,12 +70,13 @@
                         <label class="block text-sm font-bold text-slate-700">Choose Category</label>
                         <select id="retrieve_type" name="retrieve_type" required
                                 class="input-field mt-1">
-                            <option value="">Select category</option>
+                            <option value="">--Choose Retrieval Type--</option>
                             <option value="phone">Using Phone Number</option>
                             <option value="bms">Using BMS Ticket</option>
                         </select>
                     </div>
                     <div id="retrieveFields" class="grid grid-cols-1 gap-3"></div>
+                    <x-price-lock id="retrievePrice" label="Retrieval price" />
                     <button type="submit"
                             class="btn-primary w-full justify-center">
                         Submit Retrieve Request
@@ -113,12 +121,65 @@
                 </a>
             </p>
         </div>
+
+        <section class="app-section p-5 sm:p-6 no-print">
+            <h3 class="text-lg font-extrabold">BVN Requests</h3>
+            <p class="mt-1 text-sm text-slate-500">Every BVN check and retrieval you have submitted, newest first.</p>
+
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-slate-200">
+                            <th class="py-2 pr-4 text-left">BVN</th>
+                            <th class="py-2 pr-4 text-left">Type</th>
+                            <th class="py-2 pr-4 text-left">Status</th>
+                            <th class="py-2 pr-4 text-left">Response</th>
+                            <th class="py-2 pr-4 text-left">Date</th>
+                            <th class="py-2 text-left">Receipt</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($reports as $report)
+                            @php
+                                $meta = is_array($report->meta) ? $report->meta : [];
+                                $serviceType = ($meta['service_type'] ?? '') === 'retrieve' ? 'Retrieve' : 'Verify';
+                                $providerMessage = (string) ($meta['message'] ?? '');
+                            @endphp
+                            <tr class="border-b border-slate-100">
+                                <td class="py-2 pr-4">{{ $report->customer_ref }}</td>
+                                <td class="py-2 pr-4">{{ $serviceType }}</td>
+                                <td class="py-2 pr-4">
+                                    <span class="rounded-full px-2 py-1 text-xs font-bold {{ $report->status === 'success' ? 'bg-emerald-50 text-emerald-700' : ($report->status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700') }}">
+                                        {{ strtoupper($report->status) }}
+                                    </span>
+                                </td>
+                                <td class="py-2 pr-4">{{ $providerMessage ?: '-' }}</td>
+                                <td class="py-2 pr-4">{{ optional($report->created_at)->format('d M Y, h:ia') }}</td>
+                                <td class="py-2">
+                                    <a href="{{ route('vtu.receipt', $report->id) }}" class="text-xs font-bold text-blue-700 underline">
+                                        View
+                                    </a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="py-3 text-slate-500">No BVN requests yet.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
 
     <script>
         (function () {
             const verifyRoute = @json(route('vtu.bvn.verify'));
             const retrieveRoute = @json(route('vtu.bvn.retrieve'));
+            const retrievePrices = {
+                phone: Number(@json($priceRetrievePhone)) + Number(@json($markup)),
+                bms: Number(@json($priceRetrieveBms)) + Number(@json($markup)),
+            };
             const verifyForm = document.getElementById('bvnVerifyForm');
             const retrieveForm = document.getElementById('bvnRetrieveForm');
             const retrieveType = document.getElementById('retrieve_type');
@@ -275,34 +336,44 @@
                 if (retrieveType.value === 'bms') {
                     retrieveFields.innerHTML = `
                         <div>
-                            <label class="block text-sm font-bold text-slate-700">BMS Ticket</label>
-                            <input type="text" name="bms_no" required
+                            <label class="block text-sm font-bold text-slate-700">Enter BMS Ticket</label>
+                            <input type="text" name="bms_no" required inputmode="numeric"
                                    class="input-field mt-1"
-                                   placeholder="Enter BMS ticket">
+                                   placeholder="Enter BMS ticket number">
                         </div>
                         <div>
-                            <label class="block text-sm font-bold text-slate-700">Ticket ID</label>
-                            <input type="text" name="ticket_id" required
+                            <label class="block text-sm font-bold text-slate-700">Enter Full Ticket ID</label>
+                            <input type="text" name="ticket_id" required inputmode="numeric"
                                    class="input-field mt-1"
-                                   placeholder="Enter full ticket ID">
+                                   placeholder="Enter Ticket ID e.g 91465122240202030407">
                         </div>
                         <div>
                             <label class="block text-sm font-bold text-slate-700">Agent Code (Optional)</label>
-                            <input type="text" name="agent_code"
+                            <input type="text" name="agent_code" inputmode="numeric"
                                    class="input-field mt-1"
-                                   placeholder="Agent code">
+                                   placeholder="Enter Agent Code e.g 91033441">
                         </div>
                     `;
-                    if (typeof window.initContactPickerButtons === 'function') {
-                        window.initContactPickerButtons(retrieveFields);
-                    }
                     return;
                 }
 
                 retrieveFields.innerHTML = '';
-                if (typeof window.initContactPickerButtons === 'function') {
-                    window.initContactPickerButtons(retrieveFields);
+            }
+
+            function renderRetrievePrice() {
+                if (retrieveType.value === 'phone') {
+                    window.setPriceLock('retrievePrice', retrievePrices.phone,
+                        'Charged to your wallet when the request is submitted.');
+                    return;
                 }
+
+                if (retrieveType.value === 'bms') {
+                    window.setPriceLock('retrievePrice', retrievePrices.bms,
+                        'Charged to your wallet when the request is submitted.');
+                    return;
+                }
+
+                window.setPriceLock('retrievePrice', null);
             }
 
             async function submitForm(form, endpoint, labels) {
@@ -372,8 +443,12 @@
                 submitForm(retrieveForm, retrieveRoute, { done: 'BVN retrieved', failed: 'Not retrieved' });
             });
 
-            retrieveType.addEventListener('change', renderRetrieveFields);
+            retrieveType.addEventListener('change', function () {
+                renderRetrieveFields();
+                renderRetrievePrice();
+            });
             renderRetrieveFields();
+            renderRetrievePrice();
         })();
     </script>
 </x-app-layout>
