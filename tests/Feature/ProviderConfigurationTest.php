@@ -119,6 +119,52 @@ class ProviderConfigurationTest extends TestCase
         $this->assertSame(100_000, $this->balance($user));
     }
 
+    public function test_the_bvn_request_reuses_the_nin_key_when_the_bvn_field_is_left_empty(): void
+    {
+        // ConfirmIdent hands out one key per account for all four endpoints, so an empty
+        // BVN field never meant "BVN is switched off" - it meant "same key as NIN".
+        $user = $this->memberWithBalance(100_000);
+
+        Setting::create(['key' => 'nin_api_key', 'value' => 'shared-confirmident-key']);
+        settings_flush_cache();
+
+        Http::fake([
+            'confirmident.com.ng/api/bvn_search' => Http::response([
+                'success' => true,
+                'message' => 'Verification Successful',
+                'data' => ['bvn' => '12345678901', 'firstname' => 'Test', 'lastname' => 'Candidate'],
+            ]),
+        ]);
+
+        $this
+            ->actingAs($user)
+            ->postJson('/vtu/bvn/verify', ['bvn' => '12345678901'])
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://confirmident.com.ng/api/bvn_search'
+            && in_array('shared-confirmident-key', $request->header('api-key'), true));
+    }
+
+    public function test_the_settings_page_offers_each_identity_credential_field_only_once(): void
+    {
+        // Two inputs sharing one name submit two values and PHP keeps the last, so the
+        // blank duplicate lower down the page silently erased a key that already worked.
+        $admin = User::factory()->create(['is_admin' => true]);
+        $admin->email_verified_at = now();
+        $admin->save();
+
+        $page = $this->actingAs($admin)->get('/admin/settings')->assertOk()->getContent();
+
+        foreach (['nin_api_key', 'nin_base_url', 'nin_print_endpoint', 'nin_reports_endpoint'] as $field) {
+            $this->assertSame(
+                1,
+                substr_count($page, 'name="'.$field.'"'),
+                $field.' must be editable in exactly one place.',
+            );
+        }
+    }
+
     public function test_nin_validation_is_charged_and_queued_for_manual_fulfilment_without_a_key(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);

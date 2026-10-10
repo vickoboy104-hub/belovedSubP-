@@ -19,7 +19,15 @@ class BvnApi
     public function __construct()
     {
         $configuredKey = trim((string) setting('bvn_api_key', ''));
-        $this->apiKey = $configuredKey !== '' ? $configuredKey : trim((string) config('services.bvn.key', ''));
+        if ($configuredKey === '') {
+            // ConfirmIdent issues one key per account for all four endpoints, so an empty
+            // BVN field means "reuse the NIN key", not "BVN is not configured".
+            $configuredKey = trim((string) setting('nin_api_key', ''));
+        }
+
+        $this->apiKey = $configuredKey !== ''
+            ? $configuredKey
+            : (trim((string) config('services.bvn.key', '')) ?: trim((string) config('services.nin.key', '')));
 
         $configuredBase = trim((string) setting('bvn_base_url', ''));
         $fallbackBase = trim((string) config('services.bvn.base', 'https://confirmident.com.ng/api'));

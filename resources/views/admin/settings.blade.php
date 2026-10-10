@@ -762,12 +762,15 @@
                         $missingIntegrations[] = ($activeProvider === 'alt' ? 'Alternative API' : 'GSUBZ')
                             .' key — airtime, data, cable, electricity, exam and premium apps';
                     }
-                    if (trim((string) setting('nin_api_key', config('services.nin.key', ''))) === '') {
+                    $ninKeyConfigured = trim((string) setting('nin_api_key', config('services.nin.key', ''))) !== '';
+                    if ($ninKeyConfigured === false) {
                         $missingIntegrations[] = identity_verify_mode('nin') === 'automatic'
                             ? 'NIN key — NIN search, print, reports and validation'
                             : 'NIN key — only needed if NIN verification is switched back to automatic';
                     }
-                    if (trim((string) setting('bvn_api_key', config('services.bvn.key', ''))) === '') {
+                    // App\Services\BvnApi falls back to the NIN credential, so a blank BVN
+                    // box with a saved NIN box is a working configuration, not a missing one.
+                    if ($ninKeyConfigured === false && trim((string) setting('bvn_api_key', config('services.bvn.key', ''))) === '') {
                         $missingIntegrations[] = identity_verify_mode('bvn') === 'automatic'
                             ? 'BVN key — BVN verify and retrieve'
                             : 'BVN key — only needed if BVN verification is switched back to automatic';
@@ -872,7 +875,13 @@
                         </div>
                     </div>
                     <div class="text-xs text-gray-500 mt-2">
-                        Verification works with documented endpoints. Slip print and reports require provider endpoints from JHTech.
+                        ConfirmIdent issues one credential for the whole account and publishes only four
+                        endpoints: NIN by number, NIN by phone, NIN by demographics, and BVN verify. Anything
+                        beyond those — slip printing, BVN retrieval — has no endpoint to call, so it must stay
+                        on Manual until a provider that supports it is connected.
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">
+                        The BVN box below may be left empty: it reuses the credential saved above.
                     </div>
                 </div>
 
@@ -1261,22 +1270,6 @@
                             </div>
                         </div>
                     @endforeach
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">NIN Base URL</label>
-                        <input name="nin_base_url" value="{{ old('nin_base_url', $settings['nin_base_url'] ?? '') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">NIN API Key</label>
-                        <input name="nin_api_key" value="{{ old('nin_api_key', $settings['nin_api_key'] ?? '') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">NIN Print Endpoint</label>
-                        <input name="nin_print_endpoint" value="{{ old('nin_print_endpoint', $settings['nin_print_endpoint'] ?? '') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
-                    <div>
-                        <label class="text-sm font-bold text-gray-800/80">NIN Reports Endpoint</label>
-                        <input name="nin_reports_endpoint" value="{{ old('nin_reports_endpoint', $settings['nin_reports_endpoint'] ?? '') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
-                    </div>
                     <div>
                         <label class="text-sm font-bold text-gray-800/80">NIN Validation Endpoint</label>
                         <input name="nin_validation_endpoint" value="{{ old('nin_validation_endpoint', $settings['nin_validation_endpoint'] ?? '') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
