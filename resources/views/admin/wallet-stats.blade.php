@@ -57,6 +57,121 @@
         </section>
 
         <section class="app-section p-4 sm:p-6">
+            @php
+                $isMoney = $paidKind === 'money';
+
+                $moneyColumns = [
+                    ['key' => 'who', 'label' => 'Customer'],
+                    ['key' => 'amount', 'label' => 'Amount'],
+                    ['key' => 'how', 'label' => 'How the money came'],
+                    ['key' => 'when', 'label' => 'Time'],
+                    ['key' => 'contact', 'label' => 'Their phone'],
+                ];
+
+                $serviceColumns = [
+                    ['key' => 'who', 'label' => 'Customer'],
+                    ['key' => 'what', 'label' => 'What they bought'],
+                    ['key' => 'amount', 'label' => 'Amount'],
+                    ['key' => 'status', 'label' => 'Status'],
+                    ['key' => 'when', 'label' => 'Time'],
+                    ['key' => 'contact', 'label' => 'Bought for'],
+                ];
+
+                $statusTones = [
+                    'success' => 'success',
+                    'pending' => 'warning',
+                    'failed' => 'danger',
+                    'refunded' => 'info',
+                ];
+
+                $boardRows = $payments->values()->map(function ($row, $index) use ($isMoney, $statusTones) {
+                    $cells = [
+                        'who' => $row->name,
+                        'amount' => ['value' => '₦'.number_format($row->kobo / 100, 2), 'strong' => true],
+                        'when' => $row->at,
+                        'contact' => $isMoney ? ($row->phone ?: $row->email) : $row->ref,
+                    ];
+
+                    if ($isMoney) {
+                        $cells['how'] = $row->label;
+                    } else {
+                        $cells['what'] = ['value' => $row->label, 'note' => $row->detail];
+                        $cells['status'] = ['value' => ucfirst($row->status), 'tone' => $statusTones[$row->status] ?? ''];
+                    }
+
+                    return [
+                        'id' => $row->user_id.'-'.$index,
+                        'cells' => $cells,
+                        'action' => [
+                            'href' => route('admin.users.show', $row->user_id),
+                            'label' => 'Open profile',
+                        ],
+                    ];
+                })->all();
+            @endphp
+
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h2 class="text-lg font-extrabold text-slate-900">
+                        Who paid {{ $paidToday ? 'today' : 'on '.$paidOnLabel }}
+                    </h2>
+                    <p class="text-sm text-slate-500">
+                        {{ $paidOnLabel }}
+                        &middot; {{ number_format($paidPeople) }} {{ $paidPeople === 1 ? 'customer' : 'customers' }}
+                        &middot; {{ number_format($payments->count()) }} {{ $isMoney ? 'deposit' : 'purchase' }}{{ $payments->count() === 1 ? '' : 's' }}
+                        &middot; &#8358;{{ number_format($paidKobo / 100, 2) }}
+                        @if(! $isMoney && $paidRefundedKobo > 0)
+                            <span class="text-slate-400">(&#8358;{{ number_format($paidRefundedKobo / 100, 2) }} of it refunded)</span>
+                        @endif
+                    </p>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <a href="{{ route('admin.wallet-stats', ['paid_kind' => 'money', 'paid_on' => $paidOn]) }}"
+                       class="{{ $isMoney ? 'btn-primary' : 'btn-outline' }} justify-center px-4">Money in</a>
+                    <a href="{{ route('admin.wallet-stats', ['paid_kind' => 'service', 'paid_on' => $paidOn]) }}"
+                       class="{{ $isMoney ? 'btn-outline' : 'btn-primary' }} justify-center px-4">Bought a service</a>
+
+                    <form method="GET" action="{{ route('admin.wallet-stats') }}" class="flex items-center gap-2">
+                        <input type="hidden" name="paid_kind" value="{{ $paidKind }}">
+                        <label class="text-xs font-bold uppercase tracking-[0.12em] text-slate-400" for="paid_on">Day</label>
+                        <input type="date" id="paid_on" name="paid_on" value="{{ $paidOn }}" class="input-field w-auto">
+                        <button type="submit" class="btn-primary justify-center px-4">Show</button>
+                        @if(! $paidToday)
+                            <a href="{{ route('admin.wallet-stats', ['paid_kind' => $paidKind]) }}"
+                               class="btn-outline justify-center px-4">Back to today</a>
+                        @endif
+                    </form>
+                </div>
+            </div>
+
+            <p class="mt-2 text-xs text-slate-500">
+                {{ $isMoney
+                    ? 'Money that entered the business: card and bank checkout, virtual account transfers, and top-ups an admin made by hand. Refunds and referral payouts are not counted here.'
+                    : 'Every service charged to a wallet on this day, including the ones that later failed or came back as a refund - the status column says which.' }}
+                A customer can appear more than once; the times are Nigerian hours.
+            </p>
+
+            <div class="mt-4">
+                <x-records-table
+                    :columns="$isMoney ? $moneyColumns : $serviceColumns"
+                    :rows="$boardRows"
+                    :compact="$isMoney ? ['who', 'amount', 'when'] : ['who', 'what', 'amount', 'status']"
+                    :total="$payments->count()"
+                    :searchable="false"
+                    :empty-text="$isMoney ? 'Nobody funded their wallet on this day.' : 'Nobody bought a service on this day.'"
+                />
+            </div>
+
+            @if($payments->count() >= $paidLimit)
+                <p class="mt-3 text-xs font-bold text-amber-700">
+                    This board stops at {{ number_format($paidLimit) }} rows. The day held more than that, so the
+                    totals above only cover what is listed.
+                </p>
+            @endif
+        </section>
+
+        <section class="app-section p-4 sm:p-6">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 class="text-lg font-extrabold text-slate-900">Deposits over the last {{ $windowDays }} days</h2>
                 <p class="text-sm text-slate-500">{{ number_format($creditsInWindow) }} deposits &middot; &#8358;{{ number_format($koboInWindow / 100, 2) }} banked</p>
