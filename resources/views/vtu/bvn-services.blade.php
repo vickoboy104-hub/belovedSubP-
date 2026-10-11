@@ -1,9 +1,11 @@
 <x-app-layout>
     @php
         $priceVerify = identity_price('price_bvn_verify');
+        $pricePrint = identity_price('price_bvn_print');
         $priceRetrievePhone = identity_price('price_bvn_retrieve_phone');
         $priceRetrieveBms = identity_price('price_bvn_retrieve_bms');
         $markup = (float) setting('markup_bvn', 0);
+        $markupPrint = (float) setting('markup_bvn_print', 0);
         $manualServices = app(\App\Services\ManualFulfilmentService::class);
         $retrieveTurnaround = $manualServices->turnaroundLabel('bvn_retrieve');
         $verifyManual = identity_verify_mode('bvn') === 'manual';
@@ -23,7 +25,7 @@
     <x-page-hero class="reference-shared-banner" title="BVN Services"
                  subtitle="{{ $verifyManual
                      ? 'Submit a BVN check and our team posts the result to your receipt, or follow an existing retrieval request.'
-                     : 'Verify a BVN instantly, submit a retrieval request, and print the result once it succeeds.' }}">
+                     : 'Verify a BVN and read the whole record on the page that follows, print a slip from it, or follow a retrieval request.' }}">
         <a href="{{ route('identity.index') }}" class="reference-hero-action">All identity requests</a>
     </x-page-hero>
 
@@ -53,7 +55,7 @@
                     </div>
                     <button type="submit"
                             class="btn-primary w-full justify-center">
-                        Verify / Check BVN Details
+                        Verify BVN and See the Details
                     </button>
                 </form>
             </div>
@@ -83,6 +85,25 @@
                     </button>
                 </form>
             </div>
+        </div>
+
+        <div id="bvnPrintCard" class="app-section p-5 sm:p-6">
+            <h3 class="text-lg font-extrabold">Print BVN Slip</h3>
+            <p class="mt-1 text-xs text-slate-500">
+                Charge: ₦{{ number_format($pricePrint + $markupPrint, 2) }} per slip.
+                A number you have already verified on this account is drawn from that record,
+                so you are not charged for the check twice.
+            </p>
+            <form id="bvnPrintForm" class="mt-4 grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3 items-end">
+                @csrf
+                <div>
+                    <label class="block text-sm font-bold text-slate-700" for="print_bvn">Enter the BVN Number</label>
+                    <input type="text" id="print_bvn" name="bvn" maxlength="11" inputmode="numeric" required
+                           class="input-field mt-1 w-full" placeholder="Enter BVN">
+                </div>
+                <x-price-lock id="printPrice" label="Slip price" />
+                <button type="submit" class="btn-primary justify-center">Print BVN Slip</button>
+            </form>
         </div>
 
         <div id="bvnResultCard" class="app-section hidden p-5 sm:p-6">
@@ -176,11 +197,14 @@
         (function () {
             const verifyRoute = @json(route('vtu.bvn.verify'));
             const retrieveRoute = @json(route('vtu.bvn.retrieve'));
+            const printRoute = @json(route('vtu.bvn.print'));
             const retrievePrices = {
                 phone: Number(@json($priceRetrievePhone)) + Number(@json($markup)),
                 bms: Number(@json($priceRetrieveBms)) + Number(@json($markup)),
             };
+            const printPrice = Number(@json($pricePrint)) + Number(@json($markupPrint));
             const verifyForm = document.getElementById('bvnVerifyForm');
+            const printForm = document.getElementById('bvnPrintForm');
             const retrieveForm = document.getElementById('bvnRetrieveForm');
             const retrieveType = document.getElementById('retrieve_type');
             const retrieveFields = document.getElementById('retrieveFields');
@@ -376,7 +400,29 @@
                 window.setPriceLock('retrievePrice', null);
             }
 
-            async function submitForm(form, endpoint, labels) {
+            function naira(amount) {
+                return '₦' + Number(amount || 0).toLocaleString('en-NG', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
+            }
+
+            function balanceOf(data) {
+                const kobo = Number(data?.balance_kobo ?? NaN);
+                if (!Number.isFinite(kobo)) {
+                    return null;
+                }
+                if (typeof window.updateWalletBalance === 'function') {
+                    window.updateWalletBalance(kobo);
+                }
+                return kobo / 100;
+            }
+
+            // labels.charged names the number, the debit and what is left, because
+            // that is what tells a customer their money actually moved. labels.next
+            // is where the result lives, and a paid job that cannot say so has
+            // taken the money without delivering the page it was for.
+            async function submitForm(form, endpoint, labels, showCard) {
                 if (form.dataset.submitting === '1') return;
                 form.dataset.submitting = '1';
                 if (typeof window.showGlobalLoader === 'function') {
@@ -395,31 +441,40 @@
                     const message = data?.message || (ok ? 'Request completed.' : 'Request failed.');
                     const payload = data?.normalized || data?.data || {};
                     const receiptUrl = data?.receipt_url || '';
+                    const balance = balanceOf(data);
 
-                    renderResult(ok ? (queued ? 'pending' : 'success') : 'failed', message, payload);
-                    showReceipt(receiptUrl);
-
-                    const balanceKobo = Number(data?.balance_kobo ?? NaN);
-                    if (Number.isFinite(balanceKobo) && typeof window.updateWalletBalance === 'function') {
-                        window.updateWalletBalance(balanceKobo);
+                    if (showCard) {
+                        renderResult(ok ? (queued ? 'pending' : 'success') : 'failed', message, payload);
+                        showReceipt(receiptUrl);
                     }
 
-                    // Naming the customer in the popup is the proof that this is
-                    // their record, not just a green tick on a page.
-                    const identity = ok && !queued ? fullNameOf(payload) : '';
-                    showAppDialog({
-                        tone: ok ? (queued ? 'info' : 'success') : 'error',
-                        title: ok ? (queued ? 'Request received' : labels.done) : labels.failed,
-                        message: [message, identity && ('Record: ' + identity)].filter(Boolean).join(' '),
-                        actions: receiptUrl
+                    const money = ok && !queued && balance !== null && labels.charged
+                        ? labels.charged(data, balance, form)
+                        : '';
+                    const identity = ok && !queued && !money ? fullNameOf(payload) : '';
+                    const next = ok && !queued && labels.next ? (labels.next(data) || '') : '';
+                    const actions = next
+                        ? [
+                            { label: labels.go, variant: 'primary', href: next },
+                            { label: 'Close', variant: 'muted' },
+                        ]
+                        : (receiptUrl
                             ? [
                                 { label: 'View receipt', variant: 'primary', href: receiptUrl },
                                 { label: 'Close', variant: 'muted' },
                             ]
-                            : [{ label: 'Okay', variant: 'warm' }],
+                            : [{ label: 'Okay', variant: 'warm' }]);
+
+                    showAppDialog({
+                        tone: ok ? (queued ? 'info' : 'success') : 'error',
+                        title: ok ? (queued ? 'Request received' : labels.done) : labels.failed,
+                        message: [message, money, identity && ('Record: ' + identity)].filter(Boolean).join(' '),
+                        actions: actions,
                     });
                 } catch (error) {
-                    renderResult('failed', 'Network error. Please try again.', {});
+                    if (showCard) {
+                        renderResult('failed', 'Network error. Please try again.', {});
+                    }
                     showAppDialog({ tone: 'error', title: labels.failed, message: 'Network error. Please try again.' });
                 } finally {
                     form.dataset.submitting = '0';
@@ -431,7 +486,28 @@
 
             verifyForm.addEventListener('submit', function (event) {
                 event.preventDefault();
-                submitForm(verifyForm, verifyRoute, { done: 'BVN verified', failed: 'Not verified' });
+                submitForm(verifyForm, verifyRoute, {
+                    done: 'BVN verified',
+                    failed: 'Not verified',
+                    go: 'See the details',
+                    next: (data) => data.details_url,
+                    charged: (data, balance, form) => 'You verified BVN ' + form.bvn.value.trim()
+                        + ' and ' + naira(data.amount_naira) + ' was deducted from your wallet. You have '
+                        + naira(balance) + ' remaining.',
+                }, false);
+            });
+
+            printForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+                submitForm(printForm, printRoute, {
+                    done: 'Your slip is ready',
+                    failed: 'Slip not made',
+                    go: 'Open your slip',
+                    next: (data) => data.slip_url,
+                    charged: (data, balance, form) => 'You printed a BVN slip for ' + form.bvn.value.trim()
+                        + '. ' + naira(data.amount_naira) + ' was deducted from your wallet and you have '
+                        + naira(balance) + ' remaining.',
+                }, false);
             });
 
             retrieveForm.addEventListener('submit', function (event) {
@@ -440,7 +516,7 @@
                     showAppDialog({ tone: 'info', title: 'Pick a retrieve type', message: 'Choose which BVN record you want to retrieve.' });
                     return;
                 }
-                submitForm(retrieveForm, retrieveRoute, { done: 'BVN retrieved', failed: 'Not retrieved' });
+                submitForm(retrieveForm, retrieveRoute, { done: 'BVN retrieved', failed: 'Not retrieved' }, true);
             });
 
             retrieveType.addEventListener('change', function () {
@@ -449,6 +525,8 @@
             });
             renderRetrieveFields();
             renderRetrievePrice();
+            window.setPriceLock('printPrice', printPrice,
+                'Charged to your wallet when the slip is made.');
         })();
     </script>
 </x-app-layout>

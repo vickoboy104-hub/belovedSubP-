@@ -70,7 +70,7 @@ class IdentityPriceReferenceTest extends TestCase
         $this->assertStringContainsString('Provider cost: ₦160.00', $html);
         $this->assertStringContainsString('Provider cost: ₦80.00', $html);
 
-        $expectedHints = 10;
+        $expectedHints = 11;
         foreach (array_keys($manual->catalogue()) as $slug) {
             // A verification that shares its price with the automatic version is
             // already counted in those ten rows above.

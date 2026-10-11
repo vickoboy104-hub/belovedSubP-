@@ -84,6 +84,14 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::post('/vtu/bvn/verify', [VtuController::class, 'bvnVerify'])->name('vtu.bvn.verify');
     Route::post('/vtu/bvn/retrieve', [VtuController::class, 'bvnRetrieve'])->name('vtu.bvn.retrieve');
 
+    // A verification result is shown once, from a grant this session holds, and the
+    // slip is a document of its own so the browser can print that page alone.
+    Route::get('/vtu/bvn/details/{order}', [VtuController::class, 'bvnDetails'])->name('vtu.bvn.details');
+    Route::post('/vtu/bvn/details/{order}/seen', [VtuController::class, 'bvnDetailsAck'])->name('vtu.bvn.details.ack');
+    Route::post('/vtu/bvn/print', [VtuController::class, 'bvnPrint'])->name('vtu.bvn.print');
+    Route::get('/vtu/bvn/slip/{order}', [VtuController::class, 'bvnSlip'])->name('vtu.bvn.slip');
+    Route::get('/vtu/bvn/slip/{order}/sheet', [VtuController::class, 'bvnSlipSheet'])->name('vtu.bvn.slip.sheet');
+
     Route::get('/vtu/orders', [VtuController::class, 'orders'])->name('vtu.orders');
     Route::get('/vtu/manual/{service}', [VtuController::class, 'manualServiceForm'])->name('vtu.manual.form');
     Route::post('/vtu/manual/{service}', [VtuController::class, 'manualServiceSubmit'])->name('vtu.manual.submit');

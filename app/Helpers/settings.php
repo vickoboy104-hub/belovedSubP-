@@ -109,6 +109,10 @@ if (!function_exists('jhtech_price_reference')) {
             'price_nin_validation_no_record' => ['cost' => 700, 'retail' => 1000],
             'price_nin_validation_update_record' => ['cost' => 1000, 'retail' => 1500],
             'price_bvn_verify' => ['cost' => 80, 'retail' => 200],
+            // ConfirmIdent publishes no print endpoint, so a BVN slip is drawn from a
+            // record this site already holds. The cost below is what the provider
+            // takes when the slip has to be backed by a fresh verification call.
+            'price_bvn_print' => ['cost' => 80, 'retail' => 150],
             'price_bvn_retrieve_phone' => ['cost' => 2500, 'retail' => 3500],
             'price_bvn_retrieve_bms' => ['cost' => 1000, 'retail' => 1500],
 

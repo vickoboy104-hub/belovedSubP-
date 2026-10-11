@@ -223,6 +223,7 @@ class SettingsController extends Controller
             'price_exam_nabteb' => ['nullable', 'numeric', 'min:0'],
             'price_exam_transaction_fee' => ['nullable', 'numeric', 'min:0'],
             'price_bvn_verify' => ['nullable', 'numeric', 'min:0'],
+            'price_bvn_print' => ['nullable', 'numeric', 'min:0'],
             'price_bvn_retrieve_phone' => ['nullable', 'numeric', 'min:0'],
             'price_bvn_retrieve_bms' => ['nullable', 'numeric', 'min:0'],
             'price_nin_verify' => ['nullable', 'numeric', 'min:0'],

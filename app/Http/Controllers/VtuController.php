@@ -2572,6 +2572,7 @@ class VtuController extends Controller
                     'markup_naira' => $markupNaira,
                     'provider_cost_naira' => $costNaira,
                     'requestID' => $requestId,
+                    'normalized' => $normalized,
                     'provider_response' => $response,
                     'message' => $message,
                 ],
@@ -2579,12 +2580,20 @@ class VtuController extends Controller
             $this->awardReferralCommission($order);
             DB::commit();
 
+            // The full read-out is granted to this browser session and to no one
+            // else: the details page refuses any order not named here, and leaving
+            // it takes the grant away. Nothing but a session key is stored, so no
+            // copy of the record is kept beyond what the receipt already holds.
+            $request->session()->put('bvn_details_order', (int) $order->id);
+
             return response()->json([
                 'ok' => true,
                 'message' => $message !== '' ? $message : 'BVN verified successfully.',
                 'data' => $providerData,
                 'normalized' => $normalized,
                 'order_id' => $order->id,
+                'details_url' => route('vtu.bvn.details', $order->id),
+                'amount_naira' => $totalNaira,
                 'balance_kobo' => (int) ($wallet->fresh()?->balance ?? $wallet->balance ?? 0),
                 'raw' => $response,
             ]);
@@ -2604,6 +2613,326 @@ class VtuController extends Controller
                 'data' => [],
             ], 500);
         }
+    }
+
+    /**
+     * The one-time read-out of a BVN record.
+     *
+     * Only the order the last successful check named in this session can be opened,
+     * and acknowledging it takes that grant away. The full record is therefore not a
+     * page a customer leaves bookmarked or a shared link hands to a stranger.
+     */
+    public function bvnDetails(Request $request, Order $order)
+    {
+        $this->assertBvnDetailsGrant($request, $order);
+
+        return response()->view('vtu.bvn-details', [
+            'order' => $order,
+            'record' => $this->bvnRecordFromOrder($order),
+            'ackUrl' => route('vtu.bvn.details.ack', $order->id),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function bvnDetailsAck(Request $request, Order $order)
+    {
+        $this->assertBvnDetailsGrant($request, $order);
+
+        $request->session()->forget('bvn_details_order');
+
+        return redirect()->to(route('vtu.bvn').'#bvnVerifyForm')
+            ->with('status', 'bvn-details-seen');
+    }
+
+    private function assertBvnDetailsGrant(Request $request, Order $order): void
+    {
+        $meta = is_array($order->meta) ? $order->meta : [];
+
+        abort_unless(
+            $order->user_id === $request->user()->id
+                && ($meta['type'] ?? null) === 'bvn'
+                && ($meta['service_type'] ?? null) === 'verify'
+                && $order->status === 'success'
+                && (int) $request->session()->get('bvn_details_order') === (int) $order->id,
+            404
+        );
+    }
+
+    /**
+     * A printable BVN slip, drawn here from a record the customer paid to verify.
+     *
+     * ConfirmIdent publishes no print endpoint at all, so the only way to answer a
+     * print request is to render the document ourselves. Where the customer's own
+     * last successful check of that BVN is still on file it is reused and the
+     * provider is never asked again, which is why the order records the real
+     * provider cost of this particular print rather than a fixed one.
+     */
+    public function bvnPrint(Request $request)
+    {
+        $payload = $request->validate([
+            'bvn' => ['required', 'digits:11'],
+            'verification_order_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $bvn = (string) $payload['bvn'];
+        $user = auth()->user();
+        $wallet = $this->requireWallet($user->wallet);
+
+        $source = $this->bvnPrintSource($user, $bvn, (int) ($payload['verification_order_id'] ?? 0));
+
+        // A record already on file needs no provider at all, so the hand-run switch
+        // only takes over when a fresh check is the only way to get the data.
+        if ($source === null && identity_verify_mode('bvn') === 'manual') {
+            return $this->queueBvnPrintByHand($user, $wallet, $bvn);
+        }
+
+        $basePriceNaira = identity_price('price_bvn_print');
+        $markupNaira = (float) setting('markup_bvn_print', 0);
+        $totalNaira = $basePriceNaira + $markupNaira;
+        $totalKobo = $this->toKobo($totalNaira);
+
+        if (((int) $wallet->balance) < $totalKobo) {
+            return response()->json([
+                'ok' => false,
+                'message' => $this->buildErrorMessage(1),
+                'data' => [],
+                'balance_kobo' => (int) $wallet->balance,
+            ], 402);
+        }
+
+        $costNaira = identity_cost('price_bvn_print');
+        $sourceVerificationOrderId = null;
+
+        if ($source === null) {
+            $response = $this->bvnApi->verify($bvn);
+            if (!$this->bvnApi->isSuccessful($response)) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => $this->bvnApi->message($response),
+                    'data' => [],
+                    'balance_kobo' => (int) $wallet->balance,
+                ], 422);
+            }
+
+            $providerData = is_array($response['data'] ?? null) ? $response['data'] : [];
+            $normalized = $this->normalizeBvnPayload($providerData);
+        } else {
+            $providerData = is_array($source['provider_data'] ?? null) ? $source['provider_data'] : [];
+            $normalized = is_array($source['normalized'] ?? null) ? $source['normalized'] : [];
+            $sourceVerificationOrderId = (int) $source['order']->id;
+            $costNaira = 0.0;
+        }
+
+        $requestId = $this->makeRequestId('BVNP');
+        DB::beginTransaction();
+        try {
+            $this->debitWallet(
+                wallet: $wallet,
+                amountKobo: $totalKobo,
+                reference: $requestId,
+                description: 'BVN slip print - '.$bvn
+            );
+
+            $order = Order::create([
+                'user_id' => $user->id,
+                'service_id' => $this->resolveServiceId('bvn_print', 'bvn'),
+                'customer_ref' => $bvn,
+                'amount' => $totalKobo,
+                'profit' => $this->identityMarginKobo($totalKobo, $costNaira)
+                    ?? $this->toKobo($markupNaira),
+                'provider' => 'bvn_api',
+                'provider_reference' => $requestId,
+                'status' => 'success',
+                'meta' => [
+                    'type' => 'bvn',
+                    'service_type' => 'print',
+                    'base_amount_naira' => $basePriceNaira,
+                    'markup_naira' => $markupNaira,
+                    'provider_cost_naira' => $costNaira,
+                    'requestID' => $requestId,
+                    'source_verification_order_id' => $sourceVerificationOrderId,
+                    'normalized' => $normalized,
+                    'provider_data' => $providerData,
+                    'message' => 'Slip generated successfully.',
+                ],
+            ]);
+            $this->awardReferralCommission($order);
+            DB::commit();
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'Your slip is ready.',
+                'order_id' => $order->id,
+                'slip_url' => route('vtu.bvn.slip', $order->id),
+                'amount_naira' => $totalNaira,
+                'normalized' => $normalized,
+                'balance_kobo' => (int) ($wallet->fresh()?->balance ?? $wallet->balance ?? 0),
+            ]);
+        } catch (\RuntimeException $e) {
+            DB::rollBack();
+            return response()->json([
+                'ok' => false,
+                'message' => $this->userFacingRuntimeFailureMessage($e),
+                'data' => [],
+            ], 402);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('BVN print order error', ['error' => $e->getMessage()]);
+            return response()->json([
+                'ok' => false,
+                'message' => $this->buildErrorMessage(4),
+                'data' => [],
+            ], 500);
+        }
+    }
+
+    private function queueBvnPrintByHand(User $user, Wallet $wallet, string $bvn)
+    {
+        try {
+            // Priced as the hand-run job it is, by the same rate the owner set for
+            // it, rather than the instant rate this page quotes when the data is
+            // already on file.
+            $order = $this->queueManualOrder(
+                user: $user,
+                wallet: $wallet,
+                slug: 'bvn_print',
+                title: 'Print BVN Slip',
+                submitted: ['bvn' => $bvn],
+                customerRef: $bvn,
+                requestPrefix: 'BVNP',
+                serviceId: $this->resolveServiceId('bvn_print', 'bvn'),
+                extraMeta: ['type' => 'bvn', 'service_type' => 'print'],
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $this->userFacingRuntimeFailureMessage($e),
+                'data' => [],
+                'balance_kobo' => (int) $wallet->balance,
+            ], 402);
+        } catch (\Throwable $e) {
+            Log::error('BVN print queueing error', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'ok' => false,
+                'message' => $this->buildErrorMessage(4),
+                'data' => [],
+            ], 500);
+        }
+
+        return $this->queuedVerificationResponse($order, $wallet, 'drawing up your BVN slip');
+    }
+
+    /**
+     * The customer's own last successful check of this exact BVN, if it is on file.
+     *
+     * A record for a different number is no use here, so the typed BVN has to match
+     * the one that was paid for; otherwise the provider is asked instead.
+     */
+    private function bvnPrintSource(User $user, string $bvn, int $verificationOrderId): ?array
+    {
+        $query = Order::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'success')
+            ->where('meta->type', 'bvn')
+            ->where('meta->service_type', 'verify');
+
+        $verificationOrderId > 0
+            ? $query->where('id', $verificationOrderId)
+            : $query->where('customer_ref', $bvn);
+
+        $order = $query->latest()->first();
+        if (!$order) {
+            return null;
+        }
+
+        $record = $this->bvnRecordFromOrder($order);
+        $recordBvn = trim((string) ($record['normalized']['bvn'] ?? ''));
+        if ($recordBvn !== '' && $recordBvn !== '-' && $recordBvn !== $bvn) {
+            return null;
+        }
+
+        return $record + ['order' => $order];
+    }
+
+    /** Everything a details page or a slip needs from whichever order kind holds it. */
+    private function bvnRecordFromOrder(Order $order): array
+    {
+        $meta = is_array($order->meta) ? $order->meta : [];
+        $providerData = is_array($meta['provider_data'] ?? null)
+            ? $meta['provider_data']
+            : (is_array($meta['provider_response']['data'] ?? null) ? $meta['provider_response']['data'] : []);
+        $normalized = is_array($meta['normalized'] ?? null) && $meta['normalized'] !== []
+            ? $meta['normalized']
+            : $this->normalizeBvnPayload($providerData);
+
+        return [
+            'normalized' => $normalized,
+            'provider_data' => $providerData,
+            'photo' => $this->bvnPhotoDataUri((string) ($normalized['image'] ?? '')),
+            'issued_at' => $order->created_at ?? now(),
+            'reference' => (string) ($meta['requestID'] ?? $order->provider_reference ?? ''),
+        ];
+    }
+
+    private function bvnPhotoDataUri(string $raw): string
+    {
+        $text = preg_replace('/\s+/', '', $raw) ?? '';
+
+        if (str_starts_with($text, 'data:image/')) {
+            return $text;
+        }
+
+        if (!str_starts_with($text, '/9j/') && !str_starts_with($text, 'iVBOR')) {
+            return '';
+        }
+
+        if (base64_decode($text, true) === false) {
+            return '';
+        }
+
+        $mime = str_starts_with($text, 'iVBOR') ? 'image/png' : 'image/jpeg';
+
+        return 'data:'.$mime.';base64,'.$text;
+    }
+
+    public function bvnSlip(Request $request, Order $order)
+    {
+        $this->assertBvnSlipOrder($request, $order);
+
+        return response()->view('vtu.bvn-slip', [
+            'order' => $order,
+            'record' => $this->bvnRecordFromOrder($order),
+            'sheetUrl' => route('vtu.bvn.slip.sheet', $order->id),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    /**
+     * The sheet itself, on a real A4 page.
+     *
+     * Its own address, because the browser's print and save-as-PDF dialogue has to
+     * open the document alone, without the site's header or a customer's wallet in
+     * the margins. Only the owner of the print order can reach it.
+     */
+    public function bvnSlipSheet(Request $request, Order $order)
+    {
+        $this->assertBvnSlipOrder($request, $order);
+
+        return response()->view('vtu.bvn-slip-sheet', [
+            'order' => $order,
+            'record' => $this->bvnRecordFromOrder($order),
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    private function assertBvnSlipOrder(Request $request, Order $order): void
+    {
+        $meta = is_array($order->meta) ? $order->meta : [];
+
+        abort_unless(
+            $order->user_id === $request->user()->id
+                && ($meta['type'] ?? null) === 'bvn'
+                && ($meta['service_type'] ?? null) === 'print',
+            404
+        );
     }
 
     public function bvnRetrieve(Request $request)
@@ -4202,6 +4531,24 @@ class VtuController extends Controller
             'lga' => $pick($lookup, ['lga', 'lga_of_origin']),
             'residence' => $pick($lookup, ['residence_address', 'address', 'residence']),
             'image' => $pick($lookup, ['image', 'photo'], ''),
+
+            // The full record a customer expects to read once and check against
+            // their own papers. ConfirmIdent answers some of these and not others;
+            // whatever is absent stays '-' so the page shows an honest gap rather
+            // than inventing a value or hiding the row.
+            'alt_number' => $pick($lookup, ['alt_number', 'alternate_number', 'alt_phone']),
+            'title' => $pick($lookup, ['title']),
+            'marital_status' => $pick($lookup, ['marital_status', 'maritalstatus']),
+            'registration_date' => $pick($lookup, ['registration_date', 'registered_date', 'date_registered']),
+            'nationality' => $pick($lookup, ['nationality']),
+            'state_of_origin' => $pick($lookup, ['state_of_origin', 'state']),
+            'lga_of_origin' => $pick($lookup, ['lga_of_origin', 'self_origin_lga', 'lga']),
+            'residential_address' => $pick($lookup, [
+                'residence_address', 'residence_adressline1', 'address_line1', 'address', 'residence',
+            ]),
+            'state_of_residence' => $pick($lookup, ['state_of_residence', 'residence_state']),
+            'lga_of_residence' => $pick($lookup, ['lga_of_residence', 'residence_lga']),
+            'watchlisted' => $pick($lookup, ['watchlisted', 'watchlist']),
         ];
     }
 

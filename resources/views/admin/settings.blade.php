@@ -1252,6 +1252,7 @@
                         'price_nin_validation_no_record' => 'NIN Validation (No Record)',
                         'price_nin_validation_update_record' => 'NIN Validation (Update Record)',
                         'price_bvn_verify' => 'BVN Verify Price',
+                        'price_bvn_print' => 'BVN Slip Print Price',
                         'price_bvn_retrieve_phone' => 'BVN Retrieve by Phone Price',
                         'price_bvn_retrieve_bms' => 'BVN Retrieve by BMS Price',
                     ];
