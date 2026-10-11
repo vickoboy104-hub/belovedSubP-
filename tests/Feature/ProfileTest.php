@@ -21,6 +21,42 @@ class ProfileTest extends TestCase
             ->get('/profile');
 
         $response->assertOk();
+
+        $this->actingAs($user)->get('/settings')->assertOk();
+    }
+
+    public function test_the_profile_page_only_reads_the_account_back_and_settings_is_the_only_writer(): void
+    {
+        $user = User::factory()->create(['first_name' => 'Ada', 'last_name' => 'Lovelace', 'phone' => '08012345678']);
+
+        $profile = $this->actingAs($user)->get('/profile')->assertOk()->getContent();
+
+        $this->assertStringContainsString('Ada Lovelace', $profile);
+        $this->assertStringContainsString('08012345678', $profile);
+        $this->assertSame(4, substr_count($profile, 'readonly'), 'Every mirrored field is a read-only box.');
+
+        // A mirror has no way to write: not a PATCH, not a PUT, not a DELETE,
+        // and no file input to upload a photo through.
+        $this->assertStringNotContainsString('name="_method"', $profile);
+        $this->assertStringNotContainsString('enctype="multipart/form-data"', $profile);
+        $this->assertStringNotContainsString('name="image"', $profile);
+        $this->assertStringContainsString('/settings#profile', $profile, 'The mirror tells the customer where to edit.');
+
+        $settings = $this->actingAs($user)->get('/settings')->assertOk()->getContent();
+
+        $this->assertSame(2, substr_count($settings, 'role="tab"'), 'Change Password and Edit Profile are the two tabs.');
+        $this->assertStringContainsString('Change Password', $settings);
+        $this->assertStringContainsString('Edit Profile', $settings);
+        $this->assertStringContainsString('enctype="multipart/form-data"', $settings);
+        $this->assertMatchesRegularExpression('~<input[^>]+name="image"~', $settings);
+        $this->assertStringContainsString('name="_method"', $settings);
+        // The anchor the mobile menu links to still exists on the password panel.
+        $this->assertStringContainsString('id="security-settings"', $settings);
+        $this->assertStringContainsString('id="profile"', $settings);
+
+        // Neither page is allowed a second hero heading now that they are siblings.
+        $this->assertSame(1, substr_count($profile, '<h1'));
+        $this->assertSame(1, substr_count($settings, '<h1'));
     }
 
     public function test_profile_information_can_be_updated(): void
@@ -228,9 +264,12 @@ class ProfileTest extends TestCase
         $this->assertSame('AL', $user->initials);
 
         $page = $this->actingAs($user)->get('/profile')->assertOk()->getContent();
-        $this->assertStringContainsString('enctype="multipart/form-data"', $page);
-        $this->assertMatchesRegularExpression('~<input[^>]+name="image"~', $page);
         $this->assertStringContainsString('AL', $page);
+
+        $settings = $this->actingAs($user)->get('/settings')->assertOk()->getContent();
+        $this->assertStringContainsString('enctype="multipart/form-data"', $settings);
+        $this->assertMatchesRegularExpression('~<input[^>]+name="image"~', $settings);
+        $this->assertStringContainsString('AL', $settings);
     }
 
     public function test_user_can_delete_their_account(): void

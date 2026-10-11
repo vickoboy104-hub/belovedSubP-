@@ -149,8 +149,8 @@ class VirtualAccountController extends Controller
 
         if ($firstName === '' || $lastName === '') {
             return redirect()
-                ->route('profile.edit')
-                ->with('error', 'Please update your first and last name in profile before generating a virtual account.');
+                ->to(route('settings.edit').'#profile')
+                ->with('error', 'Please add your first and last name in Settings before generating a virtual account.');
         }
 
         if (!$this->flutterwave->configured()) {

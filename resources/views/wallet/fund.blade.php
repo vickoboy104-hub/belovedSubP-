@@ -209,10 +209,10 @@
 
                     @if(!$profileReadyForVirtualAccount)
                         <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                            Complete your first name, last name, and email in profile before generating a permanent account.
+                            Add your first name, last name and email in Settings before generating a permanent account.
                         </div>
                         <div class="mt-4">
-                            <a href="{{ route('profile.edit') }}" class="btn-outline">Complete Profile</a>
+                            <a href="{{ route('settings.edit') }}#profile" class="btn-outline">Complete Profile</a>
                         </div>
                     @elseif(!$usesCustomerIdentity)
                         <form method="POST" action="{{ route('wallet.virtual-account.assign') }}" class="mt-4 space-y-4">

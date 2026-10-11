@@ -3326,3 +3326,30 @@ html[data-theme="ember"] .app-modal-close { background: var(--surface-card); }
 .svc-outage-chip.is-arriving { animation: svcOutageIn .35s ease; }
 @keyframes svcOutageIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .svc-outage-chip.is-arriving { animation: none; } }
+
+/* ==========================================================================
+   ACCOUNT TABS — the settings page holds two jobs and shows one at a time, so
+   a customer never hunts through a long form to find the password box. The bar
+   is built from the theme tokens, which is why the ember skin needs no rules
+   of its own here.
+   ========================================================================== */
+.app-tabs-bar { display: flex; gap: .4rem; border-bottom: 1px solid var(--brand-line); padding-bottom: .7rem; overflow-x: auto; scrollbar-width: none; }
+.app-tabs-bar::-webkit-scrollbar { display: none; }
+.app-tab { flex: 0 0 auto; padding: .6rem 1.1rem; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--brand-muted); font-size: .84rem; font-weight: 800; letter-spacing: -.01em; white-space: nowrap; cursor: pointer; transition: background .2s ease, color .2s ease, transform .2s ease; }
+.app-tab:hover { background: var(--surface-muted); color: var(--brand-navy); }
+.app-tab.is-active { background: var(--brand-navy); color: #fff; box-shadow: var(--app-shadow-soft); }
+.app-tab.is-active:hover { background: var(--brand-navy-strong); color: #fff; }
+.app-tab:active { transform: translateY(1px); }
+.app-tab:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+.app-tab-panel { padding-top: 1.4rem; }
+
+.profile-danger-zone { margin-top: 2rem; border: 1px solid #f3c9cd; border-left: 4px solid #b32d38; border-radius: .9rem; background: #fdf1f2; padding: 1.35rem 1.4rem; }
+html[data-theme="ember"] .profile-danger-zone { border-color: #ecd0c6; border-left-color: #a83226; background: #fdf3ee; }
+
+@media (max-width: 767px) {
+    .app-tab { flex: 1 1 auto; min-height: 44px; text-align: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .app-tab { transition: none; }
+    .app-tab:active { transform: none; }
+}

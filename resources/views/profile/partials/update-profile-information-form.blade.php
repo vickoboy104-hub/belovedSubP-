@@ -100,10 +100,6 @@
 
         <div class="flex items-center gap-3">
             <x-primary-button>{{ __('Save Changes') }}</x-primary-button>
-
-            @if (session('status') === 'profile-updated')
-                <p class="text-sm text-emerald-700">Saved</p>
-            @endif
         </div>
     </form>
 

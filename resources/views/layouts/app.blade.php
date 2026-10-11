@@ -35,6 +35,7 @@
             request()->routeIs('notifications.*') => 'Notifications',
             request()->routeIs('support.chat*') => 'Support Chat',
             request()->routeIs('profile.*') => 'Profile',
+            request()->routeIs('settings.*') => 'Settings',
             request()->routeIs('admin.*') => 'Admin',
             default => 'Services',
         };
@@ -68,7 +69,8 @@
                     ['label' => 'Invite & Earn', 'route' => 'referral.index'],
                     ['label' => 'Transactions', 'route' => 'wallet.transactions'],
                     ['label' => 'Orders', 'route' => 'vtu.orders'],
-                    ['label' => 'Profile', 'route' => 'profile.edit'],
+                    ['label' => 'Profile', 'route' => 'profile.show'],
+                    ['label' => 'Account Settings', 'route' => 'settings.edit'],
                 ],
             ],
             [
@@ -121,7 +123,7 @@
         </a>
         <aside id="desktop-navigation" class="reference-sidebar desktop-sidebar-scroll hidden fixed left-0 top-[64px] z-30 h-[calc(100vh-64px)] w-[246px] overflow-y-auto overscroll-contain md:block" :aria-hidden="!desktopNavOpen" :inert="!desktopNavOpen">
             <div class="reference-profile">
-                <a href="{{ route('profile.edit') }}" class="reference-profile-link">
+                <a href="{{ route('profile.show') }}" class="reference-profile-link">
                     <x-avatar :user="$authUser" />
                     <span class="block font-semibold">{{ $authUser?->name ?? 'User' }}</span>
                     <span class="block text-xs opacity-75">User</span>
@@ -178,8 +180,8 @@
                  x-transition
                  class="app-glass-card absolute right-4 top-[calc(100%-0.25rem)] z-50 w-52 overflow-hidden rounded-[22px] p-2 text-slate-800 md:hidden"
                  @click="profileMenuOpen = false">
-                <a href="{{ route('profile.edit') }}" class="mobile-profile-menu-item">Profile</a>
-                <a href="{{ route('profile.edit') }}#security-settings" class="mobile-profile-menu-item">Settings</a>
+                <a href="{{ route('profile.show') }}" class="mobile-profile-menu-item">Profile</a>
+                <a href="{{ route('settings.edit') }}#password" class="mobile-profile-menu-item">Settings</a>
                 <form method="POST" action="{{ route('logout', absolute: false) }}">
                     @csrf
                     <button type="submit" class="mobile-profile-menu-item w-full text-left">Logout</button>
@@ -219,11 +221,11 @@
             </div>
 
             <div class="reference-profile">
-                <a href="{{ route('profile.edit') }}" class="reference-profile-link">
+                <a href="{{ route('profile.show') }}" class="reference-profile-link">
                     <x-avatar :user="$authUser" />
                     <span class="block font-semibold">{{ $authUser?->name ?? 'User' }}</span>
                     <span class="block text-xs opacity-75">{{ $authUser?->email }}</span>
-                    <span class="block text-xs opacity-75 mt-1">Edit profile</span>
+                    <span class="block text-xs opacity-75 mt-1">View profile</span>
                 </a>
             </div>
 
