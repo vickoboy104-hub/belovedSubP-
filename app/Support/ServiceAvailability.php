@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Services\ManualFulfilmentService;
 use App\Services\ProviderPlanPriceService;
 
 /**
@@ -24,11 +25,13 @@ class ServiceAvailability
         'cable' => 'Cable TV',
         'electricity' => 'Electricity',
         'exam' => 'Education',
+        'identity' => 'Identity',
     ];
 
     public function __construct(
         private readonly ProviderPlanPriceService $planPrices,
         private readonly ServiceCatalogue $catalogue,
+        private readonly ManualFulfilmentService $identityCatalogue,
     ) {
     }
 
@@ -47,6 +50,9 @@ class ServiceAvailability
             'cable' => $this->catalogue->cableServices(),
             'electricity' => $this->catalogue->electricityServices(),
             'exam' => $this->catalogue->educationServices(),
+            // Identity jobs are not on any supplier's shelf, so a tick here is
+            // the owner's alone and stays until he clears it.
+            'identity' => $this->identityCatalogue->shelfServices(),
             default => [],
         };
     }

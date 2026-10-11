@@ -81,7 +81,16 @@
                 '{{price}}',
                 number_format(min($tierAmounts) / 100, 2).' – ₦'.number_format(max($tierAmounts) / 100, 2),
                 (string) ($definition['cost_text'] ?? '* This service will cost you ₦{{price}}'),
-            ).' — choose what you need done and the price for exactly that appears here.';
+            );
+        }
+
+        // A paused page still quotes, because the price is the one thing the
+        // customer can act on while the form is closed. It must not tell them to
+        // pick an option that is not there, so the invitation is only added when
+        // the form is actually open.
+        $pausedCostLine = $costLine;
+        if (count(array_unique(array_values($tierAmounts))) > 1) {
+            $costLine .= ' — choose what you need done and the price for exactly that appears here.';
         }
 
         // The provider prints the history of that same job under its form, so the
@@ -147,11 +156,31 @@
     </x-page-hero>
 
     <div class="reference-flow-page mx-auto max-w-3xl space-y-5">
-        <section class="service-form-card" @if($consent['clauses'] !== []) data-consent-gate @endif>
+        <section class="service-form-card" @if($paused) data-service-paused @elseif($consent['clauses'] !== []) data-consent-gate @endif>
             <header class="service-form-head">
                 <span class="service-form-icon" aria-hidden="true">{{ $definition['icon'] ?? '▣' }}</span>
                 <h2 class="service-form-title">{{ $definition['title'] }}</h2>
             </header>
+
+            @if($paused)
+                {{-- The provider's own paused page keeps the price and the customer's
+                     earlier jobs on screen and removes only the form: the work is
+                     being done by hand, so the page still has to answer "what will
+                     this cost" and "did my last one finish". --}}
+                <x-service-outage-notice :down="[$slug => $definition['title']]" :message="$pausedNotice" />
+
+                <p class="service-form-cost mt-3">{{ $pausedCostLine }}</p>
+
+                @foreach($definition['notices'] ?? [] as $notice)
+                    <p class="service-form-hint">{{ $notice }}</p>
+                @endforeach
+
+                <p class="service-form-hint">
+                    Nothing is charged while this service is paused, and no request can be sent.
+                    <a href="{{ route('identity.index') }}" class="underline">Browse the other identity services</a>
+                    in the meantime.
+                </p>
+            @else
 
             @if($errors->any())
                 <div class="service-form-alert service-form-alert-danger">
@@ -289,6 +318,7 @@
                     <button type="submit" class="btn-primary" @disabled(!$canAfford)>{{ $definition['cta'] ?? 'Submit' }}</button>
                 </div>
             </form>
+            @endif
         </section>
 
         @if($rows !== [])
@@ -306,7 +336,7 @@
         @endif
     </div>
 
-    @if($tierAmounts !== [])
+    @if(!$paused && $tierAmounts !== [])
         <script>
             (function () {
                 const picker = document.getElementById('field-{{ $tierField }}');

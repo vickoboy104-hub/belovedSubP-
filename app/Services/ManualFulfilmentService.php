@@ -340,6 +340,7 @@ class ManualFulfilmentService
                 'group' => 'bvn',
                 'turnaround_default' => 48,
                 'hidden_from_hub' => true,
+                'sub_service' => true,
                 'tiers' => [
                     'field' => 'retrieve_type',
                     'map' => [
@@ -424,6 +425,31 @@ class ManualFulfilmentService
     public function find(string $slug): ?array
     {
         return $this->catalogue()[$slug] ?? null;
+    }
+
+    /**
+     * The services a customer reaches as a page of their own, which is the only
+     * kind an owner can pause: he ticks the service, its form is replaced by the
+     * maintenance notice, and the checkout refuses it. A slip printed under the
+     * NIN search or a retrieval under the BVN page belongs to that page's own
+     * state, and the two verification endpoints answer the provider directly, so
+     * a switch over them would promise something this method cannot deliver.
+     *
+     * @return array<string, string>
+     */
+    public function shelfServices(): array
+    {
+        $labels = [];
+
+        foreach ($this->catalogue() as $slug => $definition) {
+            if (!empty($definition['wired_only']) || !empty($definition['sub_service'])) {
+                continue;
+            }
+
+            $labels[(string) $slug] = (string) $definition['title'];
+        }
+
+        return $labels;
     }
 
     public function queueQuery(): Builder

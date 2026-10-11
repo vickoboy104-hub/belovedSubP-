@@ -22,7 +22,19 @@
         @endif
 
         <div class="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-            <section class="app-form-shell space-y-4">
+            <section class="app-form-shell space-y-4" @if($paused) data-service-paused @endif>
+                @if($paused)
+                    {{-- The reports and the price stay on the page while the job is
+                         resting: they are the two things a customer can still act on,
+                         and only the request itself is closed. --}}
+                    <x-service-outage-notice :down="['nin_validation' => 'NIN Validation']" :message="$pausedNotice" />
+
+                    <p class="text-sm leading-6 text-slate-700">
+                        No record found &#8358;{{ number_format($priceNoRecord + $validationMarkup, 2) }}
+                        &bull; Update record &#8358;{{ number_format($priceUpdateRecord + $validationMarkup, 2) }}.
+                        Nothing is charged while the service is paused.
+                    </p>
+                @else
                 <form id="ninValidationForm" method="POST" action="{{ route('vtu.nin-validation.submit') }}" class="space-y-4">
                     @csrf
 
@@ -60,6 +72,7 @@
 
                     <button type="submit" class="btn-primary w-full justify-center">Continue</button>
                 </form>
+                @endif
             </section>
 
             <section class="app-section p-5 sm:p-6">
@@ -123,6 +136,7 @@
         </div>
     </div>
 
+    @if(!$paused)
     <form id="ninValidationBridgeForm" class="hidden"></form>
     <x-confirm-modal id="confirmNinValidation" title="Confirm NIN Validation" confirmText="Submit & Debit Wallet" />
 
@@ -192,4 +206,5 @@
             updatePrice();
         })();
     </script>
+    @endif
 </x-app-layout>

@@ -3,11 +3,19 @@
         // Wired services keep their own pages; everything else is the manual
         // fulfilment catalogue, so a new entry there shows up here on its own.
         $manualServices = app(\App\Services\ManualFulfilmentService::class);
+        $availability = app(\App\Support\ServiceAvailability::class);
+
+        // A paused service keeps its tile rather than vanishing from the hub: the
+        // customer who was mid-job needs to see that it exists and is resting,
+        // not to conclude that BelovedSubP dropped the service altogether. Only
+        // the services an owner can pause are ever marked, so a tile never claims
+        // to be resting over a switch that does not exist.
+        $paused = fn (?string $slug): bool => $slug !== null && $availability->isDown($slug, 'identity');
 
         $services = [
-            ['icon' => '🪪', 'title' => 'NIN verification & slips', 'copy' => 'Search by NIN, phone or personal details, then choose an available slip.', 'url' => route('vtu.nin'), 'status' => 'Available'],
-            ['icon' => '🏦', 'title' => 'BVN verification', 'copy' => 'Verify a BVN or follow the existing retrieval process.', 'url' => route('vtu.bvn'), 'status' => 'Available'],
-            ['icon' => '✓', 'title' => 'NIN validation', 'copy' => 'Submit no record or update record validation and review its progress.', 'url' => route('vtu.nin-validation'), 'status' => 'Available'],
+            ['icon' => '🪪', 'title' => 'NIN verification & slips', 'copy' => 'Search by NIN, phone or personal details, then choose an available slip.', 'url' => route('vtu.nin'), 'slug' => null],
+            ['icon' => '🏦', 'title' => 'BVN verification', 'copy' => 'Verify a BVN or follow the existing retrieval process.', 'url' => route('vtu.bvn'), 'slug' => null],
+            ['icon' => '✓', 'title' => 'NIN validation', 'copy' => 'Submit no record or update record validation and review its progress.', 'url' => route('vtu.nin-validation'), 'slug' => 'nin_validation'],
         ];
 
         foreach ($manualServices->catalogue() as $slug => $manual) {
@@ -22,8 +30,20 @@
                 'title' => $manual['title'],
                 'copy' => $manual['summary'],
                 'url' => route('vtu.manual.form', $slug),
-                'status' => $manualServices->priceRangeLabel($slug).' • '.$manualServices->turnaroundLabel($slug),
+                'slug' => $slug,
             ];
+        }
+
+        foreach ($services as $index => $service) {
+            $slug = $service['slug'];
+            $down = $paused($slug);
+
+            $services[$index]['down'] = $down;
+            $services[$index]['status'] = match (true) {
+                $down => 'Under maintenance',
+                $slug === null => 'Available',
+                default => $manualServices->priceRangeLabel($slug).' • '.$manualServices->turnaroundLabel($slug),
+            };
         }
     @endphp
 
@@ -45,7 +65,7 @@
                 @foreach($services as $service)
                     <a class="identity-tile" href="{{ $service['url'] }}">
                         <span class="identity-icon" aria-hidden="true">{{ $service['icon'] }}</span>
-                        <span class="identity-status identity-status-ready">{{ $service['status'] }}</span>
+                        <span class="identity-status {{ $service['down'] ? 'identity-status-paused' : 'identity-status-ready' }}">{{ $service['status'] }}</span>
                         <strong>{{ $service['title'] }}</strong>
                         <span class="identity-description">{{ $service['copy'] }}</span>
                         <span class="identity-tile-action">Open service <span aria-hidden="true">→</span></span>

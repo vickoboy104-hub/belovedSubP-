@@ -361,8 +361,10 @@
             <div id="group-service-availability" class="scroll-mt-44">
                 <div class="text-lg font-extrabold">Service Availability</div>
                 <div class="text-xs text-gray-500 mt-1">
-                    Tick a service to take it off the shelf. Its button goes, the robot reads
-                    the outage to customers, and the checkout refuses it.
+                    Tick a service to take it off the shelf. Its form closes and the
+                    robot reads the outage to customers in its place, while the price and
+                    the customer's own history stay on the page. The checkout refuses it,
+                    so nothing is charged while it rests.
                 </div>
                 <div class="text-xs text-gray-500 mt-1">
                     A tick is yours and stays until you clear it. A service the supplier took

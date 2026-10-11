@@ -1665,11 +1665,21 @@ class VtuController extends Controller
             ->take(100)
             ->get();
 
-        return view('vtu.nin-validation', compact('reports'));
+        return view('vtu.nin-validation', [
+            'reports' => $reports,
+            'paused' => $this->availability->isDown('nin_validation', 'identity'),
+            'pausedNotice' => $this->availability->notice(['nin_validation' => 'NIN Validation']),
+        ]);
     }
 
     public function ninValidationSubmit(Request $request)
     {
+        if ($this->availability->isDown('nin_validation', 'identity')) {
+            return redirect()
+                ->route('vtu.nin-validation')
+                ->with('error', $this->availability->notice(['nin_validation' => 'NIN Validation']));
+        }
+
         $payload = $request->validate([
             'validation_type' => ['required', Rule::in(['no_record', 'update_record'])],
             'nin' => ['required', 'digits:11'],
@@ -3048,6 +3058,8 @@ class VtuController extends Controller
         return view('vtu.manual-service', [
             'definition' => $definition,
             'prefill' => $prefill,
+            'paused' => $this->availability->isDown($service, 'identity'),
+            'pausedNotice' => $this->availability->notice([$service => $definition['title']]),
             'priceNaira' => $this->manualServices->totalNaira($service),
             'tierField' => $definition['tiers']['field'] ?? null,
             'tierPrices' => $this->manualServices->tierPrices($service),
@@ -3064,6 +3076,15 @@ class VtuController extends Controller
         $definition = $this->manualServices->find($service);
         abort_unless($definition !== null, 404);
         abort_if($this->manualServices->wiredOnly($service), 404);
+
+        // The page hides the form while a service is paused, but a tab left open
+        // or a POST built by hand still arrives here, and an agent is not working
+        // it, so the money must stay in the wallet.
+        if ($this->availability->isDown($service, 'identity')) {
+            return redirect()
+                ->route('vtu.manual.form', $service)
+                ->with('error', $this->availability->notice([$service => $definition['title']]));
+        }
 
         $submitted = $request->validate(
             $this->manualServices->validationRules($service),
