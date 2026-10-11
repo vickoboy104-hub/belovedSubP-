@@ -55,6 +55,43 @@
             </div>
         @endif
 
+        <div data-consent-gate>
+            <section class="app-section p-5 sm:p-6" data-consent-terms>
+                <h2 class="text-xl font-extrabold text-slate-900">Service agreement</h2>
+                <p class="mt-1 text-sm text-slate-600">
+                    Read this once before money leaves your bank. It is the difference
+                    between a wallet top-up and a bank deposit.
+                </p>
+                <ol class="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-700">
+                    <li>
+                        Money paid into this wallet buys services on BelovedSubP. It is not a bank
+                        balance and there is no withdraw-to-bank button; when a job cannot be
+                        completed, the amount is returned to this same wallet and stays spendable here.
+                    </li>
+                    <li>
+                        The deposit fee shown above is taken by the payment provider before your money
+                        reaches us, so a {{ '&#8358;' . number_format(2000) }} payment credits less than {{ '&#8358;' . number_format(2000) }}.
+                    </li>
+                    <li>
+                        A deposit is credited to the email address on this account and to no other.
+                        You cannot fund somebody else's wallet with this form.
+                    </li>
+                    <li>
+                        A bank transfer can take a few minutes to reach us. If it has not appeared in
+                        your funding history after that, contact support before sending a second payment.
+                    </li>
+                </ol>
+                <div class="mt-4 flex flex-wrap items-center gap-3">
+                    <button type="button" data-consent-agree class="btn-primary">
+                        I agree, show me the funding options
+                    </button>
+                    <a href="{{ route('dashboard') }}" class="reference-quiet-button">
+                        Not agreed
+                    </a>
+                </div>
+            </section>
+
+            <div data-consent-form>
         <div class="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
             <div class="space-y-5">
                 <section class="app-section p-5 sm:p-6">
@@ -291,6 +328,34 @@
                             </div>
                         </div>
 
+                        <div>
+                            {{-- The deposit can only land on the account making it, so the
+                                 address is shown as a fact rather than asked as a field. --}}
+                            <label for="fundAccountEmail" class="block text-sm font-bold text-slate-700">Account email</label>
+                            <input id="fundAccountEmail"
+                                   type="text"
+                                   value="{{ $user?->email }}"
+                                   disabled
+                                   class="input-field mt-2 cursor-not-allowed bg-slate-100 text-slate-700">
+                            <div class="mt-1 text-xs text-slate-500">
+                                This payment is credited to the email on your account and to no other address.
+                            </div>
+                        </div>
+
+                        <label class="flex items-start gap-3 text-sm text-slate-700">
+                            <input type="checkbox" name="consent_agreed" value="1" required
+                                   class="mt-1 h-4 w-4 rounded border-slate-400 text-blue-700">
+                            <span>
+                                I have read the service agreement and I understand this money buys services
+                                here: it is returned to my wallet when a job fails, and it is not withdrawn to a bank.
+                            </span>
+                        </label>
+
+                        <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-6 text-amber-800">
+                            A transfer can take a few minutes to reach us. If your payment has not appeared in
+                            your funding history after that, contact support before sending it a second time.
+                        </div>
+
                         <button class="btn-primary w-full justify-center">Pay with Flutterwave</button>
                     </form>
                 </section>
@@ -303,6 +368,8 @@
                         <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">All Flutterwave wallet deposits use the same funding fee shown above.</div>
                     </div>
                 </section>
+                </div>
+            </div>
             </div>
         </div>
     </div>

@@ -24,6 +24,9 @@ class FlutterwaveController extends Controller
     {
         $request->validate([
             'amount' => ['required', 'numeric', 'min:100'],
+            'consent_agreed' => ['accepted'],
+        ], [
+            'consent_agreed.accepted' => 'Read the service agreement and tick the box before paying into your wallet.',
         ]);
 
         $user = auth()->user();
@@ -61,6 +64,7 @@ class FlutterwaveController extends Controller
                 'fee_kobo' => $feeKobo,
                 'credited_kobo' => $creditKobo,
                 'email' => $user->email,
+                'consent_agreed' => true,
             ],
         ]);
 
