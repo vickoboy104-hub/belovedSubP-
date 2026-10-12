@@ -1,10 +1,14 @@
 <x-app-layout>
     @php
         $printMarkup = (float) setting('markup_nin_print', 0);
+        // The figure printed on each card has to be the figure the server will
+        // take, and a print costs the slip rate plus the owner's print markup.
+        // Showing the rate alone under charged the customer whenever a markup
+        // was set, which is the one thing a price on a form must never do.
         $slipPrices = [
-            'standard_slip' => identity_price('price_nin_slip_standard'),
-            'premium_slip' => identity_price('price_nin_slip_premium'),
-            'long_slip' => identity_price('price_nin_slip_long'),
+            'standard_slip' => identity_price('price_nin_slip_standard') + $printMarkup,
+            'premium_slip' => identity_price('price_nin_slip_premium') + $printMarkup,
+            'long_slip' => identity_price('price_nin_slip_long') + $printMarkup,
         ];
 
         // The slip is drawn by this site from the record it stores, so printing
@@ -54,9 +58,6 @@
                         @endif
                     </p>
                 </div>
-                <div id="verifyPriceBadge" class="app-choice-chip">
-                    Verification fee
-                </div>
             </div>
 
             <form id="ninServiceForm" class="space-y-4" method="POST">
@@ -72,6 +73,11 @@
                         <option value="by_demo">By Demographic Data</option>
                     </select>
                 </div>
+
+                {{-- The three searches are priced differently, so the fee is a locked
+                     field that follows the chosen type rather than a sentence a
+                     customer could read as an estimate of their own search. --}}
+                <x-price-lock id="verifyPrice" label="Verification fee" />
 
                 <div id="verificationFields" class="grid grid-cols-1 gap-4 sm:grid-cols-2"></div>
 
@@ -204,6 +210,13 @@
                         </div>
                     </button>
                 </div>
+
+                {{-- The three slips are three different amounts, so the fee becomes a
+                     locked field only after a slip has been chosen; until then there is
+                     nothing to promise and no figure to misread. --}}
+                <div class="mt-4">
+                    <x-price-lock id="printPrice" label="Slip price" />
+                </div>
             </div>
 
             <div id="ninDetailsWrap" class="mt-4 space-y-4"></div>
@@ -246,6 +259,55 @@
             </div>
         </div>
         @endif
+
+        <section class="app-section p-5 sm:p-6 no-print">
+            <h3 class="text-lg font-extrabold">NIN Requests</h3>
+            <p class="mt-1 text-sm text-slate-500">Every NIN check and slip printout you have submitted, newest first.</p>
+
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-slate-200">
+                            <th class="py-2 pr-4 text-left">Tracking</th>
+                            <th class="py-2 pr-4 text-left">Type</th>
+                            <th class="py-2 pr-4 text-left">Status</th>
+                            <th class="py-2 pr-4 text-left">Response</th>
+                            <th class="py-2 pr-4 text-left">Date</th>
+                            <th class="py-2 text-left">Receipt</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($reports as $report)
+                            @php
+                                $meta = is_array($report->meta) ? $report->meta : [];
+                                $serviceType = ($meta['service_type'] ?? '') === 'print' ? 'Slip print' : 'Verification';
+                                $providerMessage = (string) ($meta['result_text'] ?? $meta['message'] ?? '');
+                            @endphp
+                            <tr class="border-b border-slate-100">
+                                <td class="py-2 pr-4">{{ $report->customer_ref }}</td>
+                                <td class="py-2 pr-4">{{ $serviceType }}</td>
+                                <td class="py-2 pr-4">
+                                    <span class="rounded-full px-2 py-1 text-xs font-bold {{ $report->status === 'success' ? 'bg-emerald-50 text-emerald-700' : ($report->status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700') }}">
+                                        {{ strtoupper($report->status) }}
+                                    </span>
+                                </td>
+                                <td class="py-2 pr-4">{{ $providerMessage ? \Illuminate\Support\Str::limit($providerMessage, 60) : '-' }}</td>
+                                <td class="py-2 pr-4">{{ optional($report->created_at)->format('d M Y, h:ia') }}</td>
+                                <td class="py-2">
+                                    <a href="{{ route('vtu.receipt', $report->id) }}" class="text-xs font-bold text-blue-700 underline">
+                                        View
+                                    </a>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="py-3 text-slate-500">No NIN requests yet.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
 
     <form id="ninVerifyBridgeForm" class="hidden"></form>
@@ -269,7 +331,6 @@
             const currentVerifyPrice = () => Number(
                 verifyPrices[String(verificationType.value || 'by_nin')] ?? verifyPrices.by_nin ?? 0,
             );
-            const printMarkup = Number(@json($printMarkup));
             const slipPrices = @json($slipPrices);
 
             const form = document.getElementById('ninServiceForm');
@@ -277,7 +338,6 @@
             const printBridgeForm = document.getElementById('ninPrintBridgeForm');
             const verificationType = document.getElementById('verification_type');
             const verificationFields = document.getElementById('verificationFields');
-            const verifyPriceBadge = document.getElementById('verifyPriceBadge');
             const submitBtn = document.getElementById('ninSubmitBtn');
             const resetFormBtn = document.getElementById('resetFormBtn');
             const refreshReportsBtn = document.getElementById('refreshReportsBtn');
@@ -336,10 +396,6 @@
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                 });
-            }
-
-            function formatSlipPrice(amount) {
-                return formatNaira(amount).replace('.00', '');
             }
 
             function formatNin(value) {
@@ -518,7 +574,11 @@
             }
 
             function renderVerifyPrice() {
-                verifyPriceBadge.textContent = `Verification fee: ${formatSlipPrice(currentVerifyPrice())}`;
+                // A search that finds nothing is never charged, so the caption says
+                // when the money actually leaves the wallet instead of implying a
+                // fee for every attempt.
+                window.setPriceLock('verifyPrice', currentVerifyPrice(),
+                    'Charged to your wallet only when a record is found.');
             }
 
             function lookupPayloadFromFormData(formData) {
@@ -608,7 +668,7 @@
 
             function buildPrintConfirmationData(slipType) {
                 const normalized = verifiedState?.normalized || {};
-                const amount = Number(slipPrices?.[slipType] || 0) + printMarkup;
+                const amount = Number(slipPrices?.[slipType] || 0);
 
                 return {
                     service: 'NIN Slip Print',
@@ -661,6 +721,9 @@
                 directPrintButtons.forEach((button) => {
                     button.disabled = true;
                 });
+                // With no verified record there is no slip to price, so the locked
+                // field must not keep showing the last figure.
+                window.setPriceLock('printPrice', null);
             }
 
             function revealDirectPrint() {
@@ -1081,6 +1144,10 @@
                     const slipType = button.getAttribute('data-slip-type');
                     if (!slipType) return;
                     pendingSlipType = slipType;
+                    // Lock the figure the moment a slip is chosen, so the number in
+                    // the confirmation is the same one the field shows.
+                    window.setPriceLock('printPrice', Number(slipPrices?.[slipType] || 0),
+                        'Charged to your wallet when the slip is made.');
                     openConfirmModal('confirmNinPrint', buildPrintConfirmationData(slipType), 'ninPrintBridgeForm');
                 });
             });

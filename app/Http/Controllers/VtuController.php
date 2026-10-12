@@ -1652,7 +1652,17 @@ class VtuController extends Controller
     // =========================================================
     public function ninForm()
     {
-        return view('vtu.nin-services');
+        $user = auth()->user();
+        // A customer returning to the page wants the requests they already paid
+        // for, not an empty form, so the same ledger the BVN page shows.
+        $reports = Order::query()
+            ->where('user_id', $user->id)
+            ->where('meta->type', 'nin')
+            ->latest()
+            ->take(100)
+            ->get();
+
+        return view('vtu.nin-services', compact('reports'));
     }
 
     public function ninValidationForm()

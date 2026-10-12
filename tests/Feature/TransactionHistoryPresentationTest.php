@@ -145,4 +145,53 @@ class TransactionHistoryPresentationTest extends TestCase
             ->assertSee('Previous')
             ->assertSee('Submit');
     }
+
+    public function test_the_history_table_carries_the_reply_the_service_actually_gave(): void
+    {
+        $user = $this->memberWithBalance(5_000_00);
+        $this->orderFor($user, [
+            'customer_ref' => 'BTX947E60001020',
+            'meta' => [
+                'type' => 'manual_service',
+                'manual_service_title' => 'IPE Clearance',
+                // A team answer posted by hand is the real reply for a queued job,
+                // so it outranks whatever the request itself carried.
+                'message' => 'Request queued',
+                'result_text' => 'Your IPE has been cleared for the 2026/2027 session.',
+            ],
+        ]);
+        $this->orderFor($user, [
+            'customer_ref' => 'BTX947E60001021',
+            'meta' => ['type' => 'manual_service', 'manual_service_title' => 'IPE Clearance'],
+        ]);
+
+        $page = $this->actingAs($user)->get('/vtu/orders')->assertOk()->getContent();
+
+        $this->assertStringContainsString('Your IPE has been cleared for the 2026/2027 session.', $page);
+        $this->assertStringNotContainsString('Request queued', $page);
+        // A request nobody has answered yet shows the provider's dash, not a blank
+        // box the customer reads as a silent failure.
+        $this->assertStringContainsString('<th>Response</th>', $page);
+    }
+
+    public function test_a_long_reply_is_shortened_on_the_list_without_hiding_its_start(): void
+    {
+        $user = $this->memberWithBalance(5_000_00);
+        $this->orderFor($user, [
+            'customer_ref' => 'BTX947E60001020',
+            'meta' => [
+                'type' => 'manual_service',
+                'manual_service_title' => 'IPE Clearance',
+                'result_text' => 'Clearance approved for the 2026/2027 academic session, index number TAILMARKER'
+                    .' is on file',
+            ],
+        ]);
+
+        $page = $this->actingAs($user)->get('/vtu/orders')->assertOk()->getContent();
+
+        $this->assertStringContainsString('Clearance approved for the 2026/2027 academic session', $page);
+        // The whole answer still lives on the receipt; the row only carries the
+        // first few words so one long reply cannot push the date off the screen.
+        $this->assertStringNotContainsString('TAILMARKER', $page);
+    }
 }

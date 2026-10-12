@@ -11,6 +11,21 @@
             default => ['value' => 'Pending', 'tone' => 'warning'],
         };
 
+        // A status alone cannot answer "what did they actually say about my
+        // request", so the ledger carries the provider's own words. An answer our
+        // team posted by hand comes first, because that is the real reply for a
+        // queued job. Long answers are shortened here and whole on the receipt.
+        $answer = function (array $meta): string {
+            foreach (['result_text', 'message'] as $key) {
+                $text = trim((string) ($meta[$key] ?? ''));
+                if ($text !== '') {
+                    return \Illuminate\Support\Str::limit(preg_replace('/\s+/', ' ', $text), 60);
+                }
+            }
+
+            return '';
+        };
+
         $columns = [
             ['key' => 'description', 'label' => 'Description'],
             ['key' => 'reference', 'label' => 'Customer Ref'],
@@ -18,6 +33,7 @@
             ['key' => 'before', 'label' => 'Balance Before'],
             ['key' => 'after', 'label' => 'Balance After'],
             ['key' => 'status', 'label' => 'Status'],
+            ['key' => 'response', 'label' => 'Response'],
             ['key' => 'date', 'label' => 'Date'],
         ];
 
@@ -47,6 +63,7 @@
                     'before' => $money(isset($balances['before_kobo']) ? (int) $balances['before_kobo'] : null),
                     'after' => $money(isset($balances['after_kobo']) ? (int) $balances['after_kobo'] : null),
                     'status' => $badge((string) ($o->status ?? 'pending')),
+                    'response' => $answer($meta),
                     'date' => optional($o->created_at)->format('Y-m-d, h:i:s A') ?? '',
                 ],
                 'action' => [
