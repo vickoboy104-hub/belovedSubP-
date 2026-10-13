@@ -1,6 +1,7 @@
 import './bootstrap';
 
 import Alpine from 'alpinejs';
+import { initServiceForm } from './service-form';
 
 // The Battery Status API is available only in some secure-context browsers.
 // Never show a guessed percentage when the device declines to expose it.
@@ -614,6 +615,16 @@ document.body.classList.add('page-is-entering');
 
     document.querySelectorAll('[data-consent-gate]').forEach((gate) => window.initConsentGate(gate));
 })();
+
+// ==============================
+// CONFIGURABLE SERVICE FORMS
+// ==============================
+// Which question comes next, what a dropdown may offer and what the choice costs
+// are all decided by the definition the owner edits in Admin, and the same walk
+// runs on the server before anything is validated or charged. See
+// resources/js/service-form.js.
+window.initServiceForm = initServiceForm;
+initServiceForm();
 
 // ==============================
 // ADMIN RICH TEXT EDITORS

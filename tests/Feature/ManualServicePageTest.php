@@ -120,11 +120,29 @@ class ManualServicePageTest extends TestCase
 
         // The price line and the deduction warning both follow the correction the
         // customer picks, so every rate has to be in the page for the browser.
-        $this->assertStringContainsString('data-tier-field="field_to_modify"', $html);
-        $this->assertStringContainsString('&quot;name&quot;:650000', $html);
-        $this->assertStringContainsString('&quot;name_phone&quot;:750000', $html);
-        $this->assertStringContainsString('&quot;name_dob&quot;:1500000', $html);
-        $this->assertStringContainsString('&quot;dob&quot;:4000000', $html);
+        preg_match('/data-service-form-config>(.*?)<\/script>/s', $html, $match);
+
+        $this->assertNotEmpty($match[1] ?? '', 'The page carries no branch map.');
+
+        $rates = [];
+        foreach ((array) json_decode($match[1], true)['fields'] as $field) {
+            foreach ((array) $field['priceFor'] as $option => $kobo) {
+                $rates[$field['name']][$option] = $kobo;
+            }
+        }
+
+        $this->assertEquals([
+            'name' => 650_000,
+            'phone' => 650_000,
+            'address' => 650_000,
+            'email' => 650_000,
+            'name_phone' => 750_000,
+            'name_email' => 750_000,
+            'name_address' => 750_000,
+            'name_dob' => 1_500_000,
+            'dob_phone' => 1_500_000,
+            'dob' => 4_000_000,
+        ], $rates['field_to_modify'] ?? []);
     }
 
     public function test_a_page_of_differently_priced_options_does_not_claim_one_price_yet(): void

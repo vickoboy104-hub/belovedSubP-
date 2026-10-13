@@ -3399,9 +3399,8 @@ class VtuController extends Controller
             'prefill' => $prefill,
             'paused' => $this->availability->isDown($service, 'identity'),
             'pausedNotice' => $this->availability->notice([$service => $definition['title']]),
-            'priceNaira' => $this->manualServices->totalNaira($service),
-            'tierField' => $definition['tiers']['field'] ?? null,
-            'tierPrices' => $this->manualServices->tierPrices($service),
+            'branchPrices' => $this->manualServices->branchPricesKobo($service),
+            'basePriceKobo' => $this->manualServices->basePriceKobo($service),
             'turnaroundLabel' => $this->manualServices->turnaroundLabel($service),
             'expectedBy' => $this->manualServices->expectedBy($service),
             'walletBalanceKobo' => (int) (auth()->user()?->wallet?->balance ?? 0),
@@ -3425,10 +3424,16 @@ class VtuController extends Controller
                 ->with('error', $this->availability->notice([$service => $definition['title']]));
         }
 
+        // Only the questions this customer was actually shown are kept. An answer
+        // copied from another branch is dropped before it is validated, priced or
+        // stored, so a hand-built request cannot borrow a cheaper path through the
+        // form or fill in a field the form never asked for.
         $submitted = $request->validate(
-            $this->manualServices->validationRules($service),
+            $this->manualServices->validationRules($service, $this->manualServices->visibleInput($service, $request->all())),
             ['consent_agreed.accepted' => 'Read and accept the terms above before submitting this request.'],
         );
+
+        $submitted = $this->manualServices->visibleInput($service, $submitted);
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
@@ -3466,9 +3471,53 @@ class VtuController extends Controller
             return back()->with('error', $this->buildErrorMessage(4));
         }
 
+        // A document the customer uploaded belongs to the order they paid for and
+        // to nobody else, so it is filed on the private disk under that order and
+        // only the agent working the job can open it.
+        $uploads = $this->storeManualUploads($service, $request, $submitted, $order);
+        if ($uploads !== []) {
+            $meta = (array) ($order->meta ?? []);
+            $order->meta = array_merge($meta, ['uploads' => $uploads]);
+            $order->save();
+        }
+
         return redirect()
             ->route('vtu.receipt', $order->id)
             ->with('success', $title.' received. '.$this->manualServices->turnaroundLabel($service).' to complete it.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $submitted
+     * @return array<string, array{path: string, name: string, mime: string}>
+     */
+    private function storeManualUploads(string $service, Request $request, array $submitted, Order $order): array
+    {
+        $stored = [];
+
+        foreach ($this->manualServices->fileFields($service, $submitted) as $name) {
+            $file = $request->file($name);
+            if (!$file instanceof \Illuminate\Http\UploadedFile || !$file->isValid()) {
+                continue;
+            }
+
+            $path = $file->storeAs(
+                'manual-uploads/'.$order->id,
+                Str::random(24).'.'.strtolower((string) $file->getClientOriginalExtension()),
+                'local',
+            );
+
+            if (!is_string($path)) {
+                continue;
+            }
+
+            $stored[$name] = [
+                'path' => $path,
+                'name' => mb_substr((string) $file->getClientOriginalName(), 0, 120),
+                'mime' => (string) $file->getClientMimeType(),
+            ];
+        }
+
+        return $stored;
     }
 
     private function manualPayableKobo(string $slug, ?User $user, array $submitted = []): int

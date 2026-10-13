@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Support\ServiceForm\Schema;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -83,8 +84,13 @@ class ManualFulfilmentService
         'state',
     ];
 
-    /** @return array<string, array<string, mixed>> */
-    public function catalogue(): array
+    /**
+     * The catalogue as it was written in code, which is what a service inherits
+     * until the owner saves their own version of it in Admin.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function legacyCatalogue(): array
     {
         return [
             'ipe_clearance' => [
@@ -96,13 +102,13 @@ class ManualFulfilmentService
                 'turnaround_default' => 48,
                 'cta' => 'Submit Tracking',
                 'fields' => [
-                    $this->field('ipe_type', 'Select IPEs Category', type: 'select', options: [
+                    self::field('ipe_type', 'Select IPEs Category', type: 'select', options: [
                         'new_enrollment' => 'New Enrollment for ID Retrieval',
                         'inprocessing_error' => 'Inprocessing Error',
                         'still_being_process' => 'Enrollment is Still Being Process',
                     ], rules: ['required', 'in:new_enrollment,inprocessing_error,still_being_process'], column: 'Type'),
-                    $this->field('tracking_id', 'Enter Tracking ID', rules: ['required', 'string', 'size:15', 'alpha_num'], hint: 'The 15-character tracking ID printed on your NIN enrolment slip, e.g. BTX947E60001020.', column: 'Tracking ID'),
-                    $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                    self::field('tracking_id', 'Enter Tracking ID', rules: ['required', 'string', 'size:15', 'alpha_num'], hint: 'The 15-character tracking ID printed on your NIN enrolment slip, e.g. BTX947E60001020.', column: 'Tracking ID'),
+                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -129,12 +135,12 @@ class ManualFulfilmentService
                     ],
                 ],
                 'fields' => [
-                    $this->field('tracking_id', 'Enter Tracking ID', rules: ['required', 'string', 'size:15', 'alpha_num'], hint: 'The 15-character tracking ID printed on your NIN enrolment slip.', column: 'Tracking'),
-                    $this->field('category', 'Select Category', type: 'select', options: [
+                    self::field('tracking_id', 'Enter Tracking ID', rules: ['required', 'string', 'size:15', 'alpha_num'], hint: 'The 15-character tracking ID printed on your NIN enrolment slip.', column: 'Tracking'),
+                    self::field('category', 'Select Category', type: 'select', options: [
                         'get_nin_slip' => 'TO GET NIN SLIP',
                         'get_nin_only' => 'TO GET NIN NUMBER ONLY',
                     ], rules: ['required', 'in:get_nin_slip,get_nin_only'], column: 'Type'),
-                    $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -176,8 +182,8 @@ class ManualFulfilmentService
                     ],
                 ],
                 'fields' => [
-                    $this->field('nin', 'Enter the NIN Number', rules: ['required', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, column: 'NIN'),
-                    $this->field('field_to_modify', 'What needs correcting', type: 'select', options: [
+                    self::field('nin', 'Enter the NIN Number', rules: ['required', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, column: 'NIN'),
+                    self::field('field_to_modify', 'What needs correcting', type: 'select', options: [
                         'name' => 'Change of Name',
                         'phone' => 'Change of Phone Number',
                         'address' => 'Change of Address',
@@ -189,8 +195,8 @@ class ManualFulfilmentService
                         'name_address' => 'Name and Address',
                         'dob_phone' => 'Date of Birth and Phone Number',
                     ], rules: ['required', 'in:name,phone,address,email,dob,name_phone,name_dob,name_email,name_address,dob_phone'], column: 'Mod Type'),
-                    $this->field('new_value', 'What it should say', rules: ['required', 'string', 'max:255'], column: 'New value'),
-                    $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                    self::field('new_value', 'What it should say', rules: ['required', 'string', 'max:255'], column: 'New value'),
+                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -202,12 +208,12 @@ class ManualFulfilmentService
                 'group' => 'nin',
                 'turnaround_default' => 48,
                 'fields' => [
-                    $this->field('nin', 'Enter the NIN Number', rules: ['required', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, column: 'NIN'),
-                    $this->field('delink_target', 'What you want done', type: 'select', options: [
+                    self::field('nin', 'Enter the NIN Number', rules: ['required', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, column: 'NIN'),
+                    self::field('delink_target', 'What you want done', type: 'select', options: [
                         'delink' => 'Delink my self service account',
                         'retrieve_email' => 'Retrieve the email on my self service account',
                     ], rules: ['required', 'in:delink,retrieve_email'], column: 'Type'),
-                    $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -224,11 +230,11 @@ class ManualFulfilmentService
                 'turnaround_default' => 48,
                 'hidden_from_hub' => true,
                 'fields' => [
-                    $this->field('nin', 'Enter the NIN Number', rules: ['required', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, column: 'NIN'),
-                    $this->field('tracking_id', 'Enter Tracking ID', rules: ['nullable', 'string', 'size:15', 'alpha_num'], column: 'Tracking ID'),
-                    $this->field('state', 'State of enrolment', rules: ['required', 'string', 'max:80']),
-                    $this->field('lga', 'LGA of enrolment', rules: ['nullable', 'string', 'max:80']),
-                    $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                    self::field('nin', 'Enter the NIN Number', rules: ['required', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, column: 'NIN'),
+                    self::field('tracking_id', 'Enter Tracking ID', rules: ['nullable', 'string', 'size:15', 'alpha_num'], column: 'Tracking ID'),
+                    self::field('state', 'State of enrolment', rules: ['required', 'string', 'max:80']),
+                    self::field('lga', 'LGA of enrolment', rules: ['nullable', 'string', 'max:80']),
+                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -251,8 +257,8 @@ class ManualFulfilmentService
                     ],
                 ],
                 'fields' => [
-                    $this->field('bvn', 'Enter the BVN Number', rules: ['required', 'digits:11'], placeholder: self::BVN_PLACEHOLDER, hint: 'The 11-digit Bank Verification Number.', column: 'BVN'),
-                    $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                    self::field('bvn', 'Enter the BVN Number', rules: ['required', 'digits:11'], placeholder: self::BVN_PLACEHOLDER, hint: 'The 11-digit Bank Verification Number.', column: 'BVN'),
+                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -285,16 +291,16 @@ class ManualFulfilmentService
                     ],
                 ],
                 'fields' => [
-                    $this->field('nin', 'Enter the NIN Number', rules: ['required', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, hint: 'The 11-digit National Identification Number.', column: 'NIN'),
+                    self::field('nin', 'Enter the NIN Number', rules: ['required', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, hint: 'The 11-digit National Identification Number.', column: 'NIN'),
                     // The four slips are four different jobs on their counter, each
                     // with its own rate, so the queue charges the one picked.
-                    $this->field('slip_type', 'Choose Slip Type', type: 'select', options: [
+                    self::field('slip_type', 'Choose Slip Type', type: 'select', options: [
                         'long_slip' => 'NIN Slip (Long Slip)',
                         'standard_slip' => 'Standard NIN Slip',
                         'premium_slip' => 'Premium NIN Slip',
                         'vnin_slip' => 'Vnin NIN Slip Sample',
                     ], rules: ['required', 'in:long_slip,standard_slip,premium_slip,vnin_slip'], column: 'Slip Type'),
-                    $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -323,12 +329,12 @@ class ManualFulfilmentService
                     // 'Update Record' asks the provider to match a record that has
                     // already been corrected, which is a dearer lookup than finding
                     // nothing at all, so the two categories keep separate rates.
-                    $this->field('validation_type', 'Select Validation Category', type: 'select', options: [
+                    self::field('validation_type', 'Select Validation Category', type: 'select', options: [
                         'no_record' => 'No Record Found',
                         'update_record' => 'Update Record(Modification Validation Name/Phone/Address except DOB)',
                     ], rules: ['required', 'in:no_record,update_record'], column: 'Type'),
-                    $this->field('nin', 'Enter the NIN Number', rules: ['required', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, column: 'NIN'),
-                    $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                    self::field('nin', 'Enter the NIN Number', rules: ['required', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, column: 'NIN'),
+                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -349,14 +355,14 @@ class ManualFulfilmentService
                     ],
                 ],
                 'fields' => [
-                    $this->field('retrieve_type', 'Choose Category', type: 'select', options: [
+                    self::field('retrieve_type', 'Choose Category', type: 'select', options: [
                         'phone' => 'Using Phone Number',
                         'bms' => 'Using BMS Ticket',
                     ], rules: ['required', 'in:phone,bms'], column: 'Phone No / BMS'),
-                    $this->field('phone', 'Enter Phone Number', rules: ['nullable', 'string', 'max:20']),
-                    $this->field('bms_no', 'Enter BMS Number', rules: ['nullable', 'string', 'max:100']),
-                    $this->field('ticket_id', 'Enter Ticket ID', rules: ['nullable', 'string', 'max:120']),
-                    $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                    self::field('phone', 'Enter Phone Number', rules: ['nullable', 'string', 'max:20']),
+                    self::field('bms_no', 'Enter BMS Number', rules: ['nullable', 'string', 'max:100']),
+                    self::field('ticket_id', 'Enter Ticket ID', rules: ['nullable', 'string', 'max:120']),
+                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -386,18 +392,18 @@ class ManualFulfilmentService
                     ],
                 ],
                 'fields' => [
-                    $this->field('verification_type', 'Verification Type', type: 'select', options: [
+                    self::field('verification_type', 'Verification Type', type: 'select', options: [
                         'by_nin' => 'By NIN',
                         'by_phone' => 'By Phone No',
                         'by_demo' => 'By Demographic Info',
                     ], rules: ['required', 'in:by_nin,by_phone,by_demo'], column: 'Verified by'),
-                    $this->field('nin', 'Enter the NIN Number', rules: ['nullable', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, column: 'NIN'),
-                    $this->field('phone', 'Enter Phone Number', rules: ['nullable', 'string', 'max:20'], column: 'Phone'),
-                    $this->field('firstname', 'First name', rules: ['nullable', 'string', 'max:120']),
-                    $this->field('lastname', 'Last name', rules: ['nullable', 'string', 'max:120']),
-                    $this->field('dob', 'Date of birth', rules: ['nullable', 'string', 'max:20']),
-                    $this->field('gender', 'Gender', rules: ['nullable', 'string', 'max:20']),
-                    $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                    self::field('nin', 'Enter the NIN Number', rules: ['nullable', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, column: 'NIN'),
+                    self::field('phone', 'Enter Phone Number', rules: ['nullable', 'string', 'max:20'], column: 'Phone'),
+                    self::field('firstname', 'First name', rules: ['nullable', 'string', 'max:120']),
+                    self::field('lastname', 'Last name', rules: ['nullable', 'string', 'max:120']),
+                    self::field('dob', 'Date of birth', rules: ['nullable', 'string', 'max:20']),
+                    self::field('gender', 'Gender', rules: ['nullable', 'string', 'max:20']),
+                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -412,14 +418,28 @@ class ManualFulfilmentService
                 'wired_only' => true,
                 'price_key' => 'price_bvn_verify',
                 'fields' => [
-                    $this->field('bvn', 'BVN', rules: ['required', 'digits:11']),
-                    $this->field('firstname', 'First name', rules: ['nullable', 'string', 'max:120']),
-                    $this->field('lastname', 'Last name', rules: ['nullable', 'string', 'max:120']),
-                    $this->field('phone', 'Phone number', rules: ['nullable', 'string', 'max:20']),
-                    $this->field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                    self::field('bvn', 'BVN', rules: ['required', 'digits:11']),
+                    self::field('firstname', 'First name', rules: ['nullable', 'string', 'max:120']),
+                    self::field('lastname', 'Last name', rules: ['nullable', 'string', 'max:120']),
+                    self::field('phone', 'Phone number', rules: ['nullable', 'string', 'max:20']),
+                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
         ];
+    }
+
+    /**
+     * The services as the owner has configured them.
+     *
+     * Every customer page, price input and queue screen reads this, so an edit
+     * made in Admin reaches the form, the fee and the validation rules together
+     * instead of only one of them.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function catalogue(): array
+    {
+        return app(ServiceFormRepository::class)->all();
     }
 
     public function find(string $slug): ?array
@@ -519,13 +539,7 @@ class ManualFulfilmentService
      */
     public function priceKey(string $slug, array $submitted = []): string
     {
-        $service = $this->find($slug) ?? [];
-        $base = $this->servicePriceKey($slug);
-
-        $map = $service['tiers']['map'] ?? [];
-        $option = trim((string) ($submitted[$service['tiers']['field'] ?? ''] ?? ''));
-
-        return $option !== '' && isset($map[$option]) ? $map[$option] : $base;
+        return Schema::priceKey($slug, $this->find($slug) ?? [], $submitted);
     }
 
     /** The key that holds this service's own price, tier or no tier. */
@@ -544,28 +558,26 @@ class ManualFulfilmentService
      */
     public function priceTiers(string $slug): array
     {
-        $service = $this->find($slug) ?? [];
-        $map = $service['tiers']['map'] ?? [];
-        if ($map === []) {
+        $definition = $this->find($slug) ?? [];
+        $options = Schema::priceOptions($definition);
+        if ($options === []) {
             return [];
         }
 
-        $names = $this->optionsFor($slug, (string) $service['tiers']['field']);
-        $labels = $service['tiers']['labels'] ?? [];
-
         $grouped = [];
-        foreach ($map as $option => $key) {
-            $grouped[$key][] = $names[$option] ?? $option;
+        foreach ($options as $entry) {
+            $grouped[$entry['key']][] = $entry['label'];
         }
 
         $tiers = [];
-        foreach ($grouped as $key => $options) {
+        foreach ($grouped as $key => $labels) {
+            $distinct = array_values(array_unique($labels));
             $tiers[] = [
                 'key' => $key,
-                'label' => $labels[$key] ?? (count($options) === 1
-                    ? $options[0]
-                    : count($options).' options'),
-                'options' => $options,
+                // Options sharing one rate are described by that rate when the
+                // owner named it, and by their count when he did not.
+                'label' => count($distinct) === 1 ? $distinct[0] : count($labels).' options',
+                'options' => $labels,
             ];
         }
 
@@ -580,16 +592,43 @@ class ManualFulfilmentService
      */
     public function tierPrices(string $slug): array
     {
-        $service = $this->find($slug) ?? [];
-        $map = $service['tiers']['map'] ?? [];
-
+        $definition = $this->find($slug) ?? [];
         $prices = [];
-        foreach ($map as $option => $key) {
-            $prices[$option] = identity_tier_price($key, $this->servicePriceKey($slug))
+        foreach (Schema::priceOptions($definition) as $option => $entry) {
+            $prices[$option] = identity_tier_price($entry['key'], $this->servicePriceKey($slug))
                 + $this->markupNaira($slug);
         }
 
         return $prices;
+    }
+
+    /**
+     * What every branch of this service's form charges, grouped by the question
+     * that fixes it. The page hands these to the browser so the fee names itself
+     * the moment the customer chooses, and they never travel back as an answer.
+     *
+     * @return array<string, array<string, int>> field => option => kobo
+     */
+    public function branchPricesKobo(string $slug): array
+    {
+        $markupKobo = (int) round($this->markupNaira($slug) * 100);
+        $prices = [];
+
+        foreach (Schema::priceMap($this->find($slug) ?? []) as $field => $map) {
+            foreach ($map as $option => $key) {
+                $prices[$field][(string) $option] = (int) round(
+                    identity_tier_price((string) $key, $this->servicePriceKey($slug)) * 100
+                ) + $markupKobo;
+            }
+        }
+
+        return $prices;
+    }
+
+    /** The fall-back figure the page quotes before any priced option is chosen. */
+    public function basePriceKobo(string $slug): int
+    {
+        return (int) round($this->totalNaira($slug) * 100);
     }
 
     /**
@@ -699,18 +738,51 @@ class ManualFulfilmentService
         return 'About '.$hours.' hours';
     }
 
-    /** @return array<string, mixed> */
-    public function validationRules(string $slug): array
+    /**
+     * What the customer sent that belongs on the screen they were shown.
+     *
+     * This is the input the rules, the price and the stored request are all
+     * worked from, so an answer copied out of a branch the form never opened
+     * cannot reach any of them.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    public function visibleInput(string $slug, array $input): array
+    {
+        return Schema::prune($this->find($slug) ?? [], $input);
+    }
+
+    /**
+     * The documents this customer was asked for, which is everything the store
+     * step needs and nothing more.
+     *
+     * @param  array<string, mixed>  $input
+     * @return list<string>
+     */
+    public function fileFields(string $slug, array $input): array
+    {
+        return Schema::fileFields($this->find($slug) ?? [], $input);
+    }
+
+    /**
+     * Rules for the branch the customer actually answered.
+     *
+     * A field the form never showed them is not required of them, and a value
+     * that belongs to a different branch is refused rather than stored and
+     * charged at the price of the branch it came from.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    public function validationRules(string $slug, array $input = []): array
     {
         $service = $this->find($slug);
         if (!$service) {
             return [];
         }
 
-        $rules = [];
-        foreach ($service['fields'] as $field) {
-            $rules[$field['name']] = $field['rules'];
-        }
+        $rules = Schema::rules($service, $input);
 
         // A gated service is not gated if the server still accepts the post from
         // somebody who never saw the terms, so the tick is checked here too.
@@ -787,7 +859,7 @@ class ManualFulfilmentService
      * @param  array<string, string>  $options
      * @return array<string, mixed>
      */
-    private function field(
+    private static function field(
         string $name,
         string $label,
         string $type = 'text',
