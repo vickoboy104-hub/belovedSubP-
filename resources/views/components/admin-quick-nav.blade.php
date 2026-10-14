@@ -14,6 +14,7 @@
         ['label' => 'Support Chats', 'route' => 'admin.support.chats'],
         ['label' => 'Announcements', 'route' => 'admin.broadcast'],
         ['label' => 'Website Editor', 'route' => 'admin.website-editor'],
+        ['label' => 'Service Forms', 'route' => 'admin.services.index'],
         ['label' => 'Settings', 'route' => 'admin.settings'],
     ];
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ManualOrdersController;
 use App\Http\Controllers\Admin\OrdersController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\ServiceFormsController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\WalletTransactionsController;
 use App\Http\Controllers\Admin\WalletStatsController;
@@ -164,6 +165,13 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::get('/settings', [SettingsController::class, 'edit'])->name('admin.settings');
     Route::post('/settings', [SettingsController::class, 'update'])->name('admin.settings.update');
     Route::post('/settings/provider-prices/sync', [SettingsController::class, 'syncProviderPrices'])->name('admin.settings.provider-prices.sync');
+
+    // What each identity service asks its customer, edited here instead of in
+    // code. The rates those answers select stay on the Settings page.
+    Route::get('/services', [ServiceFormsController::class, 'index'])->name('admin.services.index');
+    Route::get('/services/{service}', [ServiceFormsController::class, 'edit'])->name('admin.services.edit');
+    Route::post('/services/{service}', [ServiceFormsController::class, 'update'])->name('admin.services.update');
+    Route::post('/services/{service}/reset', [ServiceFormsController::class, 'reset'])->name('admin.services.reset');
     Route::get('/broadcast', [BroadcastController::class, 'index'])->name('admin.broadcast');
     Route::post('/broadcast/send', [BroadcastController::class, 'send'])->name('admin.broadcast.send');
     Route::get('/broadcast/export', [BroadcastController::class, 'export'])->name('admin.broadcast.export');

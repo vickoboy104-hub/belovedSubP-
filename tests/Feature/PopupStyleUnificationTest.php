@@ -294,6 +294,25 @@ class PopupStyleUnificationTest extends TestCase
                     $file->getRelativePathname().' gates a form onto the missing sheet "'.$sheet.'".'
                 );
             }
+
+            // And the other way round: the sheet is shown only after the gate has
+            // handed the form over by its id. A gated form with no id is not
+            // confirmed - it is submitted on the first press, which is exactly the
+            // thing the sheet exists to prevent, and it looks like it worked.
+            preg_match_all('/<form\b[^>]*>/s', $source, $forms);
+
+            foreach ($forms[0] as $form) {
+                if (!str_contains($form, 'data-confirm-sheet=')) {
+                    continue;
+                }
+
+                $this->assertMatchesRegularExpression(
+                    '/\bid="[^"]+"/',
+                    $form,
+                    $file->getRelativePathname().' gates a form onto a sheet without giving that form an id, '
+                    .'so the sheet is skipped and the press goes straight through.'
+                );
+            }
         }
     }
 

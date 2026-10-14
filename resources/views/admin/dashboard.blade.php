@@ -168,6 +168,7 @@
             <a href="{{ route('admin.support.chats') }}" class="btn-outline justify-center">Support Chats</a>
             <a href="{{ route('admin.broadcast') }}" class="btn-outline justify-center">Announcements</a>
             <a href="{{ route('admin.settings') }}" class="btn-outline justify-center">Settings</a>
+            <a href="{{ route('admin.services.index') }}" class="btn-outline justify-center">Service Forms</a>
             <button type="button"
                     id="openWebsiteEditorWarning"
                     class="btn-outline justify-center">

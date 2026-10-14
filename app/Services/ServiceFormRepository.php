@@ -86,7 +86,10 @@ class ServiceFormRepository
         return !empty($this->find($slug)['wired_only']);
     }
 
-    /** Save the shape of one service. Prices stay in settings, not here. */
+    /**
+     * Save the shape of one service. Prices stay in settings, not here, and the
+     * consent clauses stay in code, since no editor owns their wording.
+     */
     public function persist(string $slug, array $attributes): void
     {
         $existing = $this->find($slug) ?? [];
@@ -134,16 +137,24 @@ class ServiceFormRepository
     {
         $stored = (array) $row->definition;
 
-        // A saved row overrides only what it actually carries, so a service added
-        // to the editor before its fields were written still shows its inherited
-        // wording rather than an empty form.
+        // A saved row overrides what it carries, including an empty list: an
+        // owner who deleted every note deleted them, rather than falling back to
+        // the shipped ones. Anything it does not carry - the consent clauses, for
+        // instance, which no editor owns - still comes from the code.
         $definition = array_merge($inherited, [
             'slug' => $row->slug,
             'title' => $row->title,
             'group' => $row->group,
             'summary' => (string) $row->summary,
             'icon' => (string) $row->icon,
-        ], array_filter($stored, static fn (mixed $value): bool => $value !== null && $value !== []));
+        ], $stored);
+
+        // The shipped notices are the plain-text form of the same line a saved
+        // note holds, so once the owner has written their own list the code's
+        // list must not be added underneath it a second time.
+        if (array_key_exists('notes', $stored)) {
+            unset($definition['notices']);
+        }
 
         $definition['cta'] = $row->cta ?? ($inherited['cta'] ?? null);
         $definition['sort_order'] = $row->sort_order;
@@ -160,11 +171,17 @@ class ServiceFormRepository
      */
     private function definitionForStorage(array $attributes, array $existing): array
     {
-        $keep = ['fields', 'consent', 'notes', 'price_key', 'cost_text', 'turnaround_default', 'sub_service', 'notices'];
+        // Consent clauses and the provider's plain notices are written in code and
+        // are not this editor's to freeze: leaving them out keeps an edited
+        // service following every wording change made there.
+        $keep = ['fields', 'notes', 'price_key', 'cost_text', 'turnaround_default', 'sub_service'];
         $definition = [];
         foreach ($keep as $key) {
-            $value = $attributes[$key] ?? $existing[$key] ?? null;
-            if ($value !== null && $value !== [] && $value !== '') {
+            $value = array_key_exists($key, $attributes)
+                ? $attributes[$key]
+                : ($existing[$key] ?? null);
+
+            if ($value !== null && $value !== '') {
                 $definition[$key] = $value;
             }
         }
