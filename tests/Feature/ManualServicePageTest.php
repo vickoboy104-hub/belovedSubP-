@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Setting;
 use App\Models\Wallet;
 use App\Services\ManualFulfilmentService;
+use App\Support\ServiceForm\Schema;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -47,7 +48,15 @@ class ManualServicePageTest extends TestCase
                 ->assertOk()
                 ->getContent();
 
-            $price = number_format($manual->totalNaira($slug), 2);
+            // The figure on the page must be one the customer could really be
+            // charged. A service whose choices carry their own rates has no
+            // single price until a choice is made, so it names its whole span -
+            // quoting its standing rate there would name a figure nothing on
+            // the page charges.
+            $span = Schema::priceSpan($manual->branchPricesKobo($slug));
+            $price = $span === null
+                ? number_format($manual->totalNaira($slug), 2)
+                : number_format($span[0] / 100, 2).' – ₦'.number_format($span[1] / 100, 2);
             $this->assertStringContainsString($price, $html, $slug.' does not state its price.');
 
             $turnaround = $manual->turnaroundLabel($slug);

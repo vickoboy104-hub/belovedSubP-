@@ -55,7 +55,10 @@
 
     $config = \App\Support\ServiceForm\Schema::clientConfig($schema, $branchPrices, (int) $basePriceKobo);
 
-    $payableKobo = $chosenKobo ?? (int) $basePriceKobo;
+    // Before a choice is made the page quotes the lowest rate any of its
+    // choices carries. Its own base rate is the price of the whole service and
+    // on a tiered service nothing on this page will charge it.
+    $payableKobo = $chosenKobo ?? (int) $config['floorPrice'];
     $canAfford = $balanceKobo >= $payableKobo;
     $priceLabel = number_format($payableKobo / 100, 2);
 
@@ -241,7 +244,10 @@
     <div class="service-form-alert service-form-alert-warning"
          id="servicePaymentNotice"
          data-balance="{{ $balanceKobo }}">
-        &#8358;<span id="servicePayableAmount">{{ $priceLabel }}</span> is deducted from your wallet the moment you press {{ $cta ?? $schema['cta'] ?? 'Submit' }}.
+        {{-- Before an option is picked the page cannot promise one figure: the
+             service's own standing rate is not what any of its choices charges.
+             The span keeps the shape the browser updates on every change. --}}
+        &#8358;<span id="servicePayableAmount">{{ $standing ? $priceLabel : $rangeText }}</span> is deducted from your wallet the moment you press {{ $cta ?? $schema['cta'] ?? 'Submit' }}.
         We take {{ $turnaroundLabel }} to complete it, so the result should be ready by
         {{ $expectedBy ? $expectedBy->format('d M Y, h:i A') : 'the stated time' }}. It appears on your receipt page and stays
         there, so keep the receipt after the work is done. If we cannot complete the job, the

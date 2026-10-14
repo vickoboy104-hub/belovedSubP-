@@ -275,9 +275,10 @@ class ServiceFormCascadeTest extends TestCase
             $fields['slip_type']['optionsBy']['map'],
         );
 
-        // What the page quotes before anything is chosen is the service's own
-        // rate, not the cheapest corner of it.
+        // What the page quotes before anything is chosen is the lowest rate any
+        // of its choices carries, not the service's own standing rate.
         $this->assertSame(100_000, $config['basePrice']);
+        $this->assertSame(120_000, $config['floorPrice']);
     }
 
     public function test_the_price_line_and_the_deduction_warning_both_follow_the_choice(): void
@@ -310,6 +311,36 @@ class ServiceFormCascadeTest extends TestCase
         // The figure the wallet is warned against is the same one the line gives.
         $page = $this->branch('?job=slip&slip_type=long');
         $this->assertStringContainsString('id="servicePayableAmount">3,000.00<', $page);
+
+        // The warning before a choice carries the same span as the line above it,
+        // and never the service's own rate: no job on this page costs ₦1,000, so
+        // quoting it would both mislead the customer and refuse a wallet that
+        // can pay for every job here.
+        $openPage = $this->branch('');
+        $this->assertStringContainsString('id="servicePayableAmount">1,200.00 – ₦3,000.00<', $openPage);
+        $this->assertStringNotContainsString('id="servicePayableAmount">1,000.00<', $openPage);
+    }
+
+    public function test_a_page_whose_choices_all_cost_the_same_quotes_that_figure_not_its_base_rate(): void
+    {
+        $definition = $this->definition();
+        $definition['fields'][1]['price_by']['map'] = [
+            'slip' => 'price_cascade_slip',
+            'change' => 'price_cascade_slip',
+        ];
+        $definition['fields'][2]['price_by']['map'] = [
+            'long' => 'price_cascade_slip',
+            'standard' => 'price_cascade_slip',
+        ];
+        $this->editor()->persist(self::SLUG, $definition);
+
+        // One rate for every choice is no span to name, so the page states the
+        // figure it will actually charge - the choices' ₦1,200 - rather than the
+        // ₦1,000 the service carries as its own standing rate.
+        $page = $this->branch('');
+        $this->assertStringContainsString('id="servicePayableAmount">1,200.00<', $page);
+        $this->assertStringNotContainsString('id="servicePayableAmount">1,000.00<', $page);
+        $this->assertStringNotContainsString('choose what you need done', $this->costLineOf($page));
     }
 
     private function branch(string $query): string

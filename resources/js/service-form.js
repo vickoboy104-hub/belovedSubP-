@@ -211,17 +211,23 @@ export function initServiceForm(root) {
             });
 
             const priced = chosenPrice(config, answers, fields);
-            const kobo = priced === null ? Number(config.basePrice || 0) : priced;
+            const floor = Number(config.floorPrice ?? config.basePrice ?? 0);
             const standing = priced !== null || span === null;
+            // A page still choosing between its rates has committed to no
+            // figure, so it quotes the lowest rate one of its choices carries
+            // - never the service's base, which on a tiered page is a number
+            // nothing here will charge - and it refuses no wallet that could
+            // pay for the cheapest job on it.
+            const kobo = priced ?? floor;
             const amount = standing
                 ? naira(kobo)
-                : `${naira(Math.min(...span))} – ₦${naira(Math.max(...span))}`;
+                : `${naira(floor)} – ₦${naira(Math.max(...span))}`;
 
             if (costLine && typeof template === 'string') {
                 costLine.textContent = template.replace(/__PRICE__/g, amount) + (standing ? '' : invitation);
             }
             if (payable) {
-                payable.textContent = naira(kobo);
+                payable.textContent = amount;
             }
 
             if (span !== null) {

@@ -519,12 +519,41 @@ class Schema
             'fields' => $fields,
             'basePrice' => $basePriceKobo,
             'span' => $span,
+            'floorPrice' => self::priceFloor($branchPrices, $basePriceKobo),
             'invitation' => $span === null ? null : self::INVITATION,
             'notes' => array_map(
                 static fn (array $note): array => ['text' => $note['text'], 'showIf' => $note['show_if']],
                 (array) ($definition['notes'] ?? []),
             ),
         ];
+    }
+
+    /**
+     * The least this page could ever charge for the job it is showing.
+     *
+     * A service's base rate is the price of the whole service, while a choice
+     * inside it has a rate of its own, and the two need not agree. Until the
+     * customer has picked one, the honest figure is the lowest rate any of the
+     * choices carries - never the base, which on a tiered service is a number
+     * nothing on the page will charge. Only a page with no priced choices at
+     * all has the base as its real price.
+     *
+     * @param  array<string, array<string, int>>  $branchPrices
+     */
+    public static function priceFloor(array $branchPrices, int $basePriceKobo): int
+    {
+        $lowest = null;
+
+        foreach ($branchPrices as $options) {
+            foreach ((array) $options as $kobo) {
+                $kobo = (int) $kobo;
+                if ($lowest === null || $kobo < $lowest) {
+                    $lowest = $kobo;
+                }
+            }
+        }
+
+        return $lowest ?? $basePriceKobo;
     }
 
     /**
@@ -594,6 +623,30 @@ class Schema
     }
 
     /**
+     * The document questions on the branch the customer actually answered, each
+     * with the flag that says whether they had to answer it. Whether the answer
+     * is required decides what may happen when the file cannot be kept: a
+     * mandatory document that did not arrive makes the request unusable, so the
+     * money must not move.
+     *
+     * @param  array<string, mixed>  $input
+     * @return list<array{name: string, required: bool}>
+     */
+    public static function uploadFields(array $definition, array $input): array
+    {
+        return array_values(array_map(
+            static fn (array $field): array => [
+                'name' => (string) $field['name'],
+                'required' => (bool) ($field['required'] ?? false),
+            ],
+            array_filter(
+                self::visibleFields($definition, $input),
+                static fn (array $field): bool => ($field['type'] ?? '') === 'file',
+            ),
+        ));
+    }
+
+    /**
      * The fields on the answered branch that hold a document rather than text.
      *
      * @param  array<string, mixed>  $input
@@ -601,12 +654,6 @@ class Schema
      */
     public static function fileFields(array $definition, array $input): array
     {
-        return array_values(array_map(
-            static fn (array $field): string => (string) $field['name'],
-            array_filter(
-                self::visibleFields($definition, $input),
-                static fn (array $field): bool => ($field['type'] ?? '') === 'file',
-            ),
-        ));
+        return array_column(self::uploadFields($definition, $input), 'name');
     }
 }
