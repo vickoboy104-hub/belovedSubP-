@@ -33,8 +33,10 @@ class PausedIdentityServiceTest extends TestCase
 
         $this->actingAs($user)->post('/vtu/manual/nin_modification', [
             'nin' => '12345678901',
+            'email_choice' => 'auto',
             'field_to_modify' => 'name',
-            'new_value' => 'A New Name',
+            'fname' => 'A New',
+            'lname' => 'Name',
             'consent_agreed' => '1',
         ])->assertRedirect();
 
@@ -75,8 +77,10 @@ class PausedIdentityServiceTest extends TestCase
         $this->actingAs($user)
             ->post('/vtu/manual/nin_modification', [
                 'nin' => '12345678901',
+                'email_choice' => 'auto',
                 'field_to_modify' => 'name',
-                'new_value' => 'A New Name',
+                'fname' => 'A New',
+                'lname' => 'Name',
                 'consent_agreed' => '1',
             ])
             ->assertRedirect('/vtu/manual/nin_modification')

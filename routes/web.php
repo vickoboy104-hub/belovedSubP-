@@ -143,6 +143,7 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::post('/orders/{order}/keys', [OrdersController::class, 'storeKeys'])->name('admin.orders.keys.store');
     Route::get('/manual-orders', [ManualOrdersController::class, 'index'])->name('admin.manual-orders.index');
     Route::get('/manual-orders/{order}', [ManualOrdersController::class, 'show'])->name('admin.manual-orders.show');
+    Route::get('/manual-orders/{order}/document/{field}', [ManualOrdersController::class, 'document'])->name('admin.manual-orders.document');
     Route::post('/manual-orders/{order}/fulfil', [ManualOrdersController::class, 'fulfil'])->name('admin.manual-orders.fulfil');
     Route::post('/manual-orders/{order}/reject', [ManualOrdersController::class, 'reject'])->name('admin.manual-orders.reject');
     Route::get('/users', [UsersController::class, 'index'])->name('admin.users');

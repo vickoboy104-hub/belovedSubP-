@@ -90,15 +90,20 @@ class ManualIdentityQueueTest extends TestCase
 
     public function test_the_option_a_customer_picks_decides_what_they_are_billed(): void
     {
+        Storage::fake('local');
         $user = $this->memberWithBalance(9_000_000);
 
         // A date of birth correction costs the provider ₦33,000 on its own while a
         // name change is ₦5,000, so the wallet cannot be debited the same amount
-        // for both just because they share one form.
+        // for both just because they share one form. Each one also carries the
+        // answers its own branch asks for, and the attestation only exists on the
+        // date of birth side of that line.
         $name = $this->submitManualRequest($user, 'nin_modification', [
             'nin' => '12345678901',
+            'email_choice' => 'auto',
             'field_to_modify' => 'name',
-            'new_value' => 'AISHA RABIU MOHAMMED',
+            'fname' => 'AISHA',
+            'lname' => 'MOHAMMED',
         ]);
 
         $this->assertSame(650_000, (int) $name->amount);
@@ -106,12 +111,28 @@ class ManualIdentityQueueTest extends TestCase
 
         $birth = $this->submitManualRequest($user, 'nin_modification', [
             'nin' => '12345678901',
+            'email_choice' => 'link',
+            'link_email' => 'aisha.example@gmail.com',
             'field_to_modify' => 'dob',
-            'new_value' => '12-08-1994',
+            'attestation_no' => 'SO1250325358849A',
+            'attestation_img' => UploadedFile::fake()->create('attestation.jpg', 40, 'image/jpeg'),
         ]);
 
         $this->assertSame(4000_000, (int) $birth->amount);
         $this->assertSame(40000.0, (float) $birth->meta['base_amount_naira']);
+
+        // The document belongs to the order it was paid for and reaches the
+        // agent's page from there, while the text answers stay readable.
+        $upload = $birth->fresh()->meta['uploads']['attestation_img'] ?? [];
+        $this->assertNotSame('', (string) ($upload['path'] ?? ''));
+        Storage::disk('local')->assertExists((string) $upload['path']);
+
+        $this->assertSame(
+            'aisha.example@gmail.com',
+            $birth->fresh()->meta['submitted']['link_email'],
+        );
+        $this->assertArrayNotHasKey('attestation_img', $birth->fresh()->meta['submitted']);
+        $this->assertSame([], $name->fresh()->meta['submitted']['uploads'] ?? []);
 
         // The queue still reads the correction the same way an admin expects.
         $admin = User::factory()->create(['is_admin' => true]);

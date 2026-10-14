@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Order;
 use App\Models\User;
 use App\Models\Setting;
 use App\Models\Wallet;
@@ -84,6 +85,30 @@ class ManualServicePageTest extends TestCase
                 ->assertOk()
                 ->assertDontSee('name="phone"', false)
                 ->assertDontSee('name="email"', false);
+        }
+
+        // Two services ask more than their category, because the category decides
+        // what the job is worked from: a correction writes new values into the
+        // record, and a retrieval is searched either by phone number or by the BMS
+        // number and its ticket. Both hold every question in the list below, but a
+        // customer only ever sees the ones their own answer asks for, which
+        // test_a_category_decides_which_identifier_the_service_demands proves for
+        // the retrieval and NinModificationWorkflowTest for the correction.
+        $branchContract = [
+            'nin_modification' => [
+                'nin', 'email_choice', 'link_email', 'field_to_modify',
+                'fname', 'lname', 'middle_name', 'phone', 'email', 'address',
+                'date_of_birth', 'attestation_no', 'attestation_img', 'notes',
+            ],
+            'bvn_retrieve' => ['retrieve_type', 'phone', 'bms_no', 'ticket_id', 'notes'],
+        ];
+
+        foreach ($branchContract as $slug => $expected) {
+            $this->assertSame(
+                $expected,
+                array_column($manual->find($slug)['fields'], 'name'),
+                $slug.' does not hold the questions the provider works from.'
+            );
         }
     }
 
@@ -214,12 +239,62 @@ class ManualServicePageTest extends TestCase
 
         $this->actingAs($user)->get('/vtu/manual/nin_slip_print')
             ->assertOk()
-            ->assertSee('24 hours after it is issued', false);
+            ->assertSee('24 hours after it is issued', false)
+            // NIMC stopped issuing plastic cards, and the QR on our print is not
+            // theirs, so the provider states the only honest use before the sale.
+            ->assertSee('not onto plastic', false);
 
         $this->actingAs($user)->get('/vtu/manual/nin_validation')
             ->assertOk()
             ->assertSee('Once the request has been sent it cannot be cancelled', false)
             ->assertSee('Submit NIN');
+    }
+
+    public function test_a_category_decides_which_identifier_the_service_demands(): void
+    {
+        $user = $this->member();
+        Wallet::query()->where('user_id', $user->id)->update(['balance' => 9_000_000]);
+        $user = $user->fresh();
+
+        // A phone search and a ticket search are different jobs at different rates,
+        // so each asks only for what it is actually worked from - on the screen and
+        // in the validator both.
+        $phone = $this->actingAs($user)
+            ->get('/vtu/manual/bvn_retrieve?retrieve_type=phone')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('data-form-field="phone" hidden', $phone);
+        $this->assertStringContainsString('data-form-field="bms_no" hidden', $phone);
+        $this->assertStringContainsString('data-form-field="ticket_id" hidden', $phone);
+
+        $ticket = $this->actingAs($user)
+            ->get('/vtu/manual/bvn_retrieve?retrieve_type=bms')
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-form-field="phone" hidden', $ticket);
+        $this->assertStringNotContainsString('data-form-field="bms_no" hidden', $ticket);
+        $this->assertStringNotContainsString('data-form-field="ticket_id" hidden', $ticket);
+
+        // The wired page asks for the BMS number and its ticket together, so a
+        // ticket search that names neither half of it is refused and costs nothing.
+        $this->actingAs($user)
+            ->post('/vtu/manual/bvn_retrieve', ['retrieve_type' => 'bms', 'bms_no' => 'BMS-112233'])
+            ->assertRedirect()
+            ->assertSessionHasErrors('ticket_id');
+
+        $this->assertSame(0, Order::query()->where('user_id', $user->id)->count());
+
+        $this->actingAs($user)
+            ->post('/vtu/manual/bvn_retrieve', ['retrieve_type' => 'phone', 'phone' => '08031234567'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(
+            ['retrieve_type' => 'phone', 'phone' => '08031234567'],
+            (array) Order::query()->where('user_id', $user->id)->sole()->meta['submitted'],
+        );
     }
 
     public function test_a_manual_service_is_never_offered_for_free(): void

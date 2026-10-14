@@ -3435,6 +3435,14 @@ class VtuController extends Controller
 
         $submitted = $this->manualServices->visibleInput($service, $submitted);
 
+        // An uploaded document is not an answer to be written into the order: it is
+        // filed on the private disk below and linked from the agent's page, so the
+        // text answers alone are what the receipt and the queue carry.
+        $submitted = array_diff_key(
+            $submitted,
+            array_flip($this->manualServices->fileFields($service, $submitted)),
+        );
+
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
         $title = (string) $definition['title'];

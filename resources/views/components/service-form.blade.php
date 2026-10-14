@@ -82,8 +82,12 @@
         (string) ($costText ?? $schema['cost_text'] ?? '* This service will cost you ₦{{price}}'),
     ).($standing ? '' : ' '.\App\Support\ServiceForm\Schema::INVITATION);
 
+    // A document question is usually behind a choice, and the browser opens that
+    // choice without asking the server again. So the encoding is decided by what
+    // this form can ever show, not by the branch it happens to be standing on -
+    // otherwise the file the customer picks simply never leaves their device.
     $hasFile = collect($fields)->contains(
-        fn (array $field): bool => ($field['type'] ?? '') === 'file' && \App\Support\ServiceForm\Schema::isVisible($schema, $field, $answers),
+        fn (array $field): bool => ($field['type'] ?? '') === 'file',
     );
 
     // Field hints drive the input, so an 11-digit NIN behaves like one.

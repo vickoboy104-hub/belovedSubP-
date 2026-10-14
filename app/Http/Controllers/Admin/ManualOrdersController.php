@@ -115,6 +115,32 @@ class ManualOrdersController extends Controller
         ]);
     }
 
+    /**
+     * A document a customer uploaded for the job they paid for. The name of the
+     * question is only a key into what this order already records, so the path
+     * served is never the one in the address, and nothing outside this order can
+     * be reached through it.
+     */
+    public function document(int $order, string $field)
+    {
+        $manualOrder = $this->findManualOrder($order);
+        $meta = is_array($manualOrder->meta) ? $manualOrder->meta : [];
+
+        $upload = $meta['uploads'][$field] ?? null;
+        $path = is_array($upload) ? trim((string) ($upload['path'] ?? '')) : '';
+
+        abort_if($path === '' || !Storage::disk('local')->exists($path), 404);
+
+        // The filename came from the customer's own file picker, so the characters
+        // that would end the quoted string are taken out before it goes into a
+        // response header.
+        $name = str_replace(['"', '\\', "\r", "\n"], '', (string) ($upload['name'] ?? $field));
+
+        return response()->file(Storage::disk('local')->path($path), [
+            'Content-Disposition' => 'inline; filename="'.$name.'"',
+        ]);
+    }
+
     public function fulfil(Request $request, int $order)
     {
         $manualOrder = $this->findManualOrder($order);

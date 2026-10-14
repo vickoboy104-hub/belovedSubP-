@@ -99,6 +99,24 @@
                         @endforelse
                     </dl>
 
+                    @if(!empty($meta['uploads']) && is_array($meta['uploads']))
+                        <h3 class="mt-6 text-base font-extrabold text-slate-900">Documents the customer uploaded</h3>
+                        <div class="mt-3 grid gap-3 md:grid-cols-2">
+                            @foreach($meta['uploads'] as $field => $upload)
+                                <div class="flex min-w-0 items-center justify-between gap-3 rounded-[18px] border border-slate-200 bg-slate-50 p-3">
+                                    <div class="min-w-0">
+                                        <div class="app-record-label">{{ $labels[$field] ?? \Illuminate\Support\Str::headline((string) $field) }}</div>
+                                        <div class="app-record-value break-all">{{ $upload['name'] ?? 'document' }}</div>
+                                    </div>
+                                    <a href="{{ route('admin.manual-orders.document', ['order' => $order->id, 'field' => $field]) }}"
+                                       target="_blank"
+                                       rel="noopener"
+                                       class="reference-quiet-button shrink-0">Open</a>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
                     @if(!empty($meta['notes']))
                         <div class="mt-4 rounded-[18px] border border-slate-200 bg-slate-50 p-3">
                             <div class="app-record-label">Notes</div>

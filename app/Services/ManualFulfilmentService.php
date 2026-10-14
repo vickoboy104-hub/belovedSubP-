@@ -68,11 +68,14 @@ class ManualFulfilmentService
     /** Most useful first: what the job is worked from at the provider. */
     private const QUEUE_PRIORITY_FIELDS = [
         'nin',
+        // Which detail is being corrected decides every question an agent then
+        // reads, so it belongs above the answers it selects.
+        'field_to_modify',
         'bvn',
         'tracking_id',
         'bms_no',
         'ticket_id',
-        'new_value',
+        'fname',
         'phone',
         'verification_type',
         'validation_type',
@@ -80,7 +83,6 @@ class ManualFulfilmentService
         'ipe_type',
         'slip_type',
         'delink_target',
-        'field_to_modify',
         'state',
     ];
 
@@ -156,6 +158,11 @@ class ManualFulfilmentService
                     'intro' => 'A modification rewrites the details held against your NIN. Read each line - the form stays hidden until you accept them.',
                     'clauses' => [...self::CONSENT_IDENTITY, ...self::CONSENT_MODIFICATION],
                 ],
+                // Their page opens on the one rule that costs a customer their
+                // money, so it is said before the fields rather than after them.
+                'notices' => [
+                    'You cannot submit the same modification request to another platform while we process it. Doing so forfeits the payment, because the correction is paid for either way.',
+                ],
                 // The ten corrections below are not one job: their own form ships
                 // a hidden price per correction set, and a date of birth costs
                 // more than six times what a name does. Each option therefore
@@ -183,6 +190,16 @@ class ManualFulfilmentService
                 ],
                 'fields' => [
                     self::field('nin', 'Enter the NIN Number', rules: ['required', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, column: 'NIN'),
+                    // The correction is made through the NIMC self-service account
+                    // that is linked to the NIN, so the account has to be reached
+                    // before the record can be rewritten. Their form offers both
+                    // routes and asks for an address only when the customer picks
+                    // the first one.
+                    self::field('email_choice', 'Which email should the self-service account use', type: 'select', options: [
+                        'link' => 'Link my own email (Gmail or Outlook)',
+                        'auto' => 'Auto-generate an email for me',
+                    ], rules: ['required', 'in:link,auto'], column: 'Email'),
+                    self::field('link_email', 'Enter the email to link', rules: ['required', 'email', 'max:255'], placeholder: 'you@example.com', showIf: ['field' => 'email_choice', 'any' => ['link']], hint: 'NIMC sends the account login to this address, so it must be one you can open.', column: 'Email'),
                     self::field('field_to_modify', 'What needs correcting', type: 'select', options: [
                         'name' => 'Change of Name',
                         'phone' => 'Change of Phone Number',
@@ -195,7 +212,23 @@ class ManualFulfilmentService
                         'name_address' => 'Name and Address',
                         'dob_phone' => 'Date of Birth and Phone Number',
                     ], rules: ['required', 'in:name,phone,address,email,dob,name_phone,name_dob,name_email,name_address,dob_phone'], column: 'Mod Type'),
-                    self::field('new_value', 'What it should say', rules: ['required', 'string', 'max:255'], column: 'New value'),
+                    // What the customer is asked next is decided by that answer,
+                    // exactly as it is on the provider's own form: a name
+                    // correction is never handed the box for an attestation, and
+                    // a date of birth is never handed a bare "new value".
+                    self::field('fname', 'Enter New First Name', rules: ['required', 'string', 'max:100'], showIf: ['field' => 'field_to_modify', 'any' => ['name', 'name_dob', 'name_phone', 'name_email', 'name_address']], column: 'First name'),
+                    self::field('lname', 'Enter New Last Name', rules: ['required', 'string', 'max:100'], showIf: ['field' => 'field_to_modify', 'any' => ['name', 'name_dob', 'name_phone', 'name_email', 'name_address']], column: 'Last name'),
+                    self::field('middle_name', 'Enter New Middle Name, if you use one', rules: ['nullable', 'string', 'max:100'], showIf: ['field' => 'field_to_modify', 'any' => ['name', 'name_dob', 'name_phone', 'name_email', 'name_address']], column: 'Middle name'),
+                    self::field('phone', 'Enter New Phone Number', rules: ['required', 'string', 'max:20'], placeholder: '08031234567', showIf: ['field' => 'field_to_modify', 'any' => ['phone', 'name_phone', 'dob_phone']], column: 'New phone'),
+                    self::field('email', 'Enter New Email Address', rules: ['required', 'email', 'max:255'], showIf: ['field' => 'field_to_modify', 'any' => ['email', 'name_email']], column: 'New email'),
+                    self::field('address', 'Enter New Address', rules: ['required', 'string', 'max:255'], showIf: ['field' => 'field_to_modify', 'any' => ['address', 'name_address']], column: 'New address'),
+                    self::field('date_of_birth', 'Enter New Date of Birth', type: 'date', rules: ['required', 'date'], showIf: ['field' => 'field_to_modify', 'any' => ['name_dob', 'dob_phone']], column: 'New DOB'),
+                    // A date of birth on its own is the one correction NIMC will
+                    // not take on a customer's word, so the birth attestation is
+                    // asked for by number and by document. Their page does not
+                    // restate the new date here - it reads it from the paper.
+                    self::field('attestation_no', 'Enter the Birth Attestation Number', rules: ['required', 'string', 'max:30'], placeholder: 'eg. SO1250325358849A', showIf: ['field' => 'field_to_modify', 'any' => ['dob']], column: 'Attestation'),
+                    self::field('attestation_img', 'Upload the Birth Attestation', type: 'file', rules: ['required', 'file', 'mimes:jpg,jpeg,png', 'max:2048'], accept: '.jpg,.jpeg,.png', showIf: ['field' => 'field_to_modify', 'any' => ['dob']], hint: 'A clear photo or scan of the NIMC birth attestation, as jpg or png up to 2MB.', column: 'Attestation'),
                     self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
@@ -277,6 +310,9 @@ class ManualFulfilmentService
                 // so a customer who means to keep it has to keep it early.
                 'notices' => [
                     'A printed slip is removed from our server 24 hours after it is issued, so save it as soon as it appears on your receipt.',
+                    // NIMC stopped issuing plastic cards, and the QR on this print
+                    // is not theirs, so the only honest use of the file is a copy.
+                    'Ordering this slip means you will print or save it as a PDF or photocopy, not onto plastic. NIMC has stopped issuing plastic ID cards, and the QR code on our print is not NIMC\'s own.',
                 ],
                 // A printed slip is the same job whether a machine or a person
                 // prints it, so each slip price below points at the wired rate
@@ -359,9 +395,14 @@ class ManualFulfilmentService
                         'phone' => 'Using Phone Number',
                         'bms' => 'Using BMS Ticket',
                     ], rules: ['required', 'in:phone,bms'], column: 'Phone No / BMS'),
-                    self::field('phone', 'Enter Phone Number', rules: ['nullable', 'string', 'max:20']),
-                    self::field('bms_no', 'Enter BMS Number', rules: ['nullable', 'string', 'max:100']),
-                    self::field('ticket_id', 'Enter Ticket ID', rules: ['nullable', 'string', 'max:120']),
+                    // The category is not decoration: a phone search is worked from
+                    // a number and a ticket search is worked from the BMS number
+                    // and its ticket, exactly as the wired page demands. Asked for
+                    // together, the customer would have to fill boxes that decide
+                    // nothing about their request.
+                    self::field('phone', 'Enter Phone Number', rules: ['required', 'string', 'max:20'], placeholder: '08031234567', showIf: ['field' => 'retrieve_type', 'any' => ['phone']], column: 'Phone'),
+                    self::field('bms_no', 'Enter BMS Number', rules: ['required', 'string', 'max:100'], showIf: ['field' => 'retrieve_type', 'any' => ['bms']], column: 'BMS No'),
+                    self::field('ticket_id', 'Enter Ticket ID', rules: ['required', 'string', 'max:120'], showIf: ['field' => 'retrieve_type', 'any' => ['bms']], column: 'Ticket'),
                     self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
@@ -868,6 +909,8 @@ class ManualFulfilmentService
         ?string $hint = null,
         ?string $placeholder = null,
         ?string $column = null,
+        ?array $showIf = null,
+        ?string $accept = null,
     ): array {
         return [
             'name' => $name,
@@ -879,6 +922,11 @@ class ManualFulfilmentService
             'placeholder' => $placeholder,
             'column' => $column ?? $label,
             'required' => in_array('required', $rules, true),
+            // A question only asked for certain answers, and the documents a
+            // certain answer needs. The provider's own form branches this way, so
+            // a customer changing a name is not handed the box for an attestation.
+            'show_if' => $showIf,
+            'accept' => $accept,
         ];
     }
 }

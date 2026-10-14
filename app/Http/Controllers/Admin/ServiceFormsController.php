@@ -46,6 +46,11 @@ class ServiceFormsController extends Controller
         'required', 'nullable', 'string', 'integer', 'numeric', 'boolean',
         'digits', 'digits_between', 'alpha_num', 'alpha_dash', 'min', 'max', 'size',
         'email', 'url', 'date', 'in', 'regex', 'accepted', 'confirmed',
+        // A question that asks for a document is a question the owner can only
+        // shape if the upload rules round-trip through this page: without them a
+        // saved form would silently drop the very check that keeps a pdf out of
+        // an attestation box. min, max and size already count kilobytes here.
+        'file', 'mimes', 'image',
     ];
 
     /** Names the platform itself uses inside every form POST. */

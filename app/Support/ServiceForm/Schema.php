@@ -55,6 +55,10 @@ class Schema
         }
 
         $definition['notes'] = self::normalizeNotes((array) ($definition['notes'] ?? []), (array) ($definition['notices'] ?? []));
+        // The merge is a move, not a copy. A definition is normalized once when
+        // the catalogue is read and again by the page that renders it, so leaving
+        // the old key standing printed every provider warning twice.
+        unset($definition['notices']);
 
         return $definition;
     }
