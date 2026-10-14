@@ -13,6 +13,7 @@ use App\Notifications\ManualOrderNotification;
 use App\Notifications\UserWalletActivityNotification;
 use App\Services\BvnApi;
 use App\Services\GsubzApi;
+use App\Services\ManualDocumentStore;
 use App\Services\ManualFulfilmentService;
 use App\Services\NinApi;
 use App\Services\ProviderPlanPriceService;
@@ -24,6 +25,7 @@ use App\Support\ServiceAvailability;
 use App\Support\ServiceCatalogue;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -41,6 +43,7 @@ class VtuController extends Controller
         private readonly BvnApi $bvnApi,
         private readonly ProviderPlanPriceService $planPrices,
         private readonly ManualFulfilmentService $manualServices,
+        private readonly ManualDocumentStore $documents,
         private readonly WalletLedger $ledger,
         private readonly ServiceAvailability $availability,
         private readonly ServiceCatalogue $catalogue,
@@ -3458,6 +3461,23 @@ class VtuController extends Controller
             ?? $submitted['phone']
             ?? $title);
 
+        // A document the customer attached is held on the private disk before the
+        // wallet is touched. A request missing its mandatory document is one no
+        // agent can work, so it must never be a request somebody has paid for -
+        // and a request refused here has taken no money and left nothing behind.
+        $token = $this->documents->token();
+        $this->documents->pruneHolding();
+        [$staged, $undelivered] = $this->stageManualUploads($service, $request, $submitted, $token);
+
+        if ($undelivered !== null) {
+            $this->documents->discard(token: $token);
+
+            return back()
+                ->withInput()
+                ->withErrors([$undelivered => 'We could not receive that document. Please choose the file again and submit.'])
+                ->with('error', 'We could not receive your document, so nothing has been charged. Please submit again.');
+        }
+
         try {
             $order = $this->queueManualOrder(
                 user: $user,
@@ -3479,14 +3499,38 @@ class VtuController extends Controller
             return back()->with('error', $this->buildErrorMessage(4));
         }
 
-        // A document the customer uploaded belongs to the order they paid for and
-        // to nobody else, so it is filed on the private disk under that order and
-        // only the agent working the job can open it.
-        $uploads = $this->storeManualUploads($service, $request, $submitted, $order);
-        if ($uploads !== []) {
-            $meta = (array) ($order->meta ?? []);
-            $order->meta = array_merge($meta, ['uploads' => $uploads]);
-            $order->save();
+        // The order exists and the wallet has paid, so from here a failure has to
+        // be undone rather than simply refused: each held document is filed
+        // against this order, and anything that cannot be filed reverses the
+        // charge through the same ledger that raised it.
+        $uploads = [];
+
+        try {
+            $uploads = $this->fileManualUploads($token, $staged, (int) $order->id);
+
+            if ($uploads !== []) {
+                $order->meta = array_merge((array) ($order->meta ?? []), ['uploads' => $uploads]);
+                $order->save();
+            }
+
+            $this->documents->discard(token: $token);
+        } catch (\Throwable $e) {
+            Log::error('Manual identity service document filing failed', [
+                'service' => $service,
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            // A closed order must own no documents at all. Naming the ones this
+            // request recorded would miss the dangerous one: a file that really
+            // did reach the order folder a moment before the code was told it
+            // did not.
+            $this->documents->discardOrder((int) $order->id);
+            $this->documents->discard(token: $token);
+
+            return $this->reverseUnfiledManualOrder($order, $wallet)
+                ? back()->withInput()->with('error', 'We could not receive the document your request needs, so the charge has been returned to your wallet. Please submit again.')
+                : back()->withInput()->with('error', 'We could not receive the document your request needs and could not return the charge automatically. Our team has been alerted and will refund your wallet.');
         }
 
         return redirect()
@@ -3495,37 +3539,186 @@ class VtuController extends Controller
     }
 
     /**
+     * Keep every document the customer attached on the private disk, in a holding
+     * area that belongs to no order, before any money moves.
+     *
+     * An optional question left blank has nothing to hold; a document that was
+     * attached but cannot be kept is returned as the question that failed, which
+     * is the caller's signal to charge nobody.
+     *
      * @param  array<string, mixed>  $submitted
-     * @return array<string, array{path: string, name: string, mime: string}>
+     * @return array{0: list<array{name: string, path: string, original: string, mime: string}>, 1: ?string}
      */
-    private function storeManualUploads(string $service, Request $request, array $submitted, Order $order): array
+    private function stageManualUploads(string $service, Request $request, array $submitted, string $token): array
     {
-        $stored = [];
+        $staged = [];
 
-        foreach ($this->manualServices->fileFields($service, $submitted) as $name) {
-            $file = $request->file($name);
-            if (!$file instanceof \Illuminate\Http\UploadedFile || !$file->isValid()) {
+        foreach ($this->manualServices->uploadFields($service, $submitted) as $field) {
+            $file = $request->file($field['name']);
+
+            if (!$file instanceof UploadedFile) {
                 continue;
             }
 
-            $path = $file->storeAs(
-                'manual-uploads/'.$order->id,
-                Str::random(24).'.'.strtolower((string) $file->getClientOriginalExtension()),
-                'local',
-            );
+            try {
+                $path = $this->documents->stage($token, $field['name'], $file);
+            } catch (\Throwable $e) {
+                Log::warning('Manual identity document could not be held.', [
+                    'service' => $service,
+                    'field' => $field['name'],
+                    'error' => $e->getMessage(),
+                ]);
 
-            if (!is_string($path)) {
-                continue;
+                return [$staged, $field['name']];
             }
 
-            $stored[$name] = [
+            if ($path === null) {
+                return [$staged, $field['name']];
+            }
+
+            $staged[] = [
+                'name' => $field['name'],
                 'path' => $path,
-                'name' => mb_substr((string) $file->getClientOriginalName(), 0, 120),
+                'original' => mb_substr((string) $file->getClientOriginalName(), 0, 120),
                 'mime' => (string) $file->getClientMimeType(),
             ];
         }
 
-        return $stored;
+        return [$staged, null];
+    }
+
+    /**
+     * Move each held document into the folder of the order that paid for it, and
+     * only call it filed once the disk says it is there.
+     *
+     * @param  list<array{name: string, path: string, original: string, mime: string}>  $staged
+     * @return array<string, array{path: string, name: string, mime: string}>
+     */
+    private function fileManualUploads(string $token, array $staged, int $orderId): array
+    {
+        $uploads = [];
+
+        foreach ($staged as $document) {
+            $path = $this->documents->publish($token, $document['path'], $orderId);
+
+            if ($path === null) {
+                throw new \RuntimeException('Held document did not reach the order folder: '.$document['name']);
+            }
+
+            $uploads[$document['name']] = [
+                'path' => $path,
+                'name' => $document['original'],
+                'mime' => $document['mime'],
+            ];
+        }
+
+        return $uploads;
+    }
+
+    /**
+     * A request whose mandatory document never arrived is one no agent can work,
+     * so it is closed and paid back rather than left in the queue half-made. The
+     * status flip and the refund commit together, exactly the way an admin
+     * rejecting a job does, and the order stays on file as the audit trail of
+     * both the charge and its reversal.
+     *
+     * @return bool whether the customer is provably whole again
+     */
+    private function reverseUnfiledManualOrder(Order $order, Wallet $wallet): bool
+    {
+        $meta = (array) ($order->meta ?? []);
+        $title = (string) ($meta['manual_service_title'] ?? 'Identity request');
+        $amountKobo = (int) $order->amount;
+        $reference = (string) ($order->provider_reference ?: 'MANUAL-'.$order->id);
+        $reason = 'The document the request requires could not be received.';
+
+        try {
+            DB::beginTransaction();
+
+            $order->status = 'failed';
+            $order->meta = array_merge($meta, [
+                'documents_missing' => true,
+                'failed_at' => now()->toIso8601String(),
+                'failed_reason' => $reason,
+            ]);
+            $order->save();
+
+            if ($amountKobo > 0) {
+                $this->ledger->credit(
+                    $wallet,
+                    $amountKobo,
+                    'REFUND-'.$reference,
+                    'Refund for cancelled '.$title.': '.$reason,
+                );
+            }
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            Log::critical('Manual identity service refund could not be booked.', [
+                'order_id' => $order->id,
+                'amount_kobo' => $amountKobo,
+                'error' => $e->getMessage(),
+            ]);
+
+            $this->alertAdminsAboutUnrefundedOrder($order, $title, $amountKobo, $e->getMessage());
+
+            return false;
+        }
+
+        try {
+            $order->user?->notify(new ManualOrderNotification(
+                title: $title.' could not be started',
+                message: 'We could not receive the document your '.$title.' request needs, so the request was closed and the full amount returned to your wallet. Submit it again when you have the document to hand.',
+                url: route('vtu.receipt', $order->id),
+                payload: [
+                    'type' => 'manual_order_refunded',
+                    'order_id' => $order->id,
+                    'manual_service' => (string) ($meta['manual_service'] ?? ''),
+                    'refund_kobo' => $amountKobo,
+                ],
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Failed to notify customer about a refunded manual order.', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return true;
+    }
+
+    /**
+     * The one case a person has to act on: the customer holds a failed request
+     * and still does not have their money back.
+     */
+    private function alertAdminsAboutUnrefundedOrder(Order $order, string $title, int $amountKobo, string $reason): void
+    {
+        try {
+            $admins = User::query()->where('is_admin', true)->get();
+            if ($admins->isEmpty()) {
+                return;
+            }
+
+            Notification::send($admins, new AdminSystemAlertNotification(
+                title: 'ACTION NEEDED: refund not booked for '.$title,
+                message: 'Order #'.$order->id.' failed because its document could not be received and the ₦'
+                    .number_format($amountKobo / 100, 2).' refund could not be booked automatically. Reason: '.$reason,
+                severity: 'critical',
+                url: route('admin.manual-orders.show', $order->id),
+                payload: [
+                    'type' => 'manual_order_refund_failed',
+                    'order_id' => $order->id,
+                    'amount_kobo' => $amountKobo,
+                ],
+            ));
+        } catch (\Throwable $e) {
+            Log::error('Could not alert admins about an unbooked refund.', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function manualPayableKobo(string $slug, ?User $user, array $submitted = []): int

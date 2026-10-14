@@ -807,6 +807,19 @@ class ManualFulfilmentService
     }
 
     /**
+     * The same documents, with the flag that says whether the customer had to
+     * supply each one - which is what decides whether a storage failure has to
+     * be refunded or can simply be dropped.
+     *
+     * @param  array<string, mixed>  $input
+     * @return list<array{name: string, required: bool}>
+     */
+    public function uploadFields(string $slug, array $input): array
+    {
+        return Schema::uploadFields($this->find($slug) ?? [], $input);
+    }
+
+    /**
      * Rules for the branch the customer actually answered.
      *
      * A field the form never showed them is not required of them, and a value
