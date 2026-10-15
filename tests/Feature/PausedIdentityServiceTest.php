@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Support\ServiceAvailability;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -32,6 +33,7 @@ class PausedIdentityServiceTest extends TestCase
         $user = $this->memberWithBalance(5_000_000);
 
         $this->actingAs($user)->post('/vtu/manual/nin_modification', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'nin' => '12345678901',
             'email_choice' => 'auto',
             'field_to_modify' => 'name',
@@ -76,6 +78,7 @@ class PausedIdentityServiceTest extends TestCase
         // hand still reaches the route, and no agent is working it.
         $this->actingAs($user)
             ->post('/vtu/manual/nin_modification', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'email_choice' => 'auto',
                 'field_to_modify' => 'name',
@@ -103,7 +106,7 @@ class PausedIdentityServiceTest extends TestCase
         $this->assertStringNotContainsString('id="ninValidationForm"', $page);
 
         $this->actingAs($user)
-            ->post('/vtu/nin-validation', ['validation_type' => 'no_record', 'nin' => '12345678901'])
+            ->post('/vtu/nin-validation', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'validation_type' => 'no_record', 'nin' => '12345678901'])
             ->assertRedirect('/vtu/nin-validation')
             ->assertSessionHas('error');
 

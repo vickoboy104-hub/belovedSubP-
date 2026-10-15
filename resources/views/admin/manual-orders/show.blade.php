@@ -146,6 +146,14 @@
                                     Nothing here needs filing.
                                 </p>
                             </div>
+                        @elseif($filing->state === \App\Models\DocumentFiling::RESOLVED)
+                            <div class="mt-6 rounded-[18px] border border-slate-200 bg-slate-50 p-4">
+                                <h3 class="text-base font-extrabold text-slate-900">This case was settled, so the held paper is no longer protected</h3>
+                                <p class="mt-1 text-sm text-slate-500">
+                                    An agent closed the request, so anything still sitting in the holding area for it
+                                    is cleared with the stale folders.
+                                </p>
+                            </div>
                         @else
                             <div class="mt-6 rounded-[18px] border border-amber-200 bg-amber-50 p-4">
                                 <h3 class="text-base font-extrabold text-amber-800">Paid, and the document is still being attached</h3>

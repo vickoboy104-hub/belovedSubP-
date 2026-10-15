@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\ServiceFormRepository;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -188,11 +189,13 @@ class AdminServiceFormEditorTest extends TestCase
         // longer enough - and an answer to a question that no longer exists is
         // simply not part of this service.
         $this->actingAs($user)->post('/vtu/manual/nin_delink', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'nin' => '12345678901',
             'delink_target' => 'delink',
         ])->assertSessionHasErrors('slip_type');
 
         $this->actingAs($user)->post('/vtu/manual/nin_delink', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'nin' => '12345678901',
             'slip_type' => 'old',
         ])->assertRedirect()->assertSessionHasNoErrors();

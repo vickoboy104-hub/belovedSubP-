@@ -564,6 +564,10 @@ class ManualOrdersController extends Controller
             return back()->with('error', 'Could not save the result. Please try again.');
         }
 
+        // An agent has settled this request, so any paper it was still holding in the
+        // staging area stops being protected from the sweep that clears stale folders.
+        $this->closeFiling($manualOrder->id, DocumentFiling::RESOLVED, 'Settled by agent '. $adminId . ' completing the request.');
+
         // Only the write that turned the wait into an answer tells the customer. An
         // update to a result that is already published is corrected quietly on the
         // receipt, so one request cannot announce itself twice.
@@ -690,6 +694,10 @@ class ManualOrdersController extends Controller
             return back()->with('error', 'Could not reject this request. Nothing was refunded.');
         }
 
+        // The money is back with the customer and the request is closed, so the paper
+        // it once held is wanted by nobody and stops being protected from the sweep.
+        $this->closeFiling($manualOrder->id, DocumentFiling::ABANDONED, 'Reversed and refunded by agent '.$adminId.'.');
+
         $this->notifyCustomer(
             $manualOrder,
             $title.' could not be completed',
@@ -703,6 +711,26 @@ class ManualOrdersController extends Controller
         );
 
         return $this->continueQueue($manualOrder, true, 'Request rejected and ₦'.number_format($amountKobo / 100, 2).' refunded to the customer.');
+    }
+
+    /**
+     * Close the holding record an interrupted request left behind.
+     *
+     * Paper in the holding area stays protected while the request that paid for it is
+     * open, and while a document that could not be filed is a case somebody has to act
+     * on. An agent completing or reversing the request is the authorised end of both,
+     * and from here the sweep may clear the folder as it clears any other stale one.
+     */
+    private function closeFiling(int $orderId, string $state, string $note): void
+    {
+        DocumentFiling::query()
+            ->where('order_id', $orderId)
+            ->whereIn('state', [DocumentFiling::AWAITING, DocumentFiling::LOST])
+            ->update([
+                'state' => $state,
+                'last_error' => $note,
+                'updated_at' => now(),
+            ]);
     }
 
     /**

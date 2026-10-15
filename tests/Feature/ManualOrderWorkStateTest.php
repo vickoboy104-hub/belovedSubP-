@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Notifications\ManualOrderNotification;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Http;
@@ -427,6 +428,7 @@ class ManualOrderWorkStateTest extends TestCase
         $user = $this->memberWithBalance(5_000_000);
 
         $this->actingAs($user)->post('/vtu/manual/ipe_clearance', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'ipe_type' => 'new_enrollment',
             'tracking_id' => 'ABCDEFGHIJKLMNO',
         ])->assertRedirect();

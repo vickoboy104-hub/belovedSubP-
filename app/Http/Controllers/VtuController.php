@@ -168,6 +168,11 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('AIR');
+
+        if ($unidentified = $this->refuseUnidentifiedResult($request, 'vtu.airtime', $wallet)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
 
         DB::beginTransaction();
@@ -481,6 +486,11 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('DATA');
+
+        if ($unidentified = $this->refuseUnidentifiedResult($request, 'vtu.data', $wallet)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
 
         DB::beginTransaction();
@@ -673,6 +683,11 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('CARD');
+
+        if ($unidentified = $this->refuseUnidentifiedResult($request, 'vtu.recharge-card', $wallet)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
 
         DB::beginTransaction();
@@ -896,6 +911,11 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('CAB');
+
+        if ($unidentified = $this->refuseUnidentifiedResult($request, 'vtu.cable', $wallet)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
 
         $defaultPhone = (string) setting('default_phone', '08000000000');
@@ -1098,6 +1118,11 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('ELEC');
+
+        if ($unidentified = $this->refuseUnidentifiedResult($request, 'vtu.electricity', $wallet)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
         $defaultPhone = (string) setting('default_phone', '08000000000');
 
@@ -1359,6 +1384,11 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('EXAM');
+
+        if ($unidentified = $this->refuseUnidentifiedResult($request, 'vtu.exam', $wallet)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
 
         DB::beginTransaction();
@@ -1549,6 +1579,11 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('PREM');
+
+        if ($unidentified = $this->refuseUnidentifiedResult($request, 'vtu.premium-apps', $wallet)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
         $whatsapp = trim((string) $request->whatsapp) !== ''
             ? $this->normalizePhone((string) $request->whatsapp)
@@ -1747,6 +1782,11 @@ class VtuController extends Controller
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
         $validationType = (string) $payload['validation_type'];
+
+        if ($unidentified = $this->refuseUnidentifiedBack($request)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
 
         $basePriceNaira = match ($validationType) {
@@ -1917,6 +1957,11 @@ class VtuController extends Controller
         $wallet = $this->requireWallet($user->wallet);
         $priceVerifyKobo = $this->toKobo($priceVerifyNaira);
         $forceRefresh = $request->boolean('force_refresh');
+
+        if ($unidentified = $this->refuseUnidentifiedJson($request, $wallet)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
 
         if ($repeat = $this->seenBeforeJson($wallet, (int) $user->id, $intent)) {
@@ -1947,6 +1992,11 @@ class VtuController extends Controller
             );
         }
 
+        // Whether this request is the one holding the intention is kept in a local,
+        // because a controller is handed the next request with its properties still on
+        // it: one request's claim must never speak for the next one.
+        $holdsIntent = false;
+
         $cacheRecord = !$forceRefresh
             ? $this->findNinVerificationCache($searchType, $lookupPayload)
             : null;
@@ -1967,22 +2017,40 @@ class VtuController extends Controller
                 'cache_id' => $cacheRecord->id,
                 'cached_at' => optional($cacheRecord->last_verified_at)->toIso8601String(),
             ];
-        } elseif ($searchType === 'nin') {
-            $response = $this->ninApi->searchByNin((string) $lookupPayload['nin']);
-        } elseif ($searchType === 'phone') {
-            $response = $this->ninApi->searchByPhone((string) $lookupPayload['phone']);
         } else {
-            $response = $this->ninApi->searchByDemography(
-                (string) $lookupPayload['firstname'],
-                (string) $lookupPayload['lastname'],
-                (string) $lookupPayload['dob'],
-                (string) $lookupPayload['gender'],
-            );
+            // Nothing this site holds can answer this, so what comes next is a call
+            // the provider charges for. The intention is taken here, in front of the
+            // asking, because a look is not enough on its own: two copies that arrive
+            // together both read an empty table, and each would then pay for the same
+            // answer. The claim is what decides which one gets to ask.
+            $holdsIntent = PurchaseIntent::claim((int) $user->id, $intent);
+
+            if (!$holdsIntent) {
+                return $this->seenBeforeJson($wallet, (int) $user->id, $intent);
+            }
+
+            if ($searchType === 'nin') {
+                $response = $this->ninApi->searchByNin((string) $lookupPayload['nin']);
+            } elseif ($searchType === 'phone') {
+                $response = $this->ninApi->searchByPhone((string) $lookupPayload['phone']);
+            } else {
+                $response = $this->ninApi->searchByDemography(
+                    (string) $lookupPayload['firstname'],
+                    (string) $lookupPayload['lastname'],
+                    (string) $lookupPayload['dob'],
+                    (string) $lookupPayload['gender'],
+                );
+            }
         }
 
         $ok = $this->ninApi->isSuccessful($response);
         $message = $this->ninApi->message($response);
         $friendlyMessage = $ok ? $message : $this->friendlyNinProviderFailureMessage('verification', $response, $message);
+        $intentHeld = $ok ? [] : $this->intentAfterProviderFailure((int) $user->id, $intent, $response);
+
+        if ($intentHeld !== []) {
+            $friendlyMessage = $intentHeld['message'];
+        }
         $providerData = is_array($response['data'] ?? null) ? $response['data'] : [];
         $normalized = is_array($response['normalized'] ?? null) ? $response['normalized'] : $this->normalizeNinPayload($providerData);
         $orderId = null;
@@ -2002,7 +2070,7 @@ class VtuController extends Controller
         if ($ok) {
             DB::beginTransaction();
             try {
-                if ($repeat = $this->refuseRepeatJson($wallet, (int) $user->id, $intent)) {
+                if (!$holdsIntent && ($repeat = $this->refuseRepeatJson($wallet, (int) $user->id, $intent))) {
                     return $repeat;
                 }
 
@@ -2073,7 +2141,7 @@ class VtuController extends Controller
             }
         }
 
-        return response()->json([
+        return response()->json(array_merge([
             'ok' => $ok,
             'message' => $ok ? $message : $friendlyMessage,
             'data' => $providerData,
@@ -2086,7 +2154,7 @@ class VtuController extends Controller
             'cached_at_label' => $cachedAtLabel,
             'force_refresh' => $forceRefresh,
             'raw' => $ok ? null : $response,
-        ], $ok ? 200 : 422);
+        ], $intentHeld), $ok ? 200 : 422);
     }
 
     /**
@@ -2237,6 +2305,11 @@ class VtuController extends Controller
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
+
+        if ($unidentified = $this->refuseUnidentifiedJson($request, $wallet)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
 
         if ($repeat = $this->seenBeforeJson($wallet, (int) $user->id, $intent)) {
@@ -2259,6 +2332,7 @@ class VtuController extends Controller
         $ok = false;
         $message = '';
         $sourceVerificationOrderId = null;
+        $holdsIntent = false;
 
         if ($verificationOrderId > 0) {
             try {
@@ -2356,12 +2430,22 @@ class VtuController extends Controller
                 ]);
             }
 
+            // The intention is spent here, in front of the asking, so that two copies
+            // of one slip request cannot both pay the provider for the same slip.
+            $holdsIntent = PurchaseIntent::claim((int) $user->id, $intent);
+
+            if (!$holdsIntent) {
+                return $this->seenBeforeJson($wallet, (int) $user->id, $intent);
+            }
+
             $response = $this->ninApi->printSlip($providerPayload);
             $ok = $this->ninApi->isSuccessful($response);
             $message = $this->ninApi->message($response);
             $providerData = is_array($response['data'] ?? null) ? $response['data'] : [];
             $normalized = $this->normalizeNinPayload($providerData);
         }
+
+        $intentHeld = $ok ? [] : $this->intentAfterProviderFailure((int) $user->id, $intent, $response);
 
         $orderId = null;
         $issuedAt = now();
@@ -2376,7 +2460,7 @@ class VtuController extends Controller
             $requestId = $this->makeRequestId('NINP');
             DB::beginTransaction();
             try {
-                if ($repeat = $this->refuseRepeatJson($wallet, (int) $user->id, $intent)) {
+                if (!$holdsIntent && ($repeat = $this->refuseRepeatJson($wallet, (int) $user->id, $intent))) {
                     return $repeat;
                 }
 
@@ -2438,9 +2522,11 @@ class VtuController extends Controller
 
         $responseData = is_array($response['data'] ?? null) ? $response['data'] : [];
 
-        return response()->json([
+        return response()->json(array_merge([
             'ok' => $ok,
-            'message' => $ok ? $message : $this->friendlyNinProviderFailureMessage('slip print', $response, $message),
+            'message' => $ok
+                ? $message
+                : ($intentHeld !== [] ? $intentHeld['message'] : $this->friendlyNinProviderFailureMessage('slip print', $response, $message)),
             'data' => array_merge($responseData, [
                 'slip_type' => $slipType,
                 'normalized' => $normalized,
@@ -2453,7 +2539,7 @@ class VtuController extends Controller
             'order_id' => $orderId,
             'balance_kobo' => (int) ($wallet->fresh()?->balance ?? $wallet->balance ?? 0),
             'raw' => $response,
-        ], $ok ? 200 : 422);
+        ], $intentHeld), $ok ? 200 : 422);
     }
 
     /**
@@ -2579,6 +2665,11 @@ class VtuController extends Controller
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
+
+        if ($unidentified = $this->refuseUnidentifiedJson($request, $wallet)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
 
         if ($repeat = $this->seenBeforeJson($wallet, (int) $user->id, $intent)) {
@@ -2644,6 +2735,13 @@ class VtuController extends Controller
             return $this->queuedVerificationResponse($order, $wallet, 'confirming the details on your BVN');
         }
 
+        // This ask is the one the provider charges for, so the intention is spent in
+        // front of it: a copy that arrives at the same moment is turned away here
+        // instead of paying for the same record twice.
+        if (!PurchaseIntent::claim((int) $user->id, $intent)) {
+            return $this->seenBeforeJson($wallet, (int) $user->id, $intent);
+        }
+
         $response = $this->bvnApi->verify((string) $payload['bvn']);
         $ok = $this->bvnApi->isSuccessful($response);
         $message = $this->bvnApi->message($response);
@@ -2651,22 +2749,23 @@ class VtuController extends Controller
         $normalized = $this->normalizeBvnPayload($providerData);
 
         if (!$ok) {
-            return response()->json([
+            $held = $this->intentAfterProviderFailure((int) $user->id, $intent, $response);
+
+            return response()->json(array_merge([
                 'ok' => false,
-                'message' => $message,
+                'message' => $held !== [] ? $held['message'] : $message,
                 'data' => $providerData,
                 'normalized' => $normalized,
                 'raw' => $response,
-            ], 422);
+            ], $held), 422);
         }
 
         $requestId = $this->makeRequestId('BVNV');
         DB::beginTransaction();
         try {
-            if ($repeat = $this->refuseRepeatJson($wallet, (int) $user->id, $intent)) {
-                return $repeat;
-            }
-
+            // This request already holds the intention - it took it in front of the
+            // asking - so there is nothing left for this transaction to settle and no
+            // copy of it that could reach this point a second time.
             $this->debitWallet(
                 wallet: $wallet,
                 amountKobo: $totalKobo,
@@ -2797,6 +2896,11 @@ class VtuController extends Controller
         $bvn = (string) $payload['bvn'];
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
+
+        if ($unidentified = $this->refuseUnidentifiedJson($request, $wallet)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
 
         if ($repeat = $this->seenBeforeJson($wallet, (int) $user->id, $intent)) {
@@ -2827,16 +2931,27 @@ class VtuController extends Controller
 
         $costNaira = identity_cost('price_bvn_print');
         $sourceVerificationOrderId = null;
+        $holdsIntent = false;
 
         if ($source === null) {
+            // No record on file, so this ask is one the provider charges for and the
+            // intention is spent in front of it.
+            $holdsIntent = PurchaseIntent::claim((int) $user->id, $intent);
+
+            if (!$holdsIntent) {
+                return $this->seenBeforeJson($wallet, (int) $user->id, $intent);
+            }
+
             $response = $this->bvnApi->verify($bvn);
             if (!$this->bvnApi->isSuccessful($response)) {
-                return response()->json([
+                $held = $this->intentAfterProviderFailure((int) $user->id, $intent, $response);
+
+                return response()->json(array_merge([
                     'ok' => false,
-                    'message' => $this->bvnApi->message($response),
+                    'message' => $held !== [] ? $held['message'] : $this->bvnApi->message($response),
                     'data' => [],
                     'balance_kobo' => (int) $wallet->balance,
-                ], 422);
+                ], $held), 422);
             }
 
             $providerData = is_array($response['data'] ?? null) ? $response['data'] : [];
@@ -2851,7 +2966,7 @@ class VtuController extends Controller
         $requestId = $this->makeRequestId('BVNP');
         DB::beginTransaction();
         try {
-            if ($repeat = $this->refuseRepeatJson($wallet, (int) $user->id, $intent)) {
+            if (!$holdsIntent && ($repeat = $this->refuseRepeatJson($wallet, (int) $user->id, $intent))) {
                 return $repeat;
             }
 
@@ -3101,6 +3216,11 @@ class VtuController extends Controller
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
+
+        if ($unidentified = $this->refuseUnidentifiedJson($request, $wallet)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
 
         if ($repeat = $this->seenBeforeJson($wallet, (int) $user->id, $intent)) {
@@ -3591,6 +3711,11 @@ class VtuController extends Controller
         $wallet = $this->requireWallet($user->wallet);
         $title = (string) $definition['title'];
         $payableKobo = $this->manualPayableKobo($service, $user, $submitted);
+
+        if ($unidentified = $this->refuseUnidentifiedBack($request)) {
+            return $unidentified;
+        }
+
         $intent = PurchaseIntent::fromRequest($request);
 
         if ($repeat = $this->seenBeforeBack((int) $user->id, $intent)) {
@@ -3943,6 +4068,13 @@ class VtuController extends Controller
         array $documents = [],
         string $documentsToken = '',
     ): Order {
+        // Eight pages book their orders through here, and none of them may do it
+        // without the identity the customer's form was shown with: an unidentified
+        // purchase cannot be recognised as the copy of one already made.
+        if (!PurchaseIntent::usable($intent)) {
+            throw new \InvalidArgumentException('A purchase needs the identity its form was shown with.');
+        }
+
         $basePriceNaira = $pricing['base_naira'] ?? $this->manualServices->priceNaira($slug, $submitted);
         $markupNaira = $pricing['markup_naira'] ?? $this->manualServices->markupNaira($slug);
         $totalNaira = $basePriceNaira + $markupNaira;
@@ -4394,17 +4526,73 @@ class VtuController extends Controller
     }
 
     /**
+     * The identity this purchase was shown with, refusing the purchase when it has
+     * none. A submission that cannot be recognised as the copy of an earlier one is
+     * not a submission this site may spend money on, so the refusal happens here -
+     * before the wallet, before the provider, before anything is written down.
+     *
+     * Null means the submission carries an identity and the route may go on to spend
+     * it; reading it back with PurchaseIntent::fromRequest() then cannot fail.
+     */
+    private function refuseUnidentifiedJson(Request $request, Wallet $wallet): ?JsonResponse
+    {
+        if (PurchaseIntent::fromRequest($request) !== null) {
+            return null;
+        }
+
+        return response()->json(array_merge(
+            ['ok' => false, 'intent_missing' => true, 'message' => PurchaseIntent::MISSING_WORDS, 'data' => []],
+            $this->walletPayload($wallet)
+        ), 422);
+    }
+
+    /**
+     * The same refusal for the pages that post themselves and reload.
+     */
+    private function refuseUnidentifiedBack(Request $request)
+    {
+        if (PurchaseIntent::fromRequest($request) !== null) {
+            return null;
+        }
+
+        return back()->withInput()->with('error', PurchaseIntent::MISSING_WORDS);
+    }
+
+    /**
+     * The same refusal for the card pages, in the shape they read: a dialog when the
+     * page asked for JSON, and their own form again when it did not.
+     */
+    private function refuseUnidentifiedResult(Request $request, string $routeName, Wallet $wallet)
+    {
+        if (PurchaseIntent::fromRequest($request) !== null) {
+            return null;
+        }
+
+        return $this->respondResult(
+            request: $request,
+            routeName: $routeName,
+            ok: false,
+            message: PurchaseIntent::MISSING_WORDS,
+            extra: array_merge(['intent_missing' => true], $this->walletPayload($wallet)),
+            status: 422
+        );
+    }
+
+    /**
      * Take this request's intention for itself, or report the purchase the first
      * request with that identity already made.
      *
-     * The claim is written inside the caller's own transaction, so a request that
-     * later falls over - a wallet too thin, a rollback - gives the intention back with
-     * everything else and a genuine second attempt stays possible. What it cannot do is
-     * let two of the same intention both reach the wallet.
+     * The claim is a fact about the database and nothing about the code that asked:
+     * the same route reaching it twice in one request is answered by the caller
+     * carrying the first answer, never by a note kept between requests. Where the
+     * caller owns a transaction, a request that later falls over - a wallet too thin,
+     * a rollback - gives the intention back with everything else, so a genuine second
+     * attempt stays possible. What cannot happen is two of the same intention both
+     * reaching the wallet.
      *
      * @return Order|false  false when this request is the first time
      */
-    private function spentIntent(int $userId, ?string $intent): Order|false
+    private function spentIntent(int $userId, string $intent): Order|false
     {
         if (PurchaseIntent::claim($userId, $intent)) {
             return false;
@@ -4414,10 +4602,61 @@ class VtuController extends Controller
     }
 
     /**
+     * What a failed lookup leaves behind.
+     *
+     * A provider that answered - even to say the record is not there - has given this
+     * site a readable answer and taken nothing it might have to take twice, so the
+     * intention is handed back and the customer can correct their details and try
+     * again on the same page. A provider that was never reached has possibly taken its
+     * money already, so the intention stays spent: a second copy of that request would
+     * be a second bill, and the customer is told to start a fresh request instead.
+     *
+     * @param  array<string, mixed>  $response
+     * @return array<string, mixed>  the keys to add to the answer
+     */
+    private function intentAfterProviderFailure(int $userId, string $intent, array $response): array
+    {
+        if (!$this->providerAnswerUncertain($response)) {
+            PurchaseIntent::release($userId, $intent);
+
+            return [];
+        }
+
+        return [
+            'intent_held' => true,
+            'message' => PurchaseIntent::UNCERTAIN_WORDS,
+        ];
+    }
+
+    /**
+     * Whether the provider gave no readable answer at all, as opposed to an unwelcome
+     * one.
+     *
+     * Both provider clients write the HTTP status only when the provider actually
+     * answered, so a failure with no status behind it is one that may never have been
+     * heard, and a status of 500 or worse is the provider's own collapse halfway
+     * through a request it may still have taken. Anything else - a refused number, an
+     * exhausted provider wallet, a service in maintenance - is a readable "no" that
+     * billed nobody and may be tried again.
+     *
+     * @param  array<string, mixed>  $response
+     */
+    private function providerAnswerUncertain(array $response): bool
+    {
+        $status = (int) ($response['status'] ?? 0);
+
+        if ($status === 0) {
+            return trim((string) ($response['error'] ?? '')) !== '';
+        }
+
+        return $status >= 500;
+    }
+
+    /**
      * The same claim for the helpers that own their transaction and answer failures
      * by throwing - the manual queue, which eight pages book their orders through.
      */
-    private function takeIntent(User $user, ?string $intent): void
+    private function takeIntent(User $user, string $intent): void
     {
         $lost = $this->spentIntent((int) $user->id, $intent);
         if ($lost === false) {
@@ -4430,7 +4669,7 @@ class VtuController extends Controller
     /**
      * Answer a repeat in the shape the seven card pages read.
      */
-    private function refuseRepeat(Request $request, string $routeName, Wallet $wallet, int $userId, ?string $intent)
+    private function refuseRepeat(Request $request, string $routeName, Wallet $wallet, int $userId, string $intent)
     {
         $lost = $this->spentIntent($userId, $intent);
         if ($lost === false) {
@@ -4454,7 +4693,7 @@ class VtuController extends Controller
     /**
      * Answer a repeat in the shape the identity lookups read.
      */
-    private function refuseRepeatJson(Wallet $wallet, int $userId, ?string $intent): ?JsonResponse
+    private function refuseRepeatJson(Wallet $wallet, int $userId, string $intent): ?JsonResponse
     {
         $lost = $this->spentIntent($userId, $intent);
         if ($lost === false) {
@@ -4474,7 +4713,7 @@ class VtuController extends Controller
     /**
      * Answer a repeat on the pages that post themselves and reload.
      */
-    private function refuseRepeatBack(int $userId, ?string $intent)
+    private function refuseRepeatBack(int $userId, string $intent)
     {
         $lost = $this->spentIntent($userId, $intent);
         if ($lost === false) {
@@ -4491,13 +4730,12 @@ class VtuController extends Controller
     /**
      * Stop a repeat before it asks the provider anything.
      *
-     * The identity of a purchase is taken for good only inside the transaction that
-     * books it, because a request that has not reached the provider yet must stay free
-     * to try again if it fails. So the look that happens before a provider call is a
-     * look, not a claim: it turns the double-click that came a second too late into an
-     * answer instead of a second bill - ours as well as the customer's.
+     * The look is only a look, so a request that has not reached the provider yet stays
+     * free to fail and be tried again. What settles the matter is the claim this sits
+     * beside: PurchaseIntent::claim() takes the intention in front of any asking that
+     * costs, and this answers the copy that arrives after it was taken.
      */
-    private function seenBeforeJson(Wallet $wallet, int $userId, ?string $intent): ?JsonResponse
+    private function seenBeforeJson(Wallet $wallet, int $userId, string $intent): ?JsonResponse
     {
         if (!PurchaseIntent::isSpent($userId, $intent)) {
             return null;
@@ -4514,7 +4752,7 @@ class VtuController extends Controller
     /**
      * The same look, for the pages that post themselves and reload.
      */
-    private function seenBeforeBack(int $userId, ?string $intent)
+    private function seenBeforeBack(int $userId, string $intent)
     {
         if (!PurchaseIntent::isSpent($userId, $intent)) {
             return null;

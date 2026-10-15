@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -147,6 +148,8 @@ class AdminManualQueueNavigationTest extends TestCase
         if ($this->manualServices()->consent($slug)['clauses'] !== []) {
             $payload['consent_agreed'] = '1';
         }
+
+        $payload[PurchaseIntent::FIELD] = PurchaseIntent::mint();
 
         $this->actingAs($user)->post('/vtu/manual/'.$slug, $payload)->assertRedirect();
 

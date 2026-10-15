@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\VtuController;
 use App\Models\Order;
 use App\Models\Setting;
 use App\Models\User;
@@ -25,11 +26,14 @@ use Tests\TestCase;
  * only thing that can is an identity the form was given before it was sent - and the
  * only thing strong enough to hold it is the database.
  *
- * These tests hold two lines at once. One intention buys one purchase, even when the
- * request arrives twice and even when the first answer has not been written down yet;
- * and a customer who wants the same thing again, with a fresh intention, is served
- * exactly as they were the first time. A provider call is money too, so a repeat that
- * would have asked again is refused before the asking.
+ * These tests hold three lines at once. Every paid purchase arrives with an identity
+ * its form was shown with, and one that arrives without it is refused before anything
+ * is spent; one intention buys one purchase, even when the request arrives twice and
+ * even when the first answer has not been written down yet; and a customer who wants
+ * the same thing again, with a fresh intention, is served exactly as they were the
+ * first time. A provider call is money too, so a repeat that would have asked again is
+ * refused before the asking - and an ask the provider may have taken without answering
+ * is never made twice.
  */
 class PurchaseIntentSafetyTest extends TestCase
 {
@@ -192,19 +196,237 @@ class PurchaseIntentSafetyTest extends TestCase
         $this->assertSame(1, $this->ordersOf($user));
     }
 
-    public function test_a_request_carrying_no_intention_is_still_served(): void
+    public function test_a_request_that_lost_its_intention_is_refused_before_anything_is_spent(): void
     {
         $user = $this->memberWithBalance(1_000_000);
         $this->giveTheProviderAKey();
         $this->fakeCardProvider();
 
-        // A form that somehow lost its identity is a gap to be closed, not a reason to
-        // turn a paying customer away.
+        // A purchase that carries no identity cannot be told apart from an earlier
+        // copy of itself, so this site will not spend money on it: the refusal comes
+        // before the wallet, before the provider and before anything is written down.
         $this->actingAs($user)->postJson('/vtu/exam/buy', ['pin_code' => 'neco', 'phone' => '08012345678'])
+            ->assertStatus(422)
+            ->assertJson(['ok' => false, 'intent_missing' => true, 'message' => PurchaseIntent::MISSING_WORDS]);
+
+        Http::assertSentCount(0);
+        $this->assertSame(0, $this->ordersOf($user));
+        $this->assertSame(0, $this->movements($user));
+        $this->assertSame(1_000_000, $this->balance($user));
+        $this->assertSame(0, DB::table('purchase_intents')->count());
+
+        // The very same form, shipped with the intention its page gave it, still buys.
+        $this->actingAs($user)->postJson('/vtu/exam/buy', $this->cardPayload('intention-0013'))
             ->assertOk()->assertJson(['ok' => true]);
+    }
+
+    public function test_an_intention_that_could_not_have_come_from_a_form_is_refused_like_a_missing_one(): void
+    {
+        $user = $this->memberWithBalance(1_000_000);
+        $this->giveTheProviderAKey();
+        $this->fakeCardProvider();
+
+        // Typed by hand, truncated by a form that posted half its fields, or carried
+        // over from another site: none of these can be trusted to be unique, and a
+        // borrowed identity is as dangerous as none.
+        foreach (['', 'short', 'has spaces', 'strange/characters!!', str_repeat('a', 65)] as $broken) {
+            $this->actingAs($user)
+                ->postJson('/vtu/exam/buy', $this->cardPayload($broken))
+                ->assertStatus(422)
+                ->assertJson(['ok' => false, 'intent_missing' => true]);
+        }
+
+        Http::assertSentCount(0);
+        $this->assertSame(0, $this->ordersOf($user));
+        $this->assertSame(0, $this->movements($user));
+        $this->assertSame(1_000_000, $this->balance($user));
+    }
+
+    public function test_a_bvn_check_that_arrived_without_its_intention_never_reaches_the_provider(): void
+    {
+        $user = $this->memberWithBalance(1_000_000);
+        $this->giveTheProviderAKey();
+
+        Http::fake([
+            'confirmident.com.ng/api/bvn_search' => Http::response([
+                'success' => true,
+                'message' => 'Record found',
+                'data' => ['bvn' => self::BVN, 'fullname' => 'Test Candidate'],
+            ]),
+        ]);
+
+        // ₦80 of the owner's money sits behind this endpoint, so an unrecognised
+        // request is turned away at the door rather than answered at the provider.
+        $this->actingAs($user)->postJson('/vtu/bvn/verify', ['bvn' => self::BVN])
+            ->assertStatus(422)
+            ->assertJson(['ok' => false, 'intent_missing' => true, 'data' => []]);
+
+        Http::assertSentCount(0);
+        $this->assertSame(1_000_000, $this->balance($user));
+        $this->assertSame(0, $this->ordersOf($user));
+    }
+
+    public function test_a_hand_worked_request_without_its_intention_is_sent_back_to_its_form(): void
+    {
+        Storage::fake('local');
+        $user = $this->memberWithBalance(9_000_000);
+
+        // The page that posts itself gets its answers back and the reason on top; and
+        // because the refusal happens before any paper is received, nothing of the
+        // customer's is left lying on the disk for want of an identity.
+        $this->actingAs($user)->post('/vtu/manual/nin_modification', $this->modificationPayload())
+            ->assertRedirect()
+            ->assertSessionHas('error', PurchaseIntent::MISSING_WORDS);
+
+        $this->assertSame(0, $this->ordersOf($user));
+        $this->assertSame(0, $this->movements($user));
+        $this->assertSame(0, DB::table('purchase_intents')->count());
+        $this->assertSame([], Storage::disk('local')->directories('manual-uploads/.pending'));
+
+        $this->actingAs($user)->post('/vtu/manual/nin_modification', $this->modificationPayload('intention-0014'))
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
 
         $this->assertSame(1, $this->ordersOf($user));
-        $this->assertNull($this->latestOrder($user)->intent_token);
+    }
+
+    /** @return array<string, mixed> */
+    private function modificationPayload(string $intent = ''): array
+    {
+        $payload = [
+            'nin' => self::NIN,
+            'email_choice' => 'auto',
+            'field_to_modify' => 'dob',
+            'attestation_no' => 'SO1250325358849A',
+            'attestation_img' => UploadedFile::fake()->create('attestation.jpg', 40, 'image/jpeg'),
+            'consent_agreed' => '1',
+        ];
+
+        if ($intent !== '') {
+            $payload[PurchaseIntent::FIELD] = $intent;
+        }
+
+        return $payload;
+    }
+
+    public function test_the_intention_is_already_spent_at_the_moment_the_provider_is_asked(): void
+    {
+        $user = $this->memberWithBalance(1_000_000);
+        $this->giveTheProviderAKey();
+
+        $spentAtTheMomentOfAsking = [];
+
+        Http::fake(function () use ($user, &$spentAtTheMomentOfAsking) {
+            $spentAtTheMomentOfAsking[] = PurchaseIntent::isSpent((int) $user->id, 'intention-0015');
+
+            return Http::response([
+                'success' => true,
+                'message' => 'Record found',
+                'data' => ['bvn' => self::BVN, 'fullname' => 'Test Candidate'],
+            ]);
+        });
+
+        $this->actingAs($user)
+            ->postJson('/vtu/bvn/verify', ['bvn' => self::BVN, PurchaseIntent::FIELD => 'intention-0015'])
+            ->assertOk();
+
+        // The claim has to be in the database before the asking and not after it: two
+        // copies that arrive together both read an empty table, and each would then pay
+        // the provider for the same record.
+        $this->assertSame([true], $spentAtTheMomentOfAsking);
+    }
+
+    public function test_a_lookup_the_provider_answered_is_free_to_be_tried_again_with_the_same_intention(): void
+    {
+        $user = $this->memberWithBalance(1_000_000);
+        $this->giveTheProviderAKey();
+
+        $asks = 0;
+
+        Http::fake(function () use (&$asks) {
+            $asks++;
+
+            if ($asks === 1) {
+                return Http::response(['success' => false, 'message' => 'This BVN is not recognised'], 400);
+            }
+
+            return Http::response([
+                'success' => true,
+                'message' => 'Record found',
+                'data' => ['bvn' => self::BVN, 'fullname' => 'Test Candidate'],
+            ]);
+        });
+
+        $payload = ['bvn' => self::BVN, PurchaseIntent::FIELD => 'intention-0016'];
+
+        // A readable "no" has billed nobody, so the customer who mistyped a digit may
+        // correct it and send the same request again without reloading the page.
+        $this->actingAs($user)->postJson('/vtu/bvn/verify', $payload)
+            ->assertStatus(422)
+            ->assertJson(['ok' => false, 'message' => 'This BVN is not recognised']);
+
+        $this->actingAs($user)->postJson('/vtu/bvn/verify', $payload)
+            ->assertOk()
+            ->assertJson(['ok' => true]);
+
+        $this->assertSame(2, $asks);
+        $this->assertSame(1, $this->ordersOf($user));
+        $this->assertSame(1, $this->movements($user));
+    }
+
+    public function test_a_provider_that_may_have_taken_the_request_leaves_it_spent_and_the_wallet_untouched(): void
+    {
+        $user = $this->memberWithBalance(1_000_000);
+        $this->giveTheProviderAKey();
+
+        Http::fake([
+            'confirmident.com.ng/api/bvn_search' => Http::response(
+                ['success' => false, 'message' => 'Internal server error'],
+                500,
+            ),
+        ]);
+
+        $payload = ['bvn' => self::BVN, PurchaseIntent::FIELD => 'intention-0017'];
+
+        $this->actingAs($user)->postJson('/vtu/bvn/verify', $payload)
+            ->assertStatus(422)
+            ->assertJson(['ok' => false, 'intent_held' => true, 'message' => PurchaseIntent::UNCERTAIN_WORDS]);
+
+        $this->assertSame(1_000_000, $this->balance($user));
+        $this->assertSame(0, $this->ordersOf($user));
+        $this->assertTrue(PurchaseIntent::isSpent((int) $user->id, 'intention-0017'));
+
+        // A second copy of a request the provider may already have taken is a second
+        // bill, so the intention stays spent and the copy is turned away unanswered.
+        $this->actingAs($user)->postJson('/vtu/bvn/verify', $payload)
+            ->assertStatus(409)
+            ->assertJson(['ok' => false, 'duplicate' => true]);
+
+        Http::assertSentCount(1);
+        $this->assertSame(0, $this->movements($user));
+    }
+
+    public function test_a_provider_that_was_never_reached_holds_the_request_and_a_connection_refusal_holds_it_too(): void
+    {
+        $user = $this->memberWithBalance(1_000_000);
+        $this->giveTheProviderAKey();
+
+        Http::fake([
+            'confirmident.com.ng/api/nin_search' => Http::failedConnection('cURL error 7: Failed to connect'),
+        ]);
+
+        $this->actingAs($user)->postJson('/vtu/nin/search', [
+            'search_type' => 'by_nin',
+            'nin' => self::NIN,
+            PurchaseIntent::FIELD => 'intention-0018',
+        ])->assertStatus(422)->assertJson(['ok' => false, 'intent_held' => true]);
+
+        // A connect that never completed is the same unknown as a collapse halfway
+        // through: this site cannot tell the provider did nothing, so it never asks
+        // with the same intention again.
+        $this->assertTrue(PurchaseIntent::isSpent((int) $user->id, 'intention-0018'));
+        $this->assertSame(1_000_000, $this->balance($user));
+        $this->assertSame(0, $this->ordersOf($user));
     }
 
     public function test_a_repeat_identity_is_refused_before_the_provider_is_asked_a_second_time(): void
@@ -232,6 +454,80 @@ class PurchaseIntentSafetyTest extends TestCase
         // only debited once.
         Http::assertSentCount(1);
         $this->assertSame(1, $this->ordersOf($user));
+    }
+
+    public function test_a_nin_lookup_copy_that_arrives_while_the_first_is_still_at_the_provider_never_asks(): void
+    {
+        $this->copyArrivingMidRequestIsTurnedAway(
+            'NIN lookup',
+            '/vtu/nin/search',
+            ['search_type' => 'by_nin', 'nin' => self::NIN],
+            'intention-0019',
+            'confirmident.com.ng/api/nin_search',
+        );
+    }
+
+    public function test_a_bvn_check_copy_that_arrives_while_the_first_is_still_at_the_provider_never_asks(): void
+    {
+        $this->copyArrivingMidRequestIsTurnedAway(
+            'BVN check',
+            '/vtu/bvn/verify',
+            ['bvn' => self::BVN],
+            'intention-0020',
+            'confirmident.com.ng/api/bvn_search',
+        );
+    }
+
+    /**
+     * The shape a double-tap actually makes. Both copies reach the site while the
+     * first is still standing at the provider, so the intention is already spent and
+     * no order has been written down yet - there is nothing for the second copy to
+     * read except the claim itself. A lookup costs ₦160 and a BVN check ₦80 whether
+     * or not this site books the purchase, so a copy that reaches the asking is money
+     * the owner loses on the customer's mistap.
+     *
+     * The claim is written here instead of by a live second process: what is under
+     * proof is what a route does when it finds a claim that is not its own, and one
+     * process cannot stand at the provider twice at once. Two real processes on one
+     * wallet are proved in MysqlMoneyPathConcurrencyTest.
+     */
+    private function copyArrivingMidRequestIsTurnedAway(
+        string $flow,
+        string $uri,
+        array $answers,
+        string $intent,
+        string $endpoint,
+    ): void {
+        $user = $this->memberWithBalance(1_000_000);
+        $this->giveTheProviderAKey();
+
+        $asked = 0;
+
+        Http::fake([
+            $endpoint => function () use (&$asked) {
+                $asked++;
+
+                return Http::response([
+                    'success' => true,
+                    'message' => 'Record found',
+                    'data' => ['nin' => self::NIN, 'bvn' => self::BVN, 'fullname' => 'Test Candidate'],
+                ]);
+            },
+        ]);
+
+        // The first copy, seen from here: it has taken the intention and is waiting on
+        // the provider, so the purchase it will book does not exist yet.
+        $this->assertTrue(PurchaseIntent::claim((int) $user->id, $intent),
+            $flow.': a claim taken outside a request is what the first copy leaves behind.');
+
+        $this->actingAs($user)->postJson($uri, $answers + [PurchaseIntent::FIELD => $intent])
+            ->assertStatus(409)
+            ->assertJson(['ok' => false, 'duplicate' => true]);
+
+        $this->assertSame(0, $asked, $flow.': the copy that arrived mid-request asked the provider anyway.');
+        $this->assertSame(0, $this->ordersOf($user), $flow.': the copy booked a second order.');
+        $this->assertSame(1_000_000, $this->balance($user), $flow.': the copy took money.');
+        $this->assertSame(0, $this->movements($user), $flow.': the copy moved the ledger.');
     }
 
     public function test_a_bvn_check_is_not_bought_twice_by_a_repeat_of_one_intention(): void
@@ -443,6 +739,58 @@ class PurchaseIntentSafetyTest extends TestCase
         }
 
         return $found;
+    }
+
+    public function test_every_paid_route_refuses_an_unidentified_request_before_it_can_spend(): void
+    {
+        $paidActions = [
+            'buyAirtime', 'buyData', 'buyRechargeCard', 'buyCable', 'buyElectricity',
+            'buyExamPin', 'buyPremiumApp', 'ninValidationSubmit', 'ninSearch', 'ninPrint',
+            'bvnVerify', 'bvnPrint', 'bvnRetrieve', 'manualServiceSubmit',
+        ];
+
+        // Everything a purchase can cost: the customer's wallet, the order that sends
+        // a job to an agent, and the provider endpoints that bill the owner per ask.
+        $costs = [
+            '$this->debitWallet(',
+            '$this->queueManualOrder(',
+            '$this->gsubz->pay(',
+            '$this->ninApi->searchBy',
+            '$this->ninApi->printSlip',
+            '$this->ninApi->submitValidation',
+            '$this->bvnApi->verify(',
+            '$this->bvnApi->retrieveBy',
+        ];
+
+        $lines = file(base_path('app/Http/Controllers/VtuController.php'));
+
+        foreach ($paidActions as $action) {
+            $method = new \ReflectionMethod(VtuController::class, $action);
+            $body = implode('', array_slice(
+                $lines,
+                $method->getStartLine() - 1,
+                $method->getEndLine() - $method->getStartLine() + 1
+            ));
+
+            $guard = strpos($body, 'refuseUnidentified');
+            $this->assertNotFalse(
+                $guard,
+                $action.' will take money without first asking which purchase it is.'
+            );
+
+            foreach ($costs as $cost) {
+                $spot = strpos($body, $cost);
+                if ($spot === false) {
+                    continue;
+                }
+
+                $this->assertLessThan(
+                    $spot,
+                    $guard,
+                    $action.' reaches '.$cost.' before the purchase identity is checked.'
+                );
+            }
+        }
     }
 
     public function test_a_request_answered_as_a_repeat_leaves_nothing_behind(): void

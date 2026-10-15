@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -28,6 +29,7 @@ class ProviderConfigurationTest extends TestCase
         $response = $this
             ->actingAs($user)
             ->postJson('/vtu/airtime/buy', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'service_id' => 'mtnt',
                 'phone' => '08012345678',
                 'amount' => 500,
@@ -52,7 +54,7 @@ class ProviderConfigurationTest extends TestCase
 
         $response = $this
             ->actingAs($user)
-            ->postJson('/vtu/bvn/verify', ['bvn' => '12345678901']);
+            ->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => '12345678901']);
 
         $response
             ->assertStatus(422)
@@ -84,7 +86,7 @@ class ProviderConfigurationTest extends TestCase
 
         $response = $this
             ->actingAs($user)
-            ->postJson('/vtu/bvn/verify', ['bvn' => '12345678901']);
+            ->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => '12345678901']);
 
         $response
             ->assertStatus(422)
@@ -109,14 +111,24 @@ class ProviderConfigurationTest extends TestCase
             'confirmident.com.ng/api/bvn_search' => Http::failedConnection('cURL error 7'),
         ]);
 
+        $intent = PurchaseIntent::mint();
+
         $this
             ->actingAs($user)
-            ->postJson('/vtu/bvn/verify', ['bvn' => '12345678901'])
+            ->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => $intent, 'bvn' => '12345678901'])
             ->assertStatus(422)
-            ->assertJson(['ok' => false, 'message' => 'Could not connect to BVN provider.']);
+            // Nothing came back, so nothing is known. The customer is told the answer
+            // is unknown rather than being invited to ask again with the same request -
+            // the provider may have taken this one already.
+            ->assertJson([
+                'ok' => false,
+                'intent_held' => true,
+                'message' => PurchaseIntent::UNCERTAIN_WORDS,
+            ]);
 
         Log::shouldHaveReceived('warning')->once();
         $this->assertSame(100_000, $this->balance($user));
+        $this->assertTrue(PurchaseIntent::isSpent((int) $user->id, $intent));
     }
 
     public function test_the_bvn_request_reuses_the_nin_key_when_the_bvn_field_is_left_empty(): void
@@ -138,7 +150,7 @@ class ProviderConfigurationTest extends TestCase
 
         $this
             ->actingAs($user)
-            ->postJson('/vtu/bvn/verify', ['bvn' => '12345678901'])
+            ->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => '12345678901'])
             ->assertOk()
             ->assertJson(['ok' => true]);
 
@@ -173,6 +185,7 @@ class ProviderConfigurationTest extends TestCase
         $response = $this
             ->actingAs($user)
             ->post('/vtu/nin-validation', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'validation_type' => 'no_record',
                 'nin' => '12345678901',
             ]);
@@ -209,6 +222,7 @@ class ProviderConfigurationTest extends TestCase
         $response = $this
             ->actingAs($user)
             ->postJson('/vtu/bvn/retrieve', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'retrieve_type' => 'phone',
                 'phone' => '08012345678',
             ]);
@@ -271,6 +285,7 @@ class ProviderConfigurationTest extends TestCase
         ]);
 
         $this->actingAs($user)->postJson('/vtu/bvn/retrieve', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'retrieve_type' => 'bms',
             'bms_no' => '9146512224',
             'ticket_id' => '91465122240202030407',
@@ -308,6 +323,7 @@ class ProviderConfigurationTest extends TestCase
         $response = $this
             ->actingAs($user)
             ->postJson('/vtu/airtime/buy', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'service_id' => 'mtnt',
                 'phone' => '08012345678',
                 'amount' => 500,
@@ -389,6 +405,7 @@ class ProviderConfigurationTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)->postJson('/vtu/nin/search', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'search_type' => 'by_demo',
             'firstname' => 'Test',
             'lastname' => 'Candidate',
@@ -424,6 +441,7 @@ class ProviderConfigurationTest extends TestCase
         Http::fake();
 
         $response = $this->actingAs($user)->postJson('/vtu/nin/search', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'search_type' => 'by_nin',
             'nin' => '12345678901',
         ]);
@@ -458,7 +476,7 @@ class ProviderConfigurationTest extends TestCase
         Http::fake();
 
         $response = $this->actingAs($user)
-            ->postJson('/vtu/bvn/verify', ['bvn' => '12345678901']);
+            ->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => '12345678901']);
 
         $response->assertOk()->assertJson(['ok' => true, 'queued' => true]);
         Http::assertNothingSent();
@@ -494,13 +512,14 @@ class ProviderConfigurationTest extends TestCase
         ]);
 
         $nin = $this->actingAs($user)->postJson('/vtu/nin/search', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'search_type' => 'by_nin',
             'nin' => '12345678901',
         ]);
         $nin->assertOk()->assertJson(['ok' => true]);
         $this->assertNull($nin->json('queued'));
 
-        $bvn = $this->actingAs($user)->postJson('/vtu/bvn/verify', ['bvn' => '12345678901']);
+        $bvn = $this->actingAs($user)->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => '12345678901']);
         $bvn->assertOk()->assertJson(['ok' => true]);
         $this->assertNull($bvn->json('queued'));
 
@@ -537,6 +556,7 @@ class ProviderConfigurationTest extends TestCase
         ]);
 
         $this->actingAs($user)->postJson('/vtu/nin/search', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'search_type' => 'by_nin',
             'nin' => '12345678901',
         ])->assertOk()->assertJson(['ok' => true]);
@@ -554,6 +574,7 @@ class ProviderConfigurationTest extends TestCase
         $this->assertSame('manual', $this->modePickedOnSettingsPage($saved, 'bvn_verify_mode'));
 
         $this->actingAs($user)->postJson('/vtu/nin/search', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'search_type' => 'by_nin',
             'nin' => '09876543210',
         ])->assertOk()->assertJson(['ok' => true, 'queued' => true]);
@@ -563,6 +584,7 @@ class ProviderConfigurationTest extends TestCase
         $this->assertSame('automatic', identity_verify_mode('nin'));
 
         $this->actingAs($user)->postJson('/vtu/nin/search', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'search_type' => 'by_nin',
             'nin' => '13579246801',
         ])->assertOk()->assertJson(['ok' => true]);

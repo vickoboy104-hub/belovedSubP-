@@ -18,15 +18,31 @@ use Illuminate\Support\Str;
  * does - so every purchase form carries one and the database holds each identity
  * against one customer once.
  *
- * The claim is a row the database will only accept once, taken inside the same
- * transaction as the debit. Two requests racing with the same identity therefore
- * cannot both spend it: the loser's claim is refused before a naira moves, and a
- * purchase that never completed (insufficient balance, a rollback) gives its identity
- * back with the rest of it, so a genuine second attempt is still possible.
+ * The claim is a row the database will only accept once. Where a purchase asks the
+ * provider for nothing it is taken inside the transaction of the debit, so a request
+ * that falls over gives it back with everything else; where a purchase is about to
+ * ask the provider for something it is taken before the asking, because a call that
+ * was answered is money gone whatever this site writes down afterwards.
+ *
+ * A submission that carries no usable identity is not a purchase this site can
+ * protect from itself, so it is refused before a wallet is touched or a provider is
+ * asked, in the shape the page that sent it understands.
  */
 class PurchaseIntent
 {
     public const FIELD = 'intent_token';
+
+    /**
+     * What a customer is told when the form they sent has no identity to spend.
+     */
+    public const MISSING_WORDS = 'This form lost its request identity before it reached us, so nothing has been charged. Reload the page and submit again.';
+
+    /**
+     * What a customer is told when the provider could not be reached at all.
+     */
+    public const UNCERTAIN_WORDS = 'We could not get through to the verification service and do not know whether it took the request. '
+        .'Nothing has been charged to your wallet. Do not send this again - reload the page to start a fresh request, '
+        .'and if you are charged for it, tell us and it will be put right.';
 
     /**
      * A fresh identity, minted for a form about to be shown to somebody.
@@ -37,18 +53,26 @@ class PurchaseIntent
     }
 
     /**
+     * Whether a string could be an identity this site handed out.
+     */
+    public static function usable(?string $token): bool
+    {
+        return is_string($token) && preg_match('/^[A-Za-z0-9_-]{8,64}$/', $token) === 1;
+    }
+
+    /**
      * The identity this submission carries, or null when it carries none.
      *
-     * A form that dropped its identity is not a reason to refuse a customer their
-     * purchase - it only means that particular request cannot be recognised as a
-     * repeat, so the gap is logged and can be found and closed.
+     * Null is a refusal, not a fallback: every paid route has to turn it away before
+     * it spends anything, because a purchase with no identity cannot be recognised as
+     * the copy of a purchase it may already have made.
      */
     public static function fromRequest(Request $request): ?string
     {
         $token = trim((string) $request->input(self::FIELD));
 
-        if ($token === '' || preg_match('/^[A-Za-z0-9_-]{8,64}$/', $token) !== 1) {
-            Log::info('Purchase submitted without an intent identity.', [
+        if (!self::usable($token)) {
+            Log::info('Purchase refused for want of an intent identity.', [
                 'route' => optional($request->route())->getName(),
                 'shape' => $token === '' ? 'absent' : 'malformed',
             ]);
@@ -60,18 +84,13 @@ class PurchaseIntent
     }
 
     /**
-     * Whether somebody has already made this exact intention.
+     * Whether this identity has already been taken.
      *
-     * This is only a look, never a claim: an identity is spent for good when the
-     * purchase that took it was actually booked, and a request that has not reached
-     * the provider yet must still be free to fail and be tried again.
+     * A look is not a claim: it turns the copy that arrived a second too late into an
+     * answer, and only {@see claim()} settles the matter with the database.
      */
-    public static function isSpent(int $userId, ?string $token): bool
+    public static function isSpent(int $userId, string $token): bool
     {
-        if ($token === null) {
-            return false;
-        }
-
         return DB::table('purchase_intents')
             ->where('user_id', $userId)
             ->where('token', $token)
@@ -81,12 +100,8 @@ class PurchaseIntent
     /**
      * Take this identity for ourselves. False means somebody else already did.
      */
-    public static function claim(int $userId, ?string $token): bool
+    public static function claim(int $userId, string $token): bool
     {
-        if ($token === null) {
-            return true;
-        }
-
         return DB::table('purchase_intents')->insertOrIgnore([
             'user_id' => $userId,
             'token' => $token,
@@ -96,14 +111,25 @@ class PurchaseIntent
     }
 
     /**
+     * Hand an identity back so the same request can be made again.
+     *
+     * Only for the callers that know nothing was spent on it: a request the provider
+     * answered, and a request that never got as far as the provider, both left this
+     * site owing nobody anything.
+     */
+    public static function release(int $userId, string $token): void
+    {
+        DB::table('purchase_intents')
+            ->where('user_id', $userId)
+            ->where('token', $token)
+            ->delete();
+    }
+
+    /**
      * The order the first request with this identity bought, if it is findable.
      */
-    public static function firstOrder(int $userId, ?string $token): ?Order
+    public static function firstOrder(int $userId, string $token): ?Order
     {
-        if ($token === null) {
-            return null;
-        }
-
         return Order::query()
             ->where('user_id', $userId)
             ->where('intent_token', $token)

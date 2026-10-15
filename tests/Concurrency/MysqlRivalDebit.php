@@ -9,8 +9,9 @@
  * both sides then try to spend the same balance for real, and MySQL decides - in
  * whatever order it likes - which one is allowed to.
  *
- * It also works as a hand check against a scratch database:
- *   MONEY_TESTS_ALLOW=1 DB_CONNECTION=mysql DB_DATABASE=<scratch> \
+ * It also works as a hand check, in a database that holds nothing but test data:
+ *   MONEY_TESTS_DATABASE=vtu_money_tests \
+ *   DB_CONNECTION=mysql DB_DATABASE=vtu_money_tests \
  *   php tests/Concurrency/MysqlRivalDebit.php <wallet_id> <kobo> <reference>
  */
 
@@ -36,12 +37,25 @@ if ($walletId === '' || $kobo === '' || !ctype_digit($walletId) || !ctype_digit(
 }
 
 /*
- * The money this script moves is real money in whatever database it is pointed at,
- * so it only runs when a person has said so in the environment, and only while the
- * application is not in production.
+ * The money this script moves is real money in whatever database it is pointed at.
+ * So the person running it has to have named, in the environment, the one database
+ * test money may be moved in, and this connection has to actually be on it - a stale
+ * DB_DATABASE stops the run instead of spending a customer's balance. It never runs
+ * for the application in production, and it only runs on the engine whose lock
+ * behaviour is being tested. A database holding live rows is refused by the suite's
+ * own gate before this script is ever started; see requireSyntheticDatabase() in
+ * tests/Feature/MysqlMoneyPathConcurrencyTest.php.
  */
-if (getenv('MONEY_TESTS_ALLOW') !== '1' || app()->environment('production')) {
-    fwrite(STDERR, "refusing to move money: this script needs MONEY_TESTS_ALLOW=1 and a non-production app\n");
+$declared = trim((string) getenv('MONEY_TESTS_DATABASE'));
+$connected = (string) DB::connection()->getDatabaseName();
+$driver = DB::connection()->getDriverName();
+
+if ($declared === '' || strcasecmp($declared, $connected) !== 0
+    || !in_array($driver, ['mysql', 'mariadb'], true)
+    || app()->environment('production')) {
+    fwrite(STDERR, "refusing to move money: MONEY_TESTS_DATABASE must name the database this connection is on "
+        ."(\"".$connected.'\"), the engine must be MySQL or MariaDB, and the app must not be in production. '
+        ."Run it only inside a database created for test data.\n");
     exit(5);
 }
 

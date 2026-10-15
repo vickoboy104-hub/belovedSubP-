@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\ServiceFormRepository;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -162,6 +163,7 @@ class ServiceFormCascadeTest extends TestCase
 
         $this->actingAs($user)
             ->post('/vtu/manual/'.self::SLUG, [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'job' => 'slip',
                 'slip_type' => 'long',
@@ -180,6 +182,7 @@ class ServiceFormCascadeTest extends TestCase
 
         $this->actingAs($user)
             ->post('/vtu/manual/'.self::SLUG, [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'job' => 'change',
                 'new_name' => 'A New Name',
@@ -199,6 +202,7 @@ class ServiceFormCascadeTest extends TestCase
         // Printing a slip asks for the slip type, never for the new name.
         $this->actingAs($user)
             ->post('/vtu/manual/'.self::SLUG, [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'job' => 'slip',
                 'slip_type' => 'standard',
@@ -217,6 +221,7 @@ class ServiceFormCascadeTest extends TestCase
         // branch would have gone on to ask for.
         $this->actingAs($user)
             ->post('/vtu/manual/'.self::SLUG, [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'job' => 'slip',
                 'slip_type' => 'name',
@@ -237,6 +242,7 @@ class ServiceFormCascadeTest extends TestCase
         // the form never showed must not reach the agent's queue either.
         $this->actingAs($user)
             ->post('/vtu/manual/'.self::SLUG, [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'job' => 'change',
                 'new_name' => 'A New Name',
@@ -385,6 +391,7 @@ class ServiceFormCascadeTest extends TestCase
 
         $this->actingAs($user)
             ->post('/vtu/manual/'.self::SLUG, [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'job' => 'slip',
                 'slip_type' => 'long',

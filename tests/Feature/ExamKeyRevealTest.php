@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Support\IssuedKeys;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -44,6 +45,7 @@ class ExamKeyRevealTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)->postJson('/vtu/exam/buy', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'pin_code' => 'neco',
             'phone' => '08012345678',
         ]);
@@ -195,6 +197,7 @@ class ExamKeyRevealTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)->postJson('/vtu/electricity/buy', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'service_id' => 'ikeja-electric',
             'meter_type' => 'prepaid',
             'customer_ref' => 'IE40028915023',
@@ -230,6 +233,7 @@ class ExamKeyRevealTest extends TestCase
         ]);
 
         $this->actingAs($user)->postJson('/vtu/exam/buy', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'pin_code' => 'neco',
             'phone' => '08012345678',
         ])->assertOk()->assertJson(['ok' => true]);

@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Service;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -117,11 +118,13 @@ class TransactionHistoryPresentationTest extends TestCase
         $user = $this->memberWithBalance(500_000);
 
         $this->actingAs($user)->post('/vtu/manual/ipe_clearance', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'ipe_type' => 'new_enrollment',
             'tracking_id' => 'BTX947E60001020',
         ])->assertRedirect();
 
         $this->actingAs($user)->post('/vtu/manual/bvn_print', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'bvn' => '22334455667',
         ])->assertRedirect();
 

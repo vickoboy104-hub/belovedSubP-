@@ -35,18 +35,40 @@ use Throwable;
  * while another connection is watching.
  *
  * So these tests only mean anything when they are run against MySQL, and they say so
- * out loud rather than passing quietly somewhere else. They write real rows into
- * whatever database they are pointed at, so they are aimed at a scratch copy: see
- * MONEY_TESTS_ALLOW below.
+ * out loud rather than passing quietly somewhere else.
+ *
+ * They also move real money: real balances spent, real ledger rows booked, real
+ * orders deleted. That is why the run is aimed at a database created for nothing
+ * else - a synthetic one that holds only the rows this suite puts in it - and not at
+ * a copy of production. Nothing here asks for live data, and the gate in
+ * requireSyntheticDatabase() refuses to write a single statement into a database that
+ * already holds any. See howToRun() for the commands.
  *
  * @see \Tests\Feature\WalletLedgerSafetyTest
  * @see \Tests\Feature\PurchaseIntentSafetyTest
  * @see \Tests\Feature\InterruptedDocumentRecoveryTest
+ * @see \Tests\Feature\LostDocumentFilingProtectionTest
  */
 class MysqlMoneyPathConcurrencyTest extends TestCase
 {
     /** How long a second connection may wait for a locked row before it is refused. */
     private const LOCK_WAIT_SECONDS = 2;
+
+    /**
+     * The tables that hold somebody's money, orders and documents.
+     *
+     * A database where any of them already has a row is not a synthetic one, so this
+     * is the list the run is measured against before it writes anything.
+     */
+    private const MONEY_TABLES = [
+        'users',
+        'wallets',
+        'wallet_transactions',
+        'orders',
+        'purchase_intents',
+        'document_filings',
+        'notifications',
+    ];
 
     /** @var list<int> */
     private array $users = [];
@@ -69,7 +91,7 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
     {
         parent::setUp();
 
-        $this->requireMysql();
+        $this->requireSyntheticDatabase();
 
         Http::preventStrayRequests();
         Notification::fake();
@@ -366,35 +388,152 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
     }
 
     /**
+     * Declared last, because it is the promise this suite makes about the database it
+     * works in: the money tables hold nothing except what these tests minted, and when
+     * a test is finished its rows go back out.
+     *
+     * That is not tidiness. The purity gate in requireSyntheticDatabase() is the only
+     * thing that keeps a run away from live data, and it can only recognise an empty
+     * database. A test that left a wallet or a ledger row behind would make the next
+     * run refuse to start, and a developer facing that refusal has two ways out - the
+     * right one is fixing the leak, not pointing the suite at somebody's orders.
+     */
+    public function test_the_suite_leaves_the_synthetic_database_as_empty_as_it_found_it(): void
+    {
+        foreach (self::MONEY_TABLES as $table) {
+            $this->assertSame(0, (int) DB::table($table)->count(),
+                $table.' already held rows of our own making when this test started, so a run before this one '
+                .'did not clean up after itself and the next run of this suite will be refused as unsafe.');
+        }
+
+        // The same shape the other tests leave behind: a wallet with a balance spent,
+        // a paid order owed paper, the paper's holding record, a claimed identity.
+        $wallet = $this->wallet(500_000);
+        $order = $this->paidOrderOwedPaper();
+        PurchaseIntent::claim((int) $wallet->user_id, PurchaseIntent::mint());
+
+        app(WalletLedger::class)->debit($wallet, 400_000, 'SYNTHETIC-LEDGER-ROW', 'a row of ours');
+
+        $this->assertGreaterThan(0, (int) DB::table('users')->count());
+        $this->assertGreaterThan(0, (int) DB::table('wallet_transactions')->count());
+        $this->assertGreaterThan(0, (int) DB::table('document_filings')->count());
+        $this->assertGreaterThan(0, (int) DB::table('purchase_intents')->count());
+
+        $this->removeWhatThisRunCreated();
+
+        foreach (self::MONEY_TABLES as $table) {
+            $this->assertSame(0, (int) DB::table($table)->count(),
+                'Removing what this run created left rows in '.$table.', which would fail the purity gate for '
+                .'every run after it.');
+        }
+
+        $this->assertNull(DocumentFiling::query()->where('order_id', $order->id)->first());
+    }
+
+    /**
      * Skip in a way nobody can mistake for a pass: the reason, and the exact command
      * that would make these tests mean something.
      *
-     * Two things are demanded. The engine has to be the one production runs on, and a
-     * person has to have said in the environment that the database behind it is fair
-     * game - these tests move real balances and book real ledger rows in it.
+     * Three things have to be true before a statement of ours is written anywhere,
+     * because each is a different way this run could hurt somebody.
+     *
+     * One: the engine has to be the one production runs on. On sqlite the row locks,
+     * the lock-wait timeouts and the rollback behaviour under test do not exist, so a
+     * pass there would be a lie.
+     *
+     * Two: the person running it has to have named the database the run is allowed to
+     * spend money in, MONEY_TESTS_DATABASE, and the connection has to actually be on
+     * that database. A stale DB_DATABASE in an .env, or a shell that forgot the
+     * variable, then stops the run instead of aiming it at the live one.
+     *
+     * Three: that database has to hold no money yet. If any of the money tables
+     * already has a row in it, it is not a synthetic database - it is somebody's real
+     * one, or a copy of it, and this suite has no business spending balances inside
+     * either. The check runs once, before the schema is built, and it is the reason
+     * copying production into a scratch schema is not a prerequisite for these tests:
+     * a database holding a customer's order is refused outright.
      */
-    private function requireMysql(): void
+    private function requireSyntheticDatabase(): void
     {
         $driver = DB::connection()->getDriverName();
 
-        if ($driver === 'mysql' || $driver === 'mariadb') {
-            if (getenv('MONEY_TESTS_ALLOW') === '1') {
-                return;
-            }
-
+        if (!in_array($driver, ['mysql', 'mariadb'], true)) {
             $this->markTestSkipped(
-                'On MySQL, but not allowed to move money in it. These tests spend real balances and book real '
-                .'ledger rows in whatever database they are pointed at, so they only run when MONEY_TESTS_ALLOW=1 '
-                .'says that database is a scratch copy. Never aim them at live data.'
+                'These tests prove InnoDB behaviour and are worthless on the "'.$driver.'" this run is using. '
+                .$this->howToRun()
             );
         }
 
-        $this->markTestSkipped(
-            'These tests prove InnoDB behaviour and are worthless on the "'.$driver.'" this run is using. '
-            .'Make a scratch copy of the database, put its MySQL credentials in the environment, and run: '
-            .'MONEY_TESTS_ALLOW=1 DB_CONNECTION=mysql php artisan test --filter=MysqlMoneyPath. '
-            .'They spend real balances and book real ledger rows in that database, so never aim them at live data.'
-        );
+        $declared = trim((string) getenv('MONEY_TESTS_DATABASE'));
+        $connected = (string) DB::connection()->getDatabaseName();
+
+        if ($declared === '') {
+            $this->markTestSkipped(
+                'On MySQL, but no database has been named as the one this suite may spend money in. '
+                .$this->howToRun()
+            );
+        }
+
+        if (strcasecmp($declared, $connected) !== 0) {
+            $this->fail(
+                'MONEY_TESTS_DATABASE says the money may be moved in "'.$declared.'", but this connection is '
+                .'sitting on "'.$connected.'". Refusing to spend a single naira until the two agree - an '
+                .'overridden DB_DATABASE, or a connection pointing somewhere else than it was told to, is '
+                .'exactly how a test run ends up inside live data.'
+            );
+        }
+
+        if (self::$schemaChecked) {
+            return;
+        }
+
+        $occupied = [];
+
+        foreach (self::MONEY_TABLES as $table) {
+            if (!Schema::hasTable($table)) {
+                continue;
+            }
+
+            $rows = (int) DB::table($table)->count();
+
+            if ($rows > 0) {
+                $occupied[] = $table.' ('.$rows.')';
+            }
+        }
+
+        if ($occupied !== []) {
+            $this->fail(
+                'Refusing to move money in "'.$connected.'": it already holds data that is not ours - '
+                .implode(', ', $occupied).'. These tests spend balances, book ledger rows and delete orders, so '
+                .'they run only in a database created for them and empty until they fill it. Make a new one '
+                .'(see the commands in this message) and point DB_DATABASE and MONEY_TESTS_DATABASE at it.'
+            );
+        }
+    }
+
+    /**
+     * What a person has to do to make these tests real. Nothing in here asks for the
+     * live database, and nothing in here has to be run on the hosting server: any
+     * MySQL the developer can reach - including one on their own machine - will do.
+     */
+    private function howToRun(): string
+    {
+        return <<<'TEXT'
+            Make a database that holds nothing but test data, on any MySQL this run can reach:
+
+              CREATE DATABASE vtu_money_tests CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+            Give one user rights over that database alone, then point a single test run at it -
+            the same name twice, so the run can only aim itself at the database it was given:
+
+              MONEY_TESTS_DATABASE=vtu_money_tests \
+              DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_PORT=3306 \
+              DB_DATABASE=vtu_money_tests DB_USERNAME=vtu_money_tests DB_PASSWORD='...' \
+              php artisan test --filter=MysqlMoneyPath
+
+            The suite builds its own tables in it, refuses to start if the tables already hold
+            rows, and deletes every row it created when each test finishes.
+            TEXT;
     }
 
     private function readySchema(): void
@@ -414,6 +553,16 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
         $this->assertTrue(Schema::hasTable('purchase_intents') && Schema::hasTable('document_filings'),
             'This database has no money-safety tables and the migrations could not create them: '
             .trim(Artisan::output()));
+
+        // A synthetic database is empty until this suite fills it, and the migrations
+        // that build it insert nothing. If they ever start seeding, the counts below
+        // fail the run rather than letting it measure itself against rows it did not
+        // create - and did not promise to remove.
+        foreach (self::MONEY_TABLES as $table) {
+            $this->assertSame(0, (int) DB::table($table)->count(),
+                'Building the schema left rows in '.$table.' that this suite did not create, so this database '
+                .'is not the empty synthetic one it was declared to be.');
+        }
     }
 
     /** A second, completely separate connection to the same server. */

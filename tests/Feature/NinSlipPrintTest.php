@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Support\NinSlipLayout;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -29,6 +30,7 @@ class NinSlipPrintTest extends TestCase
         $response = $this
             ->actingAs($user)
             ->postJson('/vtu/nin/print', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'slip_type' => 'standard_slip',
                 'verification_order_id' => $this->verifiedRecord($user)->id,
             ])
@@ -242,6 +244,7 @@ class NinSlipPrintTest extends TestCase
         $response = $this
             ->actingAs($user)
             ->postJson('/vtu/nin/print', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'slip_type' => $slipType,
                 'verification_order_id' => ($verified ?? $this->verifiedRecord($user))->id,
             ])

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Services\ManualDocumentStore;
 use App\Services\ServiceFormRepository;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -44,6 +45,7 @@ class ManualUploadPaymentSafetyTest extends TestCase
     private function documentPayload(array $overrides = []): array
     {
         return array_merge([
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'nin' => '12345678901',
             'email_choice' => 'auto',
             'field_to_modify' => 'dob',
@@ -218,6 +220,7 @@ class ManualUploadPaymentSafetyTest extends TestCase
 
         $this->actingAs($user)
             ->post('/vtu/manual/'.$slug, [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'proof' => UploadedFile::fake()->create('proof.jpg', 20, 'image/jpeg'),
                 'consent_agreed' => '1',

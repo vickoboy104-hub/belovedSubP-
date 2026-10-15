@@ -7,6 +7,7 @@ use App\Models\Service;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -34,6 +35,7 @@ class IdentityProfitTest extends TestCase
         $this->fakeNinSearch();
 
         $this->actingAs($user)->postJson('/vtu/nin/search', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'search_type' => 'by_nin',
             'nin' => '12345678901',
         ])->assertOk()->assertJson(['ok' => true]);
@@ -55,6 +57,7 @@ class IdentityProfitTest extends TestCase
 
         foreach (['12345678901', '12345678901'] as $nin) {
             $this->actingAs($user)->postJson('/vtu/nin/search', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'search_type' => 'by_nin',
                 'nin' => $nin,
             ])->assertOk()->assertJson(['ok' => true]);
@@ -87,6 +90,7 @@ class IdentityProfitTest extends TestCase
         Http::fake();
 
         $this->actingAs($user)->postJson('/vtu/nin/search', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'search_type' => 'by_nin',
             'nin' => '12345678901',
         ])->assertOk()->assertJson(['queued' => true]);
@@ -106,6 +110,7 @@ class IdentityProfitTest extends TestCase
         $verified = $this->verifiedRecord($user);
 
         $this->actingAs($user)->postJson('/vtu/nin/print', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'slip_type' => 'standard_slip',
             'verification_order_id' => $verified->id,
         ])->assertOk()->assertJson(['ok' => true]);
@@ -135,6 +140,7 @@ class IdentityProfitTest extends TestCase
         ]);
 
         $this->actingAs($user)->postJson('/vtu/nin/print', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'slip_type' => 'long_slip',
             'verification_type' => 'by_nin',
             'nin' => '12345678901',
@@ -293,6 +299,7 @@ class IdentityProfitTest extends TestCase
     private function printRecord(User $user, Order $verified): void
     {
         $this->actingAs($user)->postJson('/vtu/nin/print', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'slip_type' => 'long_slip',
             'verification_order_id' => $verified->id,
         ])->assertOk();

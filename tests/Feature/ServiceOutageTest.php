@@ -7,6 +7,7 @@ use App\Models\ProviderPlanPrice;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -54,6 +55,7 @@ class ServiceOutageTest extends TestCase
             ->assertSessionHas('error', 'Glo Airtime is not available right now. Service Under Maintenance. We will inform you when it is back.');
 
         $response = $this->actingAs($member)->postJson('/vtu/airtime/buy', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'service_id' => 'glo',
             'phone' => '08012345678',
             'amount' => 1000,
@@ -173,6 +175,7 @@ class ServiceOutageTest extends TestCase
         $this->actingAs($member)->get('/vtu/data/glo_data')->assertRedirect(route('vtu.data'));
 
         $this->actingAs($member)->postJson('/vtu/data/buy', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'service_id' => 'glo_data',
             'plan' => 'glo-old',
             'phone' => '08012345678',

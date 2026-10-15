@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Models\Wallet;
 use App\Services\ManualFulfilmentService;
 use App\Support\ServiceForm\Schema;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -291,14 +292,14 @@ class ManualServicePageTest extends TestCase
         // The wired page asks for the BMS number and its ticket together, so a
         // ticket search that names neither half of it is refused and costs nothing.
         $this->actingAs($user)
-            ->post('/vtu/manual/bvn_retrieve', ['retrieve_type' => 'bms', 'bms_no' => 'BMS-112233'])
+            ->post('/vtu/manual/bvn_retrieve', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'retrieve_type' => 'bms', 'bms_no' => 'BMS-112233'])
             ->assertRedirect()
             ->assertSessionHasErrors('ticket_id');
 
         $this->assertSame(0, Order::query()->where('user_id', $user->id)->count());
 
         $this->actingAs($user)
-            ->post('/vtu/manual/bvn_retrieve', ['retrieve_type' => 'phone', 'phone' => '08031234567'])
+            ->post('/vtu/manual/bvn_retrieve', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'retrieve_type' => 'phone', 'phone' => '08031234567'])
             ->assertRedirect()
             ->assertSessionHasNoErrors();
 

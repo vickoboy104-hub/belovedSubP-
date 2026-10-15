@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\ManualFulfilmentService;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -91,6 +92,7 @@ class NinModificationWorkflowTest extends TestCase
         // on the order the agent reads.
         $this->actingAs($user)
             ->post('/vtu/manual/nin_modification', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'email_choice' => 'auto',
                 'field_to_modify' => 'name',
@@ -118,6 +120,7 @@ class NinModificationWorkflowTest extends TestCase
         // birth on a customer's word, and neither can we, so the fee stays put.
         $this->actingAs($user)
             ->post('/vtu/manual/nin_modification', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'email_choice' => 'auto',
                 'field_to_modify' => 'dob',
@@ -133,6 +136,7 @@ class NinModificationWorkflowTest extends TestCase
         // A name change asked for on the same page does not need the document.
         $this->actingAs($user)
             ->post('/vtu/manual/nin_modification', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'email_choice' => 'auto',
                 'field_to_modify' => 'name',
@@ -152,6 +156,7 @@ class NinModificationWorkflowTest extends TestCase
 
         $this->actingAs($user)
             ->post('/vtu/manual/nin_modification', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'email_choice' => 'auto',
                 'field_to_modify' => 'dob',
@@ -217,6 +222,7 @@ class NinModificationWorkflowTest extends TestCase
 
         $this->actingAs($user)
             ->post('/vtu/manual/nin_modification', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'email_choice' => 'auto',
                 'field_to_modify' => 'dob',

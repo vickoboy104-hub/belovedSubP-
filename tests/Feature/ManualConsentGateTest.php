@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -47,6 +48,7 @@ class ManualConsentGateTest extends TestCase
 
         $this->actingAs($user)
             ->post('/vtu/manual/nin_modification', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'email_choice' => 'auto',
                 'field_to_modify' => 'name',
@@ -66,6 +68,7 @@ class ManualConsentGateTest extends TestCase
 
         $this->actingAs($user)
             ->post('/vtu/manual/bvn_print', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'bvn' => '12345678901',
                 'consent_agreed' => '1',
             ])

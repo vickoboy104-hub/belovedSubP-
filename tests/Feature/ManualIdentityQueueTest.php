@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Notifications\AdminSystemAlertNotification;
 use App\Notifications\ManualOrderNotification;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\DatabaseNotification;
@@ -36,6 +37,7 @@ class ManualIdentityQueueTest extends TestCase
 
         $response = $this->actingAs($user)
             ->post('/vtu/manual/ipe_clearance', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'ipe_type' => 'new_enrollment',
                 'tracking_id' => 'ABCDEFGHIJKLMNO',
             ]);
@@ -115,6 +117,7 @@ class ManualIdentityQueueTest extends TestCase
         // demanded fifteen would turn away a real enrolment slip, so the length
         // is an upper bound here too, and only the length.
         $this->actingAs($user)->post('/vtu/manual/ipe_clearance', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'ipe_type' => 'new_enrollment',
             'tracking_id' => 'S7Y0NYFL000038',
         ])->assertSessionHasNoErrors();
@@ -126,6 +129,7 @@ class ManualIdentityQueueTest extends TestCase
         // so the same limit has to hold when the request reaches the server: their
         // rule is digits with an optional leading +.
         $this->actingAs($user)->post('/vtu/manual/nin_modification', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'nin' => '12345678901',
             'email_choice' => 'auto',
             'field_to_modify' => 'phone',
@@ -134,6 +138,7 @@ class ManualIdentityQueueTest extends TestCase
         ])->assertSessionHasErrors('phone');
 
         $this->actingAs($user)->post('/vtu/manual/nin_modification', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'nin' => '12345678901',
             'email_choice' => 'auto',
             'field_to_modify' => 'phone',
@@ -144,6 +149,7 @@ class ManualIdentityQueueTest extends TestCase
         // Nothing beyond that is invented: an over-long tracking ID is still the
         // one thing their box cannot hold.
         $this->actingAs($user)->post('/vtu/manual/ipe_clearance', [
+            PurchaseIntent::FIELD => PurchaseIntent::mint(),
             'ipe_type' => 'new_enrollment',
             'tracking_id' => 'ABCDEFGHIJKLMNOPQ',
         ])->assertSessionHasErrors('tracking_id');
@@ -164,6 +170,10 @@ class ManualIdentityQueueTest extends TestCase
         ];
 
         foreach ($jobs as $slug => $payload) {
+            // The purchase identity is not one of the provider's fields: it is the
+            // answer to "which click bought this", which no form may now be without.
+            $payload[PurchaseIntent::FIELD] = PurchaseIntent::mint();
+
             $this->actingAs($user)
                 ->post('/vtu/manual/'.$slug, $payload)
                 ->assertRedirect()
@@ -500,6 +510,8 @@ class ManualIdentityQueueTest extends TestCase
         if (app(\App\Services\ManualFulfilmentService::class)->consent($slug)['clauses'] !== []) {
             $payload['consent_agreed'] = '1';
         }
+
+        $payload[PurchaseIntent::FIELD] = PurchaseIntent::mint();
 
         $this->actingAs($user)->post('/vtu/manual/'.$slug, $payload)->assertRedirect();
 

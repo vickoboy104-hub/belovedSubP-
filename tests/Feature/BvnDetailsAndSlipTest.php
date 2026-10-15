@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -39,7 +40,7 @@ class BvnDetailsAndSlipTest extends TestCase
         $this->fakeProvider();
 
         $verified = $this->actingAs($user)
-            ->postJson('/vtu/bvn/verify', ['bvn' => self::BVN])
+            ->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => self::BVN])
             ->assertOk()
             ->assertJsonPath('ok', true)
             ->assertJsonPath('amount_naira', 200);
@@ -73,7 +74,7 @@ class BvnDetailsAndSlipTest extends TestCase
         $this->fakeProvider();
 
         $orderId = (int) $this->actingAs($owner)
-            ->postJson('/vtu/bvn/verify', ['bvn' => self::BVN])
+            ->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => self::BVN])
             ->json('order_id');
 
         // Even with the address in hand, a member who never ran the check gets
@@ -93,7 +94,7 @@ class BvnDetailsAndSlipTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->postJson('/vtu/bvn/verify', ['bvn' => self::BVN])
+            ->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => self::BVN])
             ->assertStatus(422)
             ->assertJsonMissingPath('details_url');
 
@@ -106,10 +107,10 @@ class BvnDetailsAndSlipTest extends TestCase
         $user = $this->memberWithBalance(500_000);
         $this->fakeProvider();
 
-        $this->actingAs($user)->postJson('/vtu/bvn/verify', ['bvn' => self::BVN])->assertOk();
+        $this->actingAs($user)->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => self::BVN])->assertOk();
 
         $slip = $this->actingAs($user)
-            ->postJson('/vtu/bvn/print', ['bvn' => self::BVN])
+            ->postJson('/vtu/bvn/print', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => self::BVN])
             ->assertOk()
             ->assertJsonPath('ok', true)
             ->assertJsonPath('amount_naira', 150);
@@ -145,9 +146,9 @@ class BvnDetailsAndSlipTest extends TestCase
         $user = $this->memberWithBalance(500_000);
         $this->fakeProvider();
 
-        $this->actingAs($user)->postJson('/vtu/bvn/verify', ['bvn' => self::BVN])->assertOk();
+        $this->actingAs($user)->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => self::BVN])->assertOk();
         $slipUrl = $this->actingAs($user)
-            ->postJson('/vtu/bvn/print', ['bvn' => self::BVN])
+            ->postJson('/vtu/bvn/print', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => self::BVN])
             ->json('slip_url');
 
         $before = $this->balance($user);
@@ -166,7 +167,7 @@ class BvnDetailsAndSlipTest extends TestCase
         $this->fakeProvider();
 
         $this->actingAs($user)
-            ->postJson('/vtu/bvn/print', ['bvn' => self::BVN])
+            ->postJson('/vtu/bvn/print', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => self::BVN])
             ->assertOk();
 
         Http::assertSentCount(1);
@@ -187,7 +188,7 @@ class BvnDetailsAndSlipTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->postJson('/vtu/bvn/print', ['bvn' => self::BVN])
+            ->postJson('/vtu/bvn/print', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => self::BVN])
             ->assertStatus(422)
             ->assertJson(['message' => 'Provider wallet depleted']);
 
@@ -204,7 +205,7 @@ class BvnDetailsAndSlipTest extends TestCase
         Http::fake();
 
         $queued = $this->actingAs($user)
-            ->postJson('/vtu/bvn/print', ['bvn' => self::BVN])
+            ->postJson('/vtu/bvn/print', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => self::BVN])
             ->assertOk()
             ->assertJsonPath('queued', true);
 
@@ -224,9 +225,9 @@ class BvnDetailsAndSlipTest extends TestCase
         $stranger = $this->memberWithBalance(500_000);
         $this->fakeProvider();
 
-        $this->actingAs($owner)->postJson('/vtu/bvn/verify', ['bvn' => self::BVN])->assertOk();
+        $this->actingAs($owner)->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => self::BVN])->assertOk();
         $slipUrl = $this->actingAs($owner)
-            ->postJson('/vtu/bvn/print', ['bvn' => self::BVN])
+            ->postJson('/vtu/bvn/print', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => self::BVN])
             ->json('slip_url');
 
         $this->actingAs($stranger)->get($slipUrl)->assertNotFound();

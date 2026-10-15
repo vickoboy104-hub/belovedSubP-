@@ -10,6 +10,7 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Notifications\AdminSystemAlertNotification;
 use App\Services\ManualDocumentStore;
+use App\Services\PurchaseIntent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
@@ -132,6 +133,7 @@ class InterruptedDocumentRecoveryTest extends TestCase
 
         $this->actingAs($user)
             ->post('/vtu/manual/'.self::SERVICE, [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
                 'nin' => '12345678901',
                 'email_choice' => 'auto',
                 'field_to_modify' => 'dob',
