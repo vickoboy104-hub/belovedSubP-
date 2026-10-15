@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 /**
  * Identity services with no provider API. Customers pay at submission, so this
@@ -29,16 +30,30 @@ class ManualOrdersController extends Controller
     {
         $status = $this->normaliseStatus((string) $request->input('status', ''));
 
-        $query = $this->manualServices->queueQuery()->with('user');
+        // One predicate, shared by the list and by the per-service counts under it,
+        // so a tab can never count requests it does not actually show.
+        $byStatus = function ($query) use ($status) {
+            if ($status === 'pending') {
+                return $query->where('status', 'pending')->orderBy('created_at')->orderBy('id');
+            }
 
-        // The queue opens on what is owed to a paying customer, worked oldest first.
-        if ($status === 'pending') {
-            $query->where('status', 'pending')->orderBy('created_at')->orderBy('id');
-        } elseif ($status === 'all') {
-            $query->latest();
-        } else {
-            $query->where('status', $status)->latest();
-        }
+            if ($status === 'in_progress') {
+                // The jobs somebody has already picked up, so a second admin does
+                // not start the same customer's record twice.
+                return $query->where('status', 'pending')
+                    ->where('meta->work_state', 'in_progress')
+                    ->orderBy('created_at')
+                    ->orderBy('id');
+            }
+
+            if ($status === 'all') {
+                return $query->latest();
+            }
+
+            return $query->where('status', $status)->latest();
+        };
+
+        $query = $byStatus($this->manualServices->queueQuery()->with('user'));
 
         $slug = trim((string) $request->input('service', ''));
         if ($slug !== '' && $this->manualServices->find($slug)) {
@@ -68,14 +83,17 @@ class ManualOrdersController extends Controller
 
         $counts = [
             'pending' => $this->manualServices->waitingQuery()->count(),
+            'in_progress' => $this->manualServices->queueQuery()
+                ->where('status', 'pending')
+                ->where('meta->work_state', 'in_progress')
+                ->count(),
             'success' => $this->manualServices->queueQuery()->where('status', 'success')->count(),
             'failed' => $this->manualServices->queueQuery()->where('status', 'failed')->count(),
             'all' => $this->manualServices->queueQuery()->count(),
         ];
 
         // So a service the admin is clearing out can be seen from the filter itself.
-        $serviceCounts = $this->manualServices->queueQuery()
-            ->where('status', $status)
+        $serviceCounts = $byStatus($this->manualServices->queueQuery())
             ->selectRaw("count(*) as aggregate_count, json_extract(meta, '$.manual_service') as service_slug")
             ->groupBy('service_slug')
             ->pluck('aggregate_count', 'service_slug')
@@ -139,6 +157,64 @@ class ManualOrdersController extends Controller
         return response()->file(Storage::disk('local')->path($path), [
             'Content-Disposition' => 'inline; filename="'.$name.'"',
         ]);
+    }
+
+    /**
+     * Whether an agent has actually taken the job in hand.
+     *
+     * The order stays pending until a person or a document answers the customer,
+     * so this records who is working the request rather than pretending the work
+     * is done: no money moves, and completing or rejecting the request works
+     * exactly the same way from either state.
+     */
+    public function workState(Request $request, int $order)
+    {
+        $manualOrder = $this->findManualOrder($order);
+
+        // A finished request already carries its outcome, so there is nothing left
+        // to mark: writing a work note over it would suggest somebody is still
+        // working a job that has been answered.
+        if ($manualOrder->status !== 'pending') {
+            return back()->with('error', 'This request is already '.$manualOrder->status.', so it is not being worked on.');
+        }
+
+        $data = $request->validate([
+            'state' => ['required', Rule::in(['in_progress', 'waiting'])],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $meta = is_array($manualOrder->meta) ? $manualOrder->meta : [];
+        $started = $data['state'] === 'in_progress';
+        $wasStarted = ($meta['work_state'] ?? null) === 'in_progress';
+        $title = (string) ($meta['manual_service_title'] ?? 'Identity request');
+
+        $manualOrder->meta = array_merge($meta, [
+            'work_state' => $started ? 'in_progress' : 'waiting',
+            'work_state_at' => now()->toIso8601String(),
+            'work_state_by' => $request->user()?->id,
+            'work_note' => $started ? trim((string) ($data['note'] ?? '')) : '',
+        ]);
+        $manualOrder->save();
+
+        // The customer is told once, when the wait first turns into work. Sending
+        // it back through the waiting list is our bookkeeping, not news for them.
+        if ($started && !$wasStarted) {
+            $this->notifyCustomer(
+                $manualOrder,
+                $title.' is being worked on',
+                'Our team has started your '.$title.' request. The result will appear on your receipt as soon as it is ready.',
+                [
+                    'type' => 'manual_order_started',
+                    'order_id' => $manualOrder->id,
+                    'manual_service' => (string) ($meta['manual_service'] ?? ''),
+                    'started_at' => now()->toIso8601String(),
+                ],
+            );
+        }
+
+        return back()->with('success', $started
+            ? 'Marked as in progress. The customer has been told work has started.'
+            : 'Moved back to the waiting queue.');
     }
 
     public function fulfil(Request $request, int $order)
@@ -305,10 +381,38 @@ class ManualOrdersController extends Controller
             ->with('success', $outcome.' The waiting queue is now clear.');
     }
 
+    /**
+     * The next request an agent should be offered.
+     *
+     * A request somebody has already taken in hand is left with the person
+     * working it, so the queue offers the oldest untouched one and only falls
+     * back to a claimed request once everything waiting has been started. The
+     * claimed ids are read out first rather than asked for as "not in progress",
+     * because a request that has never been marked has no work state at all, and
+     * comparing a missing value is not something both database engines answer the
+     * same way.
+     */
     private function nextWaitingRequest(int $exceptOrderId): ?Order
     {
+        $claimed = $this->manualServices->waitingQuery()
+            ->where('meta->work_state', 'in_progress')
+            ->pluck('id')
+            ->all();
+
+        $untouched = $this->manualServices->waitingQuery()
+            ->where('id', '!=', $exceptOrderId)
+            ->whereNotIn('id', $claimed)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->first();
+
+        if ($untouched instanceof Order) {
+            return $untouched;
+        }
+
         return $this->manualServices->waitingQuery()
             ->where('id', '!=', $exceptOrderId)
+            ->whereIn('id', $claimed)
             ->orderBy('created_at')
             ->orderBy('id')
             ->first();
@@ -316,7 +420,9 @@ class ManualOrdersController extends Controller
 
     private function normaliseStatus(string $status): string
     {
-        return in_array($status, ['pending', 'success', 'failed', 'all'], true) ? $status : 'pending';
+        return in_array($status, ['pending', 'in_progress', 'success', 'failed', 'all'], true)
+            ? $status
+            : 'pending';
     }
 
     private function findManualOrder(int $id): Order

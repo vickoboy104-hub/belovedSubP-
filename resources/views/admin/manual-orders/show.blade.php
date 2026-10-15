@@ -8,8 +8,10 @@
         // Number"), which read badly beside a value, so the admin sees the short
         // name of the same field that the history table uses.
         $labels = [];
+        $choices = [];
         foreach ($definition['fields'] ?? [] as $field) {
             $labels[$field['name']] = $field['column'] ?? $field['label'];
+            $choices[$field['name']] = $field['options'] ?? [];
         }
 
         $expectedBy = null;
@@ -22,7 +24,17 @@
         }
 
         $overdue = $order->status === 'pending' && $expectedBy && $expectedBy->isPast();
-        $statusLabel = $order->status === 'pending' ? 'WAITING' : strtoupper($order->status);
+        $started = $order->status === 'pending' && ($meta['work_state'] ?? null) === 'in_progress';
+        $workNote = trim((string) ($meta['work_note'] ?? ''));
+        $workedBy = null;
+        if ($started && !empty($meta['work_state_at'])) {
+            try {
+                $workedBy = \Illuminate\Support\Carbon::parse((string) $meta['work_state_at']);
+            } catch (\Throwable $e) {
+                $workedBy = null;
+            }
+        }
+        $statusLabel = $order->status === 'pending' ? ($started ? 'IN PROGRESS' : 'WAITING') : strtoupper($order->status);
         $statusClasses = $order->status === 'success'
             ? 'bg-emerald-50 text-emerald-700'
             : ($order->status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700');
@@ -88,10 +100,10 @@
 
                     <dl class="mt-5 grid gap-4 md:grid-cols-2">
                         @forelse($submitted as $key => $value)
-                            @if($value !== null && $value !== '')
+                            @if($value !== null && $value !== '' && is_scalar($value))
                                 <div class="rounded-[18px] border border-slate-200 bg-slate-50 p-3">
                                     <dt class="app-record-label">{{ $labels[$key] ?? \Illuminate\Support\Str::headline((string) $key) }}</dt>
-                                    <dd class="app-record-value break-words">{{ $value }}</dd>
+                                    <dd class="app-record-value break-words">{{ (string) ($choices[$key][$value] ?? $value) }}</dd>
                                 </div>
                             @endif
                         @empty
@@ -114,13 +126,6 @@
                                        class="reference-quiet-button shrink-0">Open</a>
                                 </div>
                             @endforeach
-                        </div>
-                    @endif
-
-                    @if(!empty($meta['notes']))
-                        <div class="mt-4 rounded-[18px] border border-slate-200 bg-slate-50 p-3">
-                            <div class="app-record-label">Notes</div>
-                            <div class="app-record-value">{{ $meta['notes'] }}</div>
                         </div>
                     @endif
                 </section>
@@ -253,6 +258,47 @@
                     @endif
                     <a href="{{ route('vtu.receipt', $order->id) }}" class="btn-outline mt-2 w-full justify-center">See the customer's receipt</a>
                 </section>
+
+                @if($order->status === 'pending')
+                    <section class="app-section p-5 sm:p-6">
+                        <h2 class="text-lg font-extrabold text-slate-900">Who is working this?</h2>
+                        <p class="mt-1 text-sm leading-6 text-slate-600">
+                            {{ $started
+                                ? 'In progress'.($workedBy ? ' since '.$workedBy->format('d M Y, h:i A') : '').'. It stays here until you publish a result or reject it.'
+                                : 'Nobody has picked this up yet. Marking it in progress tells the other agents to leave it alone.' }}
+                        </p>
+
+                        @if($started && $workNote !== '')
+                            <div class="mt-3 rounded-[18px] border border-slate-200 bg-slate-50 p-3">
+                                <div class="app-record-label">Work note (admin only)</div>
+                                <div class="app-record-value">{{ $workNote }}</div>
+                            </div>
+                        @endif
+
+                        <form method="POST"
+                              action="{{ route('admin.manual-orders.work-state', $order->id) }}"
+                              class="mt-4 space-y-3">
+                            @csrf
+
+                            <label class="block">
+                                <span class="text-sm font-bold text-slate-700">Note for the next agent (never shown to the customer)</span>
+                                <input type="text" name="note" maxlength="500" value="{{ old('note', $workNote) }}"
+                                       placeholder="e.g. NIMC portal opened, waiting on the OTP."
+                                       class="input-field mt-2" />
+                            </label>
+
+                            <button type="submit" name="state" value="in_progress" class="btn-primary w-full justify-center">
+                                {{ $started ? 'Save the work note' : 'Mark as in progress' }}
+                            </button>
+
+                            @if($started)
+                                <button type="submit" name="state" value="waiting" class="btn-outline w-full justify-center">
+                                    Move back to waiting
+                                </button>
+                            @endif
+                        </form>
+                    </section>
+                @endif
 
                 @if($order->status === 'pending')
                     <section class="app-section border-rose-200 p-5 sm:p-6">

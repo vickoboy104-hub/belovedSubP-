@@ -50,6 +50,105 @@ class ManualIdentityQueueTest extends TestCase
         $this->actingAs($admin)->get('/admin/manual-orders')->assertOk()->assertSee('IPE Clearance');
     }
 
+    public function test_the_admin_reads_every_answer_the_document_and_the_money(): void
+    {
+        Storage::fake('local');
+        $admin = User::factory()->create(['is_admin' => true]);
+        $user = $this->memberWithBalance(9_000_000);
+
+        // The most demanding branch there is: a date of birth correction asks a
+        // number, a document and an email choice, and is priced above the others.
+        // Everything the customer answered has to arrive on one screen, because
+        // the job is worked externally from that screen and from nothing else.
+        $order = $this->submitManualRequest($user, 'nin_modification', [
+            'nin' => '12345678901',
+            'email_choice' => 'auto',
+            'field_to_modify' => 'dob',
+            'attestation_no' => 'SO1250325358849A',
+            'attestation_img' => UploadedFile::fake()->create('attestation.jpg', 30, 'image/jpeg'),
+        ]);
+
+        $this->assertSame('nin_modification', $order->meta['manual_service']);
+
+        $html = $this->actingAs($admin)
+            ->get('/admin/manual-orders/'.$order->id)
+            ->assertOk()
+            ->getContent();
+
+        // The service and the specific correction, in the words the customer
+        // picked from, rather than the internal code the order stores.
+        $this->assertStringContainsString('NIN Modification', $html);
+        $this->assertStringContainsString('Change of Date of Birth', $html);
+
+        // Every answer, and only this branch's answers.
+        $this->assertStringContainsString('12345678901', $html);
+        $this->assertStringContainsString('SO1250325358849A', $html);
+        $this->assertStringContainsString('Auto-generate an email for me', $html);
+
+        // The document travels with the request and is opened through the admin
+        // route, so the stored private path is never handed to the browser.
+        $this->assertStringContainsString('attestation.jpg', $html);
+        $this->assertStringContainsString('/admin/manual-orders/'.$order->id.'/document/attestation_img', $html);
+
+        // Reference, the money taken, the state of the job and whose it is.
+        $this->assertStringContainsString((string) $order->provider_reference, $html);
+        $this->assertStringContainsString(number_format($order->amount / 100, 2), $html);
+        $this->assertStringContainsString('WAITING', $html);
+        $this->assertStringContainsString($order->created_at->format('d M Y, h:i A'), $html);
+        $this->assertStringContainsString($user->name, $html);
+        $this->assertStringContainsString($user->email, $html);
+
+        // The customer who paid cannot read another person's identity document:
+        // the route that serves it stands behind the admin gate.
+        $this->actingAs($user)
+            ->get('/admin/manual-orders/'.$order->id.'/document/attestation_img')
+            ->assertForbidden();
+    }
+
+    public function test_the_provider_s_own_input_limits_are_the_ones_we_enforce(): void
+    {
+        Storage::fake('local');
+        $user = $this->memberWithBalance(9_000_000);
+
+        // Their tracking box is maxlength=15, not "exactly 15", and the example
+        // printed inside it (S7Y0NYFL000038) is fourteen characters. A rule that
+        // demanded fifteen would turn away a real enrolment slip, so the length
+        // is an upper bound here too, and only the length.
+        $this->actingAs($user)->post('/vtu/manual/ipe_clearance', [
+            'ipe_type' => 'new_enrollment',
+            'tracking_id' => 'S7Y0NYFL000038',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('pending', $this->latestOrder($user)->status);
+
+        // A phone correction is the one field whose format their page guards, and
+        // it guards it in the browser only. The customer pays for this job by hand,
+        // so the same limit has to hold when the request reaches the server: their
+        // rule is digits with an optional leading +.
+        $this->actingAs($user)->post('/vtu/manual/nin_modification', [
+            'nin' => '12345678901',
+            'email_choice' => 'auto',
+            'field_to_modify' => 'phone',
+            'phone' => '0803-123-4567',
+            'consent_agreed' => '1',
+        ])->assertSessionHasErrors('phone');
+
+        $this->actingAs($user)->post('/vtu/manual/nin_modification', [
+            'nin' => '12345678901',
+            'email_choice' => 'auto',
+            'field_to_modify' => 'phone',
+            'phone' => '+2348031234567',
+            'consent_agreed' => '1',
+        ])->assertSessionHasNoErrors();
+
+        // Nothing beyond that is invented: an over-long tracking ID is still the
+        // one thing their box cannot hold.
+        $this->actingAs($user)->post('/vtu/manual/ipe_clearance', [
+            'ipe_type' => 'new_enrollment',
+            'tracking_id' => 'ABCDEFGHIJKLMNOPQ',
+        ])->assertSessionHasErrors('tracking_id');
+    }
+
     public function test_nothing_beyond_the_providers_own_fields_is_ever_needed(): void
     {
         $user = $this->memberWithBalance(2_000_000);

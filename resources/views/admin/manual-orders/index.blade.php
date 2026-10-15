@@ -2,6 +2,7 @@
     @php
         $statusTabs = [
             'pending' => 'Waiting',
+            'in_progress' => 'In progress',
             'success' => 'Completed',
             'failed' => 'Rejected',
             'all' => 'Everything',
@@ -36,6 +37,10 @@
                 ),
                 'expected_by' => $expectedBy,
                 'overdue' => $o->status === 'pending' && $expectedBy && $expectedBy->isPast(),
+                'started' => $o->status === 'pending' && ($meta['work_state'] ?? null) === 'in_progress',
+                'state_label' => $o->status === 'pending'
+                    ? (($meta['work_state'] ?? null) === 'in_progress' ? 'IN PROGRESS' : 'WAITING')
+                    : strtoupper((string) $o->status),
             ];
         };
     @endphp
@@ -114,7 +119,7 @@
                                 @elseif($o->status === 'failed') bg-rose-50 text-rose-700
                                 @else bg-amber-50 text-amber-700
                                 @endif">
-                                {{ $o->status === 'pending' ? 'WAITING' : strtoupper($o->status) }}
+                                {{ $row['state_label'] }}
                             </span>
                         </div>
 
@@ -216,7 +221,7 @@
                                         @elseif($o->status === 'failed') bg-rose-50 text-rose-700
                                         @else bg-amber-50 text-amber-700
                                         @endif">
-                                        {{ $o->status === 'pending' ? 'WAITING' : strtoupper($o->status) }}
+                                        {{ $row['state_label'] }}
                                     </span>
                                 </td>
                                 <td class="p-4">
