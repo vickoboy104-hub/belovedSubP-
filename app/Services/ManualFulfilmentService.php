@@ -109,8 +109,7 @@ class ManualFulfilmentService
                         'inprocessing_error' => 'Inprocessing Error',
                         'still_being_process' => 'Enrollment is Still Being Process',
                     ], rules: ['required', 'in:new_enrollment,inprocessing_error,still_being_process'], column: 'Type'),
-                    self::field('tracking_id', 'Enter Tracking ID', rules: ['required', 'string', 'size:15', 'alpha_num'], hint: 'The 15-character tracking ID printed on your NIN enrolment slip, e.g. BTX947E60001020.', column: 'Tracking ID'),
-                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
+                    self::field('tracking_id', 'Enter Tracking ID', rules: ['required', 'string', 'max:15', 'alpha_num'], hint: 'The tracking ID printed on your NIN enrolment slip, up to 15 characters, e.g. BTX947E60001020.', column: 'Tracking ID'),
                 ],
             ],
 
@@ -137,12 +136,11 @@ class ManualFulfilmentService
                     ],
                 ],
                 'fields' => [
-                    self::field('tracking_id', 'Enter Tracking ID', rules: ['required', 'string', 'size:15', 'alpha_num'], hint: 'The 15-character tracking ID printed on your NIN enrolment slip.', column: 'Tracking'),
+                    self::field('tracking_id', 'Enter Tracking ID', rules: ['required', 'string', 'max:15', 'alpha_num'], hint: 'The tracking ID printed on your NIN enrolment slip, up to 15 characters.', column: 'Tracking'),
                     self::field('category', 'Select Category', type: 'select', options: [
                         'get_nin_slip' => 'TO GET NIN SLIP',
                         'get_nin_only' => 'TO GET NIN NUMBER ONLY',
                     ], rules: ['required', 'in:get_nin_slip,get_nin_only'], column: 'Type'),
-                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -219,7 +217,7 @@ class ManualFulfilmentService
                     self::field('fname', 'Enter New First Name', rules: ['required', 'string', 'max:100'], showIf: ['field' => 'field_to_modify', 'any' => ['name', 'name_dob', 'name_phone', 'name_email', 'name_address']], column: 'First name'),
                     self::field('lname', 'Enter New Last Name', rules: ['required', 'string', 'max:100'], showIf: ['field' => 'field_to_modify', 'any' => ['name', 'name_dob', 'name_phone', 'name_email', 'name_address']], column: 'Last name'),
                     self::field('middle_name', 'Enter New Middle Name, if you use one', rules: ['nullable', 'string', 'max:100'], showIf: ['field' => 'field_to_modify', 'any' => ['name', 'name_dob', 'name_phone', 'name_email', 'name_address']], column: 'Middle name'),
-                    self::field('phone', 'Enter New Phone Number', rules: ['required', 'string', 'max:20'], placeholder: '08031234567', showIf: ['field' => 'field_to_modify', 'any' => ['phone', 'name_phone', 'dob_phone']], column: 'New phone'),
+                    self::field('phone', 'Enter New Phone Number', rules: ['required', 'string', 'max:20', 'regex:/^\+?[0-9]+$/'], placeholder: '08031234567', hint: 'Digits only, optionally starting with +, as the network writes it.', showIf: ['field' => 'field_to_modify', 'any' => ['phone', 'name_phone', 'dob_phone']], column: 'New phone'),
                     self::field('email', 'Enter New Email Address', rules: ['required', 'email', 'max:255'], showIf: ['field' => 'field_to_modify', 'any' => ['email', 'name_email']], column: 'New email'),
                     self::field('address', 'Enter New Address', rules: ['required', 'string', 'max:255'], showIf: ['field' => 'field_to_modify', 'any' => ['address', 'name_address']], column: 'New address'),
                     self::field('date_of_birth', 'Enter New Date of Birth', type: 'date', rules: ['required', 'date'], showIf: ['field' => 'field_to_modify', 'any' => ['name_dob', 'dob_phone']], column: 'New DOB'),
@@ -229,7 +227,6 @@ class ManualFulfilmentService
                     // restate the new date here - it reads it from the paper.
                     self::field('attestation_no', 'Enter the Birth Attestation Number', rules: ['required', 'string', 'max:30'], placeholder: 'eg. SO1250325358849A', showIf: ['field' => 'field_to_modify', 'any' => ['dob']], column: 'Attestation'),
                     self::field('attestation_img', 'Upload the Birth Attestation', type: 'file', rules: ['required', 'file', 'mimes:jpg,jpeg,png', 'max:2048'], accept: '.jpg,.jpeg,.png', showIf: ['field' => 'field_to_modify', 'any' => ['dob']], hint: 'A clear photo or scan of the NIMC birth attestation, as jpg or png up to 2MB.', column: 'Attestation'),
-                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -246,7 +243,6 @@ class ManualFulfilmentService
                         'delink' => 'Delink my self service account',
                         'retrieve_email' => 'Retrieve the email on my self service account',
                     ], rules: ['required', 'in:delink,retrieve_email'], column: 'Type'),
-                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -264,10 +260,9 @@ class ManualFulfilmentService
                 'hidden_from_hub' => true,
                 'fields' => [
                     self::field('nin', 'Enter the NIN Number', rules: ['required', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, column: 'NIN'),
-                    self::field('tracking_id', 'Enter Tracking ID', rules: ['nullable', 'string', 'size:15', 'alpha_num'], column: 'Tracking ID'),
+                    self::field('tracking_id', 'Enter Tracking ID', rules: ['nullable', 'string', 'max:15', 'alpha_num'], column: 'Tracking ID'),
                     self::field('state', 'State of enrolment', rules: ['required', 'string', 'max:80']),
                     self::field('lga', 'LGA of enrolment', rules: ['nullable', 'string', 'max:80']),
-                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -291,7 +286,6 @@ class ManualFulfilmentService
                 ],
                 'fields' => [
                     self::field('bvn', 'Enter the BVN Number', rules: ['required', 'digits:11'], placeholder: self::BVN_PLACEHOLDER, hint: 'The 11-digit Bank Verification Number.', column: 'BVN'),
-                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -336,7 +330,6 @@ class ManualFulfilmentService
                         'premium_slip' => 'Premium NIN Slip',
                         'vnin_slip' => 'Vnin NIN Slip Sample',
                     ], rules: ['required', 'in:long_slip,standard_slip,premium_slip,vnin_slip'], column: 'Slip Type'),
-                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -370,7 +363,6 @@ class ManualFulfilmentService
                         'update_record' => 'Update Record(Modification Validation Name/Phone/Address except DOB)',
                     ], rules: ['required', 'in:no_record,update_record'], column: 'Type'),
                     self::field('nin', 'Enter the NIN Number', rules: ['required', 'digits:11'], placeholder: self::NIN_PLACEHOLDER, column: 'NIN'),
-                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -403,7 +395,6 @@ class ManualFulfilmentService
                     self::field('phone', 'Enter Phone Number', rules: ['required', 'string', 'max:20'], placeholder: '08031234567', showIf: ['field' => 'retrieve_type', 'any' => ['phone']], column: 'Phone'),
                     self::field('bms_no', 'Enter BMS Number', rules: ['required', 'string', 'max:100'], showIf: ['field' => 'retrieve_type', 'any' => ['bms']], column: 'BMS No'),
                     self::field('ticket_id', 'Enter Ticket ID', rules: ['required', 'string', 'max:120'], showIf: ['field' => 'retrieve_type', 'any' => ['bms']], column: 'Ticket'),
-                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -444,7 +435,6 @@ class ManualFulfilmentService
                     self::field('lastname', 'Last name', rules: ['nullable', 'string', 'max:120']),
                     self::field('dob', 'Date of birth', rules: ['nullable', 'string', 'max:20']),
                     self::field('gender', 'Gender', rules: ['nullable', 'string', 'max:20']),
-                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
 
@@ -463,7 +453,6 @@ class ManualFulfilmentService
                     self::field('firstname', 'First name', rules: ['nullable', 'string', 'max:120']),
                     self::field('lastname', 'Last name', rules: ['nullable', 'string', 'max:120']),
                     self::field('phone', 'Phone number', rules: ['nullable', 'string', 'max:20']),
-                    self::field('notes', 'Anything else we should know', type: 'textarea', rules: ['nullable', 'string', 'max:1000']),
                 ],
             ],
         ];

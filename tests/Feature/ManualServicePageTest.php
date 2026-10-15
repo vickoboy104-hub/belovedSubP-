@@ -70,14 +70,16 @@ class ManualServicePageTest extends TestCase
     {
         $manual = app(ManualFulfilmentService::class);
 
-        // Read off the JH Tech screens themselves. 'notes' is ours, not theirs, and
-        // is always optional; anything else in here must be a field the provider
-        // shows, because every extra box is one more reason for a customer to stop.
+        // Read off the JH Tech screens themselves. Nothing in here may be a box the
+        // provider does not show: every extra question is one more reason for a
+        // customer to stop, and the free-text "anything else" field was removed on
+        // 2026-10-15 because no provider form asks one and the queue is worked from
+        // the named answers anyway.
         $contract = [
-            'ipe_clearance' => ['ipe_type', 'tracking_id', 'notes'],
-            'nin_personalization' => ['tracking_id', 'category', 'notes'],
-            'nin_slip_print' => ['nin', 'slip_type', 'notes'],
-            'bvn_print' => ['bvn', 'notes'],
+            'ipe_clearance' => ['ipe_type', 'tracking_id'],
+            'nin_personalization' => ['tracking_id', 'category'],
+            'nin_slip_print' => ['nin', 'slip_type'],
+            'bvn_print' => ['bvn'],
         ];
 
         foreach ($contract as $slug => $expected) {
@@ -107,9 +109,9 @@ class ManualServicePageTest extends TestCase
             'nin_modification' => [
                 'nin', 'email_choice', 'link_email', 'field_to_modify',
                 'fname', 'lname', 'middle_name', 'phone', 'email', 'address',
-                'date_of_birth', 'attestation_no', 'attestation_img', 'notes',
+                'date_of_birth', 'attestation_no', 'attestation_img',
             ],
-            'bvn_retrieve' => ['retrieve_type', 'phone', 'bms_no', 'ticket_id', 'notes'],
+            'bvn_retrieve' => ['retrieve_type', 'phone', 'bms_no', 'ticket_id'],
         ];
 
         foreach ($branchContract as $slug => $expected) {
