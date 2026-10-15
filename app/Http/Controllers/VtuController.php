@@ -2046,7 +2046,7 @@ class VtuController extends Controller
         $ok = $this->ninApi->isSuccessful($response);
         $message = $this->ninApi->message($response);
         $friendlyMessage = $ok ? $message : $this->friendlyNinProviderFailureMessage('verification', $response, $message);
-        $intentHeld = $ok ? [] : $this->intentAfterProviderFailure((int) $user->id, $intent, $response);
+        $intentHeld = $ok ? [] : $this->intentAfterProviderFailure((int) $user->id, $intent, $response, $friendlyMessage);
 
         if ($intentHeld !== []) {
             $friendlyMessage = $intentHeld['message'];
@@ -2445,7 +2445,7 @@ class VtuController extends Controller
             $normalized = $this->normalizeNinPayload($providerData);
         }
 
-        $intentHeld = $ok ? [] : $this->intentAfterProviderFailure((int) $user->id, $intent, $response);
+        $intentHeld = $ok ? [] : $this->intentAfterProviderFailure((int) $user->id, $intent, $response, $message);
 
         $orderId = null;
         $issuedAt = now();
@@ -2749,7 +2749,7 @@ class VtuController extends Controller
         $normalized = $this->normalizeBvnPayload($providerData);
 
         if (!$ok) {
-            $held = $this->intentAfterProviderFailure((int) $user->id, $intent, $response);
+            $held = $this->intentAfterProviderFailure((int) $user->id, $intent, $response, $message);
 
             return response()->json(array_merge([
                 'ok' => false,
@@ -2944,7 +2944,12 @@ class VtuController extends Controller
 
             $response = $this->bvnApi->verify($bvn);
             if (!$this->bvnApi->isSuccessful($response)) {
-                $held = $this->intentAfterProviderFailure((int) $user->id, $intent, $response);
+                $held = $this->intentAfterProviderFailure(
+                    (int) $user->id,
+                    $intent,
+                    $response,
+                    $this->bvnApi->message($response),
+                );
 
                 return response()->json(array_merge([
                     'ok' => false,
@@ -4285,20 +4290,20 @@ class VtuController extends Controller
         if ($this->ninProviderWalletIssueDetected($response)) {
             $this->notifyAdminsAboutNinProviderIssue($action, $response, 'wallet');
 
-            return 'NIN service is temporarily unavailable right now. Please try again shortly or contact support.';
+            return 'NIN service is temporarily unavailable right now. Reload the page and try again shortly, or contact support.';
         }
 
         $message = trim((string) ($fallbackMessage ?: $this->ninApi->message($response)));
 
         // The provider answers this way when the service behind it is down or
-        // busy. Nothing is charged, so the customer is told what else works
-        // rather than being left with a dead end, and the admin is told whose
-        // fault it is.
+        // busy. Their answer still counts as an ask we may be billed for, so the way
+        // forward is a reloaded page rather than the same request sent again; the
+        // alternatives are spelled out because a customer in this spot needs one.
         if ($message !== '' && $this->ninApi->isServiceDown($message)) {
             $this->notifyAdminsAboutNinProviderIssue($action, $response, 'outage');
 
-            return 'Our NIN provider is reporting a network problem with this check, so nothing was charged. '
-                .'Try again in a few minutes, or verify with your 11-digit NIN or the phone number on your NIN '
+            return 'Our NIN provider is reporting a network problem with this check, and nothing has been charged to your wallet. '
+                .'Reload the page and try again in a few minutes, or verify with your 11-digit NIN or the phone number on your NIN '
                 .'instead of name and date of birth.';
         }
 
@@ -4381,7 +4386,8 @@ class VtuController extends Controller
             ],
             'outage' => [
                 'title' => 'NIN provider is refusing requests',
-                'message' => 'A NIN '.$action.' request came back with the provider reporting its own service down or busy. Nothing was charged. If this keeps happening, raise it with the provider.',
+                'message' => 'A NIN '.$action.' request came back with the provider reporting its own service down or busy. '
+                    .'The customer was not charged and this site will not repeat the ask. If this keeps happening, raise it with the provider.',
             ],
         ];
         $alert = $alerts[$kind] ?? $alerts['outage'];
@@ -4604,40 +4610,62 @@ class VtuController extends Controller
     /**
      * What a failed lookup leaves behind.
      *
-     * A provider that answered - even to say the record is not there - has given this
-     * site a readable answer and taken nothing it might have to take twice, so the
-     * intention is handed back and the customer can correct their details and try
-     * again on the same page. A provider that was never reached has possibly taken its
-     * money already, so the intention stays spent: a second copy of that request would
-     * be a second bill, and the customer is told to start a fresh request instead.
+     * Nothing that reached the provider is handed back. Whether ConfirmIdent bills for
+     * an answer of "no" is a fact about our account with them and not about the body
+     * they send back - their own wording arrives the same way whether the record was
+     * found or refused - so every ask that may have been heard keeps its intention
+     * spent, and a customer who wants to try again does so from a freshly loaded page,
+     * with a fresh intention they chose. Only an ask this site never sent (no key, an
+     * endpoint left blank) is handed back, and then the same page may be used again.
      *
      * @param  array<string, mixed>  $response
      * @return array<string, mixed>  the keys to add to the answer
      */
-    private function intentAfterProviderFailure(int $userId, string $intent, array $response): array
+    private function intentAfterProviderFailure(int $userId, string $intent, array $response, string $providerMessage = ''): array
     {
-        if (!$this->providerAnswerUncertain($response)) {
+        if ($this->providerNeverAsked($response)) {
             PurchaseIntent::release($userId, $intent);
 
             return [];
         }
 
+        if ($this->providerAnswerUncertain($response)) {
+            return [
+                'intent_held' => true,
+                'message' => PurchaseIntent::UNCERTAIN_WORDS,
+            ];
+        }
+
         return [
             'intent_held' => true,
-            'message' => PurchaseIntent::UNCERTAIN_WORDS,
+            'message' => trim($providerMessage.' '.PurchaseIntent::ANSWERED_WORDS),
         ];
     }
 
     /**
+     * Whether the ask provably never left this site.
+     *
+     * Both provider clients mark the refusals they write themselves, before a request
+     * is built. Anything else - a connection that died, a status their server wrote, a
+     * clean "no record" - is an ask that may have been heard, and is treated as one.
+     *
+     * @param  array<string, mixed>  $response
+     */
+    private function providerNeverAsked(array $response): bool
+    {
+        return ($response['provider_asked'] ?? true) === false;
+    }
+
+    /**
      * Whether the provider gave no readable answer at all, as opposed to an unwelcome
-     * one.
+     * one. Only the wording depends on this now: both cases hold the intention, and a
+     * customer who never heard from the service is told something different from one
+     * whose number was refused.
      *
      * Both provider clients write the HTTP status only when the provider actually
      * answered, so a failure with no status behind it is one that may never have been
      * heard, and a status of 500 or worse is the provider's own collapse halfway
-     * through a request it may still have taken. Anything else - a refused number, an
-     * exhausted provider wallet, a service in maintenance - is a readable "no" that
-     * billed nobody and may be tried again.
+     * through a request it may still have taken.
      *
      * @param  array<string, mixed>  $response
      */

@@ -54,6 +54,7 @@ class BvnApi
             return [
                 'success' => false,
                 'message' => 'BVN retrieve-by-phone endpoint is not configured.',
+                'provider_asked' => false,
             ];
         }
 
@@ -66,6 +67,7 @@ class BvnApi
             return [
                 'success' => false,
                 'message' => 'BVN retrieve-by-BMS endpoint is not configured.',
+                'provider_asked' => false,
             ];
         }
 
@@ -87,6 +89,7 @@ class BvnApi
             return [
                 'success' => false,
                 'message' => 'BVN print endpoint is not configured.',
+                'provider_asked' => false,
             ];
         }
 
@@ -154,6 +157,7 @@ class BvnApi
             return [
                 'success' => false,
                 'message' => 'BVN API key is not configured.',
+                'provider_asked' => false,
             ];
         }
 
@@ -161,6 +165,7 @@ class BvnApi
             return [
                 'success' => false,
                 'message' => 'BVN endpoint is not configured.',
+                'provider_asked' => false,
             ];
         }
 

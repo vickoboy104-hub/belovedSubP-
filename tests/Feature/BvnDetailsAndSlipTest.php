@@ -187,13 +187,23 @@ class BvnDetailsAndSlipTest extends TestCase
             ),
         ]);
 
-        $this->actingAs($user)
-            ->postJson('/vtu/bvn/print', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => self::BVN])
-            ->assertStatus(422)
-            ->assertJson(['message' => 'Provider wallet depleted']);
+        $intent = PurchaseIntent::mint();
+
+        $response = $this->actingAs($user)
+            ->postJson('/vtu/bvn/print', [PurchaseIntent::FIELD => $intent, 'bvn' => self::BVN]);
+
+        $response->assertStatus(422)->assertJson(['ok' => false, 'intent_held' => true]);
+
+        // Their empty wallet is their own failure and the customer pays nothing for it.
+        // What that answer does not say is whether the attempt was billed to us, so the
+        // request is held and the way forward is a reloaded page rather than the same
+        // ask sent a second time.
+        $this->assertStringStartsWith('Provider wallet depleted', (string) $response->json('message'));
 
         $this->assertSame(500_000, $this->balance($user));
         $this->assertSame(0, Order::query()->count());
+        $this->assertTrue(PurchaseIntent::isSpent((int) $user->id, $intent));
+        Http::assertSentCount(1);
     }
 
     public function test_the_hand_run_switch_sends_a_slip_to_the_queue_without_calling_the_provider(): void

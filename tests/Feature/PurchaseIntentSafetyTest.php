@@ -336,7 +336,16 @@ class PurchaseIntentSafetyTest extends TestCase
         $this->assertSame([true], $spentAtTheMomentOfAsking);
     }
 
-    public function test_a_lookup_the_provider_answered_is_free_to_be_tried_again_with_the_same_intention(): void
+    /**
+     * What an answer of "no" costs is a fact about this site's account with the
+     * verification service, and no response body states it: a refused number and a
+     * billed one arrive in the same shape. Until their own transaction report says an
+     * unsuccessful answer is free, anything that reached them is treated as something
+     * they may charge for, so the intention stays spent. A customer who mistyped a
+     * digit is not stranded - the reloaded page carries a fresh intention, which is a
+     * second attempt they chose rather than one their browser made behind their back.
+     */
+    public function test_a_lookup_answered_with_a_no_holds_its_request_until_a_no_is_known_to_be_free(): void
     {
         $user = $this->memberWithBalance(1_000_000);
         $this->giveTheProviderAKey();
@@ -359,19 +368,62 @@ class PurchaseIntentSafetyTest extends TestCase
 
         $payload = ['bvn' => self::BVN, PurchaseIntent::FIELD => 'intention-0016'];
 
-        // A readable "no" has billed nobody, so the customer who mistyped a digit may
-        // correct it and send the same request again without reloading the page.
-        $this->actingAs($user)->postJson('/vtu/bvn/verify', $payload)
-            ->assertStatus(422)
-            ->assertJson(['ok' => false, 'message' => 'This BVN is not recognised']);
+        $refused = $this->actingAs($user)->postJson('/vtu/bvn/verify', $payload);
 
+        $refused->assertStatus(422)->assertJson(['ok' => false, 'intent_held' => true]);
+
+        // Their reason still leads, because it is the customer's to fix; the sentence
+        // after it says this form's request is used up.
+        $this->assertStringStartsWith('This BVN is not recognised', (string) $refused->json('message'));
+        $this->assertStringContainsString(PurchaseIntent::ANSWERED_WORDS, (string) $refused->json('message'));
+
+        $this->assertTrue(PurchaseIntent::isSpent((int) $user->id, 'intention-0016'));
+        $this->assertSame(1_000_000, $this->balance($user));
+        $this->assertSame(0, $this->ordersOf($user));
+        $this->assertSame(0, $this->movements($user));
+
+        // A copy of the refused request - the double-tap, the browser resending what it
+        // believes timed out - is turned away without asking a second time.
         $this->actingAs($user)->postJson('/vtu/bvn/verify', $payload)
-            ->assertOk()
-            ->assertJson(['ok' => true]);
+            ->assertStatus(409)
+            ->assertJson(['ok' => false, 'duplicate' => true]);
+
+        $this->assertSame(1, $asks, 'The refused request was asked of the provider twice.');
+
+        $this->actingAs($user)->postJson('/vtu/bvn/verify', [
+            'bvn' => self::BVN,
+            PurchaseIntent::FIELD => 'intention-0016-fresh-page',
+        ])->assertOk()->assertJson(['ok' => true]);
 
         $this->assertSame(2, $asks);
         $this->assertSame(1, $this->ordersOf($user));
         $this->assertSame(1, $this->movements($user));
+    }
+
+    public function test_an_ask_this_site_refused_before_the_provider_hands_its_intention_back(): void
+    {
+        $user = $this->memberWithBalance(1_000_000);
+
+        // The mirror of the rule above. With no key configured this site answers the
+        // request itself, without ever building one, so nobody anywhere can have been
+        // billed for it - and the intention goes back to the form that carried it.
+        $this->actingAs($user)->postJson('/vtu/nin/search', [
+            'search_type' => 'by_nin',
+            'nin' => self::NIN,
+            PurchaseIntent::FIELD => 'intention-0021',
+        ])->assertStatus(422)->assertJson(['ok' => false]);
+
+        Http::assertNotSent(fn () => true);
+        $this->assertFalse(PurchaseIntent::isSpent((int) $user->id, 'intention-0021'));
+        $this->assertSame(1_000_000, $this->balance($user));
+        $this->assertSame(0, $this->ordersOf($user));
+
+        // Taken again is the whole point: this is the one failure that leaves the
+        // customer's own page able to buy what it came here for.
+        $this->assertTrue(
+            PurchaseIntent::claim((int) $user->id, 'intention-0021'),
+            'An ask this site never sent kept the intention spent anyway.',
+        );
     }
 
     public function test_a_provider_that_may_have_taken_the_request_leaves_it_spent_and_the_wallet_untouched(): void

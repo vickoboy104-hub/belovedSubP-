@@ -84,13 +84,23 @@ class ProviderConfigurationTest extends TestCase
             ),
         ]);
 
+        $intent = PurchaseIntent::mint();
+
         $response = $this
             ->actingAs($user)
-            ->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => PurchaseIntent::mint(), 'bvn' => '12345678901']);
+            ->postJson('/vtu/bvn/verify', [PurchaseIntent::FIELD => $intent, 'bvn' => '12345678901']);
 
         $response
             ->assertStatus(422)
-            ->assertJson(['ok' => false, 'message' => 'Invalid BVN number']);
+            ->assertJson(['ok' => false, 'intent_held' => true]);
+
+        // The provider's own reason still leads, but the request is held: whether their
+        // account bills for an answer of "no" is not written in the answer, so this
+        // form's ask is treated as one they may charge for and a reload is the way to
+        // try again.
+        $this->assertStringStartsWith('Invalid BVN number', (string) $response->json('message'));
+        $this->assertStringContainsString(PurchaseIntent::ANSWERED_WORDS, (string) $response->json('message'));
+        $this->assertTrue(PurchaseIntent::isSpent((int) $user->id, $intent));
 
         Log::shouldHaveReceived('warning')->once();
 
@@ -415,10 +425,16 @@ class ProviderConfigurationTest extends TestCase
 
         $response->assertStatus(422)->assertJson([
             'ok' => false,
-            'message' => 'Our NIN provider is reporting a network problem with this check, so nothing was charged. '
-                .'Try again in a few minutes, or verify with your 11-digit NIN or the phone number on your NIN '
-                .'instead of name and date of birth.',
+            'intent_held' => true,
         ]);
+
+        // Their outage is not our failure and the customer's wallet pays for neither;
+        // what this site will not claim is that the provider's own answer was free, so
+        // the way forward it offers is a reloaded page, not the same request twice.
+        $message = (string) $response->json('message');
+        $this->assertStringContainsString('reporting a network problem with this check, and nothing has been charged to your wallet', $message);
+        $this->assertStringContainsString('Reload the page and try again in a few minutes', $message);
+        $this->assertStringContainsString(PurchaseIntent::ANSWERED_WORDS, $message);
 
         $this->assertSame(100_000, $this->balance($user));
         $this->assertSame(0, Order::query()->count());

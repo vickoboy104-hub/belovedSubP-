@@ -132,7 +132,7 @@ class GsubzApi
                 'api' => $this->apiKey,
             ]);
 
-            $json = $this->client()
+            $json = $this->billableClient()
                 ->asForm()
                 ->post($url, $body)
                 ->throw()
@@ -425,6 +425,24 @@ class GsubzApi
     {
         return Http::timeout(30)
             ->retry(2, 300)
+            ->acceptJson()
+            ->withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+            ]);
+    }
+
+    /**
+     * The one client that may cost us money twice, so it never sends twice.
+     *
+     * A timeout or a 500 leaves it unknown whether the purchase went through rather
+     * than proving that it did not, and a second send would be a second chargeable
+     * order. What settles that uncertainty is verify(), which asks about the reference
+     * this site already holds - so the read-only calls above keep their retries and
+     * this one has none.
+     */
+    private function billableClient()
+    {
+        return Http::timeout(30)
             ->acceptJson()
             ->withHeaders([
                 'Authorization' => 'Bearer ' . $this->apiKey,

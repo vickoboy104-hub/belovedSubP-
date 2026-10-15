@@ -405,8 +405,8 @@
                 // already bought instead of buying twice. A refusal keeps it for the
                 // same reason: reloading the page is how a deliberate second purchase
                 // begins. An answer that says intent_held keeps it too, because the
-                // provider was never reached and a second copy of that request would
-                // be a second bill.
+                // verification service may have billed us for the attempt whatever its
+                // answer was, and a second copy of that request would be a second bill.
                 const answered = options?.payload
                     && typeof options.payload.ok === 'boolean'
                     && options.payload.duplicate !== true

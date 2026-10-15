@@ -81,6 +81,7 @@ class NinApi
                 'success' => false,
                 'message' => 'NIN validation endpoint is not configured.',
                 'data' => [],
+                'provider_asked' => false,
             ];
         }
 
@@ -93,6 +94,7 @@ class NinApi
             return [
                 'success' => false,
                 'message' => 'NIN slip print endpoint is not configured.',
+                'provider_asked' => false,
             ];
         }
 
@@ -106,6 +108,7 @@ class NinApi
                 'success' => false,
                 'message' => 'NIN slip reports endpoint is not configured.',
                 'data' => [],
+                'provider_asked' => false,
             ];
         }
 
@@ -169,6 +172,7 @@ class NinApi
             return [
                 'success' => false,
                 'message' => 'NIN API key is not configured.',
+                'provider_asked' => false,
             ];
         }
 

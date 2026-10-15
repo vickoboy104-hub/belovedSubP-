@@ -45,6 +45,16 @@ class PurchaseIntent
         .'and if you are charged for it, tell us and it will be put right.';
 
     /**
+     * What a customer is told when the verification service answered, but answered
+     * without a record. Their own reason is kept in front of these words, because the
+     * reason is theirs to fix; what this site cannot promise is that a failed answer
+     * was free, so the request behind this form is treated as spent.
+     */
+    public const ANSWERED_WORDS = 'The verification service answered this request, and we cannot tell from an answer whether it '
+        .'charged us for the attempt. Nothing has been charged to your wallet. Reload the page to start a fresh request '
+        .'instead of sending this one again, so a second attempt is one you chose.';
+
+    /**
      * A fresh identity, minted for a form about to be shown to somebody.
      */
     public static function mint(): string
@@ -113,9 +123,11 @@ class PurchaseIntent
     /**
      * Hand an identity back so the same request can be made again.
      *
-     * Only for the callers that know nothing was spent on it: a request the provider
-     * answered, and a request that never got as far as the provider, both left this
-     * site owing nobody anything.
+     * Only for the asks this site never sent - a key missing, an endpoint left blank -
+     * since those cannot have cost anything. What the provider charges for an
+     * unsuccessful answer is not written in any response body, so an ask that may have
+     * reached them keeps its identity spent until their own account report says an
+     * answer of "no" is free.
      */
     public static function release(int $userId, string $token): void
     {
