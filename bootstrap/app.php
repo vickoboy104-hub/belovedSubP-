@@ -16,6 +16,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withSchedule(function (Illuminate\Console\Scheduling\Schedule $schedule): void {
         $schedule->command('prices:sync')->hourly()->withoutOverlapping();
         $schedule->command('wallet:sync-deposits')->everyFiveMinutes()->withoutOverlapping();
+
+        // A request that died between taking the money and filing the paper leaves
+        // the customer paid and the agent short of the document. This is the only
+        // thing that closes that gap on its own, so it runs often and never twice
+        // at once.
+        $schedule->command('manual:recover-documents')->everyFiveMinutes()->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([

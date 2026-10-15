@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\DocumentFiling;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\Wallet;
@@ -83,6 +84,12 @@ class ManualOrdersController extends Controller
             });
         }
 
+        // A request the customer paid for and the agent cannot work because its
+        // paper has not landed is the one shape on this queue worth its own view.
+        if ((string) $request->input('documents', '') === 'short') {
+            $query = $this->onlyShortOfPaper($query);
+        }
+
         $counts = [
             'pending' => $this->manualServices->waitingQuery()->count(),
             'in_progress' => $this->manualServices->waitingQuery()
@@ -91,6 +98,8 @@ class ManualOrdersController extends Controller
             'success' => $this->manualServices->queueQuery()->where('status', 'success')->count(),
             'failed' => $this->manualServices->queueQuery()->where('status', 'failed')->count(),
             'all' => $this->manualServices->queueQuery()->count(),
+            // Paid requests the queue is showing without their paper attached.
+            'short_of_paper' => $this->onlyShortOfPaper($this->manualServices->queueQuery())->count(),
         ];
 
         // So a service the admin is clearing out can be seen from the filter itself.
@@ -109,6 +118,17 @@ class ManualOrdersController extends Controller
             'activeStatus' => $status,
             'activeService' => $slug,
         ]);
+    }
+
+    /**
+     * The paid requests that are still short of the documents they paid for -
+     * either still on their way, or gone for good and waiting for a person.
+     */
+    private function onlyShortOfPaper(Builder $query): Builder
+    {
+        return $query->whereIn('orders.id', DocumentFiling::query()
+            ->whereIn('state', [DocumentFiling::AWAITING, DocumentFiling::LOST])
+            ->pluck('order_id'));
     }
 
     public function show(Request $request, int $order)
@@ -135,6 +155,9 @@ class ManualOrdersController extends Controller
                 ? $this->nextWaitingRequest($manualOrder->id)
                 : null,
             'waitingCount' => $this->manualServices->waitingCount(),
+            // The paper the customer paid for, when a request is short of it. An
+            // agent has to see this beside the documents, not dig for it.
+            'filing' => DocumentFiling::query()->where('order_id', $manualOrder->id)->first(),
             'overrideOver' => $over === null ? null : [
                 'name' => $this->claimNames([$over])[$over] ?? 'another agent',
                 'waiting' => $manualOrder->status === 'pending',

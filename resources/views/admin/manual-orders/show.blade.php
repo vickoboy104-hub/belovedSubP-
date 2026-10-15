@@ -127,6 +127,39 @@
                             @endforeach
                         </div>
                     @endif
+
+                    @if($filing !== null && $filing->state !== \App\Models\DocumentFiling::FILED)
+                        @if($filing->state === \App\Models\DocumentFiling::LOST)
+                            <div class="mt-6 rounded-[18px] border border-slate-200 bg-rose-50 p-4">
+                                <h3 class="text-base font-extrabold text-rose-800">The customer paid, and this document never reached the order</h3>
+                                <p class="mt-1 text-sm text-slate-500">
+                                    The money has been taken and no refund has been booked. Ask the customer to send
+                                    the document again, or reject the request to return the money. Do not mark this
+                                    request complete while its paper is missing.
+                                </p>
+                            </div>
+                        @elseif($filing->state === \App\Models\DocumentFiling::ABANDONED)
+                            <div class="mt-6 rounded-[18px] border border-slate-200 bg-slate-50 p-4">
+                                <h3 class="text-base font-extrabold text-slate-900">The document was thrown away when this request was reversed</h3>
+                                <p class="mt-1 text-sm text-slate-500">
+                                    The charge was returned to the customer's wallet, so the held paper was deleted.
+                                    Nothing here needs filing.
+                                </p>
+                            </div>
+                        @else
+                            <div class="mt-6 rounded-[18px] border border-amber-200 bg-amber-50 p-4">
+                                <h3 class="text-base font-extrabold text-amber-800">Paid, and the document is still being attached</h3>
+                                <p class="mt-1 text-sm text-slate-500">
+                                    A scheduled recovery files the customer's paper onto this order by itself. Keep
+                                    working the request only once it appears above.
+                                </p>
+                            </div>
+                        @endif
+
+                        @if(!empty($filing->last_error))
+                            <p class="mt-2 break-words text-xs text-slate-500">{{ $filing->last_error }} (pass {{ $filing->attempts }})</p>
+                        @endif
+                    @endif
                 </section>
 
                 @if($order->status === 'success')

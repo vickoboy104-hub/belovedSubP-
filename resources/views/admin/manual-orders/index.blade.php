@@ -78,6 +78,22 @@
             </section>
         @endif
 
+        @if(($counts['short_of_paper'] ?? 0) > 0)
+            <section class="app-note-card is-critical">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <span class="app-flag app-flag-critical">Paper not attached</span>
+                        <p class="mt-2 text-sm leading-6">
+                            {{ $counts['short_of_paper'] }} paid {{ $counts['short_of_paper'] === 1 ? 'request has' : 'requests have' }} no document on them yet. A recovery run attaches what it can find; the rest need the customer chased or the money returned.
+                        </p>
+                    </div>
+                    <a href="{{ route('admin.manual-orders.index', ['documents' => 'short']) }}" class="btn-danger shrink-0">
+                        See the short requests
+                    </a>
+                </div>
+            </section>
+        @endif
+
         <section class="app-section p-4 sm:p-6">
             <form method="GET" class="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <input type="hidden" name="status" value="{{ $activeStatus }}">

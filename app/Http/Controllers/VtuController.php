@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\DuplicatePurchaseIntent;
+use App\Models\DocumentFiling;
 use App\Models\NinVerificationCache;
 use App\Models\Order;
 use App\Models\Service;
@@ -3611,7 +3612,7 @@ class VtuController extends Controller
         // agent can work, so it must never be a request somebody has paid for -
         // and a request refused here has taken no money and left nothing behind.
         $token = $this->documents->token();
-        $this->documents->pruneHolding();
+        $this->documents->pruneHolding(60, DocumentFiling::heldTokens());
         [$staged, $undelivered] = $this->stageManualUploads($service, $request, $submitted, $token);
 
         if ($undelivered !== null) {
@@ -3633,6 +3634,8 @@ class VtuController extends Controller
                 customerRef: $customerRef,
                 requestPrefix: 'MANUAL',
                 intent: $intent,
+                documents: $staged,
+                documentsToken: $token,
             );
         } catch (DuplicatePurchaseIntent $e) {
             // The paper this attempt held is not needed by anyone: the request that
@@ -3666,12 +3669,21 @@ class VtuController extends Controller
             }
 
             $this->documents->discard(token: $token);
+
+            // Nothing is left for anybody to recover: the paper is on the order
+            // that paid for it, and the holding record closes with it.
+            $this->settleFiling((int) $order->id, DocumentFiling::FILED);
         } catch (\Throwable $e) {
             Log::error('Manual identity service document filing failed', [
                 'service' => $service,
                 'order_id' => $order->id,
                 'error' => $e->getMessage(),
             ]);
+
+            // Closed before the folders are emptied, so a recovery run that is
+            // already looking at this order finds a door shut, not a half-made
+            // request it could file onto a wallet that is about to be repaid.
+            $this->settleFiling((int) $order->id, DocumentFiling::ABANDONED, $e->getMessage());
 
             // A closed order must own no documents at all. Naming the ones this
             // request recorded would miss the dangerous one: a file that really
@@ -3765,6 +3777,32 @@ class VtuController extends Controller
         }
 
         return $uploads;
+    }
+
+    /**
+     * Close the holding record a request wrote when it took the money.
+     *
+     * A filing that reached the order is shut so no recovery run is sent looking
+     * for paper that is already safe, and one the request is undoing itself is
+     * shut before the folders are emptied, so recovery can never file documents
+     * onto a wallet that is on its way to being repaid.
+     */
+    private function settleFiling(int $orderId, string $state, ?string $error = null): void
+    {
+        $filing = DocumentFiling::query()->where('order_id', $orderId)->first();
+
+        if ($filing === null) {
+            return;
+        }
+
+        $filing->state = $state;
+        $filing->last_error = $error === null ? null : mb_substr($error, 0, 500);
+
+        if ($state === DocumentFiling::FILED) {
+            $filing->manifest = [];
+        }
+
+        $filing->save();
     }
 
     /**
@@ -3902,6 +3940,8 @@ class VtuController extends Controller
         array $extraMeta = [],
         ?array $pricing = null,
         ?string $intent = null,
+        array $documents = [],
+        string $documentsToken = '',
     ): Order {
         $basePriceNaira = $pricing['base_naira'] ?? $this->manualServices->priceNaira($slug, $submitted);
         $markupNaira = $pricing['markup_naira'] ?? $this->manualServices->markupNaira($slug);
@@ -3949,6 +3989,20 @@ class VtuController extends Controller
                     'requestID' => $requestId,
                 ], $extraMeta),
             ]);
+
+            // The list of paper this order paid for is written beside the order,
+            // inside the same transaction as the debit. From this statement on, a
+            // request does not need the browser, the process or even the disk to
+            // still be standing for somebody to know which folder holds which
+            // order's documents.
+            if ($documents !== [] && $documentsToken !== '') {
+                DocumentFiling::create([
+                    'order_id' => $order->id,
+                    'token' => $documentsToken,
+                    'manifest' => array_values($documents),
+                    'state' => DocumentFiling::AWAITING,
+                ]);
+            }
 
             DB::commit();
         } catch (\Throwable $e) {

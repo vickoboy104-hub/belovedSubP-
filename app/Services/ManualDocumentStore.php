@@ -110,21 +110,60 @@ class ManualDocumentStore
      * staged document carries the customer's identity data, so it must not sit
      * around unclaimed - and this runs before any money moves, so a failure
      * here is never allowed to break a submission.
+     *
+     * Age alone does not make a folder unclaimed. A request whose payment is
+     * already booked but whose filing was interrupted still owns the paper in it,
+     * so the caller names the folders a paid order is still waiting on and those
+     * are left exactly where they are.
+     *
+     * @param  list<string>  $stillNeeded
      */
-    public function pruneHolding(int $olderThanMinutes = 60): void
+    public function pruneHolding(int $olderThanMinutes = 60, array $stillNeeded = []): void
     {
         try {
             $disk = Storage::disk(self::DISK);
             $cutoff = time() - ($olderThanMinutes * 60);
+            $needed = array_flip($stillNeeded);
 
             foreach ($disk->directories(self::PENDING) as $directory) {
-                if ($disk->lastModified($directory) < $cutoff) {
-                    $disk->deleteDirectory($directory);
+                if ($disk->lastModified($directory) >= $cutoff) {
+                    continue;
                 }
+
+                if (isset($needed[basename($directory)])) {
+                    continue;
+                }
+
+                $disk->deleteDirectory($directory);
             }
         } catch (\Throwable) {
             //
         }
+    }
+
+    /** Whether held paper is still where the manifest says it is. */
+    public function isHeld(string $path): bool
+    {
+        return Storage::disk(self::DISK)->exists($path);
+    }
+
+    /**
+     * Paper that already reached the order's folder without the order being told.
+     *
+     * A move cannot be rolled back with the database: a request that died between
+     * the two leaves the file at its destination and the record still pointing at
+     * the holding folder. Recovery has to be able to find that copy, or it would
+     * call paid-for paper lost while it is sitting in the right place.
+     */
+    public function alreadyFiled(int $orderId, string $heldPath): ?string
+    {
+        if ($heldPath === '') {
+            return null;
+        }
+
+        $target = self::FILED.'/'.$orderId.'/'.basename($heldPath);
+
+        return Storage::disk(self::DISK)->exists($target) ? $target : null;
     }
 
     private function extension(UploadedFile $file): string
