@@ -62,6 +62,7 @@
 
             <form id="ninServiceForm" class="space-y-4" method="POST">
                 @csrf
+                <x-purchase-intent />
 
                 <div>
                     <label class="text-sm font-bold text-slate-700">Verification Type</label>
@@ -615,6 +616,15 @@
                     formData.append('_token', csrfToken);
                 }
 
+                // This request is assembled field by field instead of being read off
+                // the form, so the intention the page was shown with has to be put in
+                // by hand. Left out, the server has nothing to tell a second tap of a
+                // double-click apart from a customer buying a second verification.
+                const intentToken = window.purchaseIntentToken?.(form) || '';
+                if (intentToken) {
+                    formData.append('intent_token', intentToken);
+                }
+
                 formData.append('verification_type', lookup?.verification_type || 'by_nin');
 
                 if ((lookup?.verification_type || 'by_nin') === 'by_phone') {
@@ -954,6 +964,13 @@
                 try {
                     const formData = new FormData();
                     formData.append('_token', form.querySelector('input[name="_token"]').value);
+                    // A slip is a purchase of its own, so it carries the intention the
+                    // print button was pressed under and refuses a second charge when
+                    // that same intention arrives again.
+                    const slipIntent = window.purchaseIntentToken?.(form) || '';
+                    if (slipIntent) {
+                        formData.append('intent_token', slipIntent);
+                    }
                     formData.append('slip_type', slipType);
                     formData.append('verification_order_id', String(verifiedState.orderId));
 
@@ -965,6 +982,13 @@
 
                     const data = await response.json().catch(() => ({}));
                     const ok = response.ok && data && data.ok === true;
+
+                    // A fresh intention only when this site wrote the answer: a slip
+                    // that was refused, or a body that never arrived whole, leaves the
+                    // intention this request carried so a retry cannot buy a second one.
+                    if (typeof data?.ok === 'boolean' && data.duplicate !== true) {
+                        window.refreshPurchaseIntent?.(form);
+                    }
 
                     if (!ok) {
                         popup.close();
@@ -1039,6 +1063,17 @@
 
                     const data = await response.json().catch(() => ({}));
                     const ok = response.ok && data && data.ok === true;
+
+                    // The intention this request carried has now been answered for,
+                    // so the form is given a fresh one and the next deliberate
+                    // purchase can go through. Two answers spent nothing: a refusal,
+                    // where the first request already holds this intention, and a body
+                    // this site never wrote, where it cannot be known. Both keep the
+                    // intention, so a retry is refused rather than bought twice.
+                    if (typeof data?.ok === 'boolean' && data.duplicate !== true) {
+                        window.refreshPurchaseIntent?.(form);
+                    }
+
                     const message = ok
                         ? (data.message || 'Verification successful.')
                         : getErrorMessage(response, data, 'Verification failed. Please check your details.');

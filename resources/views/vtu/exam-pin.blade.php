@@ -32,6 +32,7 @@
 
             <form id="examPurchaseForm" method="POST" action="{{ route('vtu.exam.buy') }}" class="space-y-4">
                 @csrf
+                <x-purchase-intent />
                 <input type="hidden" id="pin_code" name="pin_code" value="{{ $selectedService }}">
 
                 <div>
@@ -197,7 +198,7 @@
                     const message = ok ? (data.message || 'Purchase successful.') : getErrorMessage(response, data, 'Transaction failed. Please try again.');
 
                     if (typeof window.showTransactionResult === 'function') {
-                        window.showTransactionResult({ ok, message, orderId: data?.order_id });
+                        window.showTransactionResult({ ok, message, orderId: data?.order_id, payload: data });
                     } else {
                         notify(ok ? 'success' : 'error', message);
                     }

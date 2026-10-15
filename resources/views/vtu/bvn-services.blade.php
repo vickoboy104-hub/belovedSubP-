@@ -42,6 +42,7 @@
                 </p>
                 <form id="bvnVerifyForm" class="mt-4 space-y-4">
                     @csrf
+                    <x-purchase-intent />
                     <div>
                         <label class="block text-sm font-bold text-slate-700">Enter the BVN Number</label>
                         <input type="text" name="bvn" maxlength="11" inputmode="numeric" required
@@ -68,6 +69,7 @@
                 </p>
                 <form id="bvnRetrieveForm" class="mt-4 space-y-4">
                     @csrf
+                    <x-purchase-intent />
                     <div>
                         <label class="block text-sm font-bold text-slate-700">Choose Category</label>
                         <select id="retrieve_type" name="retrieve_type" required
@@ -96,6 +98,7 @@
             </p>
             <form id="bvnPrintForm" class="mt-4 grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3 items-end">
                 @csrf
+                <x-purchase-intent />
                 <div>
                     <label class="block text-sm font-bold text-slate-700" for="print_bvn">Enter the BVN Number</label>
                     <input type="text" id="print_bvn" name="bvn" maxlength="11" inputmode="numeric" required
@@ -432,6 +435,16 @@
                     });
                     const data = await response.json().catch(() => ({}));
                     const ok = response.ok && data?.ok === true;
+
+                    // This form has been answered for, so it takes a fresh intention
+                    // and the next deliberate purchase can go through. A refusal, or a
+                    // body this site never wrote, keeps the intention: the request
+                    // behind it may already be booked, and a retry carrying the same
+                    // intention is answered as already bought instead of buying twice.
+                    if (typeof data?.ok === 'boolean' && data.duplicate !== true) {
+                        window.refreshPurchaseIntent?.(form);
+                    }
+
                     const queued = ok && data?.queued === true;
                     const message = data?.message || (ok ? 'Request completed.' : 'Request failed.');
                     const payload = data?.normalized || data?.data || {};

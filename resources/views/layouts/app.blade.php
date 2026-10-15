@@ -356,9 +356,61 @@
                 return receiptBaseUrl + '/' + encodeURIComponent(orderId);
             }
 
+            // Each purchase form is shown with one intention, and the database keeps
+            // that intention for exactly one purchase. A second tap of a double-click,
+            // a retry the browser sends on its own and a Back-then-Submit all carry the
+            // same intention, so there is nothing left for them to spend. Once an
+            // answer has been shown the page is given a fresh intention, because the
+            // customer's next purchase is a new one and has to be able to go through.
+            function purchaseIntentFields(scope) {
+                return (scope || document).querySelectorAll('[data-purchase-intent]');
+            }
+
+            function purchaseIntentToken(scope) {
+                const field = purchaseIntentFields(scope)[0];
+                return field ? field.value : '';
+            }
+
+            function newPurchaseIntent() {
+                if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                    return window.crypto.randomUUID();
+                }
+
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (letter) => {
+                    const digit = Math.floor(Math.random() * 16);
+                    return (letter === 'x' ? digit : (digit % 4) + 8).toString(16);
+                });
+            }
+
+            function refreshPurchaseIntent(scope) {
+                purchaseIntentFields(scope).forEach((field) => {
+                    const token = newPurchaseIntent();
+                    // The attribute as well as the value. A form that is reset reads
+                    // its field back from the attribute, and a spent intention sitting
+                    // there would come straight back onto the page.
+                    field.value = token;
+                    field.setAttribute('value', token);
+                });
+            }
+
             function showTransactionResult(options) {
                 const ok = !!options?.ok;
                 const orderId = options?.orderId || '';
+
+                // A fresh intention only when the answer is one this site wrote: a
+                // payload that says whether it succeeded, and is not a refusal. A
+                // network error, an HTML error page or a corrupt body all leave the
+                // intention where it was, because the request behind it may still have
+                // been booked - and a retry carrying the same intention is answered as
+                // already bought instead of buying twice. A refusal keeps it for the
+                // same reason: reloading the page is how a deliberate second purchase
+                // begins.
+                const answered = options?.payload
+                    && typeof options.payload.ok === 'boolean'
+                    && options.payload.duplicate !== true;
+                if (answered) {
+                    refreshPurchaseIntent();
+                }
 
                 showAppDialog({
                     tone: ok ? 'success' : 'error',
@@ -409,6 +461,8 @@
             window.notify = showFlashToast;
             window.updateWalletBalance = updateWalletBalance;
             window.getReceiptUrl = getReceiptUrl;
+            window.purchaseIntentToken = purchaseIntentToken;
+            window.refreshPurchaseIntent = refreshPurchaseIntent;
         })();
     </script>
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\DuplicatePurchaseIntent;
 use App\Models\NinVerificationCache;
 use App\Models\Order;
 use App\Models\Service;
@@ -17,6 +18,7 @@ use App\Services\ManualDocumentStore;
 use App\Services\ManualFulfilmentService;
 use App\Services\NinApi;
 use App\Services\ProviderPlanPriceService;
+use App\Services\PurchaseIntent;
 use App\Services\WalletLedger;
 use App\Support\IssuedKeys;
 use App\Support\NinSlipLayout;
@@ -24,6 +26,7 @@ use App\Support\NinSlipValues;
 use App\Support\ServiceAvailability;
 use App\Support\ServiceCatalogue;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -164,9 +167,14 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('AIR');
+        $intent = PurchaseIntent::fromRequest($request);
 
         DB::beginTransaction();
         try {
+            if ($repeat = $this->refuseRepeat($request, 'vtu.airtime', $wallet, (int) $user->id, $intent)) {
+                return $repeat;
+            }
+
             $this->debitWallet(
                 wallet: $wallet,
                 amountKobo: $payableKobo,
@@ -178,6 +186,7 @@ class VtuController extends Controller
 
             $order = Order::create([
                 'user_id'            => $user->id,
+                'intent_token'       => $intent,
                 'service_id'         => $resolvedServiceId,
                 'customer_ref'       => $request->phone,
                 'amount'             => $payableKobo,
@@ -471,9 +480,14 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('DATA');
+        $intent = PurchaseIntent::fromRequest($request);
 
         DB::beginTransaction();
         try {
+            if ($repeat = $this->refuseRepeat($request, 'vtu.data', $wallet, (int) $user->id, $intent)) {
+                return $repeat;
+            }
+
             $this->debitWallet(
                 wallet: $wallet,
                 amountKobo: $payableKobo,
@@ -485,6 +499,7 @@ class VtuController extends Controller
 
             $order = Order::create([
                 'user_id'            => $user->id,
+                'intent_token'       => $intent,
                 'service_id'         => $resolvedServiceId,
                 'customer_ref'       => $request->phone,
                 'amount'             => $payableKobo,
@@ -657,9 +672,14 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('CARD');
+        $intent = PurchaseIntent::fromRequest($request);
 
         DB::beginTransaction();
         try {
+            if ($repeat = $this->refuseRepeat($request, 'vtu.recharge-card', $wallet, (int) $user->id, $intent)) {
+                return $repeat;
+            }
+
             $this->debitWallet(
                 wallet: $wallet,
                 amountKobo: $payableKobo,
@@ -677,6 +697,7 @@ class VtuController extends Controller
 
             $order = Order::create([
                 'user_id' => $user->id,
+                'intent_token' => $intent,
                 'service_id' => $resolvedServiceId,
                 'customer_ref' => $network . '-cards',
                 'amount' => $payableKobo,
@@ -874,11 +895,16 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('CAB');
+        $intent = PurchaseIntent::fromRequest($request);
 
         $defaultPhone = (string) setting('default_phone', '08000000000');
 
         DB::beginTransaction();
         try {
+            if ($repeat = $this->refuseRepeat($request, 'vtu.cable', $wallet, (int) $user->id, $intent)) {
+                return $repeat;
+            }
+
             $this->debitWallet(
                 wallet: $wallet,
                 amountKobo: $payableKobo,
@@ -890,6 +916,7 @@ class VtuController extends Controller
 
             $order = Order::create([
                 'user_id'            => $user->id,
+                'intent_token'       => $intent,
                 'service_id'         => $resolvedServiceId,
                 'customer_ref'       => $request->customer_ref,
                 'amount'             => $payableKobo,
@@ -1070,10 +1097,15 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('ELEC');
+        $intent = PurchaseIntent::fromRequest($request);
         $defaultPhone = (string) setting('default_phone', '08000000000');
 
         DB::beginTransaction();
         try {
+            if ($repeat = $this->refuseRepeat($request, 'vtu.electricity', $wallet, (int) $user->id, $intent)) {
+                return $repeat;
+            }
+
             $this->debitWallet(
                 wallet: $wallet,
                 amountKobo: $payableKobo,
@@ -1085,6 +1117,7 @@ class VtuController extends Controller
 
             $order = Order::create([
                 'user_id'            => $user->id,
+                'intent_token'       => $intent,
                 'service_id'         => $resolvedServiceId,
                 'customer_ref'       => $request->customer_ref,
                 'amount'             => $payableKobo,
@@ -1325,9 +1358,14 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('EXAM');
+        $intent = PurchaseIntent::fromRequest($request);
 
         DB::beginTransaction();
         try {
+            if ($repeat = $this->refuseRepeat($request, 'vtu.exam', $wallet, (int) $user->id, $intent)) {
+                return $repeat;
+            }
+
             $this->debitWallet(
                 wallet: $wallet,
                 amountKobo: $payableKobo,
@@ -1342,6 +1380,7 @@ class VtuController extends Controller
 
             $order = Order::create([
                 'user_id'            => $user->id,
+                'intent_token'       => $intent,
                 'service_id'         => $resolvedServiceId,
                 'customer_ref'       => $request->phone,
                 'amount'             => $payableKobo,
@@ -1509,12 +1548,17 @@ class VtuController extends Controller
         $payableNaira = $payableKobo / 100;
 
         $requestId = $this->makeRequestId('PREM');
+        $intent = PurchaseIntent::fromRequest($request);
         $whatsapp = trim((string) $request->whatsapp) !== ''
             ? $this->normalizePhone((string) $request->whatsapp)
             : (string) setting('default_phone', '08000000000');
 
         DB::beginTransaction();
         try {
+            if ($repeat = $this->refuseRepeat($request, 'vtu.premium-apps', $wallet, (int) $user->id, $intent)) {
+                return $repeat;
+            }
+
             $this->debitWallet(
                 wallet: $wallet,
                 amountKobo: $payableKobo,
@@ -1527,6 +1571,7 @@ class VtuController extends Controller
 
             $order = Order::create([
                 'user_id' => $user->id,
+                'intent_token' => $intent,
                 'service_id' => $resolvedServiceId,
                 'customer_ref' => (string) $request->email,
                 'amount' => $payableKobo,
@@ -1701,6 +1746,7 @@ class VtuController extends Controller
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
         $validationType = (string) $payload['validation_type'];
+        $intent = PurchaseIntent::fromRequest($request);
 
         $basePriceNaira = match ($validationType) {
             'update_record' => identity_price('price_nin_validation_update_record'),
@@ -1711,6 +1757,10 @@ class VtuController extends Controller
         // No validation endpoint means a human does the work. Charge and queue it
         // the same way, so the customer still gets a receipt and a result.
         if (!$this->ninApi->supportsValidation()) {
+            if ($repeat = $this->seenBeforeBack((int) $user->id, $intent)) {
+                return $repeat;
+            }
+
             try {
                 $queued = $this->queueManualOrder(
                     user: $user,
@@ -1727,7 +1777,10 @@ class VtuController extends Controller
                     serviceId: $this->resolveServiceId('nin_validation', 'nin_validation'),
                     extraMeta: ['type' => 'nin_validation', 'validation_type' => $validationType],
                     pricing: ['base_naira' => $basePriceNaira, 'markup_naira' => $markupNaira],
+                    intent: $intent,
                 );
+            } catch (DuplicatePurchaseIntent $e) {
+                return back()->with('error', $e->getMessage());
             } catch (\RuntimeException $e) {
                 return back()->with('error', $this->userFacingRuntimeFailureMessage($e));
             } catch (\Throwable $e) {
@@ -1750,6 +1803,10 @@ class VtuController extends Controller
 
         DB::beginTransaction();
         try {
+            if ($repeat = $this->refuseRepeatBack((int) $user->id, $intent)) {
+                return $repeat;
+            }
+
             $this->debitWallet(
                 wallet: $wallet,
                 amountKobo: $payableKobo,
@@ -1760,6 +1817,7 @@ class VtuController extends Controller
             $resolvedServiceId = $this->resolveServiceId('nin_validation', 'nin_validation');
             $order = Order::create([
                 'user_id' => $user->id,
+                'intent_token' => $intent,
                 'service_id' => $resolvedServiceId,
                 'customer_ref' => (string) $payload['nin'],
                 'amount' => $payableKobo,
@@ -1858,6 +1916,11 @@ class VtuController extends Controller
         $wallet = $this->requireWallet($user->wallet);
         $priceVerifyKobo = $this->toKobo($priceVerifyNaira);
         $forceRefresh = $request->boolean('force_refresh');
+        $intent = PurchaseIntent::fromRequest($request);
+
+        if ($repeat = $this->seenBeforeJson($wallet, (int) $user->id, $intent)) {
+            return $repeat;
+        }
 
         if (((int) $wallet->balance) < $priceVerifyKobo) {
             return response()->json([
@@ -1879,6 +1942,7 @@ class VtuController extends Controller
                 $searchType,
                 $lookupPayload,
                 $priceVerifyNaira,
+                $intent,
             );
         }
 
@@ -1937,6 +2001,10 @@ class VtuController extends Controller
         if ($ok) {
             DB::beginTransaction();
             try {
+                if ($repeat = $this->refuseRepeatJson($wallet, (int) $user->id, $intent)) {
+                    return $repeat;
+                }
+
                 $this->debitWallet(
                     wallet: $wallet,
                     amountKobo: $priceVerifyKobo,
@@ -1947,6 +2015,7 @@ class VtuController extends Controller
                 $resolvedServiceId = $this->resolveServiceId('nin_verify', 'nin');
                 $order = Order::create([
                     'user_id' => $user->id,
+                    'intent_token' => $intent,
                     'service_id' => $resolvedServiceId,
                     'customer_ref' => (string) ($normalized['nin'] ?? $searchType),
                     'amount' => $priceVerifyKobo,
@@ -2064,6 +2133,7 @@ class VtuController extends Controller
         string $searchType,
         array $lookupPayload,
         float $basePriceNaira,
+        ?string $intent = null,
     ) {
         $submitted = $lookupPayload;
         $submitted['verification_type'] = match ($searchType) {
@@ -2091,7 +2161,15 @@ class VtuController extends Controller
                     'verification_type' => $submitted['verification_type'],
                 ],
                 pricing: ['base_naira' => $basePriceNaira, 'markup_naira' => 0.0],
+                intent: $intent,
             );
+        } catch (DuplicatePurchaseIntent $e) {
+            return response()->json(array_merge([
+                'ok' => false,
+                'duplicate' => true,
+                'message' => $e->getMessage(),
+                'data' => [],
+            ], $this->walletPayload($wallet)), 409);
         } catch (\RuntimeException $e) {
             return response()->json([
                 'ok' => false,
@@ -2158,6 +2236,12 @@ class VtuController extends Controller
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
+        $intent = PurchaseIntent::fromRequest($request);
+
+        if ($repeat = $this->seenBeforeJson($wallet, (int) $user->id, $intent)) {
+            return $repeat;
+        }
+
         if (((int) $wallet->balance) < $totalKobo) {
             return response()->json([
                 'ok' => false,
@@ -2291,6 +2375,10 @@ class VtuController extends Controller
             $requestId = $this->makeRequestId('NINP');
             DB::beginTransaction();
             try {
+                if ($repeat = $this->refuseRepeatJson($wallet, (int) $user->id, $intent)) {
+                    return $repeat;
+                }
+
                 $this->debitWallet(
                     wallet: $wallet,
                     amountKobo: $totalKobo,
@@ -2301,6 +2389,7 @@ class VtuController extends Controller
                 $resolvedServiceId = $this->resolveServiceId('nin_print', 'nin');
                 $order = Order::create([
                     'user_id' => $user->id,
+                    'intent_token' => $intent,
                     'service_id' => $resolvedServiceId,
                     'customer_ref' => (string) ($providerPayload['nin'] ?? $providerPayload['phone'] ?? 'NIN Print'),
                     'amount' => $totalKobo,
@@ -2489,6 +2578,11 @@ class VtuController extends Controller
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
+        $intent = PurchaseIntent::fromRequest($request);
+
+        if ($repeat = $this->seenBeforeJson($wallet, (int) $user->id, $intent)) {
+            return $repeat;
+        }
 
         $basePriceNaira = identity_price('price_bvn_verify');
         $costNaira = identity_cost('price_bvn_verify');
@@ -2521,7 +2615,15 @@ class VtuController extends Controller
                     serviceId: $this->resolveServiceId('bvn_verify', 'bvn'),
                     extraMeta: ['type' => 'bvn', 'service_type' => 'verify'],
                     pricing: ['base_naira' => $basePriceNaira, 'markup_naira' => $markupNaira],
+                    intent: $intent,
                 );
+            } catch (DuplicatePurchaseIntent $e) {
+                return response()->json(array_merge([
+                    'ok' => false,
+                    'duplicate' => true,
+                    'message' => $e->getMessage(),
+                    'data' => [],
+                ], $this->walletPayload($wallet)), 409);
             } catch (\RuntimeException $e) {
                 return response()->json([
                     'ok' => false,
@@ -2560,6 +2662,10 @@ class VtuController extends Controller
         $requestId = $this->makeRequestId('BVNV');
         DB::beginTransaction();
         try {
+            if ($repeat = $this->refuseRepeatJson($wallet, (int) $user->id, $intent)) {
+                return $repeat;
+            }
+
             $this->debitWallet(
                 wallet: $wallet,
                 amountKobo: $totalKobo,
@@ -2570,6 +2676,7 @@ class VtuController extends Controller
             $resolvedServiceId = $this->resolveServiceId('bvn_verify', 'bvn');
             $order = Order::create([
                 'user_id' => $user->id,
+                'intent_token' => $intent,
                 'service_id' => $resolvedServiceId,
                 'customer_ref' => (string) ($normalized['bvn'] ?? $payload['bvn']),
                 'amount' => $totalKobo,
@@ -2689,13 +2796,18 @@ class VtuController extends Controller
         $bvn = (string) $payload['bvn'];
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
+        $intent = PurchaseIntent::fromRequest($request);
+
+        if ($repeat = $this->seenBeforeJson($wallet, (int) $user->id, $intent)) {
+            return $repeat;
+        }
 
         $source = $this->bvnPrintSource($user, $bvn, (int) ($payload['verification_order_id'] ?? 0));
 
         // A record already on file needs no provider at all, so the hand-run switch
         // only takes over when a fresh check is the only way to get the data.
         if ($source === null && identity_verify_mode('bvn') === 'manual') {
-            return $this->queueBvnPrintByHand($user, $wallet, $bvn);
+            return $this->queueBvnPrintByHand($user, $wallet, $bvn, $intent);
         }
 
         $basePriceNaira = identity_price('price_bvn_print');
@@ -2738,6 +2850,10 @@ class VtuController extends Controller
         $requestId = $this->makeRequestId('BVNP');
         DB::beginTransaction();
         try {
+            if ($repeat = $this->refuseRepeatJson($wallet, (int) $user->id, $intent)) {
+                return $repeat;
+            }
+
             $this->debitWallet(
                 wallet: $wallet,
                 amountKobo: $totalKobo,
@@ -2747,6 +2863,7 @@ class VtuController extends Controller
 
             $order = Order::create([
                 'user_id' => $user->id,
+                'intent_token' => $intent,
                 'service_id' => $this->resolveServiceId('bvn_print', 'bvn'),
                 'customer_ref' => $bvn,
                 'amount' => $totalKobo,
@@ -2798,7 +2915,7 @@ class VtuController extends Controller
         }
     }
 
-    private function queueBvnPrintByHand(User $user, Wallet $wallet, string $bvn)
+    private function queueBvnPrintByHand(User $user, Wallet $wallet, string $bvn, ?string $intent = null)
     {
         try {
             // Priced as the hand-run job it is, by the same rate the owner set for
@@ -2814,7 +2931,15 @@ class VtuController extends Controller
                 requestPrefix: 'BVNP',
                 serviceId: $this->resolveServiceId('bvn_print', 'bvn'),
                 extraMeta: ['type' => 'bvn', 'service_type' => 'print'],
+                intent: $intent,
             );
+        } catch (DuplicatePurchaseIntent $e) {
+            return response()->json(array_merge([
+                'ok' => false,
+                'duplicate' => true,
+                'message' => $e->getMessage(),
+                'data' => [],
+            ], $this->walletPayload($wallet)), 409);
         } catch (\RuntimeException $e) {
             return response()->json([
                 'ok' => false,
@@ -2975,6 +3100,12 @@ class VtuController extends Controller
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
+        $intent = PurchaseIntent::fromRequest($request);
+
+        if ($repeat = $this->seenBeforeJson($wallet, (int) $user->id, $intent)) {
+            return $repeat;
+        }
+
         $retrievePriceKey = $retrieveType === 'phone' ? 'price_bvn_retrieve_phone' : 'price_bvn_retrieve_bms';
         $basePriceNaira = identity_price($retrievePriceKey);
         $costNaira = identity_cost($retrievePriceKey);
@@ -3012,7 +3143,15 @@ class VtuController extends Controller
                         'retrieve_type' => $retrieveType,
                     ],
                     pricing: ['base_naira' => $basePriceNaira, 'markup_naira' => $markupNaira],
+                    intent: $intent,
                 );
+            } catch (DuplicatePurchaseIntent $e) {
+                return response()->json(array_merge([
+                    'ok' => false,
+                    'duplicate' => true,
+                    'message' => $e->getMessage(),
+                    'data' => [],
+                ], $this->walletPayload($wallet)), 409);
             } catch (\RuntimeException $e) {
                 return response()->json([
                     'ok' => false,
@@ -3050,6 +3189,10 @@ class VtuController extends Controller
 
         DB::beginTransaction();
         try {
+            if ($repeat = $this->refuseRepeatJson($wallet, (int) $user->id, $intent)) {
+                return $repeat;
+            }
+
             $this->debitWallet(
                 wallet: $wallet,
                 amountKobo: $totalKobo,
@@ -3064,6 +3207,7 @@ class VtuController extends Controller
 
             $order = Order::create([
                 'user_id' => $user->id,
+                'intent_token' => $intent,
                 'service_id' => $resolvedServiceId,
                 'customer_ref' => $customerRef,
                 'amount' => $totalKobo,
@@ -3446,6 +3590,11 @@ class VtuController extends Controller
         $wallet = $this->requireWallet($user->wallet);
         $title = (string) $definition['title'];
         $payableKobo = $this->manualPayableKobo($service, $user, $submitted);
+        $intent = PurchaseIntent::fromRequest($request);
+
+        if ($repeat = $this->seenBeforeBack((int) $user->id, $intent)) {
+            return $repeat;
+        }
 
         if (((int) $wallet->balance) < $payableKobo) {
             return back()->with('error', $this->buildErrorMessage(1));
@@ -3483,7 +3632,14 @@ class VtuController extends Controller
                 submitted: $submitted,
                 customerRef: $customerRef,
                 requestPrefix: 'MANUAL',
+                intent: $intent,
             );
+        } catch (DuplicatePurchaseIntent $e) {
+            // The paper this attempt held is not needed by anyone: the request that
+            // owns this intention was already taken with its own copy of it.
+            $this->documents->discard(token: $token);
+
+            return back()->with('error', $e->getMessage());
         } catch (\RuntimeException $e) {
             return back()->with('error', $this->userFacingRuntimeFailureMessage($e));
         } catch (\Throwable $e) {
@@ -3745,6 +3901,7 @@ class VtuController extends Controller
         ?int $serviceId = null,
         array $extraMeta = [],
         ?array $pricing = null,
+        ?string $intent = null,
     ): Order {
         $basePriceNaira = $pricing['base_naira'] ?? $this->manualServices->priceNaira($slug, $submitted);
         $markupNaira = $pricing['markup_naira'] ?? $this->manualServices->markupNaira($slug);
@@ -3761,10 +3918,13 @@ class VtuController extends Controller
 
         DB::beginTransaction();
         try {
+            $this->takeIntent($user, $intent);
+
             $this->debitWallet($wallet, $payableKobo, $requestId, $title.' - '.$customerRef);
 
             $order = Order::create([
                 'user_id' => $user->id,
+                'intent_token' => $intent,
                 'service_id' => $serviceId ?? $this->resolveServiceId($slug, 'identity'),
                 'customer_ref' => $customerRef,
                 'amount' => $payableKobo,
@@ -4177,6 +4337,136 @@ class VtuController extends Controller
         return [
             'balance_kobo' => (int) ($fresh?->balance ?? 0),
         ];
+    }
+
+    /**
+     * Take this request's intention for itself, or report the purchase the first
+     * request with that identity already made.
+     *
+     * The claim is written inside the caller's own transaction, so a request that
+     * later falls over - a wallet too thin, a rollback - gives the intention back with
+     * everything else and a genuine second attempt stays possible. What it cannot do is
+     * let two of the same intention both reach the wallet.
+     *
+     * @return Order|false  false when this request is the first time
+     */
+    private function spentIntent(int $userId, ?string $intent): Order|false
+    {
+        if (PurchaseIntent::claim($userId, $intent)) {
+            return false;
+        }
+
+        return PurchaseIntent::firstOrder($userId, $intent);
+    }
+
+    /**
+     * The same claim for the helpers that own their transaction and answer failures
+     * by throwing - the manual queue, which eight pages book their orders through.
+     */
+    private function takeIntent(User $user, ?string $intent): void
+    {
+        $lost = $this->spentIntent((int) $user->id, $intent);
+        if ($lost === false) {
+            return;
+        }
+
+        throw new DuplicatePurchaseIntent(PurchaseIntent::message($lost));
+    }
+
+    /**
+     * Answer a repeat in the shape the seven card pages read.
+     */
+    private function refuseRepeat(Request $request, string $routeName, Wallet $wallet, int $userId, ?string $intent)
+    {
+        $lost = $this->spentIntent($userId, $intent);
+        if ($lost === false) {
+            return null;
+        }
+
+        if (DB::transactionLevel() > 0) {
+            DB::rollBack();
+        }
+
+        return $this->respondResult(
+            request: $request,
+            routeName: $routeName,
+            ok: false,
+            message: PurchaseIntent::message($lost),
+            extra: array_merge(['duplicate' => true, 'order_id' => $lost?->id], $this->walletPayload($wallet)),
+            status: 409
+        );
+    }
+
+    /**
+     * Answer a repeat in the shape the identity lookups read.
+     */
+    private function refuseRepeatJson(Wallet $wallet, int $userId, ?string $intent): ?JsonResponse
+    {
+        $lost = $this->spentIntent($userId, $intent);
+        if ($lost === false) {
+            return null;
+        }
+
+        if (DB::transactionLevel() > 0) {
+            DB::rollBack();
+        }
+
+        return response()->json(array_merge(
+            ['ok' => false, 'duplicate' => true, 'order_id' => $lost?->id, 'message' => PurchaseIntent::message($lost)],
+            $this->walletPayload($wallet)
+        ), 409);
+    }
+
+    /**
+     * Answer a repeat on the pages that post themselves and reload.
+     */
+    private function refuseRepeatBack(int $userId, ?string $intent)
+    {
+        $lost = $this->spentIntent($userId, $intent);
+        if ($lost === false) {
+            return null;
+        }
+
+        if (DB::transactionLevel() > 0) {
+            DB::rollBack();
+        }
+
+        return back()->with('error', PurchaseIntent::message($lost));
+    }
+
+    /**
+     * Stop a repeat before it asks the provider anything.
+     *
+     * The identity of a purchase is taken for good only inside the transaction that
+     * books it, because a request that has not reached the provider yet must stay free
+     * to try again if it fails. So the look that happens before a provider call is a
+     * look, not a claim: it turns the double-click that came a second too late into an
+     * answer instead of a second bill - ours as well as the customer's.
+     */
+    private function seenBeforeJson(Wallet $wallet, int $userId, ?string $intent): ?JsonResponse
+    {
+        if (!PurchaseIntent::isSpent($userId, $intent)) {
+            return null;
+        }
+
+        $again = PurchaseIntent::firstOrder($userId, $intent);
+
+        return response()->json(array_merge(
+            ['ok' => false, 'duplicate' => true, 'order_id' => $again?->id, 'message' => PurchaseIntent::message($again), 'data' => []],
+            $this->walletPayload($wallet)
+        ), 409);
+    }
+
+    /**
+     * The same look, for the pages that post themselves and reload.
+     */
+    private function seenBeforeBack(int $userId, ?string $intent)
+    {
+        if (!PurchaseIntent::isSpent($userId, $intent)) {
+            return null;
+        }
+
+        return back()->with('error', PurchaseIntent::message(PurchaseIntent::firstOrder($userId, $intent)));
     }
 
     private function requireWallet(?Wallet $wallet): Wallet

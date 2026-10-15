@@ -137,6 +137,7 @@
       @if(($consent['clauses'] ?? []) !== []) data-consent-form @endif
     {{ $attributes->only('id') }}>
     @csrf
+    <x-purchase-intent />
 
     @foreach($fields as $field)
         @php

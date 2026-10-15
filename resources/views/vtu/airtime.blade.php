@@ -25,6 +25,7 @@
 
             <form id="airtimePurchaseForm" method="POST" action="{{ route('vtu.airtime.buy') }}" class="space-y-4 sm:space-y-5">
                 @csrf
+                <x-purchase-intent />
                 <input type="hidden" id="service_id" name="service_id" value="{{ $serviceSlug }}">
 
                 <div class="grid gap-5 md:grid-cols-2">
@@ -153,7 +154,7 @@
                     const message = ok ? (data.message || 'Airtime purchase successful.') : getErrorMessage(res, data, 'Transaction failed. Please try again.');
 
                     if (typeof window.showTransactionResult === 'function') {
-                        window.showTransactionResult({ ok, message, orderId: data?.order_id });
+                        window.showTransactionResult({ ok, message, orderId: data?.order_id, payload: data });
                     } else {
                         notify(ok ? 'success' : 'error', message);
                     }

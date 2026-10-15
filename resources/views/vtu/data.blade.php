@@ -32,6 +32,7 @@
 
             <form id="dataPurchaseForm" method="POST" action="{{ route('vtu.data.buy') }}" class="space-y-4 sm:space-y-5">
                 @csrf
+                <x-purchase-intent />
                 <input type="hidden" id="service_id" name="service_id" value="{{ $serviceSlug }}">
 
                 <div>
@@ -237,7 +238,7 @@
                     const message = ok ? (data.message || 'Data purchase successful.') : getErrorMessage(res, data, 'Transaction failed. Please try again.');
 
                     if (typeof window.showTransactionResult === 'function') {
-                        window.showTransactionResult({ ok, message, orderId: data?.order_id });
+                        window.showTransactionResult({ ok, message, orderId: data?.order_id, payload: data });
                     } else {
                         notify(ok ? 'success' : 'error', message);
                     }

@@ -14,6 +14,7 @@
     <div class="reference-flow-page mx-auto max-w-3xl space-y-5 sm:space-y-6">
         <form id="cableForm" method="POST" action="{{ route('vtu.cable.buy') }}" class="app-form-shell space-y-4 sm:space-y-5">
             @csrf
+            <x-purchase-intent />
             <input type="hidden" name="service_id" id="service_id" value="{{ $selectedService }}">
 
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -158,7 +159,7 @@
                     const message = ok ? (data.message || 'Cable subscription successful.') : getErrorMessage(res, data, 'Transaction failed. Please try again.');
 
                     if (typeof window.showTransactionResult === 'function') {
-                        window.showTransactionResult({ ok, message, orderId: data?.order_id });
+                        window.showTransactionResult({ ok, message, orderId: data?.order_id, payload: data });
                     } else {
                         notify(ok ? 'success' : 'error', message);
                     }

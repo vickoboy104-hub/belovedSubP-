@@ -31,6 +31,7 @@
 
             <form id="electricityPurchaseForm" method="POST" action="{{ route('vtu.electricity.buy') }}" class="space-y-4">
                 @csrf
+                <x-purchase-intent />
                 <input type="hidden" id="disco" name="service_id" value="{{ $selectedService }}">
 
                 <div>
@@ -122,7 +123,7 @@
                     const message = ok ? (data.message || 'Electricity purchase successful.') : getErrorMessage(res, data, 'Transaction failed. Please try again.');
 
                     if (typeof window.showTransactionResult === 'function') {
-                        window.showTransactionResult({ ok, message, orderId: data?.order_id });
+                        window.showTransactionResult({ ok, message, orderId: data?.order_id, payload: data });
                     } else {
                         notify(ok ? 'success' : 'error', message);
                     }

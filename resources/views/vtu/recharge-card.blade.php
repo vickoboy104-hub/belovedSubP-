@@ -54,6 +54,7 @@
         <div class="rounded-3xl p-6 border border-gray-200 bg-white">
             <form id="rechargeCardForm" method="POST" action="{{ route('vtu.recharge-card.buy') }}" class="space-y-4">
                 @csrf
+                <x-purchase-intent />
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -211,7 +212,7 @@
                     const message = (data && data.message) ? data.message : (ok ? 'Purchase successful.' : 'Transaction failed.');
 
                     if (typeof window.showTransactionResult === 'function') {
-                        window.showTransactionResult({ ok, message, orderId: data?.order_id });
+                        window.showTransactionResult({ ok, message, orderId: data?.order_id, payload: data });
                     } else {
                         notify(ok ? 'success' : 'error', message);
                     }

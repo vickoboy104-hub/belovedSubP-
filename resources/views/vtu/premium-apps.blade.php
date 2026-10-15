@@ -9,6 +9,7 @@
         <div class="rounded-3xl p-6 border border-gray-200 bg-white">
             <form id="premiumAppsForm" method="POST" action="{{ route('vtu.premium-apps.buy') }}" class="space-y-4">
                 @csrf
+                <x-purchase-intent />
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -242,7 +243,7 @@
                         : getErrorMessage(response, data, 'Transaction failed. Please try again.');
 
                     if (typeof window.showTransactionResult === 'function') {
-                        window.showTransactionResult({ ok, message, orderId: data?.order_id });
+                        window.showTransactionResult({ ok, message, orderId: data?.order_id, payload: data });
                     } else {
                         notify(ok ? 'success' : 'error', message);
                     }

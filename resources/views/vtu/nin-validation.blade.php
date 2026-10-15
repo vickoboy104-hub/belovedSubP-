@@ -37,6 +37,7 @@
                 @else
                 <form id="ninValidationForm" method="POST" action="{{ route('vtu.nin-validation.submit') }}" class="space-y-4">
                     @csrf
+                <x-purchase-intent />
 
                     <div>
                         <label class="block text-sm font-bold text-slate-700">Validation Category</label>
