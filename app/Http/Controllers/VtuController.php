@@ -2955,7 +2955,6 @@ class VtuController extends Controller
             'phone' => ['nullable', 'digits_between:10,14'],
             'bms_no' => ['nullable', 'string', 'max:100'],
             'ticket_id' => ['nullable', 'string', 'max:120'],
-            'agent_code' => ['nullable', 'string', 'max:80'],
         ]);
 
         $retrieveType = (string) $payload['retrieve_type'];
@@ -3003,7 +3002,6 @@ class VtuController extends Controller
                         'phone' => (string) ($payload['phone'] ?? ''),
                         'bms_no' => (string) ($payload['bms_no'] ?? ''),
                         'ticket_id' => (string) ($payload['ticket_id'] ?? ''),
-                        'agent_code' => (string) ($payload['agent_code'] ?? ''),
                     ],
                     customerRef: $customerRef,
                     requestPrefix: 'BVNR',
@@ -3082,7 +3080,6 @@ class VtuController extends Controller
                     'phone' => $payload['phone'] ?? null,
                     'bms_no' => $payload['bms_no'] ?? null,
                     'ticket_id' => $payload['ticket_id'] ?? null,
-                    'agent_code' => $payload['agent_code'] ?? null,
                     'base_amount_naira' => $basePriceNaira,
                     'markup_naira' => $markupNaira,
                     'requestID' => $requestId,
@@ -3093,8 +3090,7 @@ class VtuController extends Controller
                 ? $this->bvnApi->retrieveByPhone((string) $payload['phone'])
                 : $this->bvnApi->retrieveByBms(
                     (string) ($payload['bms_no'] ?? ''),
-                    (string) ($payload['ticket_id'] ?? ''),
-                    (string) ($payload['agent_code'] ?? '')
+                    (string) ($payload['ticket_id'] ?? '')
                 );
 
             $ok = $this->bvnApi->isSuccessful($response);

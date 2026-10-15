@@ -14,6 +14,7 @@ class BvnApi
     private string $verifyEndpoint;
     private string $retrievePhoneEndpoint;
     private string $retrieveBmsEndpoint;
+    private string $retrieveAgentCode;
     private string $printEndpoint;
 
     public function __construct()
@@ -36,6 +37,9 @@ class BvnApi
         $this->verifyEndpoint = trim((string) setting('bvn_verify_endpoint', config('services.bvn.verify_endpoint', '/bvn_search')));
         $this->retrievePhoneEndpoint = trim((string) setting('bvn_retrieve_phone_endpoint', config('services.bvn.retrieve_phone_endpoint', '')));
         $this->retrieveBmsEndpoint = trim((string) setting('bvn_retrieve_bms_endpoint', config('services.bvn.retrieve_bms_endpoint', '')));
+        // An agent code identifies OUR account to the provider, so it is configured
+        // beside the key and never asked for at the customer's end.
+        $this->retrieveAgentCode = trim((string) setting('bvn_retrieve_agent_code', config('services.bvn.retrieve_agent_code', '')));
         $this->printEndpoint = trim((string) setting('bvn_print_endpoint', config('services.bvn.print_endpoint', '')));
     }
 
@@ -56,7 +60,7 @@ class BvnApi
         return $this->post($this->retrievePhoneEndpoint, ['phone' => trim($phone)]);
     }
 
-    public function retrieveByBms(string $bmsNo, string $ticketId, ?string $agentCode = null): array
+    public function retrieveByBms(string $bmsNo, string $ticketId): array
     {
         if (!$this->supportsRetrieveByBms()) {
             return [
@@ -70,8 +74,8 @@ class BvnApi
             'ticket_id' => trim($ticketId),
         ];
 
-        if (trim((string) $agentCode) !== '') {
-            $payload['agent_code'] = trim((string) $agentCode);
+        if ($this->retrieveAgentCode !== '') {
+            $payload['agent_code'] = $this->retrieveAgentCode;
         }
 
         return $this->post($this->retrieveBmsEndpoint, $payload);

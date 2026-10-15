@@ -28,6 +28,8 @@
                 }
             }
 
+            $held = $o->status === 'pending' && $o->assigned_to !== null;
+
             return [
                 'title' => (string) ($meta['manual_service_title'] ?? '—'),
                 'slug' => (string) ($meta['manual_service'] ?? ''),
@@ -37,9 +39,10 @@
                 ),
                 'expected_by' => $expectedBy,
                 'overdue' => $o->status === 'pending' && $expectedBy && $expectedBy->isPast(),
-                'started' => $o->status === 'pending' && ($meta['work_state'] ?? null) === 'in_progress',
+                'started' => $held,
+                'holder' => $held ? (trim((string) ($o->assignee?->name ?? '')) ?: 'Another agent') : null,
                 'state_label' => $o->status === 'pending'
-                    ? (($meta['work_state'] ?? null) === 'in_progress' ? 'IN PROGRESS' : 'WAITING')
+                    ? ($held ? 'IN PROGRESS' : 'WAITING')
                     : strtoupper((string) $o->status),
             ];
         };
@@ -127,6 +130,9 @@
                             <div class="text-sm font-bold text-slate-900">{{ $o->user?->name ?? 'Unknown' }}</div>
                             <div class="mt-1 text-xs text-slate-500">{{ $o->user?->email ?? '-' }}</div>
                             <div class="mt-1 text-xs text-slate-500">{{ $o->user?->phone ?? '-' }}</div>
+                            @if($row['holder'])
+                                <div class="mt-1 text-xs font-bold text-amber-700">Held by {{ $row['holder'] }}</div>
+                            @endif
                         </div>
 
                         @if(count($row['quick_look']) > 0)
@@ -223,6 +229,9 @@
                                         @endif">
                                         {{ $row['state_label'] }}
                                     </span>
+                                    @if($row['holder'])
+                                        <div class="mt-1 text-xs font-bold text-amber-700">{{ $row['holder'] }}</div>
+                                    @endif
                                 </td>
                                 <td class="p-4">
                                     <a href="{{ route('admin.manual-orders.show', $o->id) }}" class="btn-outline whitespace-nowrap">

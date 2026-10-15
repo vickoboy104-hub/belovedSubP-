@@ -5,11 +5,6 @@
         // The provider's ledger wording, kept honest: an order whose balance could
         // not be reconstructed shows no figure rather than a made-up one.
         $money = fn (?int $kobo): string => $kobo === null ? '' : '₦'.number_format($kobo / 100, 2);
-        $badge = fn (string $status): array => match ($status) {
-            'success' => ['value' => 'Success', 'tone' => 'success'],
-            'failed' => ['value' => 'Failed', 'tone' => 'danger'],
-            default => ['value' => 'Pending', 'tone' => 'warning'],
-        };
 
         // A status alone cannot answer "what did they actually say about my
         // request", so the ledger carries the provider's own words. An answer our
@@ -40,6 +35,10 @@
         $rows = [];
         foreach ($orders as $o) {
             $meta = (array) ($o->meta ?? []);
+            // Read in the customer's words, which for a request our team works by
+            // hand tells them whether anybody has started it yet.
+            $customer = $o->customerStatus();
+
             // A queued job is stored as 'manual_service'; the customer bought a
             // named service, so the ledger has to say which one.
             $type = str_replace('_', ' ', (string) (
@@ -62,7 +61,7 @@
                     'amount' => $money((int) $o->amount),
                     'before' => $money(isset($balances['before_kobo']) ? (int) $balances['before_kobo'] : null),
                     'after' => $money(isset($balances['after_kobo']) ? (int) $balances['after_kobo'] : null),
-                    'status' => $badge((string) ($o->status ?? 'pending')),
+                    'status' => ['value' => $customer['label'], 'tone' => $customer['tone']],
                     'response' => $answer($meta),
                     'date' => optional($o->created_at)->format('Y-m-d, h:i:s A') ?? '',
                 ],

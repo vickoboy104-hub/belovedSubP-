@@ -1298,6 +1298,11 @@
                         <input name="bvn_retrieve_bms_endpoint" value="{{ old('bvn_retrieve_bms_endpoint', $settings['bvn_retrieve_bms_endpoint'] ?? '') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                     </div>
                     <div>
+                        <label class="text-sm font-bold text-gray-800/80">BVN Retrieve Agent Code</label>
+                        <input name="bvn_retrieve_agent_code" value="{{ old('bvn_retrieve_agent_code', $settings['bvn_retrieve_agent_code'] ?? '') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
+                        <p class="mt-1 text-xs text-gray-500">Our own agent account code, sent with every BMS retrieval. Leave it blank unless the provider asks for one — customers are never asked for it.</p>
+                    </div>
+                    <div>
                         <label class="text-sm font-bold text-gray-800/80">BVN Print Endpoint</label>
                         <input name="bvn_print_endpoint" value="{{ old('bvn_print_endpoint', $settings['bvn_print_endpoint'] ?? '') }}" class="w-full mt-1 px-4 py-3 rounded-2xl bg-white border border-gray-300 text-gray-900">
                     </div>

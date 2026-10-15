@@ -229,6 +229,68 @@ class ProviderConfigurationTest extends TestCase
         $this->assertSame(50_000, $this->balance($user));
     }
 
+    public function test_the_bms_retrieval_form_asks_only_for_the_tickets_the_provider_needs(): void
+    {
+        // An agent code identifies OUR account to the provider. Asking a customer
+        // to type it was never justified: nothing live requires it, and a wrong or
+        // blank code failed their paid request.
+        $user = $this->memberWithBalance(100_000);
+
+        $page = $this->actingAs($user)->get('/vtu/bvn')->assertOk()->getContent();
+        $this->assertStringContainsString("name=\"bms_no\"", $page);
+        $this->assertStringContainsString("name=\"ticket_id\"", $page);
+        $this->assertStringNotContainsString('agent_code', $page);
+
+        $admin = User::factory()->create(['is_admin' => true]);
+        $admin->email_verified_at = now();
+        $admin->save();
+
+        $settings = $this->actingAs($admin)->get('/admin/settings')->assertOk()->getContent();
+        $this->assertSame(
+            1,
+            substr_count($settings, 'name="bvn_retrieve_agent_code"'),
+            'The agent code must be configurable in exactly one, admin-only place.',
+        );
+    }
+
+    public function test_a_bms_retrieval_sends_our_agent_code_and_ignores_one_from_the_customer(): void
+    {
+        $user = $this->memberWithBalance(400_000);
+
+        Setting::create(['key' => 'bvn_api_key', 'value' => 'test-bvn-key']);
+        Setting::create(['key' => 'bvn_retrieve_bms_endpoint', 'value' => '/bvn_retrieve_bms']);
+        Setting::create(['key' => 'bvn_retrieve_agent_code', 'value' => 'our-account-code']);
+        settings_flush_cache();
+
+        Http::fake([
+            'confirmident.com.ng/api/bvn_retrieve_bms' => Http::response([
+                'success' => true,
+                'message' => 'Retrieval Successful',
+                'data' => ['bvn' => '12345678901', 'firstname' => 'Test', 'lastname' => 'Candidate'],
+            ]),
+        ]);
+
+        $this->actingAs($user)->postJson('/vtu/bvn/retrieve', [
+            'retrieve_type' => 'bms',
+            'bms_no' => '9146512224',
+            'ticket_id' => '91465122240202030407',
+            'agent_code' => '99999999',
+        ])->assertOk()->assertJson(['ok' => true]);
+
+        Http::assertSent(function ($request) {
+            $data = $request->data();
+
+            return $request->url() === 'https://confirmident.com.ng/api/bvn_retrieve_bms'
+                && ($data['agent_code'] ?? null) === 'our-account-code'
+                && ($data['bms_no'] ?? null) === '9146512224'
+                && ($data['ticket_id'] ?? null) === '91465122240202030407';
+        });
+
+        // ₦1,500 for a BMS retrieval, unchanged by where the code came from.
+        $this->assertSame(250_000, $this->balance($user));
+        $this->assertSame('success', $this->latestOrder($user)->status);
+    }
+
     public function test_purchases_are_sent_to_the_provider_once_a_key_is_configured(): void
     {
         $user = $this->memberWithBalance(100_000);

@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Models\User;
 use App\Models\Wallet;
 use App\Notifications\ManualOrderNotification;
 use App\Services\ManualFulfilmentService;
 use App\Services\WalletLedger;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -38,10 +40,10 @@ class ManualOrdersController extends Controller
             }
 
             if ($status === 'in_progress') {
-                // The jobs somebody has already picked up, so a second admin does
-                // not start the same customer's record twice.
+                // The jobs somebody has already taken in hand, so a second admin
+                // does not start the same customer's record twice.
                 return $query->where('status', 'pending')
-                    ->where('meta->work_state', 'in_progress')
+                    ->whereNotNull('assigned_to')
                     ->orderBy('created_at')
                     ->orderBy('id');
             }
@@ -53,7 +55,7 @@ class ManualOrdersController extends Controller
             return $query->where('status', $status)->latest();
         };
 
-        $query = $byStatus($this->manualServices->queueQuery()->with('user'));
+        $query = $byStatus($this->manualServices->queueQuery()->with(['user', 'assignee']));
 
         $slug = trim((string) $request->input('service', ''));
         if ($slug !== '' && $this->manualServices->find($slug)) {
@@ -83,9 +85,8 @@ class ManualOrdersController extends Controller
 
         $counts = [
             'pending' => $this->manualServices->waitingQuery()->count(),
-            'in_progress' => $this->manualServices->queueQuery()
-                ->where('status', 'pending')
-                ->where('meta->work_state', 'in_progress')
+            'in_progress' => $this->manualServices->waitingQuery()
+                ->whereNotNull('assigned_to')
                 ->count(),
             'success' => $this->manualServices->queueQuery()->where('status', 'success')->count(),
             'failed' => $this->manualServices->queueQuery()->where('status', 'failed')->count(),
@@ -113,7 +114,7 @@ class ManualOrdersController extends Controller
     public function show(int $order)
     {
         $manualOrder = $this->findManualOrder($order);
-        $manualOrder->load('user');
+        $manualOrder->load(['user', 'assignee']);
 
         $meta = is_array($manualOrder->meta) ? $manualOrder->meta : [];
         $slug = (string) ($meta['manual_service'] ?? '');
@@ -160,45 +161,57 @@ class ManualOrdersController extends Controller
     }
 
     /**
-     * Whether an agent has actually taken the job in hand.
+     * Who is working this request.
      *
-     * The order stays pending until a person or a document answers the customer,
-     * so this records who is working the request rather than pretending the work
-     * is done: no money moves, and completing or rejecting the request works
-     * exactly the same way from either state.
+     * The order stays pending until a person or a document answers the customer, so
+     * this records the hand that holds the job rather than pretending it is done: no
+     * money moves, and completing or rejecting works exactly the same either way.
+     *
+     * A claim is one conditional write, so two admins who both press the button on
+     * the same request cannot both win it. The second is told whose it is and gets
+     * the choice of leaving it or taking it over with a reason. Every change of
+     * hands is appended to the order's own history, which no editor can rewrite.
      */
-    public function workState(Request $request, int $order)
+    public function claim(Request $request, int $order)
     {
         $manualOrder = $this->findManualOrder($order);
 
         // A finished request already carries its outcome, so there is nothing left
-        // to mark: writing a work note over it would suggest somebody is still
-        // working a job that has been answered.
+        // to hold: writing a claim over it would suggest somebody is still working
+        // a job that has been answered.
         if ($manualOrder->status !== 'pending') {
-            return back()->with('error', 'This request is already '.$manualOrder->status.', so it is not being worked on.');
+            return back()->with('error', 'This request is already '.$manualOrder->status.', so nobody is working it.');
         }
 
         $data = $request->validate([
-            'state' => ['required', Rule::in(['in_progress', 'waiting'])],
+            'action' => ['required', Rule::in(['take', 'release', 'take_over'])],
             'note' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $meta = is_array($manualOrder->meta) ? $manualOrder->meta : [];
-        $started = $data['state'] === 'in_progress';
-        $wasStarted = ($meta['work_state'] ?? null) === 'in_progress';
-        $title = (string) ($meta['manual_service_title'] ?? 'Identity request');
+        $admin = $request->user();
+        $adminId = (int) $admin->id;
+        $action = (string) $data['action'];
+        $note = trim((string) ($data['note'] ?? ''));
+        $holder = $manualOrder->assigned_to === null ? null : (int) $manualOrder->assigned_to;
 
-        $manualOrder->meta = array_merge($meta, [
-            'work_state' => $started ? 'in_progress' : 'waiting',
-            'work_state_at' => now()->toIso8601String(),
-            'work_state_by' => $request->user()?->id,
-            'work_note' => $started ? trim((string) ($data['note'] ?? '')) : '',
-        ]);
-        $manualOrder->save();
+        $refused = $this->claimRefused($action, $note, $holder, $adminId);
+        if ($refused !== null) {
+            return back()->with('error', $refused);
+        }
 
-        // The customer is told once, when the wait first turns into work. Sending
-        // it back through the waiting list is our bookkeeping, not news for them.
-        if ($started && !$wasStarted) {
+        if (!$this->writeClaim($manualOrder, $action, $adminId, $holder)) {
+            return back()->with('error', 'Someone else has just changed who is working this request. Reload the page to see the current holder.');
+        }
+
+        $this->recordClaimHistory($manualOrder->id, $action, $adminId, $holder, $note);
+
+        // The customer is told once, when the wait first turns into work. Moving a
+        // job between two agents, or back to the waiting list, is our bookkeeping,
+        // not fresh news for them.
+        if ($action !== 'release' && $holder === null) {
+            $meta = is_array($manualOrder->meta) ? $manualOrder->meta : [];
+            $title = (string) ($meta['manual_service_title'] ?? 'Identity request');
+
             $this->notifyCustomer(
                 $manualOrder,
                 $title.' is being worked on',
@@ -210,11 +223,130 @@ class ManualOrdersController extends Controller
                     'started_at' => now()->toIso8601String(),
                 ],
             );
+
+            return back()->with('success', 'This request is yours. The customer has been told work has started.');
         }
 
-        return back()->with('success', $started
-            ? 'Marked as in progress. The customer has been told work has started.'
-            : 'Moved back to the waiting queue.');
+        return back()->with('success', match ($action) {
+            'release' => 'Released back to the waiting queue for anybody to pick up.',
+            'take_over' => 'Taken over, with your reason recorded against it.',
+            default => 'Work note saved.',
+        });
+    }
+
+    /**
+     * The moves that must not happen at all, decided before anything is written.
+     *
+     * Claiming a request another agent is holding is refused rather than silently
+     * allowed: the only way their hold can be broken is the explicit take-over,
+     * which demands a reason an auditor can read later.
+     */
+    private function claimRefused(string $action, string $note, ?int $holder, int $adminId): ?string
+    {
+        if ($action === 'release' && $holder === null) {
+            return 'Nobody is working this request yet, so there is nothing to release.';
+        }
+
+        if ($action === 'take' && $holder !== null && $holder !== $adminId) {
+            return 'This request belongs to '.($this->claimNames([$holder])[$holder] ?? 'another agent').'. Take it over with a reason if it has to move.';
+        }
+
+        if ($action === 'take_over' && $holder === $adminId) {
+            return 'This request is already yours — save the work note instead.';
+        }
+
+        // Handing over somebody else's job, or dropping it for them, needs a
+        // sentence saying why: those are the two moves the next agent has to be
+        // able to read behind them.
+        if ($note === '' && $holder !== null && $holder !== $adminId) {
+            return 'Say why in the note first, so the next agent knows what you found.';
+        }
+
+        return null;
+    }
+
+    /**
+     * The claim itself, as one conditional write.
+     *
+     * The WHERE clause is the whole argument: the row is only written if it still
+     * holds the assignment this admin was shown a moment ago. Two of these racing at
+     * the database can both be accepted by the engine, but only one finds the row
+     * unclaimed, so the loser changes zero rows and is told instead of quietly
+     * overwriting the winner.
+     */
+    private function writeClaim(Order $manualOrder, string $action, int $adminId, ?int $holder): bool
+    {
+        $now = now();
+        $to = $action === 'release' ? null : $adminId;
+
+        $query = Order::query()
+            ->where('id', $manualOrder->id)
+            ->where('status', 'pending');
+
+        if ($holder === null) {
+            $query->whereNull('assigned_to');
+        } else {
+            $query->where('assigned_to', $holder);
+        }
+
+        return $query->update([
+            'assigned_to' => $to,
+            // A job handed straight back keeps the time it was first taken; only a
+            // fresh start resets the clock the customer is waiting on.
+            'assigned_at' => $to === null ? null : ($holder === null ? $now : ($manualOrder->assigned_at ?: $now)),
+            'updated_at' => $now,
+        ]) === 1;
+    }
+
+    /**
+     * One more line in the order's own record of who held it and why it moved.
+     */
+    private function recordClaimHistory(int $orderId, string $action, int $adminId, ?int $holder, string $note): void
+    {
+        $row = Order::query()->find($orderId);
+        if (!$row instanceof Order) {
+            return;
+        }
+
+        $meta = is_array($row->meta) ? $row->meta : [];
+        $changedHands = !($action === 'take' && $holder === $adminId);
+
+        if ($changedHands) {
+            $names = $this->claimNames(array_filter([$adminId, (int) $holder]));
+
+            $history = is_array($meta['work_history'] ?? null) ? $meta['work_history'] : [];
+            $history[] = [
+                'action' => $action,
+                'by' => $adminId,
+                'by_name' => $names[$adminId] ?? ('#'.$adminId),
+                'from' => $holder,
+                'from_name' => $holder === null ? null : ($names[$holder] ?? ('#'.$holder)),
+                'at' => now()->toIso8601String(),
+                'note' => $note,
+            ];
+
+            // Kept short so a request passed back and forth for a year cannot grow
+            // without bound. Nothing else on the order is touched: the answers, the
+            // documents and the money stay exactly as the customer left them.
+            $meta['work_history'] = array_slice($history, -30);
+        }
+
+        $row->meta = array_merge($meta, [
+            'work_note' => $action === 'release' ? '' : $note,
+        ]);
+        $row->save();
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return array<int, string>
+     */
+    private function claimNames(array $ids): array
+    {
+        return User::query()
+            ->whereIn('id', $ids)
+            ->pluck('name', 'id')
+            ->all();
     }
 
     public function fulfil(Request $request, int $order)
@@ -384,38 +516,19 @@ class ManualOrdersController extends Controller
     /**
      * The next request an agent should be offered.
      *
-     * A request somebody has already taken in hand is left with the person
-     * working it, so the queue offers the oldest untouched one and only falls
-     * back to a claimed request once everything waiting has been started. The
-     * claimed ids are read out first rather than asked for as "not in progress",
-     * because a request that has never been marked has no work state at all, and
-     * comparing a missing value is not something both database engines answer the
-     * same way.
+     * A request somebody has taken in hand is left with the person working it, so
+     * the queue offers the oldest unclaimed one and only falls back to a held
+     * request once every waiting job is being worked.
      */
     private function nextWaitingRequest(int $exceptOrderId): ?Order
     {
-        $claimed = $this->manualServices->waitingQuery()
-            ->where('meta->work_state', 'in_progress')
-            ->pluck('id')
-            ->all();
-
-        $untouched = $this->manualServices->waitingQuery()
+        $notThisOne = fn (): Builder => $this->manualServices->waitingQuery()
             ->where('id', '!=', $exceptOrderId)
-            ->whereNotIn('id', $claimed)
             ->orderBy('created_at')
-            ->orderBy('id')
-            ->first();
+            ->orderBy('id');
 
-        if ($untouched instanceof Order) {
-            return $untouched;
-        }
-
-        return $this->manualServices->waitingQuery()
-            ->where('id', '!=', $exceptOrderId)
-            ->whereIn('id', $claimed)
-            ->orderBy('created_at')
-            ->orderBy('id')
-            ->first();
+        return $notThisOne()->whereNull('assigned_to')->first()
+            ?? $notThisOne()->whereNotNull('assigned_to')->first();
     }
 
     private function normaliseStatus(string $status): string

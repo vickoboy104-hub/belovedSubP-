@@ -14,6 +14,10 @@
         $support = whatsapp_link();
 
         $isManualQueue = !empty($meta['manual_queue']);
+        // The customer's own words for what is happening: a request an agent has
+        // taken in hand reads differently from one still sitting in the queue, even
+        // though both are the same pending order underneath.
+        $customerStatus = $order->customerStatus();
         $resultText = trim((string) ($meta['result_text'] ?? ''));
         $resultFileName = trim((string) ($meta['result_file_name'] ?? ''));
         $hasResultFile = trim((string) ($meta['result_file'] ?? '')) !== '';
@@ -74,11 +78,11 @@
                     <div class="text-sm text-gray-500">Status</div>
                     <div class="text-sm font-extrabold">
                         <span class="px-3 py-1 rounded-full
-                            @if($order->status === 'success') bg-green-500/15 text-green-700 border border-green-500/25
-                            @elseif($order->status === 'failed') bg-red-500/15 text-red-700 border border-red-500/25
+                            @if($customerStatus['tone'] === 'success') bg-green-500/15 text-green-700 border border-green-500/25
+                            @elseif($customerStatus['tone'] === 'danger') bg-red-500/15 text-red-700 border border-red-500/25
                             @else bg-yellow-500/15 text-yellow-800 border border-yellow-500/25
                             @endif">
-                            {{ strtoupper($order->status ?? 'pending') }}
+                            {{ strtoupper($customerStatus['label']) }}
                         </span>
                     </div>
                 </div>
@@ -192,6 +196,17 @@
                 </div>
             @endif
 
+            @if($order->status === 'failed' && $isManualQueue && trim((string) ($meta['reject_reason'] ?? '')) !== '')
+                <div class="mt-5 rounded-2xl border border-red-500/25 bg-red-500/15 p-4">
+                    <div class="text-sm text-red-700 font-extrabold">Refunded to your wallet</div>
+                    <p class="mt-1 text-sm text-slate-700 break-words">{{ $meta['reject_reason'] }}</p>
+                    <p class="mt-2 text-sm font-extrabold text-slate-800">
+                        &#8358;{{ number_format((int) $order->amount / 100, 2) }} has been returned
+                        {{ !empty($meta['rejected_at']) ? 'on '.\Illuminate\Support\Carbon::parse($meta['rejected_at'])->format('d M, Y h:ia') : 'to your wallet' }}.
+                    </p>
+                </div>
+            @endif
+
             @if($hasResultFile)
                 <div class="mt-5 rounded-2xl border border-green-500/25 bg-green-500/10 p-4">
                     <div class="text-sm text-green-700 font-extrabold">Result Document</div>
@@ -203,9 +218,13 @@
                 </div>
             @elseif($isManualQueue && $order->status === 'pending')
                 <div class="mt-5 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4">
-                    <div class="text-sm font-extrabold text-yellow-800">In progress</div>
+                    <div class="text-sm font-extrabold text-yellow-800">{{ $customerStatus['label'] }}</div>
                     <p class="mt-1 text-sm text-slate-700">
-                        Your request has been received and is being processed by our team.
+                        @if($order->assigned_to !== null)
+                            A member of our team is working on this request now.
+                        @else
+                            Your request has been received and is next in our team's queue.
+                        @endif
                         @if($expectedBy)
                             Expected to be ready by <span class="font-extrabold">{{ $expectedBy->format('d M, Y h:ia') }}</span>
                             ({{ $expectedBy->diffForHumans() }}).

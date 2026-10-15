@@ -252,6 +252,9 @@ class SettingsController extends Controller
             'bvn_verify_endpoint' => ['nullable', 'string', 'max:255'],
             'bvn_retrieve_phone_endpoint' => ['nullable', 'string', 'max:255'],
             'bvn_retrieve_bms_endpoint' => ['nullable', 'string', 'max:255'],
+            // Sent with a BMS retrieval on our own account's behalf, so it belongs
+            // here rather than in a box the customer types into.
+            'bvn_retrieve_agent_code' => ['nullable', 'string', 'max:80'],
             'bvn_print_endpoint' => ['nullable', 'string', 'max:255'],
 
             // Which mode a verification runs in today. Anything that is not

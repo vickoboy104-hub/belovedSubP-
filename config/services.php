@@ -72,6 +72,8 @@ return [
         'verify_endpoint' => env('BVN_VERIFY_ENDPOINT', '/bvn_search'),
         'retrieve_phone_endpoint' => env('BVN_RETRIEVE_PHONE_ENDPOINT', ''),
         'retrieve_bms_endpoint' => env('BVN_RETRIEVE_BMS_ENDPOINT', ''),
+        // Ours, not the customer's: it identifies our agent account to the provider.
+        'retrieve_agent_code' => env('BVN_RETRIEVE_AGENT_CODE', ''),
         'print_endpoint' => env('BVN_PRINT_ENDPOINT', ''),
     ],
 

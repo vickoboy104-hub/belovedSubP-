@@ -167,7 +167,7 @@
                 @forelse(($recentOrders ?? []) as $order)
                     <a href="{{ route('vtu.receipt', $order->id) }}" class="reference-order-row">
                         <span><strong>{{ ucwords(str_replace('_', ' ', $order->meta['type'] ?? 'Order')) }}</strong><small>{{ optional($order->created_at)->format('M j, Y') }}</small></span>
-                        <span><strong>₦{{ number_format(((int) $order->amount) / 100, 2) }}</strong><small>{{ ucfirst($order->status ?? 'pending') }}</small></span>
+                        <span><strong>₦{{ number_format(((int) $order->amount) / 100, 2) }}</strong><small>{{ $order->customerStatus()['label'] }}</small></span>
                     </a>
                 @empty
                     <p class="text-sm text-slate-500">Your orders will appear here.</p>

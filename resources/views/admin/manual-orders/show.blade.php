@@ -24,17 +24,16 @@
         }
 
         $overdue = $order->status === 'pending' && $expectedBy && $expectedBy->isPast();
-        $started = $order->status === 'pending' && ($meta['work_state'] ?? null) === 'in_progress';
+
+        // Who holds the request is a column, not a note in the JSON, so two agents
+        // acting on the same page at the same moment cannot both believe it is theirs.
+        $holder = $order->status === 'pending' && $order->assigned_to !== null;
+        $isMine = $holder && (int) $order->assigned_to === (int) (auth()->id() ?? 0);
+        $holderName = $isMine ? 'You' : (trim((string) ($order->assignee?->name ?? '')) ?: 'Another agent');
         $workNote = trim((string) ($meta['work_note'] ?? ''));
-        $workedBy = null;
-        if ($started && !empty($meta['work_state_at'])) {
-            try {
-                $workedBy = \Illuminate\Support\Carbon::parse((string) $meta['work_state_at']);
-            } catch (\Throwable $e) {
-                $workedBy = null;
-            }
-        }
-        $statusLabel = $order->status === 'pending' ? ($started ? 'IN PROGRESS' : 'WAITING') : strtoupper($order->status);
+        $assignedAt = $holder ? $order->assigned_at : null;
+        $handovers = array_reverse(array_values(is_array($meta['work_history'] ?? null) ? $meta['work_history'] : []));
+        $statusLabel = $order->status === 'pending' ? ($holder ? 'IN PROGRESS' : 'WAITING') : strtoupper($order->status);
         $statusClasses = $order->status === 'success'
             ? 'bg-emerald-50 text-emerald-700'
             : ($order->status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700');
@@ -263,12 +262,15 @@
                     <section class="app-section p-5 sm:p-6">
                         <h2 class="text-lg font-extrabold text-slate-900">Who is working this?</h2>
                         <p class="mt-1 text-sm leading-6 text-slate-600">
-                            {{ $started
-                                ? 'In progress'.($workedBy ? ' since '.$workedBy->format('d M Y, h:i A') : '').'. It stays here until you publish a result or reject it.'
-                                : 'Nobody has picked this up yet. Marking it in progress tells the other agents to leave it alone.' }}
+                            @if($holder)
+                                <span class="font-bold">{{ $holderName }}</span> {{ $isMine ? 'hold' : 'holds' }} this request{{ $assignedAt ? ', since '.$assignedAt->format('d M Y, h:i A') : '' }}.
+                                It stays with them until a result is published or it is handed back.
+                            @else
+                                Nobody has picked this up yet. Taking it tells the other agents to leave it alone, and tells the customer work has started.
+                            @endif
                         </p>
 
-                        @if($started && $workNote !== '')
+                        @if($workNote !== '')
                             <div class="mt-3 rounded-[18px] border border-slate-200 bg-slate-50 p-3">
                                 <div class="app-record-label">Work note (admin only)</div>
                                 <div class="app-record-value">{{ $workNote }}</div>
@@ -276,27 +278,69 @@
                         @endif
 
                         <form method="POST"
-                              action="{{ route('admin.manual-orders.work-state', $order->id) }}"
+                              action="{{ route('admin.manual-orders.claim', $order->id) }}"
                               class="mt-4 space-y-3">
                             @csrf
 
                             <label class="block">
-                                <span class="text-sm font-bold text-slate-700">Note for the next agent (never shown to the customer)</span>
+                                <span class="text-sm font-bold text-slate-700">
+                                    {{ $holder && !$isMine ? 'Why does this need to move? (required, never shown to the customer)' : 'Note for the next agent (never shown to the customer)' }}
+                                </span>
                                 <input type="text" name="note" maxlength="500" value="{{ old('note', $workNote) }}"
                                        placeholder="e.g. NIMC portal opened, waiting on the OTP."
                                        class="input-field mt-2" />
                             </label>
 
-                            <button type="submit" name="state" value="in_progress" class="btn-primary w-full justify-center">
-                                {{ $started ? 'Save the work note' : 'Mark as in progress' }}
-                            </button>
-
-                            @if($started)
-                                <button type="submit" name="state" value="waiting" class="btn-outline w-full justify-center">
-                                    Move back to waiting
+                            @if(!$holder)
+                                <button type="submit" name="action" value="take" class="btn-primary w-full justify-center">
+                                    Take this request
+                                </button>
+                            @elseif($isMine)
+                                <button type="submit" name="action" value="take" class="btn-primary w-full justify-center">
+                                    Save the work note
+                                </button>
+                                <button type="submit" name="action" value="release" class="btn-outline w-full justify-center">
+                                    Release back to the waiting queue
+                                </button>
+                            @else
+                                <button type="submit" name="action" value="take_over" class="btn-primary w-full justify-center">
+                                    Take over from {{ $holderName }}
+                                </button>
+                                <button type="submit" name="action" value="release" class="btn-outline w-full justify-center">
+                                    Release it for them
                                 </button>
                             @endif
                         </form>
+
+                        @if(count($handovers) > 0)
+                            <h3 class="mt-5 text-sm font-extrabold text-slate-900">Changes of hand</h3>
+                            <ul class="mt-2 space-y-2">
+                                @foreach($handovers as $event)
+                                    @php
+                                        $verb = match ((string) ($event['action'] ?? '')) {
+                                            'take' => ($event['from'] ?? null) === null ? 'took it on' : 'picked it up again',
+                                            'release' => !empty($event['from_name']) && $event['from_name'] !== ($event['by_name'] ?? '')
+                                                ? 'released it from '.$event['from_name']
+                                                : 'released it back to the queue',
+                                            'take_over' => 'took it over from '.($event['from_name'] ?? 'another agent'),
+                                            default => (string) ($event['action'] ?? 'changed it'),
+                                        };
+                                        $movedAt = empty($event['at']) ? '' : \Illuminate\Support\Carbon::parse($event['at'])->format('d M Y, h:i A');
+                                        $why = trim((string) ($event['note'] ?? ''));
+                                    @endphp
+                                    <li class="rounded-[18px] border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                                        <span class="font-bold text-slate-800">{{ $event['by_name'] ?? 'An agent' }}</span>
+                                        {{ $verb }}
+                                        @if($movedAt !== '')
+                                            · {{ $movedAt }}
+                                        @endif
+                                        @if($why !== '')
+                                            <div class="mt-1 text-slate-500">{{ $why }}</div>
+                                        @endif
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
                     </section>
                 @endif
 

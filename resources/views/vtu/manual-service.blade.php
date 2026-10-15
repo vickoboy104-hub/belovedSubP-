@@ -45,6 +45,7 @@
         foreach ($history as $o) {
             $meta = (array) ($o->meta ?? []);
             $submitted = (array) ($meta['submitted'] ?? []);
+            $customer = $o->customerStatus();
             $hasResult = trim((string) ($meta['result_text'] ?? '')) !== ''
                 || trim((string) ($meta['result_file'] ?? '')) !== '';
 
@@ -52,11 +53,12 @@
                 'reference' => (string) ($o->customer_ref ?? ''),
                 'amount' => '₦'.number_format(((int) $o->amount) / 100, 2),
                 'result' => $hasResult ? 'Ready' : '',
-                'status' => match ((string) ($o->status ?? 'pending')) {
-                    'success' => ['value' => 'Completed', 'tone' => 'success'],
-                    'failed' => ['value' => 'Failed', 'tone' => 'danger'],
-                    default => ['value' => 'Pending', 'tone' => 'warning'],
-                },
+                // This table's own word for an answered request, but the waiting
+                // half of it has to say whether anybody has started.
+                'status' => [
+                    'value' => $customer['key'] === 'success' ? 'Completed' : $customer['label'],
+                    'tone' => $customer['tone'],
+                ],
                 'date' => optional($o->created_at)->format('Y-m-d, h:i:s A') ?? '',
             ];
 

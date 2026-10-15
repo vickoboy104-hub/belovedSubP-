@@ -98,13 +98,14 @@
                                     $validationType = str_replace('_', ' ', (string) ($meta['validation_type'] ?? ''));
                                     $providerMessage = (string) ($meta['message'] ?? '');
                                     $ninRef = (string) $report->customer_ref;
+                                    $customer = $report->customerStatus();
                                 @endphp
                                 <tr class="border-b border-slate-100">
                                     <td class="py-2 pr-4">{{ $report->customer_ref }}</td>
                                     <td class="py-2 pr-4 capitalize">{{ $validationType ?: '-' }}</td>
                                     <td class="py-2 pr-4">
-                                        <span class="rounded-full px-2 py-1 text-xs font-bold {{ $report->status === 'success' ? 'bg-emerald-50 text-emerald-700' : ($report->status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700') }}">
-                                            {{ strtoupper($report->status) }}
+                                        <span class="rounded-full px-2 py-1 text-xs font-bold {{ $customer['tone'] === 'success' ? 'bg-emerald-50 text-emerald-700' : ($customer['tone'] === 'warning' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700') }}">
+                                            {{ strtoupper($customer['label']) }}
                                         </span>
                                     </td>
                                     <td class="py-2 pr-4">{{ $providerMessage ?: '-' }}</td>
