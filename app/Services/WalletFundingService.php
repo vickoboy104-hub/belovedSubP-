@@ -20,6 +20,11 @@ use Illuminate\Support\Str;
  */
 class WalletFundingService
 {
+    public function __construct(
+        private readonly WalletLedger $ledger,
+    ) {
+    }
+
     /**
      * Bank one Flutterwave charge that somebody already verified as successful.
      *
@@ -93,8 +98,11 @@ class WalletFundingService
             // say so rather than reporting the requested figure.
             $asRequested = $row && (int) $row->amount === $grossKobo;
             $credit = $this->resolveCredit($grossKobo, $asRequested ? $meta : []);
-            $beforeKobo = (int) $lockedWallet->balance;
-            $afterKobo = $beforeKobo + $credit['credited_kobo'];
+            /* The arrival is added to whatever the wallet actually holds, not to the
+               figure this request read, so a webhook and the deposit sweep banking the
+               same wallet at the same moment both show up instead of one replacing the
+               other. */
+            [$beforeKobo, $afterKobo] = $this->ledger->shift($lockedWallet, 'credit', (int) $credit['credited_kobo']);
             $reference = $row?->reference ?: $this->uniqueReference($this->arrivalReference($chargeId, $flutterwaveId));
 
             $arrivalMeta = array_merge($meta, $extraMeta, [
@@ -139,7 +147,6 @@ class WalletFundingService
             }
 
             $lockedWallet->balance = $afterKobo;
-            $lockedWallet->save();
 
             $user = $lockedWallet->user()->lockForUpdate()->first();
             if ($user) {

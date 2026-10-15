@@ -4995,9 +4995,17 @@ class VtuController extends Controller
             return;
         }
 
-        $referrer->referral_earnings_balance = (int) ($referrer->referral_earnings_balance ?? 0) + $commissionKobo;
-        $referrer->referral_earnings_total = (int) ($referrer->referral_earnings_total ?? 0) + $commissionKobo;
-        $referrer->save();
+        /* The earning is added to whatever the database holds rather than to the number
+           this request happened to read, so two commissions landing on one referrer at
+           the same moment cannot cost him one of them. */
+        DB::table('users')
+            ->where('id', $referrer->id)
+            ->update([
+                'referral_earnings_balance' => DB::raw('referral_earnings_balance + '.$commissionKobo),
+                'referral_earnings_total' => DB::raw('COALESCE(referral_earnings_total, 0) + '.$commissionKobo),
+                'updated_at' => now(),
+            ]);
+        $referrer->referral_earnings_balance = (int) DB::table('users')->where('id', $referrer->id)->value('referral_earnings_balance');
         try {
             $referrer->notify(new UserWalletActivityNotification(
                 'Referral Commission Earned',

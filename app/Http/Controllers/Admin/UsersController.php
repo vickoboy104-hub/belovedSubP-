@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Notifications\UserWalletActivityNotification;
+use App\Services\WalletLedger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -17,6 +18,11 @@ use Illuminate\Validation\Rule;
 
 class UsersController extends Controller
 {
+    public function __construct(
+        private readonly WalletLedger $ledger,
+    ) {
+    }
+
     public function index(Request $request)
     {
         $search = trim((string) $request->query('search', ''));
@@ -188,13 +194,10 @@ class UsersController extends Controller
                     throw new \RuntimeException('User wallet not found.');
                 }
 
-                $beforeBalanceKobo = (int) ($wallet->balance ?? 0);
-                $afterBalanceKobo = $beforeBalanceKobo + $amountKobo;
-
+                [$beforeBalanceKobo, $afterBalanceKobo] = $this->ledger->shift($wallet, 'credit', $amountKobo);
                 $wallet->balance = $afterBalanceKobo;
-                $wallet->save();
 
-                $reference = 'ADMINFUND-' . now()->format('YmdHis') . '-' . Str::upper(Str::random(6));
+                $reference = $this->uniqueReference('ADMINFUND');
                 WalletTransaction::create([
                     'wallet_id' => $wallet->id,
                     'type' => 'credit',
@@ -261,33 +264,34 @@ class UsersController extends Controller
                     throw new \RuntimeException('User wallet not found.');
                 }
 
-                $beforeBalanceKobo = (int) ($wallet->balance ?? 0);
                 $mode = (string) $data['adjustment_type'];
+                $nowKobo = (int) DB::table('wallets')->where('id', $wallet->id)->value('balance');
 
+                /* Set-to-a-number is still a movement: it is turned into the credit or
+                   debit that reaches that number, so the write stays relative and two
+                   admins adjusting the same wallet cannot overwrite each other's view
+                   of what was there. */
                 if ($mode === 'set') {
-                    $afterBalanceKobo = $amountKobo;
-                    $deltaKobo = $afterBalanceKobo - $beforeBalanceKobo;
+                    $deltaKobo = $amountKobo - $nowKobo;
                 } elseif ($mode === 'credit') {
                     $deltaKobo = $amountKobo;
-                    $afterBalanceKobo = $beforeBalanceKobo + $deltaKobo;
                 } else {
                     $deltaKobo = -$amountKobo;
-                    $afterBalanceKobo = $beforeBalanceKobo + $deltaKobo;
-                }
-
-                if ($afterBalanceKobo < 0) {
-                    throw new \RuntimeException('Wallet balance cannot go below zero.');
                 }
 
                 if ($deltaKobo === 0) {
                     throw new \RuntimeException('No wallet balance change was made.');
                 }
 
-                $wallet->balance = $afterBalanceKobo;
-                $wallet->save();
+                if ($nowKobo + $deltaKobo < 0) {
+                    throw new \RuntimeException('Wallet balance cannot go below zero.');
+                }
 
                 $transactionType = $deltaKobo > 0 ? 'credit' : 'debit';
-                $reference = 'ADMINADJ-' . now()->format('YmdHis') . '-' . Str::upper(Str::random(6));
+                [$beforeBalanceKobo, $afterBalanceKobo] = $this->ledger->shift($wallet, $transactionType, abs($deltaKobo));
+                $wallet->balance = $afterBalanceKobo;
+
+                $reference = $this->uniqueReference('ADMINADJ');
 
                 WalletTransaction::create([
                     'wallet_id' => $wallet->id,
@@ -337,6 +341,15 @@ class UsersController extends Controller
         }
 
         return back()->with('success', 'Wallet adjusted successfully.');
+    }
+
+    private function uniqueReference(string $prefix): string
+    {
+        do {
+            $reference = $prefix.'-'.now()->format('YmdHis').'-'.Str::upper(Str::random(6));
+        } while (WalletTransaction::query()->where('reference', $reference)->exists());
+
+        return $reference;
     }
 
     private function generateTemporaryPassword(): string

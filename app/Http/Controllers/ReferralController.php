@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Notifications\UserWalletActivityNotification;
+use App\Services\WalletLedger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,11 @@ class ReferralController extends Controller
         'recharge_card' => 'Recharge PIN',
         'premium' => 'Premium Apps',
     ];
+
+    public function __construct(
+        private readonly WalletLedger $ledger,
+    ) {
+    }
 
     public function visit(Request $request, string $code): RedirectResponse
     {
@@ -136,19 +142,29 @@ class ReferralController extends Controller
                     throw new \RuntimeException('Wallet not found.');
                 }
 
-                $availableKobo = (int) ($lockedUser->referral_earnings_balance ?? 0);
-                if ($availableKobo < $amountKobo) {
+                /* The earnings pot is a balance too. Two taps on Withdraw used to read
+                   the same figure and each move all of it, so the deduction is one
+                   guarded relative write, and the wallet it lands in goes through the
+                   ledger like every other movement of money. */
+                $moved = DB::table('users')
+                    ->where('id', $lockedUser->id)
+                    ->where('referral_earnings_balance', '>=', $amountKobo)
+                    ->update([
+                        'referral_earnings_balance' => DB::raw('referral_earnings_balance - '.$amountKobo),
+                        'referral_earnings_withdrawn' => DB::raw('COALESCE(referral_earnings_withdrawn, 0) + '.$amountKobo),
+                        'updated_at' => now(),
+                    ]);
+
+                if ($moved !== 1) {
                     throw new \RuntimeException('You do not have that much in referral earnings.');
                 }
 
-                $lockedUser->referral_earnings_balance = $availableKobo - $amountKobo;
-                $lockedUser->referral_earnings_withdrawn = (int) ($lockedUser->referral_earnings_withdrawn ?? 0) + $amountKobo;
-                $lockedUser->save();
+                $lockedUser->referral_earnings_balance = (int) DB::table('users')
+                    ->where('id', $lockedUser->id)
+                    ->value('referral_earnings_balance');
 
-                $beforeBalanceKobo = (int) ($wallet->balance ?? 0);
-                $afterBalanceKobo = $beforeBalanceKobo + $amountKobo;
+                [$beforeBalanceKobo, $afterBalanceKobo] = $this->ledger->shift($wallet, 'credit', $amountKobo);
                 $wallet->balance = $afterBalanceKobo;
-                $wallet->save();
 
                 WalletTransaction::create([
                     'wallet_id' => $wallet->id,
