@@ -111,7 +111,7 @@ class ManualOrdersController extends Controller
         ]);
     }
 
-    public function show(int $order)
+    public function show(Request $request, int $order)
     {
         $manualOrder = $this->findManualOrder($order);
         $manualOrder->load(['user', 'assignee']);
@@ -119,6 +119,10 @@ class ManualOrdersController extends Controller
         $meta = is_array($manualOrder->meta) ? $manualOrder->meta : [];
         $slug = (string) ($meta['manual_service'] ?? '');
         $definition = $this->manualServices->find($slug);
+
+        // The forms ask for a reason only when the submit would really step over
+        // somebody, so the field never appears on a request the agent already owns.
+        $over = $this->overrideWhoseWork($manualOrder, (int) ($request->user()?->id ?? 0));
 
         return view('admin.manual-orders.show', [
             'order' => $manualOrder,
@@ -131,6 +135,10 @@ class ManualOrdersController extends Controller
                 ? $this->nextWaitingRequest($manualOrder->id)
                 : null,
             'waitingCount' => $this->manualServices->waitingCount(),
+            'overrideOver' => $over === null ? null : [
+                'name' => $this->claimNames([$over])[$over] ?? 'another agent',
+                'waiting' => $manualOrder->status === 'pending',
+            ],
         ]);
     }
 
@@ -167,10 +175,11 @@ class ManualOrdersController extends Controller
      * this records the hand that holds the job rather than pretending it is done: no
      * money moves, and completing or rejecting works exactly the same either way.
      *
-     * A claim is one conditional write, so two admins who both press the button on
-     * the same request cannot both win it. The second is told whose it is and gets
-     * the choice of leaving it or taking it over with a reason. Every change of
-     * hands is appended to the order's own history, which no editor can rewrite.
+     * The assignment and the line of history that explains it are written by the same
+     * statement, so there is no moment in which a reader - or a rollback - can see one
+     * without the other. A claim is one conditional write, so two admins who both
+     * press the button on the same request cannot both win it: the second changes zero
+     * rows, writes no history, and is told whose it is.
      */
     public function claim(Request $request, int $order)
     {
@@ -188,28 +197,65 @@ class ManualOrdersController extends Controller
             'note' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $admin = $request->user();
-        $adminId = (int) $admin->id;
+        $adminId = (int) $request->user()->id;
         $action = (string) $data['action'];
         $note = trim((string) ($data['note'] ?? ''));
-        $holder = $manualOrder->assigned_to === null ? null : (int) $manualOrder->assigned_to;
 
-        $refused = $this->claimRefused($action, $note, $holder, $adminId);
-        if ($refused !== null) {
-            return back()->with('error', $refused);
+        $refused = null;
+        $started = false;
+
+        DB::beginTransaction();
+
+        try {
+            $fresh = $this->lockedOrder($manualOrder->id);
+
+            if (!$fresh instanceof Order || $fresh->status !== 'pending') {
+                $refused = 'This request has just been answered, so nobody is working it.';
+            } else {
+                $holder = $fresh->assigned_to === null ? null : (int) $fresh->assigned_to;
+                $refused = $this->claimRefused($action, $note, $holder, $adminId);
+
+                if ($refused === null) {
+                    $meta = $this->historyFor(
+                        is_array($fresh->meta) ? $fresh->meta : [],
+                        $action,
+                        $adminId,
+                        $holder,
+                        $note,
+                    );
+
+                    if (!$this->settleAssignment($fresh, $action, $adminId, $holder, $meta)) {
+                        $refused = 'Someone else has just changed who is working this request. Reload the page to see the current holder.';
+                    } else {
+                        $started = $action !== 'release' && $holder === null;
+                    }
+                }
+            }
+
+            if ($refused !== null) {
+                // Nothing was written, so the history cannot disagree with the hold.
+                DB::rollBack();
+
+                return back()->with('error', $refused);
+            }
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            Log::error('Manual order assignment failed.', [
+                'order_id' => $manualOrder->id,
+                'action' => $action,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'Could not record who is working this request. Nothing was changed.');
         }
 
-        if (!$this->writeClaim($manualOrder, $action, $adminId, $holder)) {
-            return back()->with('error', 'Someone else has just changed who is working this request. Reload the page to see the current holder.');
-        }
-
-        $this->recordClaimHistory($manualOrder->id, $action, $adminId, $holder, $note);
-
-        // The customer is told once, when the wait first turns into work. Moving a
-        // job between two agents, or back to the waiting list, is our bookkeeping,
-        // not fresh news for them.
-        if ($action !== 'release' && $holder === null) {
-            $meta = is_array($manualOrder->meta) ? $manualOrder->meta : [];
+        // The customer is told once, when the wait first turns into work, and only
+        // after the hold is safely on the record. Moving a job between two agents, or
+        // back to the waiting list, is our bookkeeping, not fresh news for them.
+        if ($started) {
             $title = (string) ($meta['manual_service_title'] ?? 'Identity request');
 
             $this->notifyCustomer(
@@ -266,21 +312,36 @@ class ManualOrdersController extends Controller
     }
 
     /**
-     * The claim itself, as one conditional write.
+     * The row as the database holds it at this instant, locked for the length of the
+     * surrounding transaction.
+     *
+     * Reading it again is what keeps a decision honest: the page an admin was shown
+     * can already be out of date, and an answer or a hold written by somebody else in
+     * the last few seconds has to be seen before it is overwritten.
+     */
+    private function lockedOrder(int $orderId): ?Order
+    {
+        return Order::query()->where('id', $orderId)->lockForUpdate()->first();
+    }
+
+    /**
+     * The assignment and its history, in the one statement.
      *
      * The WHERE clause is the whole argument: the row is only written if it still
      * holds the assignment this admin was shown a moment ago. Two of these racing at
      * the database can both be accepted by the engine, but only one finds the row
-     * unclaimed, so the loser changes zero rows and is told instead of quietly
-     * overwriting the winner.
+     * unclaimed, so the loser changes zero rows and writes no history line either -
+     * which is why the two can never end up disagreeing.
+     *
+     * @param  array<string, mixed>  $meta
      */
-    private function writeClaim(Order $manualOrder, string $action, int $adminId, ?int $holder): bool
+    private function settleAssignment(Order $fresh, string $action, int $adminId, ?int $holder, array $meta): bool
     {
         $now = now();
         $to = $action === 'release' ? null : $adminId;
 
         $query = Order::query()
-            ->where('id', $manualOrder->id)
+            ->where('id', $fresh->id)
             ->where('status', 'pending');
 
         if ($holder === null) {
@@ -293,48 +354,59 @@ class ManualOrdersController extends Controller
             'assigned_to' => $to,
             // A job handed straight back keeps the time it was first taken; only a
             // fresh start resets the clock the customer is waiting on.
-            'assigned_at' => $to === null ? null : ($holder === null ? $now : ($manualOrder->assigned_at ?: $now)),
+            'assigned_at' => $to === null ? null : ($holder === null ? $now : ($fresh->assigned_at ?: $now)),
             'updated_at' => $now,
+            'meta' => json_encode($meta),
         ]) === 1;
     }
 
     /**
-     * One more line in the order's own record of who held it and why it moved.
+     * One more line in the order's own record of who held it and why it moved, plus
+     * the note the next agent reads. It stores nothing: the caller writes it in the
+     * same statement as the assignment it describes.
+     *
+     * @param  array<string, mixed>  $meta
+     * @return array<string, mixed>
      */
-    private function recordClaimHistory(int $orderId, string $action, int $adminId, ?int $holder, string $note): void
+    private function historyFor(array $meta, string $action, int $adminId, ?int $holder, string $note): array
     {
-        $row = Order::query()->find($orderId);
-        if (!$row instanceof Order) {
-            return;
-        }
-
-        $meta = is_array($row->meta) ? $row->meta : [];
+        // Taking a request you already hold is not a change of hand, it is a note.
         $changedHands = !($action === 'take' && $holder === $adminId);
 
         if ($changedHands) {
-            $names = $this->claimNames(array_filter([$adminId, (int) $holder]));
-
-            $history = is_array($meta['work_history'] ?? null) ? $meta['work_history'] : [];
-            $history[] = [
-                'action' => $action,
-                'by' => $adminId,
-                'by_name' => $names[$adminId] ?? ('#'.$adminId),
-                'from' => $holder,
-                'from_name' => $holder === null ? null : ($names[$holder] ?? ('#'.$holder)),
-                'at' => now()->toIso8601String(),
-                'note' => $note,
-            ];
-
-            // Kept short so a request passed back and forth for a year cannot grow
-            // without bound. Nothing else on the order is touched: the answers, the
-            // documents and the money stay exactly as the customer left them.
-            $meta['work_history'] = array_slice($history, -30);
+            $meta = $this->appendHistory($meta, $action, $adminId, $holder, $note);
         }
 
-        $row->meta = array_merge($meta, [
-            'work_note' => $action === 'release' ? '' : $note,
-        ]);
-        $row->save();
+        $meta['work_note'] = $action === 'release' ? '' : $note;
+
+        return $meta;
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     * @return array<string, mixed>
+     */
+    private function appendHistory(array $meta, string $action, int $adminId, ?int $holder, string $note): array
+    {
+        $names = $this->claimNames(array_filter([$adminId, (int) $holder]));
+
+        $history = is_array($meta['work_history'] ?? null) ? $meta['work_history'] : [];
+        $history[] = [
+            'action' => $action,
+            'by' => $adminId,
+            'by_name' => $names[$adminId] ?? ('#'.$adminId),
+            'from' => $holder,
+            'from_name' => $holder === null ? null : ($names[$holder] ?? ('#'.$holder)),
+            'at' => now()->toIso8601String(),
+            'note' => $note,
+        ];
+
+        // Kept short so a request passed back and forth for a year cannot grow
+        // without bound. Nothing else on the order is touched: the answers, the
+        // documents and the money stay exactly as the customer left them.
+        $meta['work_history'] = array_slice($history, -30);
+
+        return $meta;
     }
 
     /**
@@ -359,44 +431,107 @@ class ManualOrdersController extends Controller
             'result_text' => ['nullable', 'string', 'max:20000', 'required_without:result_file'],
             'result_file' => ['nullable', 'file', 'max:10240', 'required_without:result_text'],
             'admin_note' => ['nullable', 'string', 'max:1000'],
+            'override_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $wasWaiting = $manualOrder->status === 'pending';
+        $adminId = (int) $request->user()->id;
+        $overrideReason = trim((string) ($data['override_reason'] ?? ''));
         $resultText = sanitize_popup_message_html($data['result_text'] ?? '');
 
-        $meta = is_array($manualOrder->meta) ? $manualOrder->meta : [];
-        $title = (string) ($meta['manual_service_title'] ?? 'Identity request');
-
-        if ($request->hasFile('result_file')) {
-            $file = $request->file('result_file');
-
-            // Identity documents, so the private disk: the only way to reach the
-            // bytes is the ownership-checked receipt route.
-            $path = $file->store('manual-results', 'local');
-
-            $meta['result_file'] = $path;
-            $meta['result_file_name'] = $file->getClientOriginalName();
-            $meta['result_file_size'] = $file->getSize();
+        // Decided before anything is written or uploaded, so a refused attempt
+        // cannot leave a customer's document sitting on the disk attached to nothing.
+        $refused = $this->answerRefused($manualOrder, $adminId, $overrideReason);
+        if ($refused !== null) {
+            return back()->with('error', $refused);
         }
 
-        if ($resultText === '' && empty($meta['result_file'])) {
-            return back()->with('error', 'Type a result or upload a document before completing this request.');
-        }
+        $storedPath = null;
+        $answered = false;
+        $outcomeMeta = is_array($manualOrder->meta) ? $manualOrder->meta : [];
 
         DB::beginTransaction();
+
         try {
-            $manualOrder->status = 'success';
-            $manualOrder->meta = array_merge($meta, [
-                'result_text' => $resultText !== '' ? $resultText : ($meta['result_text'] ?? ''),
+            $fresh = $this->lockedOrder($manualOrder->id);
+
+            if (!$fresh instanceof Order) {
+                DB::rollBack();
+
+                return back()->with('error', 'This request no longer exists. Nothing was saved.');
+            }
+
+            if (!in_array($fresh->status, ['pending', 'success'], true)) {
+                DB::rollBack();
+
+                return back()->with('error', 'This request is already '.$fresh->status.', so it cannot be completed.');
+            }
+
+            $refused = $this->answerRefused($fresh, $adminId, $overrideReason);
+            if ($refused !== null) {
+                DB::rollBack();
+
+                return back()->with('error', $refused);
+            }
+
+            $meta = is_array($fresh->meta) ? $fresh->meta : [];
+
+            if ($request->hasFile('result_file')) {
+                $file = $request->file('result_file');
+
+                // Identity documents, so the private disk: the only way to reach the
+                // bytes is the ownership-checked receipt route.
+                $storedPath = $file->store('manual-results', 'local');
+
+                $meta['result_file'] = $storedPath;
+                $meta['result_file_name'] = $file->getClientOriginalName();
+                $meta['result_file_size'] = $file->getSize();
+            }
+
+            if ($resultText === '' && empty($meta['result_file'])) {
+                if ($storedPath !== null) {
+                    Storage::disk('local')->delete($storedPath);
+                }
+
+                DB::rollBack();
+
+                return back()->with('error', 'Type a result or upload a document before completing this request.');
+            }
+
+            // Answering over another agent's hold is allowed - a supervisor who can
+            // see the queue is the person most likely to notice a job has stalled -
+            // but only as an explicit, reasoned act recorded against the request.
+            $over = $this->overrideWhoseWork($fresh, $adminId);
+            if ($over !== null) {
+                $meta = $this->appendHistory($meta, 'answered_over', $adminId, $over, $overrideReason);
+            }
+
+            $answered = $fresh->status === 'pending';
+            $outcomeMeta = $meta;
+
+            $meta = array_merge($meta, [
+                'result_text' => $resultText !== '' ? $resultText : (string) ($meta['result_text'] ?? ''),
                 'admin_note' => trim((string) ($data['admin_note'] ?? '')),
                 'fulfilled_at' => now()->toIso8601String(),
-                'fulfilled_by' => $request->user()?->id,
+                'fulfilled_by' => $adminId,
             ]);
-            $manualOrder->save();
+
+            if (!$this->settleAnswer($fresh, $meta, 'success')) {
+                if ($storedPath !== null) {
+                    Storage::disk('local')->delete($storedPath);
+                }
+
+                DB::rollBack();
+
+                return back()->with('error', 'Somebody else has just answered this request. Reload the page to see the current result.');
+            }
 
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
+
+            if ($storedPath !== null) {
+                Storage::disk('local')->delete($storedPath);
+            }
 
             Log::error('Manual order fulfilment failed.', [
                 'order_id' => $manualOrder->id,
@@ -406,19 +541,32 @@ class ManualOrdersController extends Controller
             return back()->with('error', 'Could not save the result. Please try again.');
         }
 
-        $this->notifyCustomer(
-            $manualOrder,
-            $title.' is ready',
-            'Your '.$title.' result is ready. Open your receipt to read it or download the document.',
-            [
-                'type' => 'manual_order_completed',
-                'order_id' => $manualOrder->id,
-                'manual_service' => (string) ($meta['manual_service'] ?? ''),
-                'completed_at' => now()->toIso8601String(),
-            ],
-        );
+        // Only the write that turned the wait into an answer tells the customer. An
+        // update to a result that is already published is corrected quietly on the
+        // receipt, so one request cannot announce itself twice.
+        if ($answered) {
+            $title = (string) ($outcomeMeta['manual_service_title'] ?? 'Identity request');
 
-        return $this->continueQueue($manualOrder, $wasWaiting, 'Result published. The customer can now see it on their receipt.');
+            $this->notifyCustomer(
+                $manualOrder,
+                $title.' is ready',
+                'Your '.$title.' result is ready. Open your receipt to read it or download the document.',
+                [
+                    'type' => 'manual_order_completed',
+                    'order_id' => $manualOrder->id,
+                    'manual_service' => (string) ($outcomeMeta['manual_service'] ?? ''),
+                    'completed_at' => now()->toIso8601String(),
+                ],
+            );
+        }
+
+        return $this->continueQueue(
+            $manualOrder,
+            $answered,
+            $answered
+                ? 'Result published. The customer can now see it on their receipt.'
+                : 'Result updated. The customer already knew it was ready, so nobody was notified again.',
+        );
     }
 
     public function reject(Request $request, int $order)
@@ -431,27 +579,73 @@ class ManualOrdersController extends Controller
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],
+            'override_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $meta = is_array($manualOrder->meta) ? $manualOrder->meta : [];
-        $title = (string) ($meta['manual_service_title'] ?? 'Identity request');
-        $reason = trim((string) $data['reason']);
-        $reference = (string) ($manualOrder->provider_reference ?: 'MANUAL-'.$manualOrder->id);
-        $amountKobo = (int) $manualOrder->amount;
+        $adminId = (int) $request->user()->id;
+        $overrideReason = trim((string) ($data['override_reason'] ?? ''));
 
-        $wallet = $manualOrder->user?->wallet;
+        $refused = $this->answerRefused($manualOrder, $adminId, $overrideReason);
+        if ($refused !== null) {
+            return back()->with('error', $refused);
+        }
+
+        $reason = trim((string) $data['reason']);
+        $amountKobo = 0;
+        $title = 'Identity request';
+        $slug = '';
 
         DB::beginTransaction();
+
         try {
-            $manualOrder->status = 'failed';
-            $manualOrder->meta = array_merge($meta, [
+            $fresh = $this->lockedOrder($manualOrder->id);
+
+            if (!$fresh instanceof Order) {
+                DB::rollBack();
+
+                return back()->with('error', 'This request no longer exists. Nothing was refunded.');
+            }
+
+            if ($fresh->status !== 'pending') {
+                DB::rollBack();
+
+                return back()->with('error', 'This request has already been '.($fresh->status === 'failed' ? 'rejected and refunded' : 'completed').', so nothing was refunded again.');
+            }
+
+            $refused = $this->answerRefused($fresh, $adminId, $overrideReason);
+            if ($refused !== null) {
+                DB::rollBack();
+
+                return back()->with('error', $refused);
+            }
+
+            $meta = is_array($fresh->meta) ? $fresh->meta : [];
+            $title = (string) ($meta['manual_service_title'] ?? 'Identity request');
+            $slug = (string) ($meta['manual_service'] ?? '');
+            $amountKobo = (int) $fresh->amount;
+            $reference = (string) ($fresh->provider_reference ?: 'MANUAL-'.$fresh->id);
+
+            $over = $this->overrideWhoseWork($fresh, $adminId);
+            if ($over !== null) {
+                $meta = $this->appendHistory($meta, 'answered_over', $adminId, $over, $overrideReason);
+            }
+
+            $meta = array_merge($meta, [
                 'reject_reason' => $reason,
                 'rejected_at' => now()->toIso8601String(),
-                'rejected_by' => $request->user()?->id,
+                'rejected_by' => $adminId,
             ]);
-            $manualOrder->save();
 
-            // The customer paid up front, so a rejection is always a full refund.
+            if (!$this->settleAnswer($fresh, $meta, 'failed')) {
+                DB::rollBack();
+
+                return back()->with('error', 'Somebody else has just answered this request. Nothing was refunded.');
+            }
+
+            // The customer paid up front, so a rejection is always a full refund - and
+            // it is written in the same transaction as the rejection, so a request can
+            // never be marked failed while the money stays where it was.
+            $wallet = $fresh->user?->wallet;
             if ($amountKobo > 0 && $wallet instanceof Wallet) {
                 $this->ledger->credit(
                     $wallet,
@@ -480,12 +674,78 @@ class ManualOrdersController extends Controller
             [
                 'type' => 'manual_order_rejected',
                 'order_id' => $manualOrder->id,
-                'manual_service' => (string) ($meta['manual_service'] ?? ''),
+                'manual_service' => $slug,
                 'refund_kobo' => $amountKobo,
             ],
         );
 
         return $this->continueQueue($manualOrder, true, 'Request rejected and ₦'.number_format($amountKobo / 100, 2).' refunded to the customer.');
+    }
+
+    /**
+     * A request somebody is working is theirs until they hand it back - and a result
+     * somebody has published is theirs until they correct it themselves.
+     *
+     * Any admin may still act on either - a supervisor who can see the queue is often
+     * the one who notices a job has stalled - but never silently: the act needs the
+     * reason that goes into the request's own history.
+     */
+    private function answerRefused(Order $order, int $adminId, string $overrideReason): ?string
+    {
+        $over = $this->overrideWhoseWork($order, $adminId);
+
+        if ($over === null) {
+            return null;
+        }
+
+        if ($overrideReason !== '') {
+            return null;
+        }
+
+        $name = $this->claimNames([$over])[$over] ?? 'another agent';
+
+        return $order->status === 'pending'
+            ? $name.' is working this request. Say why you are answering it, so the reason stays on the record.'
+            : $name.' answered this request. Say why you are changing the result on their record, so the reason stays on it.';
+    }
+
+    /**
+     * Whose hold or whose published answer this submit would step over, or null when
+     * it steps over nobody.
+     */
+    private function overrideWhoseWork(Order $order, int $adminId): ?int
+    {
+        if ($order->status === 'pending') {
+            $who = $order->assigned_to === null ? null : (int) $order->assigned_to;
+        } else {
+            $meta = is_array($order->meta) ? $order->meta : [];
+            $key = $order->status === 'failed' ? 'rejected_by' : 'fulfilled_by';
+            $who = isset($meta[$key]) ? (int) $meta[$key] : null;
+        }
+
+        return $who === null || $who === $adminId ? null : $who;
+    }
+
+    /**
+     * The outcome, as one conditional write.
+     *
+     * Writing the answer only while the request is still in the state the admin was
+     * shown is what makes a double click, a stale page and two admins at once all
+     * resolve the same way: exactly one of them changes the row, and the losers refund
+     * nobody, notify nobody and overwrite nothing.
+     *
+     * @param  array<string, mixed>  $meta
+     */
+    private function settleAnswer(Order $fresh, array $meta, string $status): bool
+    {
+        return Order::query()
+            ->where('id', $fresh->id)
+            ->where('status', $fresh->status)
+            ->update([
+                'status' => $status,
+                'updated_at' => now(),
+                'meta' => json_encode($meta),
+            ]) === 1;
     }
 
     /**

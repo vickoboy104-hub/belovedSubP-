@@ -181,7 +181,11 @@
                             {{ $order->status === 'pending' ? 'Publish the result' : 'Update the result' }}
                         </h2>
                         <p class="mt-1 text-sm text-slate-500">
-                            Type the answer, attach a document, or do both. Saving marks the request complete and notifies the customer.
+                            @if($order->status === 'pending')
+                                Type the answer, attach a document, or do both. Saving marks the request complete and notifies the customer.
+                            @else
+                                This result is already published. Saving corrects what the customer sees on their receipt, without telling them twice.
+                            @endif
                         </p>
 
                         <form method="POST"
@@ -213,6 +217,8 @@
                                 <span class="text-sm font-bold text-slate-700">Internal note (never shown to the customer)</span>
                                 <input type="text" name="admin_note" maxlength="1000" value="{{ old('admin_note', $meta['admin_note'] ?? '') }}" class="input-field mt-2" />
                             </label>
+
+                            @include('admin.manual-orders._override-reason')
 
                             <button type="submit" class="btn-primary w-full justify-center">
                                 {{ $order->status === 'pending' ? 'Complete request and notify customer' : 'Save updated result' }}
@@ -258,18 +264,26 @@
                     <a href="{{ route('vtu.receipt', $order->id) }}" class="btn-outline mt-2 w-full justify-center">See the customer's receipt</a>
                 </section>
 
-                @if($order->status === 'pending')
-                    <section class="app-section p-5 sm:p-6">
-                        <h2 class="text-lg font-extrabold text-slate-900">Who is working this?</h2>
-                        <p class="mt-1 text-sm leading-6 text-slate-600">
+                <section class="app-section p-5 sm:p-6">
+                    <h2 class="text-lg font-extrabold text-slate-900">
+                        {{ $order->status === 'pending' ? 'Who is working this?' : 'Who worked this?' }}
+                    </h2>
+                    <p class="mt-1 text-sm leading-6 text-slate-600">
+                        @if($order->status === 'pending')
                             @if($holder)
                                 <span class="font-bold">{{ $holderName }}</span> {{ $isMine ? 'hold' : 'holds' }} this request{{ $assignedAt ? ', since '.$assignedAt->format('d M Y, h:i A') : '' }}.
                                 It stays with them until a result is published or it is handed back.
                             @else
                                 Nobody has picked this up yet. Taking it tells the other agents to leave it alone, and tells the customer work has started.
                             @endif
-                        </p>
+                        @elseif($order->assigned_to !== null)
+                            <span class="font-bold">{{ $holderName }}</span> held this request until it was {{ $order->status }}{{ $assignedAt ? ', from '.$assignedAt->format('d M Y, h:i A') : '' }}.
+                        @else
+                            This request was answered without anybody taking it in hand first.
+                        @endif
+                    </p>
 
+                    @if($order->status === 'pending')
                         @if($workNote !== '')
                             <div class="mt-3 rounded-[18px] border border-slate-200 bg-slate-50 p-3">
                                 <div class="app-record-label">Work note (admin only)</div>
@@ -311,38 +325,39 @@
                                 </button>
                             @endif
                         </form>
+                    @endif
 
-                        @if(count($handovers) > 0)
-                            <h3 class="mt-5 text-sm font-extrabold text-slate-900">Changes of hand</h3>
-                            <ul class="mt-2 space-y-2">
-                                @foreach($handovers as $event)
-                                    @php
-                                        $verb = match ((string) ($event['action'] ?? '')) {
-                                            'take' => ($event['from'] ?? null) === null ? 'took it on' : 'picked it up again',
-                                            'release' => !empty($event['from_name']) && $event['from_name'] !== ($event['by_name'] ?? '')
-                                                ? 'released it from '.$event['from_name']
-                                                : 'released it back to the queue',
-                                            'take_over' => 'took it over from '.($event['from_name'] ?? 'another agent'),
-                                            default => (string) ($event['action'] ?? 'changed it'),
-                                        };
-                                        $movedAt = empty($event['at']) ? '' : \Illuminate\Support\Carbon::parse($event['at'])->format('d M Y, h:i A');
-                                        $why = trim((string) ($event['note'] ?? ''));
-                                    @endphp
-                                    <li class="rounded-[18px] border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                                        <span class="font-bold text-slate-800">{{ $event['by_name'] ?? 'An agent' }}</span>
-                                        {{ $verb }}
-                                        @if($movedAt !== '')
-                                            · {{ $movedAt }}
-                                        @endif
-                                        @if($why !== '')
-                                            <div class="mt-1 text-slate-500">{{ $why }}</div>
-                                        @endif
-                                    </li>
-                                @endforeach
-                            </ul>
-                        @endif
-                    </section>
-                @endif
+                    @if(count($handovers) > 0)
+                        <h3 class="mt-5 text-sm font-extrabold text-slate-900">Changes of hand</h3>
+                        <ul class="mt-2 space-y-2">
+                            @foreach($handovers as $event)
+                                @php
+                                    $verb = match ((string) ($event['action'] ?? '')) {
+                                        'take' => ($event['from'] ?? null) === null ? 'took it on' : 'picked it up again',
+                                        'release' => !empty($event['from_name']) && $event['from_name'] !== ($event['by_name'] ?? '')
+                                            ? 'released it from '.$event['from_name']
+                                            : 'released it back to the queue',
+                                        'take_over' => 'took it over from '.($event['from_name'] ?? 'another agent'),
+                                        'answered_over' => 'answered it over '.($event['from_name'] ?? 'another agent')."'s hold",
+                                        default => (string) ($event['action'] ?? 'changed it'),
+                                    };
+                                    $movedAt = empty($event['at']) ? '' : \Illuminate\Support\Carbon::parse($event['at'])->format('d M Y, h:i A');
+                                    $why = trim((string) ($event['note'] ?? ''));
+                                @endphp
+                                <li class="rounded-[18px] border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                                    <span class="font-bold text-slate-800">{{ $event['by_name'] ?? 'An agent' }}</span>
+                                    {{ $verb }}
+                                    @if($movedAt !== '')
+                                        · {{ $movedAt }}
+                                    @endif
+                                    @if($why !== '')
+                                        <div class="mt-1 text-slate-500">{{ $why }}</div>
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </section>
 
                 @if($order->status === 'pending')
                     <section class="app-section border-rose-200 p-5 sm:p-6">
@@ -374,6 +389,8 @@
                                           placeholder="e.g. The tracking ID could not be found at NIMC."
                                           class="input-field mt-2">{{ old('reason') }}</textarea>
                             </label>
+
+                            @include('admin.manual-orders._override-reason')
 
                             <button type="submit" class="btn-danger w-full justify-center">
                                 Reject and refund
