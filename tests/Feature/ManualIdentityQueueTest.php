@@ -97,7 +97,10 @@ class ManualIdentityQueueTest extends TestCase
         $this->assertStringContainsString(number_format($order->amount / 100, 2), $html);
         $this->assertStringContainsString('WAITING', $html);
         $this->assertStringContainsString($order->created_at->format('d M Y, h:i A'), $html);
-        $this->assertStringContainsString($user->name, $html);
+        // A customer name can carry an apostrophe - D'Amore is a real surname - and
+        // the page escapes it, so the test looks for the name as the admin reads it.
+        // Comparing the raw name made this fail only on the runs that drew such a name.
+        $this->assertStringContainsString(e($user->name), $html);
         $this->assertStringContainsString($user->email, $html);
 
         // The customer who paid cannot read another person's identity document:
