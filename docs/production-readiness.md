@@ -51,8 +51,9 @@ is not proven **anywhere** until somebody runs it on `s3470`.
 | Check | Pass | Detail |
 |---|---|---|
 | Order | `git checkout` **then** `php artisan migrate --force` | A migration added by the commits does not exist on disk before the checkout; running `migrate` early prints a false "Nothing to migrate". |
-| `php artisan migrate:status` | `record_purchase_intents`, `record_document_filings` and `flutterwave_charge_claims` all `Ran` | The last one is the table that stops one bank transfer funding two wallets. |
+| `php artisan migrate:status` | `record_purchase_intents`, `record_document_filings`, `flutterwave_charge_claims` and `flutterwave_held_deposits` all `Ran` | The third stops one bank transfer funding two wallets; the fourth is where a transfer that cannot be proved to belong to exactly one customer is written down instead of paid. |
 | `flutterwave_charge_claims` is being written | its row count is greater than zero on a box with funding history | The migration backfills one claim per charge identity from the existing ledger, so a deposit banked before the deploy cannot be banked again. deploy-checklist §8.3. |
+| `flutterwave_held_deposits` has no backfill | the table is empty at deploy, and fills only from money that arrives afterwards | Deliberate: a migration cannot un-pay a credit that already happened. Nothing was deleted to get here either - check `select status, count(*) from flutterwave_held_deposits group by status` before telling anyone the queue is clear. |
 | No data was rewritten | every pre-existing `wallet_transactions` row is untouched, balances unchanged | The guard only adds rows. Proven by test, not by argument. |
 | `migrate:rollback` | **not run** | These migrations only add; rolling back drops a column to gain nothing and can lock a busy table. deploy-checklist §10.3. |
 
@@ -87,12 +88,15 @@ it is run casually.
 2. Newest `public/build/assets/*.css` name from `git ls-tree` and from the live site → same
    bytes, HTTP 200 (this is the check that catches the docroot copy problem).
 3. `/login` in a browser, view source → the `build/assets` names match the deployed manifest.
-4. `php artisan migrate:status | grep -E 'purchase_intents|document_filings|flutterwave_charge_claims'` → all `Ran`.
-5. `php artisan deposits:audit --days=30` → read "Written off as never arriving"; a row whose
+4. `php artisan migrate:status | grep -E 'purchase_intents|document_filings|flutterwave_charge_claims|flutterwave_held_deposits'` → all `Ran`.
+5. `php artisan deposits:audit --days=30 --references=0` → read "Written off as never arriving"; a row whose
    account number nobody holds is money that will not self-heal.
-6. `tail -100 storage/logs/laravel.log` → nothing new since the deploy timestamp.
-7. `php artisan tinker --execute="echo setting('provider');"` → `gsubz`.
-8. Admin queue: one manual request visible with all its fields and its document link; the
+6. Admin **Held Deposits** (`/wallet-deposits/held`) → it opens for an admin, is refused for a
+   member, and any row still marked `held` is money the site deliberately did not guess about.
+   Read them before telling anybody a deposit will sort itself out.
+7. `tail -100 storage/logs/laravel.log` → nothing new since the deploy timestamp.
+8. `php artisan tinker --execute="echo setting('provider');"` → `gsubz`.
+9. Admin queue: one manual request visible with all its fields and its document link; the
    customer's own receipt shows WAITING, not success.
 
 **Not in this list on purpose:** a real airtime purchase, a real NIN check, a real deposit.
@@ -116,7 +120,13 @@ Each costs the owner money (or moves it), so they need an explicit yes first
    provider** - [confirmident-billing-policy.md](confirmident-billing-policy.md). Until they
    answer, the code holds identities, which costs ₦160 per ambiguous NIN lookup.
 6. **No customer-facing page has been walked through on the live site after a deploy.**
-7. Two features are documented and deliberately **not** built: an admin "stuck deposits"
-   screen, and a rule for which customer a *shared* virtual account number belongs to. The
-   charge guard now stops the money being paid twice, but the wrong customer can still be the
-   one paid once.
+7. **The shared virtual account number is refused, not resolved.** A transfer more than one
+   customer could claim is now written to `flutterwave_held_deposits` and paid only by an admin
+   who picks a candidate and records a note (wallet-funding-review §3b), and the queue has a
+   screen. What has *not* been done is the data decision underneath it: `users.virtual_account_number`
+   is still not unique and may already hold duplicates on the live box. Measure it with
+   `docs/production-checks.md` §7 before anyone proposes the unique index.
+8. **The ownership gate has never run against real Flutterwave traffic.** It is proven on
+   sqlite and on a scratch InnoDB, with synthetic payloads in the shape the gateway answers.
+   The first real ambiguous deposit on the live box is the first time it meets a webhook and a
+   sweep competing over money that exists.
