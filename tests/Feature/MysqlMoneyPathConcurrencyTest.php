@@ -368,7 +368,9 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
         foreach (['@@transaction_isolation', '@@tx_isolation'] as $variable) {
             try {
                 $row = DB::selectOne('select '.$variable.' as level');
-                $level = strtolower((string) ($row->level ?? ''));
+                // MySQL answers REPEATABLE-READ and READ-COMMITTED with a hyphen, so the
+                // name is read as words before it is compared.
+                $level = str_replace(['-', '_'], ' ', strtolower((string) ($row->level ?? '')));
 
                 if ($level !== '') {
                     break;
