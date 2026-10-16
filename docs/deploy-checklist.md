@@ -156,7 +156,7 @@ fetched in the background.
 | 7.1 | App is up | `curl -s -o /dev/null -w '%{http_code}' https://www.belovedsubp.com/up` | `200` |
 | 7.2 | New assets are not 404 | fetch the newest `public/build/assets/*.css` name from both the site and `git ls-tree` | same bytes, HTTP 200 |
 | 7.3 | Login page renders styled | load `/login` in a browser, view source, confirm the `build/assets` names match the deployed manifest | yes |
-| 7.4 | Money-safety migrations ran | `php artisan migrate:status \| grep -E 'record_purchase_intents\|record_document_filings'` | both `Ran` |
+| 7.4 | Money-safety migrations ran | `php artisan migrate:status \| grep -E 'record_purchase_intents\|record_document_filings\|flutterwave_charge_claims'` | all three `Ran` - the last one is the table that stops a single bank transfer funding two wallets |
 | 7.5 | Held-purchase discovery still works | run section 3 of [held-purchase-runbook.md](held-purchase-runbook.md) | returns without error (zero holds is a pass) |
 | 7.6 | Prices unchanged from the approved list | admin settings page, and the ten NIN Modification tiers still ₦6,500 / ₦7,500 / ₦15,000 / ₦40,000 | no silent movement |
 | 7.7 | Log for new fatals | `tail -100 storage/logs/laravel.log` | nothing since the deploy timestamp |
@@ -258,7 +258,26 @@ version for this checklist is that a bank transfer becomes balance by the webhoo
 - a transfer this site cannot attribute is logged and dropped, with no admin screen - the
   read-only `php artisan deposits:audit --days=30` is what surfaces it.
 
-Run those three reads from section 8 of the review before telling anyone a deposit will
+**One verified transfer can now only be paid out once, site-wide.** The three guards above
+all keyed on *which wallet* was being credited, so the same charge could be credited again
+through a second customer's Check deposit button; measured on 2026-10-16, one ₦3,000 transfer
+put ₦5,900 into two wallets. The fix is `flutterwave_charge_claims` - one row per charge
+identity with a unique index, taken inside the credit transaction before the balance moves.
+Section 7.4 proves the table exists; after a deploy prove it is actually being written:
+
+```bash
+cd /home/beloveds/vtu
+php artisan tinker --execute="echo DB::table('flutterwave_charge_claims')->count();"
+```
+
+The number is the count of deposits the site has already paid out. The migration backfills it
+as it runs, so on a box with funding history it should be greater than zero the moment
+`migrate` finishes. Zero on a box that has funded wallets means the backfill found nothing to
+read and the guard protects only new deposits - worth knowing before a duplicate is reported
+as impossible. The full reasoning, the tests and what the guard deliberately does **not**
+claim are in section 3 of the review.
+
+Run those four reads from section 8 of the review before telling anyone a deposit will
 self-heal.
 
 ## 9. What still blocks a clean production claim

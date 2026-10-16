@@ -8,6 +8,7 @@ use App\Models\Service;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\PurchaseIntent;
+use App\Services\WalletFundingService;
 use App\Services\WalletLedger;
 use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
@@ -64,6 +65,7 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
         'users',
         'wallets',
         'wallet_transactions',
+        'flutterwave_charge_claims',
         'orders',
         'purchase_intents',
         'document_filings',
@@ -117,7 +119,7 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
      */
     public function test_the_money_tables_run_on_the_engine_that_can_hold_one_row(): void
     {
-        $tables = ['users', 'wallets', 'wallet_transactions', 'orders', 'purchase_intents', 'document_filings'];
+        $tables = ['users', 'wallets', 'wallet_transactions', 'flutterwave_charge_claims', 'orders', 'purchase_intents', 'document_filings'];
 
         $rows = DB::select(
             'select TABLE_NAME as name, ENGINE as engine from information_schema.TABLES '.
@@ -293,6 +295,91 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
         $this->assertNotCount(0, $index, 'There is no unique index behind the purchase identity claim.');
         $this->assertSame(0, (int) $index[0]->Non_unique,
             'The purchase identity index is not unique, so it cannot refuse a repeat.');
+    }
+
+    /**
+     * The application's only duplicate check for arriving money looks inside the
+     * wallet it is about to credit, while the wallet a charge is routed to is chosen
+     * by lookups that are not unique. So the thing that must stop one bank transfer
+     * funding two customers is a row the database itself refuses to write twice -
+     * and a unique index is only worth that claim when two connections really do
+     * try at the same moment, which is what the second process here is for.
+     */
+    public function test_one_verified_transfer_cannot_fund_two_wallets_at_the_same_time(): void
+    {
+        $funded = $this->wallet(0);
+        $alsoClaimed = $this->wallet(0);
+        $chargeId = 'MYSQL-CHARGE-'.Str::random(10);
+        $flwRef = 'FLW-'.$chargeId;
+
+        $credited = null;
+        $report = null;
+        $committed = false;
+
+        DB::beginTransaction();
+        try {
+            $credited = app(WalletFundingService::class)->creditFlutterwaveCharge(
+                $funded,
+                [
+                    'id' => $chargeId,
+                    'flw_ref' => $flwRef,
+                    'tx_ref' => 'PARENT-'.$chargeId,
+                    'status' => 'successful',
+                    'currency' => 'NGN',
+                    'charged_amount' => 3000.00,
+                    'amount' => 3000.00,
+                ],
+                'flutterwave_virtual_account',
+                'webhook'
+            );
+
+            $process = $this->startRivalChargeCredit((int) $alsoClaimed->id, $chargeId, 3000);
+
+            $sawItWaitingOnTheClaim = $this->waitUntilRivalIsWaitingOnTheCharge();
+
+            DB::commit();
+            $committed = true;
+
+            $report = $this->finishRivalSpend($process);
+        } catch (Throwable $e) {
+            if (!$committed && DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+
+            throw $e;
+        }
+
+        $walletIds = [(int) $funded->id, (int) $alsoClaimed->id];
+
+        $this->assertGreaterThan(0, (int) $credited,
+            'The first wallet was never credited, so this proved nothing about the second one.');
+
+        $this->assertSame(0, (int) ($report['credited_kobo'] ?? -1),
+            'One transfer funded two wallets. The rival said: '.json_encode($report).
+            ' - it was provably standing at the claim: '.($sawItWaitingOnTheClaim ? 'yes' : 'no'));
+
+        $this->assertSame((int) $credited,
+            (int) DB::table('wallets')->whereIn('id', $walletIds)->sum('balance'),
+            'More money reached the two wallets than the transfer carried.');
+
+        $this->assertSame(1, (int) DB::table('wallet_transactions')
+            ->whereIn('wallet_id', $walletIds)->where('status', 'success')->count(),
+            'The same charge was booked into the ledger twice.');
+
+        $this->assertSame(1, (int) DB::table('flutterwave_charge_claims')
+            ->where('charge_token', $chargeId)->count(),
+            'The losing attempt left its claim behind, which would lock this charge out of every wallet for good.');
+
+        $this->assertSame((int) $funded->id,
+            (int) DB::table('flutterwave_charge_claims')->where('charge_token', $chargeId)->value('wallet_id'),
+            'The charge was claimed by a wallet that was never credited for it.');
+
+        $index = DB::select("show index from flutterwave_charge_claims "
+            ."where Column_name = 'charge_token' and Seq_in_index = 1");
+
+        $this->assertNotCount(0, $index, 'There is no index on the charge claim at all.');
+        $this->assertSame(0, (int) $index[0]->Non_unique,
+            'The charge claim index is not unique, so it cannot refuse a second wallet.');
     }
 
     /**
@@ -546,15 +633,23 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
 
         self::$schemaChecked = true;
 
-        if (Schema::hasTable('purchase_intents') && Schema::hasTable('document_filings')) {
-            return;
+        // Every table this suite measures, not merely some of them: a database that
+        // was built before a money table existed would otherwise be taken as ready,
+        // and the tests below would then be run against a schema the application
+        // itself would never have accepted.
+        foreach (self::MONEY_TABLES as $table) {
+            if (!Schema::hasTable($table)) {
+                Artisan::call('migrate', ['--force' => true]);
+
+                break;
+            }
         }
 
-        Artisan::call('migrate', ['--force' => true]);
-
-        $this->assertTrue(Schema::hasTable('purchase_intents') && Schema::hasTable('document_filings'),
-            'This database has no money-safety tables and the migrations could not create them: '
-            .trim(Artisan::output()));
+        foreach (self::MONEY_TABLES as $table) {
+            $this->assertTrue(Schema::hasTable($table),
+                'This database has no '.$table.' and the migrations could not create it: '
+                .trim(Artisan::output()));
+        }
 
         // A synthetic database is empty until this suite fills it, and the migrations
         // that build it insert nothing. If they ever start seeding, the counts below
@@ -597,13 +692,28 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
     /** @return resource */
     private function startRivalSpend(int $walletId, int $kobo, string $reference)
     {
-        $command = implode(' ', [
+        return $this->startRivalProcess('MysqlRivalDebit.php', [$walletId, $kobo, $reference]);
+    }
+
+    /** @return resource */
+    private function startRivalChargeCredit(int $walletId, string $chargeId, int $naira)
+    {
+        return $this->startRivalProcess('MysqlRivalChargeCredit.php', [$walletId, $chargeId, $naira]);
+    }
+
+    /**
+     * A second operating-system process, so the server sees two clients rather than
+     * one taking turns with itself.
+     *
+     * @param  list<int|string>  $args
+     * @return resource
+     */
+    private function startRivalProcess(string $script, array $args)
+    {
+        $command = implode(' ', array_merge([
             \escapeshellarg(\PHP_BINARY),
-            \escapeshellarg(base_path('tests/Concurrency/MysqlRivalDebit.php')),
-            (string) $walletId,
-            (string) $kobo,
-            \escapeshellarg($reference),
-        ]);
+            \escapeshellarg(base_path('tests/Concurrency/'.$script)),
+        ], array_map(static fn ($arg): string => \escapeshellarg((string) $arg), $args)));
 
         $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, base_path());
 
@@ -683,6 +793,37 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
 
             foreach ($running as $query) {
                 if (str_contains(strtolower((string) $query->state), 'updat')) {
+                    return true;
+                }
+            }
+
+            sleep(1);
+        }
+
+        return false;
+    }
+
+    /**
+     * The same rendezvous for the charge claim: the second process must be standing
+     * at the unique index, holding its intention to write this charge, before the
+     * first one is allowed to finish. Otherwise the two simply run in turn and the
+     * run proves the arithmetic while claiming it proved the lock.
+     */
+    private function waitUntilRivalIsWaitingOnTheCharge(int $seconds = 20): bool
+    {
+        for ($attempt = 0; $attempt < $seconds; $attempt++) {
+            try {
+                $running = DB::select("select * from information_schema.processlist "
+                    ."where info like '%flutterwave_charge_claims%' and id <> connection_id()");
+            } catch (QueryException) {
+                return false;
+            }
+
+            foreach ($running as $query) {
+                $waiting = (int) ($query->TIME ?? $query->time ?? 0);
+                $state = strtolower((string) ($query->STATE ?? $query->state ?? ''));
+
+                if ($waiting >= 1 || str_contains($state, 'lock')) {
                     return true;
                 }
             }
@@ -779,6 +920,7 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
 
             if ($walletIds !== []) {
                 DB::table('wallet_transactions')->whereIn('wallet_id', $walletIds)->delete();
+                DB::table('flutterwave_charge_claims')->whereIn('wallet_id', $walletIds)->delete();
             }
 
             DB::table('purchase_intents')->whereIn('user_id', $this->users)->delete();

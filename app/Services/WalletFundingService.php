@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Notifications\UserWalletActivityNotification;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -87,6 +88,14 @@ class WalletFundingService
                     'received_kobo' => $grossKobo,
                 ]);
 
+                return 0;
+            }
+
+            /* The checks above can only ever see this wallet, while the wallet a
+               charge is routed to is chosen by lookups that are not unique. This
+               claim is the one that is global: take the charge in the database
+               before any balance moves, or somebody else already has. */
+            if (!$this->claimCharge($lockedWallet, $chargeId, $flutterwaveId, $grossKobo, $via, $txRef)) {
                 return 0;
             }
 
@@ -218,6 +227,101 @@ class WalletFundingService
     public function fundingFeeKobo(): int
     {
         return max(0, (int) round(((float) setting('wallet_funding_fee', 50)) * 100));
+    }
+
+    /**
+     * Claim this charge in the database before a balance moves. The claim is one
+     * row per charge identity with a unique index behind it, so it holds across
+     * every wallet, every arrival path and whatever else has already been paid for
+     * this same money. A payload Flutterwave described without any charge identity
+     * at all is not refused - there is simply nothing global to claim.
+     */
+    private function claimCharge(
+        Wallet $wallet,
+        string $chargeId,
+        string $flutterwaveId,
+        int $grossKobo,
+        string $via,
+        string $txRef,
+    ): bool {
+        $tokens = [];
+        foreach ([$chargeId, $flutterwaveId] as $token) {
+            $token = trim($token);
+            if ($token !== '') {
+                $tokens[$token] = true;
+            }
+        }
+
+        if ($tokens === []) {
+            return true;
+        }
+
+        $tokenList = array_keys($tokens);
+
+        if (DB::table('flutterwave_charge_claims')->whereIn('charge_token', $tokenList)->exists()) {
+            $this->logRefusedAsAlreadyClaimed($wallet, $tokenList, $via);
+
+            return false;
+        }
+
+        $now = now();
+        $claims = [];
+        foreach ($tokenList as $token) {
+            $claims[] = [
+                'charge_token' => $token,
+                'wallet_id' => $wallet->id,
+                'reference' => $txRef !== '' ? $txRef : null,
+                'amount_kobo' => $grossKobo,
+                'arrived_via' => $via,
+                'created_at' => $now,
+            ];
+        }
+
+        try {
+            // Every identity in one statement: a charge that loses the race must
+            // leave no half-claim behind, or the deposit gets locked out of the
+            // wallet that genuinely holds it.
+            DB::table('flutterwave_charge_claims')->insert($claims);
+        } catch (QueryException $e) {
+            if (!$this->isAlreadyTaken($e)) {
+                // Anything that is not the unique index - a missing table, a dead
+                // link - must not be filed as "somebody already had this money".
+                // Let it fail the request: the deposit stays pending and visible to
+                // deposits:audit, instead of vanishing into an info log.
+                throw $e;
+            }
+
+            $this->logRefusedAsAlreadyClaimed($wallet, $tokenList, $via, $e->getMessage());
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * The one refusal that is correct: the unique index on charge_token said no,
+     * which is MySQL 1062 / sqlite 2067, both reported as SQLSTATE 23000.
+     */
+    private function isAlreadyTaken(QueryException $e): bool
+    {
+        if (in_array((int) ($e->errorInfo[1] ?? 0), [1062, 2067], true)) {
+            return true;
+        }
+
+        return (string) $e->getCode() === '23000'
+            && str_contains(strtolower($e->getMessage()), 'unique');
+    }
+
+    /** @param list<string> $tokens */
+    private function logRefusedAsAlreadyClaimed(Wallet $wallet, array $tokens, string $via, string $reason = ''): void
+    {
+        Log::info('Flutterwave deposit ignored because this charge has already been paid out.', [
+            'wallet_id' => $wallet->id,
+            'flutterwave_charge_tokens' => $tokens,
+            'arrived_via' => $via,
+            'reason' => $reason,
+        ]);
     }
 
     /**
