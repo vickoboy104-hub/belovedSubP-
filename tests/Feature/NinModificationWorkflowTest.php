@@ -216,6 +216,96 @@ class NinModificationWorkflowTest extends TestCase
         $this->assertSame(40000.0, $manual->priceNaira('nin_modification', ['field_to_modify' => 'dob']));
     }
 
+    /**
+     * All ten corrections the provider's own form offers, still on the shelf and
+     * still at the four approved retail prices. Counting them is the point: a
+     * dropped option or a merged tier would otherwise only show up as a customer
+     * quietly unable to buy the job they came for.
+     */
+    public function test_all_ten_corrections_are_on_offer_at_the_approved_retail_prices(): void
+    {
+        $manual = app(ManualFulfilmentService::class);
+        $service = $manual->find('nin_modification');
+
+        $this->assertNotNull($service, 'NIN Modification is not on the shelf at all.');
+
+        $offered = [];
+        foreach ($service['fields'] as $field) {
+            if (($field['name'] ?? '') === 'field_to_modify') {
+                $offered = $field['options'] ?? [];
+            }
+        }
+
+        $approved = [
+            'name' => 6500.0,
+            'phone' => 6500.0,
+            'address' => 6500.0,
+            'email' => 6500.0,
+            'dob' => 40000.0,
+            'name_phone' => 7500.0,
+            'name_dob' => 15000.0,
+            'name_email' => 7500.0,
+            'name_address' => 7500.0,
+            'dob_phone' => 15000.0,
+        ];
+
+        $this->assertSame(array_keys($approved), array_keys($offered),
+            'The corrections a customer may choose are not the ten this site sells.');
+
+        // An answer the page offers must be one the server will accept, or the
+        // customer is charged and then refused on a form they filled correctly.
+        $accepted = [];
+        foreach ($manual->validationRules('nin_modification')['field_to_modify'] ?? [] as $rule) {
+            if (str_starts_with((string) $rule, 'in:')) {
+                $accepted = explode(',', substr((string) $rule, 3));
+            }
+        }
+
+        $this->assertSame([], array_diff(array_keys($approved), $accepted),
+            'The page offers a correction the server will refuse.');
+        $this->assertSame([], array_diff($accepted, array_keys($approved)),
+            'The server accepts a correction the page never offers.');
+
+        foreach ($offered as $value => $label) {
+            $this->assertNotSame('', $label, 'A correction is offered with no name.');
+            $this->assertSame($approved[$value], $manual->priceNaira('nin_modification', ['field_to_modify' => $value]),
+                $label.' is not selling at the approved price.');
+        }
+    }
+
+    public function test_a_visitor_without_an_admin_seat_cannot_read_a_customers_document(): void
+    {
+        $user = $this->member(9_000_000);
+
+        $this->actingAs($user)
+            ->post('/vtu/manual/nin_modification', [
+                PurchaseIntent::FIELD => PurchaseIntent::mint(),
+                'nin' => '12345678901',
+                'email_choice' => 'auto',
+                'field_to_modify' => 'dob',
+                'attestation_no' => 'SO1250325358849A',
+                'attestation_img' => UploadedFile::fake()->create('attestation.jpg', 40, 'image/jpeg'),
+                'consent_agreed' => '1',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $order = Order::query()->where('user_id', $user->id)->sole();
+        $document = route('admin.manual-orders.document', ['order' => $order->id, 'field' => 'attestation_img']);
+
+        // Nobody logged in at all - a guessed order number must not be a way into a
+        // stranger's identity paper, which is the whole reason these files are kept
+        // out of the public directory.
+        $guest = $this->get($document);
+        $this->assertNotSame(200, $guest->getStatusCode(), 'A guest was handed a customer\'s uploaded document.');
+        $this->assertStringNotContainsString('jpg', strtolower($guest->headers->get('Content-Type') ?? ''));
+
+        // A member who is not an admin gets the same refusal, on their own order and
+        // on somebody else's.
+        $this->actingAs($user)->get($document)->assertForbidden();
+        $this->actingAs($this->member())->get($document)->assertForbidden();
+    }
+
     public function test_the_uploaded_attestation_reaches_the_agent_working_the_job_and_nobody_else(): void
     {
         $user = $this->member(9_000_000);

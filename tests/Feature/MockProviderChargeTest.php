@@ -137,6 +137,12 @@ class MockProviderChargeTest extends TestCase
 
             $this->buy($user, $url, $body)->assertStatus(400)->assertJson(['ok' => false]);
             $this->assertSame(100_000, $this->balance($user), "{$name}: an unknown provider was treated as Mock.");
+            $this->assertSame(0, $this->movements($user), "{$name}: an unknown provider wrote a ledger row.");
+            $this->assertSame(
+                0,
+                Order::query()->where('user_id', $user->id)->count(),
+                "{$name}: an unknown provider wrote an order nobody delivered."
+            );
         }
 
         $this->providerSetTo('');
@@ -247,9 +253,9 @@ class MockProviderChargeTest extends TestCase
 
         $purchases = $this->purchases();
 
-        // Data and cable price themselves off the provider's synced plan list, which a
-        // fake of this shape cannot offer; both are covered with real plans by
-        // ProviderConfigurationTest and PurchaseIntentSafetyTest.
+        // Data and cable price themselves off the provider's own plan list, which a
+        // fake of this shape cannot answer; both are proved in
+        // test_a_plan_that_comes_from_the_provider_list_still_sells.
         foreach (array_diff(array_keys($purchases), ['data', 'cable']) as $name) {
             [$url, $body] = $purchases[$name];
             $user = $this->memberWithBalance(1_000_000);
@@ -258,6 +264,63 @@ class MockProviderChargeTest extends TestCase
             $this->assertSame('success', $this->latestOrder($user)->status, "{$name}: a real provider was refused.");
             $this->assertLessThan(1_000_000, $this->balance($user), "{$name}: a real sale was free.");
         }
+    }
+
+    /**
+     * The two routes that cannot be proved with a pay-endpoint fake alone: a data
+     * bundle and a cable bouquet are priced from GET /api/plans, and a plan the
+     * provider list does not contain is refused before the wallet is touched.
+     */
+    public function test_a_plan_that_comes_from_the_provider_list_still_sells(): void
+    {
+        $this->providerSetTo('gsubz');
+        Setting::query()->create(['key' => 'provider_gsubz_api_key', 'value' => 'test-provider-key']);
+        settings_flush_cache();
+
+        Http::fake([
+            'https://api.gsubz.com/api/plans*' => Http::response(['list' => [
+                // The shape GSUBZ actually answers with: the plan is named by "value".
+                ['value' => 'mtn-500mb', 'price' => '500.00', 'display_name' => 'MTN 500MB'],
+                ['value' => 'padipe', 'price' => '3400.00', 'display_name' => 'DStv Padi'],
+            ]]),
+            self::PAY => Http::response([
+                'status' => '1',
+                'description' => 'Transaction successful',
+                'transactionID' => 'REAL-PLAN-1',
+            ]),
+        ]);
+
+        $cases = [
+            'data' => ['/vtu/data/buy', ['service_id' => 'mtn_sme', 'plan' => 'mtn-500mb', 'phone' => '08012345678', 'amount' => 500], 50_000],
+            'cable' => ['/vtu/cable/buy', ['service_id' => 'dstv', 'plan' => 'padipe', 'customer_ref' => '12345678', 'base_amount' => 3400], 340_000],
+        ];
+
+        foreach ($cases as $name => [$url, $body, $payableKobo]) {
+            $user = $this->memberWithBalance(1_000_000);
+
+            $this->buy($user, $url, $body)->assertOk()->assertJson(['ok' => true]);
+
+            $order = $this->latestOrder($user);
+            $this->assertSame('success', $order->status, "{$name}: a plan the provider publishes was not sold.");
+            $this->assertSame(1, Order::query()->where('user_id', $user->id)->count(), "{$name}: one sale wrote two orders.");
+            $this->assertSame(1, $this->movements($user), "{$name}: one sale moved the wallet more than once.");
+            // Charged the price the provider publishes for that plan, never the number
+            // the browser posted at it.
+            $this->assertSame(1_000_000 - $payableKobo, $this->balance($user), "{$name}: the sale was not the plan price.");
+        }
+
+        // A plan the provider's list does not carry must not be sold at a made-up
+        // price, and the wallet must not be the thing that finds out.
+        $user = $this->memberWithBalance(1_000_000);
+        $this->buy($user, '/vtu/data/buy', [
+            'service_id' => 'mtn_sme',
+            'plan' => 'no-such-plan',
+            'phone' => '08012345678',
+            'amount' => 500,
+        ])->assertStatus(422)->assertJson(['ok' => false]);
+
+        $this->assertSame(1_000_000, $this->balance($user), 'A plan nobody publishes still took the wallet money.');
+        $this->assertSame(0, Order::query()->where('user_id', $user->id)->count());
     }
 
     public function test_the_settings_page_says_why_mock_blocks_every_sale(): void
