@@ -22,7 +22,7 @@ Read this whole file before touching the live box. Two rules override everything
 | 0.2 | It is a fast-forward from what is live | `git merge-base --is-ancestor <live-HEAD> <new-HEAD>; echo $?` | `0`. If it is not `0`, **stop** and work out why before pulling |
 | 0.3 | The full suite is green on the machine that built it | `php artisan test` | no failures, and the twelve MySQL concurrency tests run somewhere before a money-path change ships (section 9, item 4) |
 | 0.4 | Every credential has been rotated **after** the machine cleaning | owner's list: GitHub, cPanel, FTP, DB, GSUBZ, ConfirmIdent, Flutterwave, SMTP | done. Until it is done this deploy is **not** cleared for production - see section 6 |
-| 0.5 | A database backup exists, verified, outside the docroot | section 1.0's blocks | a gzipped dump under `/home/beloveds/backups/` whose CREATE TABLE count and completion line were read back, its filename recorded beside `last-good-sha.txt` (section 10.0) |
+| 0.5 | A database backup exists, verified, outside the docroot | section 1.0's blocks | a gzipped dump under `/home/beloveds/backups/` read back (CREATE TABLE count + completion line) **and restored into a scratch MariaDB database with matching money-table row counts**, its filename recorded beside `last-good-sha.txt` (section 10.0) |
 
 ---
 
@@ -41,7 +41,15 @@ fall back to cPanel's phpMyAdmin Export (gzip) if the shell refuses:
 ```bash
 cd /home/beloveds/vtu
 command -v mysqldump || echo "no mysqldump in this shell - use cPanel phpMyAdmin Export"
+mysqldump --version
 ```
+
+`mysqldump --version` should answer **MariaDB Dump 10.6.x**: the live engine is MariaDB
+10.6.28 (read 2026-10-16), and the host's own client is the version-matched pairing the
+backup wants. `--single-transaction`, `--routines` and the gzip pipe are long-standing
+MariaDB 10.6 behaviour, and the JSON columns - `LONGTEXT` with `json_valid` checks under
+MariaDB - dump and restore natively between identical engines. The phpMyAdmin fallback is
+cPanel's own MariaDB tool and needs no compatibility argument at all.
 
 With `mysqldump`, the credentials come from `.env` at runtime - nothing is typed into a
 prompt, and no value lands in shell history or `ps` output:
@@ -75,10 +83,14 @@ zcat /home/beloveds/backups/predeploy-*.sql.gz | tail -n 3
 
 The count must not be zero, and the tail must end with the dump's completion line
 (`-- Dump completed`), not stop mid-table; a few-kilobyte file is a failed dump wearing a
-filename. The stronger check - a restore into a scratch database created for the purpose
-(cPanel → MySQL Databases), comparing the four money tables' row counts against live, then
-dropping the scratch database at once, because it holds a second copy of customer
-identities - is worth doing for this range, whose migrations write data for the first time.
+filename. **The stronger check is required for this range, not optional**: a restore into
+a scratch database created for the purpose (cPanel → MySQL Databases), comparing the four
+money tables' row counts against live, then dropping the scratch database at once,
+because it holds a second copy of customer identities. That restore is also the
+MariaDB 10.6 compatibility proof - a dump that comes back up on the same engine with
+matching counts is a verified backup, not a compatible-looking one - and it happens
+**before any live migration runs**: 1.0 sits before 1.1's window, and gate 0.5 fails the
+deploy if it did not happen.
 
 - **Private means outside `public_html`** - `/home/beloveds/backups/` with the permissions
   above; anything under the docroot is web-served.
@@ -91,7 +103,9 @@ identities - is worth doing for this range, whose migrations write data for the 
 
 Whether this deploy runs inside a closed window is the owner's call (preflight section 7
 names the seconds it removes: a cron tick between checkout and migrate would otherwise run
-new code against the old schema). Taken, the command is the one section 10 already uses,
+new code against the old schema - and, for this range only, the straggler window in which
+a browser holding stale HTML can ask for one of the two old hashed assets the checkout
+removes, preflight section 5). Taken, the command is the one section 10 already uses,
 self-refreshing so a customer mid-purchase comes back on their own:
 
 ```bash
@@ -430,12 +444,20 @@ Recorded honestly, in the order they should be closed:
    ambiguous NIN lookup.
 4. **The concurrency proofs versus the live engine** - `tests/Feature/MysqlMoneyPathConcurrencyTest.php`,
    twelve tests, pass against a real MySQL 8.4.3 in a database created for them (2026-10-16).
-   The live engine is **MariaDB 10.6.28** (read on the box, 2026-10-16: autocommit 1, the
-   four money tables InnoDB) - the same InnoDB locking the proofs exercise, but a different
-   engine from the one they ran on. One run against a scratch database *on ListedHosting* is
-   the remaining piece; the commands are printed inside `howToRun()` in that file, and
-   creating that database is an owner decision, not a read-only check. Its isolation level
-   and `innodb_lock_wait_timeout` are also still unreported.
+   The live engine is **MariaDB 10.6.28** with isolation **REPEATABLE-READ**, lock timeout
+   **50 s**, and the four money tables on InnoDB (owner-read 2026-10-16) - the isolation and
+   timeout match the pair the proofs ran under exactly (MySQL 8.4's defaults are the same two
+   values), so the remaining delta is the engine implementation itself. **Recommendation
+   (2026-10-17): no separate full test environment.** The minimal sufficient step is a
+   MariaDB 10.6 instance (container or install) on the **trusted second machine**, running
+   the twelve tests against an empty database there; the host-based alternative is a scratch
+   database from `~/vtu` after the checkout, **only if** the host's vendor carries the test
+   stack - the suite's own guards (driver, the `MONEY_TESTS_DATABASE` name, empty money
+   tables) make it refuse production data. Never run the suite against the production
+   database, and never run it from the compromised development box against the host's
+   database: that would put live DB credentials on an exposed machine. Documented
+   acceptance of the residual risk is the third option, and it is the owner's call -
+   tracked as row C5 of the approval checklist.
 5. **The SparkTech API key** — their `/developer` surface is gated per account and a User
    login is told to contact support. Not our code; needs the owner to ask them.
 6. **None of 8.2's protection exists on the live site until this checklist is run.** The Mock

@@ -24,7 +24,7 @@ checklist names, and the range's runtime content is still `0935a7f7..f4ab0ad8`.
 | Migrations | **seven**, all additive; two carry data backfills (section 2) |
 | Composer / npm dependencies | **none changed** - §1's "no composer install unless the lock moved" holds with nothing to check |
 | `public/` outside `build/` | **nothing changed** - §3's docroot copy loop has nothing new to copy this time |
-| Compiled assets | 4 new hashed files plus `manifest.json`, all committed inside the range (section 5) |
+| Compiled assets | 2 new hashed files, the 2 old ones **removed by the checkout**, `manifest.json` rewritten (section 5) |
 | Scheduled jobs | exactly one added: `manual:recover-documents`, every 5 minutes (section 6) |
 | Saved settings and prices | **untouched** - no migration writes a settings row, no seeder runs during deploy, and `app/Helpers/settings.php` is unchanged in the range |
 | `.env.example`, routes file, seeders | unchanged |
@@ -98,19 +98,33 @@ deploy overrides exactly the keys it stores. No seeder runs during the deploy; n
 
 ## 5. Compiled assets and the docroot
 
-Four new content-hashed files (`app-BIpqTlIl.css`, `app-BXQwVUL5.js`, `app-D-vIop72.css`,
-`app-DXuAyQnv.js`) plus a rewritten `manifest.json`, all inside `public/build/`, all committed
-in-range on the development machine (the build rule: force-tracked, view cache warm, byte sizes
-compared). The server never rebuilds.
+Two new content-hashed files (`app-D-vIop72.css`, `app-DXuAyQnv.js`) and a rewritten
+`manifest.json`, all inside `public/build/`, all committed in-range on the development
+machine (the build rule: force-tracked, view cache warm, byte sizes compared). The server
+never rebuilds.
 
-`public_html/build` is a **symlink** into the repo, so these files are served the moment the
-checkout lands - no manual copy involved. Checklist §3's copy loop (which excludes `build/`
-and `storage/`) has nothing new to copy this time, because nothing outside `build/` changed
-under `public/`; running it remains a harmless confirmation that nothing is missing.
+**Correction, 2026-10-17 - this range also removes the two old hashed files.** The live
+tree at `0935a7f7` carries exactly `app-BIpqTlIl.css` and `app-BXQwVUL5.js`, and the
+target tree carries the new pair, so an earlier draft of this section wrongly called all
+four names "new". What the removal means on the box:
 
-Checklist §6 needs no action: `sw.js` is unchanged, no un-hashed asset changed, so no
-`CACHE_VERSION` bump. Vite's hashed names mean the new files are fetched fresh by every page
-load. Old hashed files remain on disk - additive, as §3 demands.
+- the checkout **deletes** the old pair from `vtu/public/build/assets/`, and because
+  `public_html/build` is a **symlink** into the repo, they leave the docroot with the same
+  checkout - no copy step either way, and `git status` stays clean, because the removals
+  are committed, not working-tree edits;
+- a returning visitor is covered: `sw.js` serves cached static assets cache-first, so a
+  browser still holding an old URL gets its cached copy, and checklist §6 needs no
+  `CACHE_VERSION` bump because `sw.js` and every un-hashed asset are unchanged;
+- the one real exposure is a browser that never cached an old asset but still asks for one
+  from a stale page - it 404s until it loads a fresh page. The maintenance window (§1.1)
+  closes exactly this, which is why taking the window for this range does real work beyond
+  the checkout-to-migrate seconds;
+- a rollback restores the old pair by the same mechanism (they are tracked at `0935a7f7`),
+  so §10.4's "the old build's entries are still there" holds after going back.
+
+Checklist §3's copy loop (which excludes `build/` and `storage/`) has nothing new to copy
+this time, because nothing outside `build/` changed under `public/`; running it remains a
+harmless confirmation that nothing is missing.
 
 ## 6. Untracked paths on the box - `server.js` and `tmp/`
 
@@ -131,7 +145,9 @@ that would remove them.
 ## 7. The scheduler - one job appears, nothing else changes
 
 The cron is already right: it exists and fires every minute (read on the box, 2026-10-16),
-which is checklist §5's requirement. `schedule:list` shows two jobs today only because the box
+which is checklist §5's requirement - and the sweep itself was observed executing and
+completing (2026-10-16), which is stronger than the crontab line: the job not only fires
+but finishes. `schedule:list` shows two jobs today only because the box
 runs `0935a7f7`; `bootstrap/app.php` in the range adds exactly one - `manual:recover-documents`,
 every 5 minutes, `withoutOverlapping()` - and leaves `prices:sync` (hourly) and
 `wallet:sync-deposits` (every 5 minutes) as they are. After the deploy, `schedule:list` must
@@ -166,7 +182,9 @@ owner decision, not a change to the written blocks.
   turns "proved on an engine like it" into "proved on the engine that runs the money
   path". Creating that database is not a read-only act, so it sits outside
   production-checks as an owner decision: checklist §9 item 4. The live isolation level
-  and `innodb_lock_wait_timeout` are also still unreported.
+  (**REPEATABLE-READ**) and lock timeout (**50 s**), read 2026-10-16, match the pair the
+  proofs ran under - MySQL 8.4's defaults are the same two values - so the engine
+  implementation is the only remaining delta.
 - Everything else in §8's integration table is unchanged by the range: admin settings still
   beat `.env`, the webhook route and its hash rule are untouched, and the three saved modes
   read on 2026-10-16 (`provider = gsubz`, `nin = automatic`, `bvn = automatic`) are carried
@@ -217,7 +235,9 @@ rows and stay.
 ## 11. Which read-only checks run before the deploy, and which after
 
 [production-checks.md](production-checks.md) §1-§5, §7 and §8 are pre-deploy: they read the
-box as it stands at `0935a7f7`. **§6's audit command is not** - on the old code the audit's
+box as it stands at `0935a7f7` - and as of 2026-10-16, §1-§5 and §7 are **answered** (its
+§0 carries the recorded set); what is still out from that document is §3's remaining key
+presences and §8's log counts. **§6's audit command is not** - on the old code the audit's
 `--references=0` still clamps up to one real Flutterwave call (the defect `cd19810c` fixed),
 so the audit runs only once the new code is live. The pre-deploy ledger baseline comes from
 the count query §6 now carries. Post-deploy adds: §6's audit (now genuinely offline, and the

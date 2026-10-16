@@ -33,15 +33,24 @@ Recorded so nobody re-asks them. Section references show where each question was
 | Engine | **MariaDB 10.6.28**, autocommit 1 |
 | Money-table engines | `users`, `orders`, `wallets`, `wallet_transactions` all InnoDB |
 | Duplicate virtual account numbers | **zero** |
+| Isolation level | **REPEATABLE-READ** |
+| Lock timeout | **50 seconds** |
+| Wallets | **201, zero negative balances** |
+| Flutterwave secret key | present |
+| Flutterwave secret hash in `config()` | present - the cached-config failure mode in §3 does not apply |
+| `wallet:sync-deposits` | observed executing and completing |
+| 30-day Flutterwave credits | 36 successful, 1 pending, 3 failed (§6's baseline) |
 | New migrations | not installed yet - expected before the deploy (§5) |
 | PHP (CLI) | 8.3.35 |
 
-**One of these answers changes a plan.** The live engine is **MariaDB, not MySQL**: the
+**One of these answers still changes a plan.** The live engine is **MariaDB, not MySQL**: the
 twelve money-path concurrency proofs passed against MySQL 8.4.3 on the development
-machine, and "same InnoDB locking model" is an expectation, not a proof. One suite run
-against a scratch database on the host is the remaining piece - it creates a database, so
-it is not part of the read-only batch; it is an owner decision, tracked as checklist §9
-item 4. Still open from §5: the isolation level and `innodb_lock_wait_timeout`.
+machine. The follow-up reads closed most of the distance - isolation REPEATABLE-READ and a
+50 s lock timeout are exactly the pair the proofs ran under - so the remaining delta is the
+engine implementation itself. Whether that last step is run (a minimal MariaDB 10.6 on the
+trusted second machine, or a scratch database on the host; never from the compromised
+development box, never against production data) is an owner decision, tracked as checklist
+§9 item 4 and the approval checklist's C5.
 
 ---
 
@@ -108,6 +117,12 @@ exactly how a webhook can look configured and still answer 500 to every event.
 the five-minute sweep finds them. That single line is the most likely explanation for any
 "I sent money and it did not reflect".
 
+**Answered (2026-10-16): `flutterwave_secret_key` present, and the secret hash present in
+Laravel `config()`** - the side that decides whether the webhook actually works, so the
+cached-config failure mode above does not apply on this box. Still open from §3, and the
+only reason to run its first command again: `provider_gsubz_api_key`, `nin_api_key`,
+`bvn_api_key`, `flutterwave_public_key`, and `fixed_account_bvn` - presence only.
+
 ## 4. Is the scheduler running at all
 
 ```sh
@@ -148,9 +163,11 @@ php artisan tinker --execute='echo json_encode((array) DB::selectOne("select cou
 php artisan migrate:status | tail -25
 ```
 
-**Partly answered (2026-10-16): MariaDB 10.6.28, autocommit 1; the four money tables
-InnoDB.** The MariaDB-not-MySQL point is §0's plan-changer. Still open from this command:
-the isolation level, the lock timeout, and the negative-balance count.
+**Answered in full (2026-10-16): MariaDB 10.6.28, autocommit 1, isolation
+REPEATABLE-READ, lock timeout 50 s; the four money tables InnoDB; 201 wallets, zero
+negative balances.** Nothing from this section is still open. The MariaDB-not-MySQL point
+is §0's plan-changer, and the isolation/timeout pair matches the conditions the
+concurrency proofs ran under.
 
 **Why each one matters.**
 
@@ -194,6 +211,11 @@ php artisan tinker --execute='echo json_encode((array) DB::selectOne("select cou
 Record the numbers as they stand **before** a deploy. After a deploy, the same command is the
 check that the new guards did not orphan somebody's money - and a row that was already wrong
 last month is not something the new code can silently repair.
+
+**The baseline is in (2026-10-16): 36 successful, 1 pending, 3 failed in the last 30
+days.** The post-deploy audit compares against exactly these three numbers, and §11
+characterizes the one pending and three failed rows now, so their future is a decision
+rather than a surprise.
 
 Two follow-up counts, both read-only, and both expected to fail before the deploy:
 
@@ -242,6 +264,10 @@ transfers that reached a number the site could not attribute - which today means
 and nobody was paid, and after the deploy means a held deposit. The third only exists after the
 attribution guard is live.
 
+**Partly answered (2026-10-16): the strongest scheduler evidence arrived outside the greps -
+`wallet:sync-deposits` was observed executing and completing.** Still open here: the four
+counts above.
+
 ## 9. What NOT to run while doing these checks
 
 - `php artisan migrate`, `migrate --force`, `migrate:rollback` - a deploy decision.
@@ -257,12 +283,12 @@ attribution guard is live.
 
 ## 10. Report back in this shape
 
-Thirteen rows, and §0 (2026-10-16) already answers eight of them - live sha, porcelain
-status, the three saved modes, the cron line, `schedule:list`, the money-table engines, the
-duplicate aggregate - plus the engine row's version and autocommit. The report back is now
-the open set: the five key presences (§3), the `.env`-vs-`config()` hash pair (§3), the
-isolation level and lock timeout (§5), negative wallets (§5), the §6 baseline count, and
-§8's log counts.
+Thirteen rows, and §0's recorded answers now cover all but two of them in full - the key
+presences (§3, answered for `flutterwave_secret_key` and the hash pair, open for the other
+four plus `fixed_account_bvn`) and the audit totals (§6's status counts are in: 36 / 1 / 3;
+the pending and failed rows' characterization is §11). What is still worth reporting is the
+small open set and nothing else: §3's remaining key presences, §8's four log counts, and
+§11's results.
 
 | Check | Answer |
 |---|---|
@@ -281,3 +307,70 @@ isolation level and lock timeout (§5), negative wallets (§5), the §6 baseline
 | Duplicate account numbers found (aggregate counts only) | |
 
 Those thirteen answers are what turns "the code is ready" into "the deployment is a decision".
+
+## 11. The one pending and three failed Flutterwave credits - a read-only investigation
+
+The 30-day baseline (§6) is 36 successful, 1 pending, 3 failed. The successful 36 are
+history; the other four are the rows an owner eventually has to think about. This plan
+characterizes them **without asking Flutterwave anything, and without refunding, crediting
+or editing a single row** - local database reads and log reads only. Run it before the
+deploy; nothing in it changes anything, and its output is the pre-deploy picture the
+post-deploy audit gets compared against.
+
+Nothing here prints an account number or a secret: rows are identified by ledger id, and
+attribution is reported as user-id counts.
+
+### 11.1 List the four rows with their attribution facts
+
+```sh
+php artisan tinker --execute='foreach (\App\Models\WalletTransaction::query()->where("type","credit")->where("channel","like","flutterwave%")->whereIn("status",["pending","failed"])->where("created_at",">=",now()->subDays(30))->orderBy("id")->get() as $t) { $meta = $t->meta ?? []; $acct = $meta["virtual_account_number"] ?? null; $holders = $acct ? \App\Models\User::where("virtual_account_number",$acct)->pluck("id")->all() : []; $owner = DB::table("wallets")->where("id",$t->wallet_id)->value("user_id"); echo "#".$t->id." | ".$t->status." | amount ".$t->amount." | ".$t->created_at->format("Y-m-d H:i")." | ref ".($t->reference ?: "-")." | wallet user ".($owner ?? "?")." | meta keys: ".implode(",", array_keys($meta))." | account-number holders: ".($acct ? (count($holders) === 0 ? "none" : implode(",", $holders)) : "not stored").PHP_EOL; }'
+```
+
+Read each line against three cases:
+
+- **0 holders** - the account number on the row matches no customer. Post-deploy, an
+  arriving transfer on that number becomes a held deposit, not a credit.
+- **1 holder, and it is the wallet's own user** - ordinary: the row is simply unresolved,
+  and post-deploy the sweep or the webhook settles it the normal way.
+- **2+ holders, or 1 holder that is a different user** - ambiguous or wrong-wallet:
+  post-deploy, exactly the case the held-deposits screen exists for.
+
+### 11.2 Has any of the four references been seen again?
+
+A failed row followed by a successful row on the same reference is a customer's retry that
+worked - closed, nothing owed. Two successful rows on one reference would be a pre-guard
+double payment, which the 2026-10-16 measurement says the old code could produce:
+
+```sh
+php artisan tinker --execute='echo json_encode(DB::table("wallet_transactions")->selectRaw("reference, group_concat(distinct status) as statuses, count(*) as rows_total")->where("channel","like","flutterwave%")->where("type","credit")->whereNotNull("reference")->where("reference","<>","")->groupBy("reference")->havingRaw("count(*) > 1")->get(), JSON_PRETTY_PRINT); echo PHP_EOL;'
+```
+
+An empty answer is the quiet one: every reference appears exactly once.
+
+### 11.3 What the site itself said at the time - logs, not the provider
+
+For each reference from 11.1, read the site's own record of the arrival: the webhook, the
+sweep's verdict, any "user not found":
+
+```sh
+grep -c '<reference-from-11.1>' storage/logs/laravel.log
+grep '<reference-from-11.1>' storage/logs/laravel.log | tail -5
+```
+
+How to read it: a `failed` credit row is the ledger's record that the deposit did not
+complete - no balance ever moved. A still-`pending` row has been swept and stayed
+unresolved, which is either a transfer that has not arrived or one that arrived and could
+not be attributed.
+
+### 11.4 What this plan deliberately does not do
+
+- **No Flutterwave call of any kind** - not `deposits:audit` without `--references=0`, no
+  dashboard lookup, no test payment. Whether the money actually arrived is a question the
+  post-deploy sweep and webhook answer as part of normal operation, not something this
+  investigation pays to ask.
+- **No refunds, no credits, no row edits, no deletes.** If any of the four turns out to be
+  owed money, the resolution path after the deploy is the held-deposits screen or the
+  ordinary sweep - never a hand-written SQL fix.
+- **The pending row does not block the deploy.** The new code is strictly safer for it: it
+  can only be credited to a provable owner or held for an admin, never quietly dropped -
+  which is what the current code does with a transfer it cannot attribute.
