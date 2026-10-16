@@ -5,7 +5,7 @@ Every line below names the test that proves it, in the form
 `tests/Feature/File::method`. Nothing in this file is an opinion about behaviour I did not
 run; where a claim is *not* proven by a test it says so.
 
-Whole suite as it stands: **480 passed, 12 skipped, 3,609 assertions** (sqlite, in-memory).
+Whole suite as it stands: **481 passed, 12 skipped, 3,615 assertions** (sqlite, in-memory).
 
 The 12 skips are all in `MysqlMoneyPathConcurrencyTest` when it runs on sqlite: those proofs
 need two operating-system processes and row locks, which sqlite does not have. They are not
@@ -63,6 +63,7 @@ actually arrived, less the ₦50 funding fee, and never credits the same money t
 | `FlutterwaveDepositAttributionTest` (10 methods) | **New.** Ownership before money moves, end to end through the webhook, the sweep and the customer's Check deposit button: a shared account number credits neither candidate and records one held deposit (reason, gross amount, holders, full payload) with **zero** charge claims consumed; a transfer that belongs to a different customer is held as `wrong_wallet`; a deposit the customer asked for by their own `tx_ref` still pays them even when the number is shared; two genuine transfers into a single-owner account still both credit (295,000 + 145,000 = 440,000); webhook plus sweep competing over one transfer hold it **once**; admin resolution credits exactly once (replay refused, resolver and note recorded), a missing note and a non-candidate both fail validation, and dismissing keeps the record while blocking any later credit; Admin sees the queue, a member and a guest are refused. On the real engine, `MysqlMoneyPathConcurrencyTest::test_two_processes_hold_one_ambiguous_transfer_once` |
 | `WalletSupersededDepositRecoveryTest::test_the_scheduled_check_credits_a_customer_who_never_opens_their_page` | `artisan wallet:sync-deposits` really banks a deposit the webhook lost. |
 | `::test_the_audit_asks_about_missing_money_without_moving_any` | `deposits:audit` is read-only. |
+| `::test_the_audit_with_zero_references_makes_no_http_call_at_all` | **New.** `deposits:audit --references=0` makes no HTTP request at all - run with Flutterwave fully configured and a pending deposit on the ledger, `Http::assertNothingSent()` holds, because a zero no longer clamps up to one live call. |
 | `WalletLedgerSafetyTest::test_a_rolled_back_purchase_keeps_neither_money_nor_row` | A balance never moves without its ledger row, or the other way round. |
 
 ## 4. All ten NIN Modification options are live and priced
