@@ -201,39 +201,46 @@ whether a customer is waiting on a machine or on an admin, and they change what 
 ConfirmIdent billing question in
 [confirmident-billing-policy.md](confirmident-billing-policy.md) is actually worth.
 
-### 8.2 The one that can cost a customer money silently
+### 8.2 Mock (Test Mode) cannot take a customer's money any more
 
-`settings.provider` has a third value, **Mock (Test Mode)**, and it is selectable on the
-admin page. With it set to `mock`:
+`settings.provider` has a third value, **Mock (Test Mode)**, and it is still selectable on
+the admin page. Until 2026-10-16 it was the most expensive switch on the site: with `mock`
+selected the wallet was debited first (`debitWallet()` sat above the branch that chose the
+provider), the order was written `success`, referral commission was paid, nobody was called,
+and the customer was told "Airtime purchase successful (Mock Mode)!". Any provider value this
+site did not recognise - a typo, a retired name, an empty box - fell into the same fake
+success. Seven routes were like that: airtime, data, recharge card, cable, electricity, exam
+pin, premium app.
 
-- the wallet is **still debited** first - `debitWallet()` is called at
-  `VtuController.php:184`, above the branch that chooses the provider at `:218`,
-- the order is then written as `success` and referral commission is awarded
-  (`:277` "Mock mode"), and the transaction commits,
-- **nobody is called and nothing is delivered**, and the customer is told
-  "Airtime purchase successful (Mock Mode)!"
+That is now closed in code, in `VtuController::refuseUnchargeableProvider()`, which every one
+of the seven routes reaches **before** the wallet, before the order, and before the purchase
+identity is spent:
 
-That is a rehearsal switch with a live price tag. Two things to do about it:
+- `gsubz` and `alt` are the only names a purchase may be charged through;
+- `mock` completes a purchase only on a machine whose `APP_ENV` is `local` or `testing`, and
+  even there it pays **no commission** and stamps `meta.simulated = true` on the order;
+- anything else is refused with a 400, the balance untouched, no order row, and an admin
+  alert that repeats at most once every twenty minutes;
+- because the refusal happens before the identity is claimed, the same open form buys
+  normally the moment an admin fixes the box - no reload, no second charge.
 
-1. **Check the live value before going out.** It is on the admin API Provider card, or read
-   it straight from the database with the credentials already in `.env`:
+Proved by `tests/Feature/MockProviderChargeTest.php` (7 tests, 99 assertions: every route
+refused on a live machine, unknown and empty names refused too, the identity reusable, mock
+still rehearsing on `local`, no commission on a simulated sale, a configured provider still
+selling, and the settings page saying so).
 
-   ```bash
-   cd /home/beloveds/vtu
-   php artisan tinker --execute="echo setting('provider');"
-   ```
+**What is still worth checking on the live box**, because the fix only protects what is
+deployed:
 
-   It must say `gsubz`. Seven purchase routes fall through to a fake success on any other
-   value (`grep -c "Mock Mode)!" app/Http/Controllers/VtuController.php` returns 7):
-   airtime, data, recharge card, cable, electricity, exam pin, premium app.
-   It said `gsubz` on the development copy on 2026-10-16; **the live box has never been
-   checked.**
-2. The `missingIntegrations` warning on that page deliberately stays quiet while `mock` is
-   selected, so a blank GSUBZ key plus `mock` looks fine and sells nothing.
+```bash
+cd /home/beloveds/vtu
+php artisan tinker --execute="echo setting('provider');"
+```
 
-The open question for the owner, not for me to decide: **should mock mode debit a wallet at
-all?** The honest answer is that it should refuse the purchase instead, and that is a code
-change I have not made because it touches the money path and needs your sign-off.
+It must say `gsubz`. If it says `mock`, purchases are now refused rather than faked - the
+customer keeps their money, and the site sells nothing until the box is changed. The admin
+API Provider card now carries a banner saying exactly that, so the state cannot be read as
+healthy by accident.
 
 ## 9. What still blocks a clean production claim
 
@@ -257,3 +264,67 @@ Recorded honestly, in the order they should be closed:
    `howToRun()` in that file.
 5. **The SparkTech API key** — their `/developer` surface is gated per account and a User
    login is told to contact support. Not our code; needs the owner to ask them.
+6. **None of 8.2's protection exists on the live site until this checklist is run.** The Mock
+   guard, the identity rules and the atomic debits are all commits on the development branch;
+   `www.belovedsubp.com` still executes whatever `~/vtu` was last checked out to. Until
+   sections 1-4 have run, the live site can still fake a success it was paid for.
+7. **The customer-facing pages have never been walked through in a browser on the live box**
+   after any deploy - only on the development copy. Section 7 is read-only by design; it does
+   not prove a purchase works, because proving that spends the owner's money.
+
+## 10. Roll back — the way out when the smoke test fails
+
+Recorded before it is needed, because it is the moment judgement goes away. Run it in order,
+exactly as written.
+
+**0. The only step that must happen before the deploy:** write down the sha you are leaving.
+Section 0 asks for it; without it there is no "back" to go to.
+
+```bash
+cd /home/beloveds/vtu && git rev-parse HEAD > /home/beloveds/last-good-sha.txt && cat /home/beloveds/last-good-sha.txt
+```
+
+1. **Take the site down, self-refreshing**, so a customer mid-purchase comes back on their
+   own. Laravel 12.47 has no admin bypass token on `artisan down` - only `--redirect`,
+   `--retry` and `--status`:
+
+   ```bash
+   cd /home/beloveds/vtu
+   php artisan down --retry=15
+   ```
+
+2. **Go back to the recorded commit.** A plain checkout, not a `reset --hard`, and not a
+   branch name - a branch is a moving thing and this is the one moment it must not move:
+
+   ```bash
+   cd /home/beloveds/vtu
+   git checkout "$(cat /home/beloveds/last-good-sha.txt)"
+   ```
+
+3. **Do not roll the database back.** The migrations on this branch only add - the new
+   `purchase_intents` and `document_filings` tables and nullable columns - and the older code
+   simply ignores what it does not know. `migrate:rollback` would drop a column to gain
+   nothing, and dropping a column on a busy table can lock it. This is the one instruction
+   here that goes against the reflex.
+
+4. **Nothing to re-copy in the docroot.** Section 3 only ever adds files and never
+   overwrites, so the old build's entries are still there - including the hand-kept
+   `public_html/index.php` shim, which is why that loop must never be made smarter.
+
+5. **Bring the cache and the site back, then prove it:**
+
+   ```bash
+   cd /home/beloveds/vtu
+   php artisan optimize
+   php artisan up
+   curl -s -o /dev/null -w '%{http_code}\n' https://www.belovedsubp.com/up
+   ```
+
+   `200` for `/up` and a `302` for `/settings` is the same pair section 7 uses.
+
+6. **What a rollback does not undo:** any wallet movement that happened while the new code
+   was running. Those are ledger rows in the database, not files, and they stay. A purchase
+   held by the new identity rules survives the rollback as one orphan `purchase_intents`
+   row - resolve it with the read-only query in
+   [held-purchase-runbook.md](held-purchase-runbook.md), never by deleting the row, which is
+   what turns a held request into a second bill.
