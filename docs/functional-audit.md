@@ -5,12 +5,14 @@ Every line below names the test that proves it, in the form
 `tests/Feature/File::method`. Nothing in this file is an opinion about behaviour I did not
 run; where a claim is *not* proven by a test it says so.
 
-Whole suite as it stands: **458 passed, 11 skipped, 3,527 assertions** (sqlite, in-memory),
-plus the money-path suite on **real MySQL 8.4.3: 11 passed, 95 assertions**.
+Whole suite as it stands: **479 passed, 11 skipped, 3,609 assertions** (sqlite, in-memory).
 
 The 11 skips are all in `MysqlMoneyPathConcurrencyTest` when it runs on sqlite: those proofs
 need two operating-system processes and row locks, which sqlite does not have. They are not
-skips of convenience - they ran for real against MySQL, and that is the second number above.
+skips of convenience - they ran for real against **MySQL 8.4.3 on 2026-10-16: 11 passed, 95
+assertions**, in a database that held nothing else. That MySQL run predates the deposit
+ownership gate (section 3, and `wallet-funding-review.md` section 3b), so it does not yet
+cover the new `flutterwave_held_deposits` table - see "What this audit does not prove".
 
 ---
 
@@ -55,9 +57,10 @@ actually arrived, less the ₦50 funding fee, and never credits the same money t
 | `::test_a_larger_transfer_is_credited_on_what_actually_landed` | ₦3,500 arriving credits ₦3,450 - the fee is taken on what landed, not on what was promised. |
 | `::test_a_transfer_belonging_to_somebody_else_is_not_credited` | Ownership is proved before money moves. |
 | `::test_the_same_transfer_reported_twice_is_still_credited_once` | Reconciliation replay. |
-| `FlutterwaveChargeIdempotencyTest` (10 methods) | Global charge uniqueness: see [wallet-funding-review.md](wallet-funding-review.md) section 3. The headline is `::test_a_transfer_the_site_could_attribute_to_either_customer_credits_one_wallet` - the bug that let one ₦3,000 transfer put ₦5,900 into two wallets - and `::test_two_real_transfers_into_one_virtual_account_are_both_credited`, which is the test that stops the fix from throwing away a genuine second deposit. |
+| `FlutterwaveChargeIdempotencyTest` | Global charge uniqueness: see [wallet-funding-review.md](wallet-funding-review.md) section 3. The headline is `::test_a_transfer_that_could_belong_to_either_customer_credits_neither` - the bug that let one ₦3,000 transfer put ₦5,900 into two wallets, now proven to pay nobody automatically - and `::test_two_real_transfers_into_one_virtual_account_are_both_credited`, which is the test that stops the fix from throwing away a genuine second deposit. |
+| `FlutterwaveDepositAttributionTest` (10 methods) | **New.** Ownership before money moves, end to end through the webhook, the sweep and the customer's Check deposit button: a shared account number credits neither candidate and records one held deposit (reason, gross amount, holders, full payload) with **zero** charge claims consumed; a transfer that belongs to a different customer is held as `wrong_wallet`; a deposit the customer asked for by their own `tx_ref` still pays them even when the number is shared; two genuine transfers into a single-owner account still both credit (295,000 + 145,000 = 440,000); webhook plus sweep competing over one transfer hold it **once**; admin resolution credits exactly once (replay refused, resolver and note recorded), a missing note and a non-candidate both fail validation, and dismissing keeps the record while blocking any later credit; Admin sees the queue, a member and a guest are refused. |
 | `WalletSupersededDepositRecoveryTest::test_the_scheduled_check_credits_a_customer_who_never_opens_their_page` | `artisan wallet:sync-deposits` really banks a deposit the webhook lost. |
-| `::test_the_audit_asks_about_missing_money_without_moving_any` | `deposits:audit` is read-only, and is the only surface that shows drift. |
+| `::test_the_audit_asks_about_missing_money_without_moving_any` | `deposits:audit` is read-only. |
 | `WalletLedgerSafetyTest::test_a_rolled_back_purchase_keeps_neither_money_nor_row` | A balance never moves without its ledger row, or the other way round. |
 
 ## 4. All ten NIN Modification options are live and priced
@@ -155,6 +158,12 @@ Private by default:
   suites named above plus the two documents it writes itself
   (`MockProviderChargeTest`, `NinModificationWorkflowTest`, `WalletFundingAgreementTest`,
   `docs/functional-audit.md`, `docs/production-readiness.md`).
+- **What came after this audit does.** The deposit ownership gate (`wallet-funding-review.md`
+  section 3b) is production code and a new table: `WalletFundingService`, the
+  `flutterwave_held_deposits` migration, `Admin/HeldDepositController`, its routes, the admin
+  view and quick-nav entry, plus `FlutterwaveDepositAttributionTest`. It is proven on sqlite
+  only, and it changes what happens to a deposit - so it needs its own review before any
+  deploy, not the blanket "audit touched no code" reading of the line above.
 
 ---
 
@@ -163,10 +172,10 @@ Private by default:
 All of the above is **local**. None of it says the live site behaves this way, because the
 live site runs whatever `~/vtu` was last checked out to.
 
-1. **Nothing in this file is deployed.** Not the mock guard, not the charge guard, not the
-   atomic debits. A deploy is the owner's decision and needs `migrate` for the new
-   `flutterwave_charge_claims` table ([deploy-checklist.md](deploy-checklist.md) sections 1
-   and 7.4).
+1. **Nothing in this batch is deployed.** Not the mock guard, not the charge guard, not the
+   ownership gate, not the atomic debits. A deploy is the owner's decision and needs `migrate`
+   for both new tables, `flutterwave_charge_claims` and `flutterwave_held_deposits`
+   ([deploy-checklist.md](deploy-checklist.md) sections 1 and 7.4).
 2. **Three live-box settings decide whether deposits and identity jobs work at all**: the
    `schedule:run` cron, `FLUTTERWAVE_SECRET_HASH`, and the saved `provider` /
    `nin_verify_mode` / `bvn_verify_mode` values. Read them on the box; they cannot be proved

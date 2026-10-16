@@ -22,9 +22,13 @@ use Tests\TestCase;
  * The per-wallet check in WalletFundingService can only ever see the rows of the
  * wallet it was handed, while the wallet itself is picked by a chain of lookups
  * (the checkout reference, the virtual account number, the account number written
- * on an old funding request) that are not unique in the database. This suite asks
+ * on an old funding request) that are not unique in this database. This suite asks
  * whether one verified Flutterwave charge can therefore be banked twice, and keeps
  * the answer provable rather than argued.
+ *
+ * The suite's counterpart, FlutterwaveDepositAttributionTest, covers what happens
+ * when a charge cannot be banked twice but could still be banked into the wrong
+ * wallet: nobody is paid and the transfer is held for an admin.
  */
 class FlutterwaveChargeIdempotencyTest extends TestCase
 {
@@ -184,10 +188,28 @@ class FlutterwaveChargeIdempotencyTest extends TestCase
     public function test_one_verified_charge_cannot_credit_two_different_wallets(): void
     {
         $funding = app(WalletFundingService::class);
-        $charge = $this->charge();
 
-        $first = $this->member(['virtual_account_number' => self::SHARED_ACCOUNT]);
+        // The charge names A as its own funding request and B as the account it
+        // landed in, so each arrival path resolves a different customer and each is
+        // unambiguous on its own terms. The webhook takes A; the deposit sweep for
+        // B then asks about the very same money.
+        $first = $this->member();
         $second = $this->member(['virtual_account_number' => self::SHARED_ACCOUNT]);
+        WalletTransaction::query()->create([
+            'wallet_id' => $first->wallet->id,
+            'type' => 'credit',
+            'amount' => 300_000,
+            'reference' => 'FLW_VA_ALPHA_REQUEST',
+            'status' => 'pending',
+            'channel' => 'flutterwave_virtual_account',
+            'description' => 'Waiting for a bank transfer',
+            'meta' => ['virtual_account_number' => '09999999999'],
+        ]);
+
+        $charge = $this->charge([
+            'tx_ref' => 'FLW_VA_ALPHA_REQUEST',
+            'account_number' => self::SHARED_ACCOUNT,
+        ]);
 
         $this->assertSame(295_000, $funding->creditFlutterwaveCharge(
             $first->wallet,
@@ -293,12 +315,13 @@ class FlutterwaveChargeIdempotencyTest extends TestCase
         $this->assertSame(0, (int) $customer->fresh()->wallet->balance, 'Nothing was banked here, only claimed.');
     }
 
-    public function test_a_transfer_the_site_could_attribute_to_either_customer_credits_one_wallet(): void
+    public function test_a_transfer_that_could_belong_to_either_customer_credits_neither(): void
     {
         // A virtual account number is indexed, not unique: Flutterwave hands a
         // replaced number back out, and an admin can type one onto any customer.
-        // Two customers holding the same number must not both be paid for it, and
-        // the one that is not paid must still be provable to support.
+        // Choosing between two holders is not a question the ledger can answer, so
+        // the money is held instead of paid to whichever lookup returned first.
+        // Who is actually paid is FlutterwaveDepositAttributionTest's business.
         $alpha = $this->member(['virtual_account_number' => self::SHARED_ACCOUNT]);
         $beta = $this->member(['virtual_account_number' => self::SHARED_ACCOUNT]);
 
@@ -306,18 +329,24 @@ class FlutterwaveChargeIdempotencyTest extends TestCase
         $this->listCharges = [['id' => 777, 'tx_ref' => 'FLW_VA_BETA_REQUEST']];
 
         $this->deliverWebhook($this->charge())->assertOk();
-        $this->assertSame(295_000, $this->totalCreditedKobo(), 'One webhook already paid two customers.');
 
         Cache::forget('wallet-deposit-sync-button-'.$beta->id);
         $this->actingAs($beta->fresh())->post('/wallet/deposits/check');
 
-        $moved = (int) $alpha->fresh()->wallet->balance + (int) $beta->fresh()->wallet->balance;
+        $this->assertSame(0, (int) $alpha->fresh()->wallet->balance);
+        $this->assertSame(0, (int) $beta->fresh()->wallet->balance);
+        $this->assertSame(0, $this->totalCreditedKobo());
+        $this->assertSame(0, WalletTransaction::query()->where('status', 'success')->count());
         $this->assertSame(
-            295_000,
-            $moved,
-            'The same transfer was credited once to each of two customers.'
+            0,
+            DB::table('flutterwave_charge_claims')->count(),
+            'A deposit that paid nobody still consumed its global claim, locking the money out of the wallet that owns it.'
         );
-        $this->assertSame(295_000, $this->totalCreditedKobo());
+        $this->assertSame(
+            1,
+            DB::table('flutterwave_held_deposits')->count(),
+            'Two paths asked about one unattributable transfer and recorded it twice.'
+        );
     }
 
     public function test_two_real_transfers_into_one_virtual_account_are_both_credited(): void

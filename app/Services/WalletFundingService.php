@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\FlutterwaveHeldDeposit;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -29,6 +30,11 @@ class WalletFundingService
     /**
      * Bank one Flutterwave charge that somebody already verified as successful.
      *
+     * $ownershipApproved is for the one case where a human has already read this
+     * transfer and named the customer it belongs to: the admin resolution screen.
+     * It never skips the global charge claim, so an approved credit can still not
+     * be paid twice, and no arrival path a customer or gateway controls can set it.
+     *
      * @param  array<string, mixed>  $charge
      * @param  array<string, mixed>  $extraMeta
      * @return int kobo actually added to the balance, zero when nothing moved
@@ -39,6 +45,7 @@ class WalletFundingService
         string $channel,
         string $via,
         array $extraMeta = [],
+        bool $ownershipApproved = false,
     ): int {
         $grossKobo = (int) round(((float) ($charge['charged_amount'] ?? $charge['amount'] ?? 0)) * 100);
         if ($grossKobo <= 0) {
@@ -60,7 +67,8 @@ class WalletFundingService
             $txRef,
             $chargeId,
             $flutterwaveId,
-            $gatewayReference
+            $gatewayReference,
+            $ownershipApproved
         ): int {
             $lockedWallet = Wallet::query()->whereKey($wallet->id)->lockForUpdate()->first();
             if (!$lockedWallet) {
@@ -89,6 +97,32 @@ class WalletFundingService
                 ]);
 
                 return 0;
+            }
+
+            /* An account number names an account, not a person, and every path
+               that brought this charge here resolved its customer with a
+               first-match lookup. So before anything is banked: when this
+               transfer can be proved to belong to more than one customer, or to a
+               customer other than this wallet's owner, pay nobody and hold it for
+               a human to decide. */
+            if (!$ownershipApproved) {
+                $attribution = $this->depositAttribution($lockedWallet, $charge, $txRef);
+
+                if ($attribution['ambiguous']) {
+                    $this->holdUnattributedCharge(
+                        $lockedWallet,
+                        $charge,
+                        $channel,
+                        $via,
+                        $attribution,
+                        $grossKobo,
+                        $chargeId,
+                        $flutterwaveId,
+                        $txRef
+                    );
+
+                    return 0;
+                }
             }
 
             /* The checks above can only ever see this wallet, while the wallet a
@@ -164,6 +198,52 @@ class WalletFundingService
             }
 
             return (int) $credit['credited_kobo'];
+        });
+    }
+
+    /**
+     * Finish what a machine could not decide: an admin has read this transfer and
+     * named the customer it belongs to. The global charge claim still applies, so
+     * a held deposit that has already been paid out - by a later webhook, or by a
+     * second admin - cannot be paid a second time from the same record.
+     */
+    public function creditHeldDepositTo(FlutterwaveHeldDeposit $held, User $customer, User $admin, string $note): int
+    {
+        return (int) DB::transaction(function () use ($held, $customer, $admin, $note): int {
+            $wallet = Wallet::query()->firstOrCreate(['user_id' => $customer->id], ['balance' => 0]);
+
+            $credited = $this->creditFlutterwaveCharge(
+                $wallet,
+                (array) ($held->payload ?? []),
+                (string) ($held->channel ?: 'flutterwave_virtual_account'),
+                'admin_resolution',
+                [
+                    'resolved_held_deposit_id' => $held->id,
+                    'resolved_by_user_id' => $admin->id,
+                    'resolution_note' => $note,
+                    'held_because' => $held->reason,
+                    'held_candidate_user_ids' => $held->holder_user_ids,
+                ],
+                true
+            );
+
+            if ($credited <= 0) {
+                return 0;
+            }
+
+            FlutterwaveHeldDeposit::query()
+                ->whereKey($held->id)
+                ->where('status', 'held')
+                ->update([
+                    'status' => 'credited',
+                    'resolution_note' => $note,
+                    'resolved_by_user_id' => $admin->id,
+                    'resolved_wallet_id' => $wallet->id,
+                    'resolved_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+            return $credited;
         });
     }
 
@@ -322,6 +402,187 @@ class WalletFundingService
             'arrived_via' => $via,
             'reason' => $reason,
         ]);
+    }
+
+    /**
+     * Who this verified transfer can be proved to belong to.
+     *
+     * The strongest evidence is a reference this wallet started itself: this site
+     * minted it, and the customer who was told to send money is the one it was
+     * given to. Weaker than that there is only the bank account the transfer
+     * arrived in, and an account number is not a person - Flutterwave reissues
+     * numbers, admins type them onto accounts, and closed funding requests keep
+     * naming the number they were issued. So an account-only match is accepted
+     * exactly once: when one customer holds that number and it is this wallet's
+     * owner. Anything else is a guess, and a guess moves somebody's money.
+     *
+     * @param  array<string, mixed>  $charge
+     * @return array{ambiguous:bool,reason:string,holders:list<int>}
+     */
+    private function depositAttribution(Wallet $wallet, array $charge, string $txRef): array
+    {
+        $account = $this->chargeAccountNumber($charge);
+        $holders = $account !== '' ? $this->accountHolders($account) : [];
+
+        if ($txRef !== '' && $this->ownsReference($wallet, $txRef)) {
+            return ['ambiguous' => false, 'reason' => '', 'holders' => $holders];
+        }
+
+        if ($holders === []) {
+            // Nothing here contradicts the lookup that routed this charge, and a
+            // transfer Flutterwave described without an account number cannot be
+            // attributed by one either. Left to the normal path.
+            return ['ambiguous' => false, 'reason' => '', 'holders' => []];
+        }
+
+        if (count($holders) > 1) {
+            return ['ambiguous' => true, 'reason' => 'shared_account_number', 'holders' => $holders];
+        }
+
+        if ($holders[0] !== (int) $wallet->user_id) {
+            return ['ambiguous' => true, 'reason' => 'wrong_wallet', 'holders' => $holders];
+        }
+
+        return ['ambiguous' => false, 'reason' => '', 'holders' => $holders];
+    }
+
+    /**
+     * Every customer this site currently points at one account number, across the
+     * three places an account number is recorded.
+     *
+     * @return list<int>
+     */
+    private function accountHolders(string $account): array
+    {
+        $ids = DB::table('users')
+            ->where('virtual_account_number', $account)
+            ->pluck('id')
+            ->all();
+
+        $ids = array_merge($ids, DB::table('users')
+            ->where('virtual_account_metadata->temporary_virtual_account->account_number', $account)
+            ->pluck('id')
+            ->all());
+
+        // A number a customer was given and then replaced is still theirs for a
+        // transfer already on its way, so the funding requests that name it count.
+        $ids = array_merge($ids, DB::table('wallet_transactions')
+            ->join('wallets', 'wallets.id', '=', 'wallet_transactions.wallet_id')
+            ->where('wallet_transactions.type', 'credit')
+            ->where('wallet_transactions.meta->virtual_account_number', $account)
+            ->pluck('wallets.user_id')
+            ->all());
+
+        $ids = array_values(array_unique(array_map(
+            static fn ($id): int => (int) $id,
+            $ids
+        )));
+
+        sort($ids);
+
+        return $ids;
+    }
+
+    private function ownsReference(Wallet $wallet, string $txRef): bool
+    {
+        $startedHere = WalletTransaction::query()
+            ->where('wallet_id', $wallet->id)
+            ->where('type', 'credit')
+            ->where(function ($query) use ($txRef): void {
+                $query->where('reference', $txRef)->orWhere('meta->tx_ref', $txRef);
+            })
+            ->exists();
+
+        if ($startedHere) {
+            return true;
+        }
+
+        return User::query()
+            ->whereKey($wallet->user_id)
+            ->where(function ($query) use ($txRef): void {
+                $query->where('virtual_account_metadata->tx_ref', $txRef)
+                    ->orWhere('virtual_account_metadata->temporary_virtual_account->tx_ref', $txRef);
+            })
+            ->exists();
+    }
+
+    /**
+     * Write the transfer down so a person can finish the job, and pay nobody.
+     * One row per charge: a webhook and the deposit sweep asking about the same
+     * money must produce one held deposit, not a queue of near-identical ones.
+     *
+     * @param  array<string, mixed>  $charge
+     * @param  array{ambiguous:bool,reason:string,holders:list<int>}  $attribution
+     */
+    private function holdUnattributedCharge(
+        Wallet $wallet,
+        array $charge,
+        string $channel,
+        string $via,
+        array $attribution,
+        int $grossKobo,
+        string $chargeId,
+        string $flutterwaveId,
+        string $txRef
+    ): void {
+        $token = $this->heldDepositToken($charge, $chargeId, $flutterwaveId, $txRef, $grossKobo);
+        $account = $this->chargeAccountNumber($charge);
+        $now = now();
+
+        $written = DB::table('flutterwave_held_deposits')->insertOrIgnore([
+            'charge_token' => $token,
+            'flutterwave_charge_id' => $chargeId !== '' ? $chargeId : null,
+            'flutterwave_id' => $flutterwaveId !== '' ? $flutterwaveId : null,
+            'tx_ref' => $txRef !== '' ? $txRef : null,
+            'virtual_account_number' => $account !== '' ? $account : null,
+            'amount_kobo' => $grossKobo,
+            'currency' => strtoupper((string) ($charge['currency'] ?? 'NGN')),
+            'channel' => $channel,
+            'arrived_via' => $via,
+            'reason' => $attribution['reason'],
+            'holder_user_ids' => json_encode($attribution['holders']),
+            'payload' => json_encode($charge),
+            'status' => 'held',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        Log::warning('Flutterwave deposit held for reconciliation because no single customer owns it.', [
+            'wallet_id_considered' => $wallet->id,
+            'flutterwave_charge_id' => $chargeId,
+            'flutterwave_id' => $flutterwaveId,
+            'tx_ref' => $txRef,
+            'virtual_account_number' => $account,
+            'amount_kobo' => $grossKobo,
+            'reason' => $attribution['reason'],
+            'candidate_user_ids' => $attribution['holders'],
+            'arrived_via' => $via,
+            'newly_recorded' => $written === 1,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $charge
+     */
+    private function heldDepositToken(array $charge, string $chargeId, string $flutterwaveId, string $txRef, int $grossKobo): string
+    {
+        if ($chargeId !== '') {
+            return $chargeId;
+        }
+
+        if ($flutterwaveId !== '') {
+            return $flutterwaveId;
+        }
+
+        // A payload with no charge identity still needs a row of its own, or the
+        // held deposit would be recorded once and then silently dropped on every
+        // later report of the same money.
+        return 'NOID:'.sha1(implode('|', [
+            $this->chargeAccountNumber($charge),
+            $txRef,
+            $grossKobo,
+            (string) ($charge['created_at'] ?? ''),
+        ]));
     }
 
     /**

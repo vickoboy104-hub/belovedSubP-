@@ -53,10 +53,10 @@ Three things stood between a replay and a second credit before this section, and
 them were strong:
 
 1. `creditFlutterwaveCharge()` runs the whole decision inside `DB::transaction` and takes
-   `Wallet:: ... ->lockForUpdate()->first()` (`WalletFundingService.php:53,65`) before it
+   `Wallet:: ... ->lockForUpdate()->first()` (`WalletFundingService.php:60,73`) before it
    looks at anything;
-2. `arrivalRow()` (`:333`) locks the matching credit rows and a `success` +
-   `isSameCharge()` guard returns `0` for a replay (`:72-81`);
+2. `arrivalRow()` (`:594`) locks the matching credit rows and a `success` guard returns `0`
+   for a replay (`:80-89`);
 3. `wallet_transactions.reference` is `unique()`
    (`database/migrations/2026_01_14_190722_create_wallet_transactions_table.php:20`), so an
    insert of the same charge reference is refused by the database.
@@ -74,20 +74,21 @@ been paid out".
 
 Measured, before the fix: one ₦3,000 transfer credited once by the webhook and once by a
 second customer's own **Check deposit** button put **₦5,900** into two wallets. That is two
-ordinary endpoints and no attacker; the test that caught it is
-`test_a_transfer_the_site_could_attribute_to_either_customer_credits_one_wallet` in
-`tests/Feature/FlutterwaveChargeIdempotencyTest.php`.
+ordinary endpoints and no attacker; the test that caught it is now
+`test_a_transfer_that_could_belong_to_either_customer_credits_neither` in
+`tests/Feature/FlutterwaveChargeIdempotencyTest.php` - the guard has since been tightened so
+that such a transfer pays nobody automatically (section 3b).
 
 **What closes it.** `flutterwave_charge_claims`
 (`database/migrations/2026_10_16_000001_create_flutterwave_charge_claims_table.php`) is one
 row per charge identity with a **unique index**, taken inside the credit transaction before
-the balance moves (`claimCharge()` at `WalletFundingService.php:239`, called at `:98`). Both
+the balance moves (`claimCharge()` at `WalletFundingService.php:319`, called at `:132`). Both
 `id` and `flw_ref` are claimed, in a single insert statement, so an attempt that loses the
 race leaves no half-claim behind that would lock a genuine deposit out of the wallet that
 owns it. A payload Flutterwave described with neither identity is still credited - the claim
 is a duplicate check, never a precondition for banking somebody's money. Only the unique
 index is allowed to refuse: any other failure - a missing table, a dead link - is rethrown
-(`isAlreadyTaken()` `:306`, the rethrow at `:291`), because filing a broken guard as
+(`isAlreadyTaken()` `:386`, the rethrow at `:371`), because filing a broken guard as
 "somebody already had this money" would lose a real deposit inside an info log.
 Deliberately **not** claimed: `tx_ref` and the account number, which repeat by design
 (section 4).
@@ -99,21 +100,71 @@ backfills one claim per identity it finds, which is what keeps a deposit banked 
 deploy from being banked again after it. Duplicates already in the ledger are left exactly as
 they are and claimed once.
 
-**Proofs.** sqlite: `tests/Feature/FlutterwaveChargeIdempotencyTest.php`, 10 tests / 41
-assertions - duplicate webhook delivery, webhook then reconciliation, two wallets, one
-account number shared by two customers, two genuine transfers into one permanent account, a
-payload with no charge identity, a bad `verif-hash`, the backfill over rows that predate
-the guard, and a claims table that cannot be reached - which fails the request loudly
-instead of filing a real deposit as already paid. InnoDB: `test_one_verified_transfer_cannot_fund_two_wallets_at_the_same_time`,
+**Proofs.** sqlite: `tests/Feature/FlutterwaveChargeIdempotencyTest.php` - duplicate webhook
+delivery, webhook then reconciliation, two wallets, one account number shared by two
+customers, two genuine transfers into one permanent account, a payload with no charge
+identity, a bad `verif-hash`, the backfill over rows that predate the guard, and a claims
+table that cannot be reached - which fails the request loudly instead of filing a real
+deposit as already paid. InnoDB: `test_one_verified_transfer_cannot_fund_two_wallets_at_the_same_time`,
 where a **second operating-system process** (`tests/Concurrency/MysqlRivalChargeCredit.php`)
 tries to credit the same charge into a different wallet while the first credit is still
 uncommitted - MySQL makes it wait at the index and then refuses it. Whole suite on MySQL
 8.4.3: **11 passed, 95 assertions**, database empty again afterwards. The backfill on real
 MySQL json was checked separately, including a debit, a NULL meta and a duplicate token.
 
-**What the guard does not do.** It does not decide *which* customer a shared account number
-belongs to. The wrong customer can still be paid - now only once, and the unpaid one is
-visible to `deposits:audit`. That is an attribution problem for a human, not money printed.
+## 3b. Being paid once is not the same as being paid to the right customer
+
+The claim in section 3 answers "has this charge already been banked?". It cannot answer "is
+this the person the money belongs to?", because the wallet is chosen *before* the claim, by
+`handleVirtualAccountTransfer()`'s six sequential `->first()` lookups
+(`FlutterwaveController.php:367-394`). Four of them key on an account number, and
+`users.virtual_account_number` is indexed but not unique and admin-editable
+(`app/Http/Controllers/Admin/UsersController.php:90`). The sweep has the same exposure:
+`WalletDepositSync::isOurDeposit()` (`app/Services/WalletDepositSync.php:495`) accepts a
+charge whose account number matches the candidate even when the `tx_ref` differs.
+
+**One gate, at the funnel.** Every arrival path - checkout callback, webhook, the customer's
+Check deposit button, and the scheduled sweep - ends in
+`WalletFundingService::creditFlutterwaveCharge()`, so the ownership decision lives there
+rather than being copied into six lookups (`:108-126`, immediately **before** the claim at
+`:132`). Before anything is banked, `depositAttribution()` (`:422`) asks who can prove this
+arrival:
+
+- the wallet's own credit rows carrying the charge's `tx_ref`, or the owner's own
+  virtual-account `tx_ref` (`ownsReference()` `:486`) - a direct request is a
+  tie the customer owns, so a shared number never freezes money its owner asked for;
+- otherwise every user holding that account number (`accountHolders()` `:455`, read from the
+  column, the temporary-account metadata, and ledger rows tagged with the number). More than
+  one holder ⇒ `shared_account_number`; exactly one, and it is not this wallet's owner ⇒
+  `wrong_wallet`.
+
+When ownership is provable-but-not-this-wallet, or genuinely shared, **nobody is credited**
+and the arrival is written whole to `flutterwave_held_deposits`
+(`database/migrations/2026_10_16_000002_create_flutterwave_held_deposits_table.php`,
+`holdUnattributedCharge()` `:517`) with the full charge payload, gross amount, account
+number, reason, and the candidate user ids. The row is keyed by the same charge identity token
+as the claim, with `insertOrIgnore`, so a webhook and a sweep competing over one transfer
+leave **one** held record, not two. The ordering matters: a hold is taken **before** the
+global claim, so a deposit a human later releases is not locked out by its own claim row.
+
+**Reconciliation is a human action, on the recorded candidates only.**
+`Admin/HeldDepositController` (`routes/web.php`, `admin.wallet.deposits.held`) lists held
+deposits with the candidate customers and their balances; crediting requires choosing one of
+those candidates and a note of at least 10 characters, and runs through the ordinary credit
+path (`creditHeldDepositTo()` `:210`) - same fee, same ledger row, same notification, same
+claim enforcement - with `ownershipApproved` set. That flag exists solely for this path: no
+customer-facing or gateway-facing route can pass it. Dismissing writes `status = dismissed`
+with a mandatory note and keeps the record; nothing is deleted. The queue count is a badge on
+the admin quick-nav so pending volume is visible without leaving the page an admin is on.
+
+`flutterwave_held_deposits` has **no backfill**, deliberately: a migration cannot un-pay a
+credit that already happened, and inventing holds for historical rows would put money that is
+already spent on an admin's to-do list.
+
+**What this gate does not do.** It acts on *provable* ambiguity. A charge that carries no
+account number and no reference this wallet can claim is not provably ambiguous, so it still
+goes through the ordinary path - which is why making `users.virtual_account_number` unique (a
+data decision for the owner, section 7) is the real end of this problem, not the gate.
 
 ## 4. What the sweep looks for, and when it stops
 
@@ -140,17 +191,24 @@ one-time/rotated-out account that was written off and not carried in
 `previous_virtual_accounts` metadata becomes invisible to the sweep after two weeks. That
 money is not gone at Flutterwave; it is only unreachable by this safety net.
 
-## 5. Where the drift goes: nowhere an admin can see
+## 5. Where the drift goes, and what an admin can see
 
-An unattributable transfer into a virtual account is logged and dropped -
-`Log::warning('Flutterwave virtual account transfer user not found.')`
-(`FlutterwaveController.php:397`) - and the webhook still answers `200`. A short transfer
-is a warning only (`WalletFundingService.php:84`). **There is no admin screen for either.** The only surface is the
-read-only CLI:
+Two kinds of drift still stop at the log:
+
+- a transfer into an account number **no user row holds at all** is logged and dropped -
+  `Log::warning('Flutterwave virtual account transfer user not found.')`
+  (`FlutterwaveController.php:397`) - and the webhook still answers `200`. There is no wallet
+  to attach it to, so section 3b cannot hold it; it stays a log line plus a ledger gap.
+- a transfer that arrives **short** of what the deposit asked for is a warning only
+  (`WalletFundingService.php:92`).
+
+What section 3b added is the admin screen for the third case - money that matched somebody,
+but not provably the right somebody: `admin.wallet.deposits.held`, badged in the quick-nav.
+The remaining surface is still the read-only CLI:
 
 ```bash
 cd /home/beloveds/vtu
-php artisan deposits:audit --days=30
+php artisan deposits:audit --days=30 --references=0
 ```
 
 which cross-checks the ledger against Flutterwave and greps the log for the phrases above,
@@ -162,29 +220,32 @@ and said so plainly rather than guessing.
 ## 6. The ledger itself is sound
 
 Every credit goes through the same mechanism as every debit:
-`WalletFundingService.php:114` calls `$this->ledger->shift(...)`, and the balance is moved by
+`WalletFundingService.php:148` calls `$this->ledger->shift(...)`, and the balance is moved by
 the database, not by PHP arithmetic - `WalletLedger.php:60`
 `'balance' => DB::raw("balance + {$amountKobo}")` - inside the caller's transaction, together
 with the `wallet_transactions` row. The `$lockedWallet->balance = $afterKobo` at
-`WalletFundingService.php:158` is in-memory bookkeeping for the response, not the write.
+`WalletFundingService.php:192` is in-memory bookkeeping for the response, not the write.
 
 ## 7. What this review did not change, and why
 
-- **No admin "stuck deposits" screen.** It is the right next feature, and it is a feature;
-  the brief for this pass was to finish what exists, not to add surfaces.
 - **No unique index added to `wallet_transactions`.** The charge guard went into a new table
   (section 3) instead, because a real ledger already holds many rows that share one `tx_ref`.
   For the same reason the guard does not claim `tx_ref` or the account number.
-- **No change to which customer a shared account number belongs to.** `handleVirtualAccount-
-  Transfer()` still picks the first user row it finds. Fixing attribution means making the
-  column unique or forcing a manual match, and both are a data decision for the owner, not a
-  code decision.
+- **No unique index on `users.virtual_account_number`.** The ownership gate (section 3b)
+  refuses to guess, but the column itself still allows two customers to hold one number, and
+  existing live data may already contain duplicates. Making it unique is a data migration the
+  owner has to look at first - `docs/production-checks.md` section 7 measures how many rows
+  would be affected. Until then the gate is the safety, not the fix.
+- **No rewrite of `handleVirtualAccountTransfer()`'s six lookups.** They still pick the first
+  user row they find, and they still decide which wallet is *asked about*; what they can no
+  longer do on their own is decide who gets *paid*, because the gate re-checks ownership
+  against all holders before the balance moves.
 - **No change to the 500-on-permanent-failure behaviour** (`:280`): a non-NGN event will be
   retried by Flutterwave forever. It is noise, not loss, and changing which status a provider
   retries on is exactly the kind of quiet behaviour change that should not ride along with an
   unrelated deploy.
 
-## 8. The four live-box reads, in order, before trusting a missed deposit
+## 8. The five live-box reads, in order, before trusting a missed deposit
 
 All read-only. Do them before anyone is told a deposit will self-heal.
 
@@ -193,9 +254,16 @@ All read-only. Do them before anyone is told a deposit will self-heal.
    dashboard. Empty here means **no webhook credits anything** (section 2).
 2. `crontab -l | grep -v '^#'` - a `schedule:run` line must exist. Without it the sweep in
    section 4 never runs and the webhook is the only route, which is the unreliable one.
-3. `php artisan migrate:status | grep flutterwave_charge_claims` - must read `Run`. If it
-   does not, the duplicate-charge guard in section 3 is not in the database yet and has
-   never been asked to be.
-4. `php artisan deposits:audit --days=30` - then read "Written off as never arriving". Any
-   row whose account number nobody holds is money that cannot self-heal and needs a human
-   with Flutterwave's dashboard open.
+3. `php artisan migrate:status | grep -E 'flutterwave_charge_claims|flutterwave_held_deposits'` -
+   both must read `Run`. If the claims table is missing, the duplicate guard in section 3 is
+   not in the database and never has been; if the held-deposits table is missing, the gate in
+   section 3b cannot write its record, and the insert will fail the request loudly rather than
+   credit silently - which is the intended behaviour, but it means deposits stop landing until
+   the migration runs.
+4. `sqlite3`/`mysql` read of `select status, count(*) from flutterwave_held_deposits group by
+   status` (or just open **Admin → Held Deposits**) - a non-zero `held` count is money the
+   site has deliberately refused to guess about, and it is only safe once a human has looked
+   at it.
+5. `php artisan deposits:audit --days=30 --references=0` - then read "Written off as never
+   arriving". Any row whose account number nobody holds is money that cannot self-heal and
+   needs a human with Flutterwave's dashboard open.

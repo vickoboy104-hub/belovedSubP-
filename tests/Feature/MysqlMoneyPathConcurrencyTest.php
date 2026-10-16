@@ -66,6 +66,7 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
         'wallets',
         'wallet_transactions',
         'flutterwave_charge_claims',
+        'flutterwave_held_deposits',
         'orders',
         'purchase_intents',
         'document_filings',
@@ -119,7 +120,7 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
      */
     public function test_the_money_tables_run_on_the_engine_that_can_hold_one_row(): void
     {
-        $tables = ['users', 'wallets', 'wallet_transactions', 'flutterwave_charge_claims', 'orders', 'purchase_intents', 'document_filings'];
+        $tables = ['users', 'wallets', 'wallet_transactions', 'flutterwave_charge_claims', 'flutterwave_held_deposits', 'orders', 'purchase_intents', 'document_filings'];
 
         $rows = DB::select(
             'select TABLE_NAME as name, ENGINE as engine from information_schema.TABLES '.

@@ -3,6 +3,10 @@
     // the admin sees pending volume without leaving the page they are on.
     $waitingManualRequests = app(\App\Services\ManualFulfilmentService::class)->waitingCount();
 
+    // Transfers the site can see but cannot attribute. Nothing gets paid until a
+    // person reads them, so they have to be impossible to walk past.
+    $heldDeposits = \App\Models\FlutterwaveHeldDeposit::query()->where('status', 'held')->count();
+
     $adminPages = [
         ['label' => 'Admin Dashboard', 'route' => 'admin.dashboard'],
         ['label' => 'Orders', 'route' => 'admin.orders'],
@@ -10,6 +14,7 @@
         ['label' => 'Users', 'route' => 'admin.users'],
         ['label' => 'Wallet Transactions', 'route' => 'admin.wallet.transactions'],
         ['label' => 'Wallet Statistics', 'route' => 'admin.wallet-stats'],
+        ['label' => 'Held Deposits', 'route' => 'admin.wallet.deposits.held', 'badge' => $heldDeposits],
         ['label' => 'Notifications', 'route' => 'admin.notifications.index'],
         ['label' => 'Support Chats', 'route' => 'admin.support.chats'],
         ['label' => 'Announcements', 'route' => 'admin.broadcast'],

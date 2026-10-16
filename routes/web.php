@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\ServiceFormsController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\WalletTransactionsController;
+use App\Http\Controllers\Admin\HeldDepositController;
 use App\Http\Controllers\Admin\WalletStatsController;
 use App\Http\Controllers\Admin\SupportChatsController;
 use App\Http\Controllers\Admin\BroadcastController;
@@ -156,6 +157,9 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::post('/users/{user}/fund-wallet', [UsersController::class, 'fundWallet'])->name('admin.users.fund-wallet');
     Route::post('/users/{user}/adjust-wallet', [UsersController::class, 'adjustWallet'])->name('admin.users.adjust-wallet');
     Route::get('/wallet-transactions', [WalletTransactionsController::class, 'index'])->name('admin.wallet.transactions');
+    Route::get('/wallet-deposits/held', [HeldDepositController::class, 'index'])->name('admin.wallet.deposits.held');
+    Route::post('/wallet-deposits/held/{deposit}/credit', [HeldDepositController::class, 'credit'])->name('admin.wallet.deposits.held.credit');
+    Route::post('/wallet-deposits/held/{deposit}/dismiss', [HeldDepositController::class, 'dismiss'])->name('admin.wallet.deposits.held.dismiss');
     Route::get('/wallet-stats', [WalletStatsController::class, 'index'])->name('admin.wallet-stats');
     Route::post('/notifications/read-all', [DashboardController::class, 'markNotificationsRead'])->name('admin.notifications.read-all');
     Route::get('/notifications', [DashboardController::class, 'notificationsIndex'])->name('admin.notifications.index');
