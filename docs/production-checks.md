@@ -26,7 +26,7 @@ git log -1 --format='%h %cd %s'
 ```
 
 **What the answer means.** The commit sha is what the site runs. Compare it with the remote
-branch head (`127f45df2b21928731fb34fa357e257ee35cf93d` as of 2026-10-16) - the live box is
+branch head (`9819005ea58f8c3c56dc27967fd1ed5dc328dcaf` as of 2026-10-16) - the live box is
 expected to be **behind** it, and by how much decides whether a deploy is a fast-forward or a
 conversation. `git status --porcelain` should be empty; anything listed is a hand-edit on the
 server that a checkout will overwrite, and it must be read before it is lost.
@@ -48,6 +48,11 @@ php artisan tinker --execute="echo setting('bvn_verify_mode'); echo PHP_EOL;"
 
 An empty answer for the modes is not "off" - it means the default in
 `app/Helpers/settings.php` applies, so report the blank and it will be read from the code.
+
+One known, harmless side effect: the first `setting()` read in a fresh `tinker` process warms
+the `settings.all` cache file under `storage/framework/cache`. That is a read-through of the
+settings table, not a write to it - no setting changes, and nothing is printed beyond the one
+value asked for.
 
 ## 3. Are the provider and gateway keys configured (presence only)
 
@@ -125,9 +130,14 @@ php artisan deposits:audit --days=30 --references=0
 ```
 
 `deposits:audit` changes nothing and `--references=0` keeps it off the network entirely: no
-Flutterwave calls, no cost. It prints credits by status, everything still advertised as
-waiting, transfers written off as never arriving, and any pending request whose account number
-belongs to no customer on the site.
+Flutterwave calls, no cost. That promise is forced by a regression test
+(`test_the_audit_with_zero_references_makes_no_http_call_at_all` in
+`tests/Feature/WalletSupersededDepositRecoveryTest.php`), which runs the command with
+Flutterwave fully configured and a pending deposit sitting on the ledger, and asserts that not
+one HTTP request leaves the machine - a zero can never again be quietly clamped up to one live
+call, which is what `->limit(max(1, $limit))` used to do. It prints credits by status,
+everything still advertised as waiting, transfers written off as never arriving, and any
+pending request whose account number belongs to no customer on the site.
 
 Record the numbers as they stand **before** a deploy. After a deploy, the same command is the
 check that the new guards did not orphan somebody's money - and a row that was already wrong
@@ -147,14 +157,19 @@ already sitting in the data, which decides whether the first day after the deplo
 queue of transfers or nothing at all.
 
 ```sh
-php artisan tinker --execute='foreach (DB::select("select virtual_account_number as account, count(*) as holders from users where virtual_account_number is not null and virtual_account_number <> \"\" group by virtual_account_number having count(*) > 1") as $r) { echo $r->account." ".$r->holders.PHP_EOL; }'
+php artisan tinker --execute='echo json_encode((array) DB::selectOne("select count(*) as shared_account_numbers, coalesce(sum(holders), 0) as customer_rows from (select count(*) as holders from users where virtual_account_number is not null and virtual_account_number <> \"\" group by virtual_account_number having count(*) > 1) as shared")); echo PHP_EOL;'
+php artisan tinker --execute='foreach (DB::select("select holders, count(*) as account_numbers from (select virtual_account_number, count(*) as holders from users where virtual_account_number is not null and virtual_account_number <> \"\" group by virtual_account_number having count(*) > 1) as shared group by holders") as $r) { echo $r->holders." holder(s) on ".$r->account_numbers." account number(s)".PHP_EOL; }'
 php artisan tinker --execute='echo json_encode((array) DB::selectOne("select count(*) as customers_with_an_account from users where virtual_account_number is not null and virtual_account_number <> \"\"")); echo PHP_EOL;'
 ```
 
-**Nothing is changed here.** A duplicate number is not automatically wrong - it is often the
-same customer's replaced one-time account recorded twice, or a number an admin typed onto a
-support account. Each pair needs a decision about who owns it, and that decision is the
-owner's, not a script's. The list is what makes that decision possible.
+**Nothing is changed here, and no account number is printed.** The aggregate counts are all a
+routine check needs: whether the ambiguity exists at all, and how big it is. A duplicate number
+is not automatically wrong - it is often the same customer's replaced one-time account recorded
+twice, or a number an admin typed onto a support account. Each number that is genuinely shared
+still needs a decision about who owns it, and that decision is the owner's, not a script's. If
+the aggregate is not zero, the enumeration of the actual numbers is a separate deliberate step
+to ask for - that list is live bank details, and it belongs in an ownership decision, not in a
+routine check.
 
 ## 8. Are payments reaching the site at all
 
@@ -199,6 +214,6 @@ attribution guard is live.
 | Engines of the money tables | |
 | Wallets with a negative balance | |
 | `deposits:audit` totals (pending / written off / unattributed) | |
-| Duplicate account numbers found | |
+| Duplicate account numbers found (aggregate counts only) | |
 
 Those thirteen answers are what turns "the code is ready" into "the deployment is a decision".

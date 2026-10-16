@@ -21,7 +21,7 @@ class AuditWalletDeposits extends Command
 {
     protected $signature = 'deposits:audit
         {--days=30 : How far back to look}
-        {--references=10 : How many outstanding requests to ask Flutterwave about}';
+        {--references=10 : How many outstanding requests to ask Flutterwave about; 0 asks none and stays off the network}';
 
     protected $description = 'Trace wallet transfers the site was told about but never banked (read-only)';
 
@@ -151,13 +151,22 @@ class AuditWalletDeposits extends Command
 
     private function askFlutterwave($since, FlutterwaveService $flutterwave, WalletFundingService $funding, int $limit): void
     {
+        // Zero is the offline mode production-checks.md promises, so it must return here
+        // rather than quietly become one live call.
+        if ($limit <= 0) {
+            $this->line("\n<comment>What Flutterwave says about those same references</comment>");
+            $this->line('  not asked: --references is zero, so this run stays off the network.');
+
+            return;
+        }
+
         $rows = WalletTransaction::query()
             ->where('type', 'credit')
             ->whereIn('status', ['pending', 'failed'])
             ->where('channel', 'like', 'flutterwave%')
             ->where('created_at', '>=', $since)
             ->orderByDesc('id')
-            ->limit(max(1, $limit))
+            ->limit($limit)
             ->get();
 
         $this->line("\n<comment>What Flutterwave says about those same references</comment>");

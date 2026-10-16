@@ -277,6 +277,34 @@ class WalletSupersededDepositRecoveryTest extends TestCase
         $this->assertSame('pending', $pending->fresh()->status);
     }
 
+    public function test_the_audit_with_zero_references_makes_no_http_call_at_all(): void
+    {
+        $user = $this->member();
+
+        // The pending request is written straight to the ledger, so nothing before
+        // the audit itself can touch the network and the count below can only be
+        // the audit's own behaviour. Flutterwave is fully configured on purpose:
+        // the call path is live, so only the zero-reference guard stops it.
+        WalletTransaction::create([
+            'wallet_id' => $user->wallet->id,
+            'type' => 'credit',
+            'status' => 'pending',
+            'channel' => 'flutterwave_virtual_account',
+            'amount' => 295_000,
+            'reference' => 'AUDIT-OFFLINE-1',
+            'meta' => ['virtual_account_number' => self::FIRST_ACCOUNT],
+        ]);
+
+        $this->artisan('deposits:audit --days=30 --references=0')
+            ->expectsOutput('Flutterwave was asked 0 time(s).')
+            ->assertSuccessful();
+
+        Http::assertNothingSent();
+        $this->assertSame([], $this->askedUrls);
+        $this->assertSame(0, (int) $user->fresh()->wallet->balance);
+        $this->assertSame('pending', WalletTransaction::query()->where('reference', 'AUDIT-OFFLINE-1')->sole()->status);
+    }
+
     public function test_the_scheduled_check_credits_a_customer_who_never_opens_their_page(): void
     {
         $user = $this->member();

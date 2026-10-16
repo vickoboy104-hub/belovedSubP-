@@ -256,7 +256,9 @@ version for this checklist is that a bank transfer becomes balance by the webhoo
 - no `schedule:run` cron means the sweep never runs (section 5), and the sweep is the only
   thing that recovers a deposit whose webhook was lost during a 500 window;
 - a transfer this site cannot attribute is logged and dropped, with no admin screen - the
-  read-only `php artisan deposits:audit --days=30` is what surfaces it.
+  read-only `php artisan deposits:audit --days=30 --references=0` is what surfaces it. Keep
+  the `--references=0`: without it the command asks Flutterwave about up to ten outstanding
+  references, one live call each, which a read-only check must not do.
 
 **One verified transfer can now only be paid out once, site-wide.** The three guards above
 all keyed on *which wallet* was being credited, so the same charge could be credited again
