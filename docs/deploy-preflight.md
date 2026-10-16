@@ -12,6 +12,11 @@ What this file holds is what to **expect**, what to **verify**, and what **canno
 No step in this file has been run against production; it was assembled from the range itself
 (`git diff 0935a7f7..f4ab0ad8`) and the migrations' own code.
 
+Since this file was written the branch has moved past `f4ab0ad8` by documentation-only
+commits - `4d3507fa` is this file itself, plus a production-checks note - so every runtime
+statement below is unchanged by them; the deploy target is whatever sha the final approval
+checklist names, and the range's runtime content is still `0935a7f7..f4ab0ad8`.
+
 ## 1. The range at a glance
 
 | What | In this range |
@@ -47,6 +52,13 @@ is what makes checklist §10.3's "do not roll the database back" true for this r
 
 After checklist §1 runs, `php artisan migrate:status` gains **seven** `Ran` rows. None may
 show `Pending`, and none may be absent.
+
+Two live reads (2026-10-16) sharpen this table. **Zero virtual account numbers are shared
+by two customers today**, so the ambiguity migration 7 exists to hold starts empty - the
+first day after the deploy holds no resolution queue unless a new duplicate is created (an
+admin typing a number onto a second account, or Flutterwave reissuing one), which is
+exactly why the guard exists anyway. And **the live engine is MariaDB 10.6.28** - see
+section 8 for what that changes and does not change.
 
 ## 3. The two backfills, in detail
 
@@ -140,8 +152,21 @@ owner decision, not a change to the written blocks.
   is offered. The repository's `.env` and `.env.example` are unchanged; the live `.env`
   decides, and a presence-only check (never a value) settles it. Because config is cached on
   this host, the key only takes effect after checklist §4's `optimize`.
-- PHP on the host is 8.3.33 CLI (checklist header); the range adds no dependency and was
-  exercised on 8.3 here.
+- PHP on the host is 8.3.35 CLI (owner-read 2026-10-16, superseding an earlier 8.3.33
+  read - the host moved, or a different binary was read; both satisfy the code's `^8.3`);
+  the range adds no dependency and was exercised on 8.3 here.
+- **The live database engine is MariaDB 10.6.28** (autocommit 1; `users`, `orders`,
+  `wallets`, `wallet_transactions` all InnoDB - owner-read 2026-10-16). Two consequences.
+  First, `$table->json()` columns (`service_forms.definition`, the claims and held-deposits
+  payload columns) become `LONGTEXT` with a `json_valid` check under MariaDB - Laravel's
+  MariaDB grammar handles the mapping, so nothing in section 2 changes. Second, the twelve
+  money-path concurrency proofs ran on **MySQL 8.4.3**, and MariaDB is a different engine
+  however similar its InnoDB: one suite run against a scratch database on the host - the
+  `howToRun()` block inside `tests/Feature/MysqlMoneyPathConcurrencyTest.php` - is what
+  turns "proved on an engine like it" into "proved on the engine that runs the money
+  path". Creating that database is not a read-only act, so it sits outside
+  production-checks as an owner decision: checklist §9 item 4. The live isolation level
+  and `innodb_lock_wait_timeout` are also still unreported.
 - Everything else in §8's integration table is unchanged by the range: admin settings still
   beat `.env`, the webhook route and its hash rule are untouched, and the three saved modes
   read on 2026-10-16 (`provider = gsubz`, `nin = automatic`, `bvn = automatic`) are carried
@@ -156,11 +181,13 @@ the checklist takes a copy of the database, and this range is the first to conta
 **data-writing** migrations (the two backfills in section 3). A migration that fails halfway
 leaves a schema half-applied, and "go back to the old code" does not undo the half that ran.
 
-Before checklist §1, export the whole database once - cPanel's phpMyAdmin Export is the
-always-available route on this host; `mysqldump` if the account's shell allows it. This is a
-recommendation added by this preflight, not a block proven on this box: the owner should read
-it, decide, and treat the export's whereabouts as part of the rollback record alongside
-`last-good-sha.txt`.
+**Update (2026-10-17):** the owner has made the backup a required part of the procedure,
+and the checklist now owns it as §1.0 with gate row 0.5 - export the whole database once
+before §1's pull (`mysqldump` from the account shell if allowed; cPanel's phpMyAdmin
+Export is the always-available route), verify the copy reads back, keep it outside
+`public_html` with `600` permissions, download a copy off the server, and record the
+filename beside `last-good-sha.txt`. What §1.0's blocks have not had is a run on this host:
+its availability check decides the route.
 
 ## 10. Rollback limits specific to this range
 

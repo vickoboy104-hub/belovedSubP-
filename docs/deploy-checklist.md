@@ -1,7 +1,8 @@
 # Deploy and go-live verification checklist
 
 For `belovedsubp.com` on ListedHosting shared cPanel (host `s3470`, user `beloveds`,
-LiteSpeed, PHP 8.3.33 CLI, app repo `/home/beloveds/vtu`).
+LiteSpeed, PHP 8.3.35 CLI (owner-read 2026-10-16, superseding an earlier 8.3.33 read),
+app repo `/home/beloveds/vtu`).
 
 Read this whole file before touching the live box. Two rules override everything in it:
 
@@ -19,18 +20,122 @@ Read this whole file before touching the live box. Two rules override everything
 |---|---|---|---|
 | 0.1 | The branch you are deploying is the reviewed one | `git -C /home/beloveds/vtu rev-parse origin/codex/identity-first-jhtech-experience` | `afb3260d54d5e6c58402ed8ba1bb75cdca3c7cbb` or a descendant the owner has read |
 | 0.2 | It is a fast-forward from what is live | `git merge-base --is-ancestor <live-HEAD> <new-HEAD>; echo $?` | `0`. If it is not `0`, **stop** and work out why before pulling |
-| 0.3 | The full suite is green on the machine that built it | `php artisan test` | no failures, and the 10 MySQL concurrency tests run somewhere before a money-path change ships (section 4) |
+| 0.3 | The full suite is green on the machine that built it | `php artisan test` | no failures, and the twelve MySQL concurrency tests run somewhere before a money-path change ships (section 9, item 4) |
 | 0.4 | Every credential has been rotated **after** the machine cleaning | owner's list: GitHub, cPanel, FTP, DB, GSUBZ, ConfirmIdent, Flutterwave, SMTP | done. Until it is done this deploy is **not** cleared for production - see section 6 |
+| 0.5 | A database backup exists, verified, outside the docroot | section 1.0's blocks | a gzipped dump under `/home/beloveds/backups/` whose CREATE TABLE count and completion line were read back, its filename recorded beside `last-good-sha.txt` (section 10.0) |
 
 ---
 
 ## 1. Pull the code (order matters, and it has been got wrong before)
+
+### 1.0 Back the database up first - made, verified, and kept private
+
+This range is the first whose migrations **write data** (two backfills - see
+[deploy-preflight.md](deploy-preflight.md) section 3), and section 10.3 deliberately
+forbids rolling the database back, so a copy of the database is the only recovery for data
+the range touches. Gate 0.5 checks it happened; this is where it happens.
+
+Written 2026-10-17, not yet exercised on this host - run the availability check first, and
+fall back to cPanel's phpMyAdmin Export (gzip) if the shell refuses:
+
+```bash
+cd /home/beloveds/vtu
+command -v mysqldump || echo "no mysqldump in this shell - use cPanel phpMyAdmin Export"
+```
+
+With `mysqldump`, the credentials come from `.env` at runtime - nothing is typed into a
+prompt, and no value lands in shell history or `ps` output:
+
+```bash
+cd /home/beloveds/vtu
+DB_HOST=$(sed -n 's/^DB_HOST=//p' .env | sed 's/^"//;s/"$//')
+DB_NAME=$(sed -n 's/^DB_DATABASE=//p' .env | sed 's/^"//;s/"$//')
+DB_USER=$(sed -n 's/^DB_USERNAME=//p' .env | sed 's/^"//;s/"$//')
+DB_PASS=$(sed -n 's/^DB_PASSWORD=//p' .env | sed 's/^"//;s/"$//')
+mkdir -p /home/beloveds/backups && chmod 700 /home/beloveds/backups
+printf '[client]\nhost=%s\nuser=%s\npassword=%s\n' "$DB_HOST" "$DB_USER" "$DB_PASS" > /home/beloveds/.my.dump.cnf
+chmod 600 /home/beloveds/.my.dump.cnf
+mysqldump --defaults-extra-file=/home/beloveds/.my.dump.cnf --single-transaction --routines "$DB_NAME" \
+  | gzip > "/home/beloveds/backups/predeploy-$(date +%Y%m%d-%H%M).sql.gz"
+rm -f /home/beloveds/.my.dump.cnf
+chmod 600 /home/beloveds/backups/predeploy-*.sql.gz
+ls -l /home/beloveds/backups/
+```
+
+`--single-transaction` takes a consistent snapshot of the InnoDB tables without locking
+them (the four money tables are InnoDB, read on the box 2026-10-16), so the site stays up
+while the dump runs.
+
+**Verify the copy reads back - a backup that has never been read is a hope, not a backup:**
+
+```bash
+zcat /home/beloveds/backups/predeploy-*.sql.gz | grep -c 'CREATE TABLE'
+zcat /home/beloveds/backups/predeploy-*.sql.gz | tail -n 3
+```
+
+The count must not be zero, and the tail must end with the dump's completion line
+(`-- Dump completed`), not stop mid-table; a few-kilobyte file is a failed dump wearing a
+filename. The stronger check - a restore into a scratch database created for the purpose
+(cPanel → MySQL Databases), comparing the four money tables' row counts against live, then
+dropping the scratch database at once, because it holds a second copy of customer
+identities - is worth doing for this range, whose migrations write data for the first time.
+
+- **Private means outside `public_html`** - `/home/beloveds/backups/` with the permissions
+  above; anything under the docroot is web-served.
+- Download a copy off the server before the deploy proceeds.
+- Keep it until the deploy has been stable for a week, then delete it deliberately.
+- Record the filename beside `last-good-sha.txt` (section 10.0) - together they are the
+  rollback record.
+
+### 1.1 Take the site down - the maintenance window opens
+
+Whether this deploy runs inside a closed window is the owner's call (preflight section 7
+names the seconds it removes: a cron tick between checkout and migrate would otherwise run
+new code against the old schema). Taken, the command is the one section 10 already uses,
+self-refreshing so a customer mid-purchase comes back on their own:
+
+```bash
+cd /home/beloveds/vtu
+php artisan down --retry=15
+```
+
+Record the opening time in the deploy notes; the window closes at the end of section 4,
+and section 7's smoke test is the proof it closed cleanly. Skipped, the deploy still works
+- it is just not a controlled window.
+
+### 1.2 Pull the code
 
 ```bash
 cd /home/beloveds/vtu
 git fetch origin
 git checkout codex/identity-first-jhtech-experience
 git merge --ff-only origin/codex/identity-first-jhtech-experience
+```
+
+### 1.3 Review the migrations, then run them
+
+The checkout above put the seven new migration files on disk; review what they will do
+before running anything. Both commands are read-only:
+
+```bash
+cd /home/beloveds/vtu
+php artisan migrate:status | tail -12
+php artisan migrate --pretend
+```
+
+- `migrate:status` should list exactly the seven migrations from the preflight's section 2
+  table as `Pending` - no more, no fewer.
+- `migrate --pretend` prints the SQL without executing it: five `create table`, and the
+  two `alter table orders` runs with their indexes. The two backfills are PHP logic, so
+  their reads and writes do **not** appear in the pretend output - their behaviour is
+  described in preflight section 3 and proved after the fact by 7.4 and 8.3. Any `drop`,
+  any `update` without a `where`, or any table outside the preflight's list is a stop, not
+  a deploy.
+
+Then run them:
+
+```bash
+cd /home/beloveds/vtu
 php artisan migrate --force
 ```
 
@@ -38,6 +143,9 @@ php artisan migrate --force
   being deployed does not exist on disk until the checkout finishes; run early and it
   prints a reassuring "Nothing to migrate" while the schema stays behind the code, which
   then 500s on the first write.
+- The pull and the migrate have been separate blocks since 2026-10-17 so the review steps
+  fit between them; the order - checkout before migrate - is the part that was got wrong
+  before, and it is unchanged.
 - **No `composer install`** unless `composer.json` / `composer.lock` actually changed:
   `git log -1 --name-only -- composer.json composer.lock`.
 - **No `npm run build` on the server.** Compiled assets are force-committed; the server
@@ -90,6 +198,19 @@ php artisan optimize
 `config` and `routes` are cached on this host, so the deploy must **end** with `optimize`,
 not `optimize:clear`, or the site silently loses its cache. Proof the route cache took the
 new routes: `/settings` answers `302` rather than `404`.
+
+If 1.1 took the site down, this is where the maintenance window closes - the same pairing
+section 10.5 uses:
+
+```bash
+cd /home/beloveds/vtu
+php artisan up
+```
+
+`up` on a site that is already live prints "Application is already live." and changes
+nothing, so the command is safe whether or not the window was closed. Record the closing
+time beside the opening time from 1.1: the pair is what makes this a controlled maintenance
+window rather than an outage that happened to be short.
 
 ## 5. The cron — the one the money depends on
 
@@ -156,10 +277,12 @@ fetched in the background.
 | 7.1 | App is up | `curl -s -o /dev/null -w '%{http_code}' https://www.belovedsubp.com/up` | `200` |
 | 7.2 | New assets are not 404 | fetch the newest `public/build/assets/*.css` name from both the site and `git ls-tree` | same bytes, HTTP 200 |
 | 7.3 | Login page renders styled | load `/login` in a browser, view source, confirm the `build/assets` names match the deployed manifest | yes |
-| 7.4 | Money-safety migrations ran | `php artisan migrate:status \| grep -E 'record_purchase_intents\|record_document_filings\|flutterwave_charge_claims'` | all three `Ran` - the last one is the table that stops a single bank transfer funding two wallets |
+| 7.4 | All seven migrations ran | `php artisan migrate:status \| grep -E 'service_forms\|add_assignment\|retire_saved\|purchase_intents\|document_filings\|flutterwave'` | all seven `Ran` - [deploy-preflight.md](deploy-preflight.md) section 2 is the list; the two `flutterwave` tables are what stop a single bank transfer funding two wallets |
 | 7.5 | Held-purchase discovery still works | run section 3 of [held-purchase-runbook.md](held-purchase-runbook.md) | returns without error (zero holds is a pass) |
 | 7.6 | Prices unchanged from the approved list | admin settings page, and the ten NIN Modification tiers still ₦6,500 / ₦7,500 / ₦15,000 / ₦40,000 | no silent movement |
 | 7.7 | Log for new fatals | `tail -100 storage/logs/laravel.log` | nothing since the deploy timestamp |
+| 7.8 | The scheduler gained its third job | `php artisan schedule:list` | exactly three rows - `prices:sync` hourly, `wallet:sync-deposits` and `manual:recover-documents` every 5 minutes (section 5's table); two rows means the checkout did not land |
+| 7.9 | The offline deposit audit, now that its fix is live | `php artisan deposits:audit --days=30 --references=0` | zero HTTP calls, per the regression test's promise; the pending-credit total matches the pre-deploy baseline count (production-checks §6); any new unattributed row is a held deposit for an admin to resolve - never a deleted row |
 
 A live purchase of a real product (airtime to the owner's own number, one NIN lookup) is
 **not** in this checklist by default: each one spends the owner's money. Ask first.
@@ -203,6 +326,12 @@ not exactly `manual` is treated as `automatic`. The development database on 2026
 whether a customer is waiting on a machine or on an admin, and they change what the
 ConfirmIdent billing question in
 [confirmident-billing-policy.md](confirmident-billing-policy.md) is actually worth.
+
+**Confirmed by the owner's live reads, 2026-10-16: `provider = gsubz`,
+`nin_verify_mode = automatic`, `bvn_verify_mode = automatic`.** The live box is automatic
+on both identity paths - every answered check is ₦160 (NIN) or ₦80 (BVN), which makes the
+billing question in item 3 of section 9 live money rather than hypothetical. The table
+above keeps the development values for contrast; the dev box held BVN at `manual`.
 
 ### 8.2 Mock (Test Mode) cannot take a customer's money any more
 
@@ -291,17 +420,22 @@ Recorded honestly, in the order they should be closed:
    to be treated as exposed. Until GitHub, cPanel, DB, GSUBZ, ConfirmIdent, Flutterwave and
    SMTP secrets have all been changed, "the site is secure" is not a claim I can make,
    whatever the tests say.
-2. **The cron** (section 5) — unverified as of this writing.
+2. **The cron** (section 5) — **verified 2026-10-16**: the `schedule:run` entry exists and
+   fires every minute. What remains is the post-deploy proof: `schedule:list` showing all
+   three rows (7.8) and the log/heartbeat checks in section 5 reading clean once the new
+   code is live.
 3. **ConfirmIdent's billing policy for an answered "no"**
    ([confirmident-billing-policy.md](confirmident-billing-policy.md)) — free to ask about,
    and until it is answered the code holds identities, which costs the business ₦160 per
    ambiguous NIN lookup.
-4. **The MySQL concurrency proofs** - `tests/Feature/MysqlMoneyPathConcurrencyTest.php`, ten
-   tests - now pass against a real MySQL 8.4.3 in a database created for them (2026-10-16),
-   but they have **never been run against the live engine's own configuration** (its version,
-   its isolation level, its `innodb_lock_wait_timeout`). Repointing one run at a scratch
-   database *on ListedHosting* is the remaining piece; the commands are printed inside
-   `howToRun()` in that file.
+4. **The concurrency proofs versus the live engine** - `tests/Feature/MysqlMoneyPathConcurrencyTest.php`,
+   twelve tests, pass against a real MySQL 8.4.3 in a database created for them (2026-10-16).
+   The live engine is **MariaDB 10.6.28** (read on the box, 2026-10-16: autocommit 1, the
+   four money tables InnoDB) - the same InnoDB locking the proofs exercise, but a different
+   engine from the one they ran on. One run against a scratch database *on ListedHosting* is
+   the remaining piece; the commands are printed inside `howToRun()` in that file, and
+   creating that database is an owner decision, not a read-only check. Its isolation level
+   and `innodb_lock_wait_timeout` are also still unreported.
 5. **The SparkTech API key** — their `/developer` surface is gated per account and a User
    login is told to contact support. Not our code; needs the owner to ask them.
 6. **None of 8.2's protection exists on the live site until this checklist is run.** The Mock
@@ -368,3 +502,10 @@ cd /home/beloveds/vtu && git rev-parse HEAD > /home/beloveds/last-good-sha.txt &
    row - resolve it with the read-only query in
    [held-purchase-runbook.md](held-purchase-runbook.md), never by deleting the row, which is
    what turns a held request into a second bill.
+
+7. **What a code-only rollback leaves behind, table by table for this range** - written in
+   [deploy-preflight.md](deploy-preflight.md) section 10: held deposits invisible to the old
+   UI, recovery paused for `document_filings`, claims made while the new code ran reverting
+   to unclaimed, and migration 3's edit to saved definitions being irreversible by design.
+   Resolve held money **before** rolling back; read the list before, not after, the moment
+   judgement goes away.

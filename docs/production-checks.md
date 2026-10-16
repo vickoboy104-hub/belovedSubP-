@@ -16,6 +16,35 @@ Two rules that these checks obey, and that any further checking must too:
 
 ---
 
+## 0. Answers already received - the owner's live reads, 2026-10-16
+
+Recorded so nobody re-asks them. Section references show where each question was asked.
+
+| Fact | Answer |
+|---|---|
+| Live commit | `0935a7f7a07c97cc4c0c076b3ee97b931fd6a1a7` |
+| `git status --porcelain` | the two known untracked paths, `server.js` and `tmp/`, and nothing else - preserved, never deleted or overwritten |
+| `provider` | `gsubz` |
+| `nin_verify_mode` | `automatic` |
+| `bvn_verify_mode` | `automatic` |
+| Flutterwave secret hash | present |
+| Cron | `schedule:run` exists and fires every minute |
+| `schedule:list` | `prices:sync`, `wallet:sync-deposits` - the third job arrives with the deploy |
+| Engine | **MariaDB 10.6.28**, autocommit 1 |
+| Money-table engines | `users`, `orders`, `wallets`, `wallet_transactions` all InnoDB |
+| Duplicate virtual account numbers | **zero** |
+| New migrations | not installed yet - expected before the deploy (§5) |
+| PHP (CLI) | 8.3.35 |
+
+**One of these answers changes a plan.** The live engine is **MariaDB, not MySQL**: the
+twelve money-path concurrency proofs passed against MySQL 8.4.3 on the development
+machine, and "same InnoDB locking model" is an expectation, not a proof. One suite run
+against a scratch database on the host is the remaining piece - it creates a database, so
+it is not part of the read-only batch; it is an owner decision, tracked as checklist §9
+item 4. Still open from §5: the isolation level and `innodb_lock_wait_timeout`.
+
+---
+
 ## 1. Which code is actually live
 
 ```sh
@@ -26,10 +55,12 @@ git log -1 --format='%h %cd %s'
 ```
 
 **What the answer means.** The commit sha is what the site runs. Compare it with the remote
-branch head (`9819005ea58f8c3c56dc27967fd1ed5dc328dcaf` as of 2026-10-16) - the live box is
+branch head (`4d3507fae0fef951c4b2ab4a87ccafbce9307328` as of 2026-10-17) - the live box is
 expected to be **behind** it, and by how much decides whether a deploy is a fast-forward or a
 conversation. `git status --porcelain` should be empty; anything listed is a hand-edit on the
-server that a checkout will overwrite, and it must be read before it is lost.
+server that a checkout will overwrite, and it must be read before it is lost - with the one
+standing exception already read: `server.js` and `tmp/` are known, preserved untracked paths,
+and no checkout in this range collides with either (preflight section 6).
 
 ## 2. The three saved settings that decide what the site can sell
 
@@ -53,6 +84,10 @@ One known, harmless side effect: the first `setting()` read in a fresh `tinker` 
 the `settings.all` cache file under `storage/framework/cache`. That is a read-through of the
 settings table, not a write to it - no setting changes, and nothing is printed beyond the one
 value asked for.
+
+**Answered (2026-10-16): `provider = gsubz`, `nin_verify_mode = automatic`,
+`bvn_verify_mode = automatic`** - recorded in §0. The live box is automatic on both identity
+paths, so every answered check is live money: ₦160 per NIN, ₦80 per BVN.
 
 ## 3. Are the provider and gateway keys configured (presence only)
 
@@ -99,6 +134,11 @@ If `crontab -l` prints nothing, also check whether cPanel's own cron jobs list a
 carry them outside the user crontab. Report which one it is; do not add either one from this
 document.
 
+**Answered (2026-10-16): the cron exists and fires every minute; `schedule:list` shows the
+two jobs the old code knows.** The third row (`manual:recover-documents`) is the post-deploy
+proof (checklist §7.8), and the log/heartbeat checks in the checklist's section 5 remain the
+after-deploy confirmation.
+
 ## 5. Database: version, engines and migration state
 
 ```sh
@@ -107,6 +147,10 @@ php artisan tinker --execute='foreach (DB::select("select table_name as name, en
 php artisan tinker --execute='echo json_encode((array) DB::selectOne("select count(*) as wallets, sum(case when balance < 0 then 1 else 0 end) as negative from wallets")); echo PHP_EOL;'
 php artisan migrate:status | tail -25
 ```
+
+**Partly answered (2026-10-16): MariaDB 10.6.28, autocommit 1; the four money tables
+InnoDB.** The MariaDB-not-MySQL point is §0's plan-changer. Still open from this command:
+the isolation level, the lock timeout, and the negative-balance count.
 
 **Why each one matters.**
 
@@ -179,6 +223,11 @@ the aggregate is not zero, the enumeration of the actual numbers is a separate d
 to ask for - that list is live bank details, and it belongs in an ownership decision, not in a
 routine check.
 
+**Answered (2026-10-16): zero duplicate virtual account numbers** - `shared_account_numbers`
+= 0, so there is no ambiguity queue waiting for the held-deposits path on day one. The
+commands above stay for future runs, because the ambiguity can be created after the deploy
+(an admin typing a number onto a second account, or Flutterwave reissuing one).
+
 ## 8. Are payments reaching the site at all
 
 ```sh
@@ -207,6 +256,13 @@ attribution guard is live.
   read and any hand-edit accounted for.
 
 ## 10. Report back in this shape
+
+Thirteen rows, and §0 (2026-10-16) already answers eight of them - live sha, porcelain
+status, the three saved modes, the cron line, `schedule:list`, the money-table engines, the
+duplicate aggregate - plus the engine row's version and autocommit. The report back is now
+the open set: the five key presences (§3), the `.env`-vs-`config()` hash pair (§3), the
+isolation level and lock timeout (§5), negative wallets (§5), the §6 baseline count, and
+§8's log counts.
 
 | Check | Answer |
 |---|---|
