@@ -120,7 +120,10 @@ so its firing is observable rather than assumed:
 - Then wait five minutes and check the file has grown: `ls -l /home/beloveds/schedule.log`.
   An empty file that is being touched proves the cron fires; a file full of errors proves it
   fires and fails, which is the more useful of the two outcomes.
-- Cross-check the schedule the code expects: `php artisan schedule:list`.
+- Cross-check the schedule the code expects: `php artisan schedule:list`. Run against this
+  branch on 2026-10-16 it printed exactly the three rows above and nothing else -
+  `0 * * * *` for `prices:sync`, `*/5 * * * *` for the other two - so the table is the code's
+  own statement, not a summary of it.
 - Second heartbeat, no code needed: `provider_plan_prices.last_synced_at` should move within
   an hour of the cron going in - `ProviderPlanPriceService` stamps that column on every plan
   it refreshes. If it does not move, the cron is not running as the user who owns the app.
@@ -241,6 +244,22 @@ It must say `gsubz`. If it says `mock`, purchases are now refused rather than fa
 customer keeps their money, and the site sells nothing until the box is changed. The admin
 API Provider card now carries a banner saying exactly that, so the state cannot be read as
 healthy by accident.
+
+### 8.3 Wallet funding - the two things a missed deposit depends on
+
+Reviewed line by line in [wallet-funding-review.md](wallet-funding-review.md); the short
+version for this checklist is that a bank transfer becomes balance by the webhook or by
+`wallet:sync-deposits`, and **both have a live-box precondition**:
+
+- `FLUTTERWAVE_SECRET_HASH` unset means the webhook answers `500` to every event and credits
+  nothing (`FlutterwaveController.php:234-237`);
+- no `schedule:run` cron means the sweep never runs (section 5), and the sweep is the only
+  thing that recovers a deposit whose webhook was lost during a 500 window;
+- a transfer this site cannot attribute is logged and dropped, with no admin screen - the
+  read-only `php artisan deposits:audit --days=30` is what surfaces it.
+
+Run those three reads from section 8 of the review before telling anyone a deposit will
+self-heal.
 
 ## 9. What still blocks a clean production claim
 
