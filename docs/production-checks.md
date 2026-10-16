@@ -139,6 +139,14 @@ call, which is what `->limit(max(1, $limit))` used to do. It prints credits by s
 everything still advertised as waiting, transfers written off as never arriving, and any
 pending request whose account number belongs to no customer on the site.
 
+**On code older than `cd19810c` this command is post-deploy only.** A box still running the
+old audit clamps `--references=0` up to one real Flutterwave call, so until the new code is
+live, take the pre-deploy ledger baseline with a count instead:
+
+```sh
+php artisan tinker --execute='echo json_encode((array) DB::selectOne("select count(*) as pending_flutterwave_credits from wallet_transactions where type = \"credit\" and channel like \"flutterwave%\" and status = \"pending\" and created_at >= now() - interval 30 day")); echo PHP_EOL;'
+```
+
 Record the numbers as they stand **before** a deploy. After a deploy, the same command is the
 check that the new guards did not orphan somebody's money - and a row that was already wrong
 last month is not something the new code can silently repair.
