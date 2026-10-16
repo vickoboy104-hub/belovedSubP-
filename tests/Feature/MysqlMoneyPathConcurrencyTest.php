@@ -82,6 +82,9 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
     /** @var list<int> */
     private array $services = [];
 
+    /** @var list<string> Charge tokens this run asked the gate to hold. */
+    private array $heldTokens = [];
+
     /** @var array<int, resource>|null */
     private ?array $rivalPipes = null;
 
@@ -381,6 +384,93 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
         $this->assertNotCount(0, $index, 'There is no index on the charge claim at all.');
         $this->assertSame(0, (int) $index[0]->Non_unique,
             'The charge claim index is not unique, so it cannot refuse a second wallet.');
+    }
+
+    /**
+     * The ownership gate writes its own record before it refuses to pay, and two
+     * paths really do ask about the same transfer at the same moment: a webhook and
+     * the five-minute sweep. This is the InnoDB half of that claim - the second
+     * connection arrives while the first holds the token uncommitted, and must end
+     * with one held row, no claim and nobody paid.
+     */
+    public function test_two_processes_hold_one_ambiguous_transfer_once(): void
+    {
+        $account = '07'.random_int(10_000_000, 99_999_999);
+
+        $first = $this->walletOwningAccount($account);
+        $second = $this->walletOwningAccount($account);
+
+        $chargeId = 'MYSQL-HOLD-'.Str::random(10);
+        $this->heldTokens[] = $chargeId;
+
+        $credited = null;
+        $report = null;
+        $committed = false;
+
+        DB::beginTransaction();
+        try {
+            $credited = app(WalletFundingService::class)->creditFlutterwaveCharge(
+                $first,
+                [
+                    'id' => $chargeId,
+                    'flw_ref' => 'FLW-'.$chargeId,
+                    'tx_ref' => 'PARENT-'.$chargeId,
+                    'status' => 'successful',
+                    'currency' => 'NGN',
+                    'charged_amount' => 3000.00,
+                    'amount' => 3000.00,
+                    'payment_type' => 'bank_transfer',
+                    'account_number' => $account,
+                    'created_at' => now()->toIso8601String(),
+                ],
+                'flutterwave_virtual_account',
+                'webhook'
+            );
+
+            $process = $this->startRivalAmbiguousCredit((int) $second->id, $chargeId, $account, 3000);
+
+            $sawItWaitingOnTheHold = $this->waitUntilRivalIsWaitingOn('flutterwave_held_deposits');
+
+            DB::commit();
+            $committed = true;
+
+            $report = $this->finishRivalSpend($process);
+        } catch (Throwable $e) {
+            if (!$committed && DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+
+            throw $e;
+        }
+
+        $this->assertSame(0, (int) $credited,
+            'A transfer two customers could each claim was paid to one of them.');
+
+        $this->assertTrue($sawItWaitingOnTheHold,
+            'The second process was never seen standing at the held record, so this run only proves '
+            .'two processes finished one after the other.');
+
+        $this->assertNotSame('error', (string) ($report['reason'] ?? ''),
+            'The second process did not survive meeting the first one\'s hold: '
+            .json_encode($report).'. It was provably standing at the held record: '
+            .($sawItWaitingOnTheHold ? 'yes' : 'no'));
+
+        $this->assertSame(0, (int) ($report['credited_kobo'] ?? -1),
+            'The second process paid itself for money the gate had already refused. Rival said: '
+            .json_encode($report));
+
+        $walletIds = [(int) $first->id, (int) $second->id];
+
+        $this->assertSame(0, (int) DB::table('wallets')->whereIn('id', $walletIds)->sum('balance'),
+            'An ambiguous transfer reached a balance after all.');
+
+        $this->assertSame(1, (int) DB::table('flutterwave_held_deposits')
+            ->where('flutterwave_charge_id', $chargeId)->count(),
+            'Two processes asking about one ambiguous transfer left two records for an admin to reconcile.');
+
+        $this->assertSame(0, (int) DB::table('flutterwave_charge_claims')
+            ->where('charge_token', $chargeId)->count(),
+            'The hold consumed the global claim, which would lock this charge out of the wallet an admin later picks.');
     }
 
     /**
@@ -702,6 +792,12 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
         return $this->startRivalProcess('MysqlRivalChargeCredit.php', [$walletId, $chargeId, $naira]);
     }
 
+    /** @return resource */
+    private function startRivalAmbiguousCredit(int $walletId, string $chargeId, string $accountNumber, int $naira)
+    {
+        return $this->startRivalProcess('MysqlRivalAmbiguousCredit.php', [$walletId, $chargeId, $accountNumber, $naira]);
+    }
+
     /**
      * A second operating-system process, so the server sees two clients rather than
      * one taking turns with itself.
@@ -812,10 +908,15 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
      */
     private function waitUntilRivalIsWaitingOnTheCharge(int $seconds = 20): bool
     {
+        return $this->waitUntilRivalIsWaitingOn('flutterwave_charge_claims', $seconds);
+    }
+
+    private function waitUntilRivalIsWaitingOn(string $table, int $seconds = 20): bool
+    {
         for ($attempt = 0; $attempt < $seconds; $attempt++) {
             try {
                 $running = DB::select("select * from information_schema.processlist "
-                    ."where info like '%flutterwave_charge_claims%' and id <> connection_id()");
+                    .'where info like ? and id <> connection_id()', ['%'.$table.'%']);
             } catch (QueryException) {
                 return false;
             }
@@ -856,6 +957,21 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
         Wallet::query()->where('user_id', $user->id)->update(['balance' => $kobo]);
 
         return Wallet::query()->where('user_id', $user->id)->firstOrFail();
+    }
+
+    /**
+     * A wallet whose customer is named by one account number, exactly as the
+     * virtual-account columns name a customer in the application.
+     */
+    private function walletOwningAccount(string $account): Wallet
+    {
+        $wallet = $this->wallet(0);
+
+        DB::table('users')->where('id', $wallet->user_id)->update([
+            'virtual_account_number' => $account,
+        ]);
+
+        return $wallet;
     }
 
     /** A committed manual request that is owed a document, as the recovery run finds it. */
@@ -916,6 +1032,10 @@ class MysqlMoneyPathConcurrencyTest extends TestCase
      */
     private function removeWhatThisRunCreated(): void
     {
+        if ($this->heldTokens !== []) {
+            DB::table('flutterwave_held_deposits')->whereIn('charge_token', $this->heldTokens)->delete();
+        }
+
         if ($this->users !== []) {
             $walletIds = DB::table('wallets')->whereIn('user_id', $this->users)->pluck('id')->all();
 

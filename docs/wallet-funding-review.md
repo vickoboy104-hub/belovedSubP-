@@ -109,7 +109,8 @@ deposit as already paid. InnoDB: `test_one_verified_transfer_cannot_fund_two_wal
 where a **second operating-system process** (`tests/Concurrency/MysqlRivalChargeCredit.php`)
 tries to credit the same charge into a different wallet while the first credit is still
 uncommitted - MySQL makes it wait at the index and then refuses it. Whole suite on MySQL
-8.4.3: **11 passed, 95 assertions**, database empty again afterwards. The backfill on real
+8.4.3: **12 passed, 110 assertions** (re-run 2026-10-16 after section 3b went in), database
+empty again afterwards. The backfill on real
 MySQL json was checked separately, including a debit, a NULL meta and a duplicate token.
 
 ## 3b. Being paid once is not the same as being paid to the right customer
@@ -160,6 +161,15 @@ the admin quick-nav so pending volume is visible without leaving the page an adm
 `flutterwave_held_deposits` has **no backfill**, deliberately: a migration cannot un-pay a
 credit that already happened, and inventing holds for historical rows would put money that is
 already spent on an admin's to-do list.
+
+**Proven on the engine money actually moves on.**
+`MysqlMoneyPathConcurrencyTest::test_two_processes_hold_one_ambiguous_transfer_once` keeps the
+first credit open and uncommitted while a **second operating-system process**
+(`tests/Concurrency/MysqlRivalAmbiguousCredit.php`) arrives at the same charge for the other
+candidate; the test asserts the rival was really seen standing at the held record, then that
+one held row survives, no charge claim was taken, and neither balance moved. `INSERT IGNORE`
+did not deadlock or double-write under that collision, which is the behaviour sqlite cannot
+show.
 
 **What this gate does not do.** It acts on *provable* ambiguity. A charge that carries no
 account number and no reference this wallet can claim is not provably ambiguous, so it still
