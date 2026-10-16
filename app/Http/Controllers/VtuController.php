@@ -152,7 +152,11 @@ class VtuController extends Controller
         }
         $request->merge(['phone' => $phone]);
 
-        $provider = (string) setting('provider', 'gsubz');
+        $provider = $this->configuredProvider();
+
+        if ($refusal = $this->refuseUnchargeableProvider($request, 'vtu.airtime', $wallet, $provider, 'Airtime')) {
+            return $refusal;
+        }
 
         $baseAmountNaira = (float) $request->amount;
         $markupNaira     = (float) setting('markup_airtime', 0);
@@ -215,7 +219,7 @@ class VtuController extends Controller
                 ],
             ]);
 
-            if (in_array($provider, ['gsubz', 'alt'], true)) {
+            if ($this->isChargeableProvider($provider)) {
                 $providerServiceId = $this->providerServiceId($request->service_id);
                 $payload = [
                     'serviceID' => $providerServiceId,
@@ -274,10 +278,12 @@ class VtuController extends Controller
                 );
             }
 
-            // Mock mode
+            // Rehearsal, not delivery: nobody was asked for the airtime, so this is the
+            // one place a purchase reads successful without a provider - and the one
+            // place that must never pay a commission for it.
             $order->status = 'success';
+            $order->meta = array_merge((array) $order->meta, ['simulated' => true]);
             $order->save();
-            $this->awardReferralCommission($order);
             DB::commit();
             return $this->respondResult(
                 request: $request,
@@ -397,6 +403,117 @@ class VtuController extends Controller
         );
     }
 
+    /**
+     * The provider names this site is allowed to take a customer's money for.
+     */
+    private const CHARGEABLE_PROVIDERS = ['gsubz', 'alt'];
+
+    /**
+     * The environments where a purchase may be simulated. Everything else - live,
+     * staging, or any name nobody thought to list - is treated as real money.
+     */
+    private const SIMULATION_ENVIRONMENTS = ['local', 'testing'];
+
+    /**
+     * The provider the settings page currently names, spelled the way this file
+     * compares it. A blank box reads as blank, not as some provider by default.
+     */
+    private function configuredProvider(): string
+    {
+        return strtolower(trim((string) setting('provider', 'gsubz')));
+    }
+
+    private function isChargeableProvider(string $provider): bool
+    {
+        return in_array($provider, self::CHARGEABLE_PROVIDERS, true);
+    }
+
+    private function simulatedPurchasesAllowed(): bool
+    {
+        return in_array((string) config('app.env'), self::SIMULATION_ENVIRONMENTS, true);
+    }
+
+    /**
+     * Refuse a purchase that no provider would ever answer, before the wallet is
+     * touched and before a purchase identity is spent.
+     *
+     * A made-up success is the worst answer this site can give: the customer pays, the
+     * order reads "success", and nothing was ever delivered. So a provider this file
+     * does not know how to call - a retired name, a typo, an empty box - is refused
+     * outright, and Mock is refused anywhere money is real. Where Mock is still allowed
+     * it is a rehearsal on a development machine, and it pays no commission, because
+     * commission is a share of a service that was actually supplied.
+     */
+    private function refuseUnchargeableProvider(
+        Request $request,
+        string $routeName,
+        Wallet $wallet,
+        string $provider,
+        string $label
+    ) {
+        if ($this->isChargeableProvider($provider)) {
+            return null;
+        }
+
+        if ($provider === 'mock' && $this->simulatedPurchasesAllowed()) {
+            return null;
+        }
+
+        $this->notifyAdminsAboutUnchargeableProvider($provider);
+
+        return $this->respondResult(
+            request: $request,
+            routeName: $routeName,
+            ok: false,
+            message: $label.' purchases are unavailable right now. Nothing has been taken from your wallet - '
+                .'please try again later or contact support.',
+            extra: $this->walletPayload($wallet),
+            status: 400
+        );
+    }
+
+    /**
+     * Tell the admins the provider box reads something that cannot sell anything. Said
+     * once per bad value per twenty minutes: the refusal repeats with every click, and a
+     * flood of alerts hides the one that needs acting on.
+     */
+    private function notifyAdminsAboutUnchargeableProvider(string $provider): void
+    {
+        $spelling = $provider === '' ? '(empty)' : $provider;
+        $fingerprint = 'vtu-provider-unchargeable:'.$provider;
+        if (Cache::has($fingerprint)) {
+            return;
+        }
+
+        Cache::put($fingerprint, true, now()->addMinutes(20));
+
+        try {
+            $admins = User::query()->where('is_admin', true)->get();
+            if ($admins->isEmpty()) {
+                return;
+            }
+
+            Notification::send($admins, new AdminSystemAlertNotification(
+                title: 'URGENT: no provider can sell VTU right now',
+                message: 'A customer tried to buy a VTU service while the provider setting reads "'.$spelling.'". '
+                    .'The purchase was refused before the wallet was touched and no order was written. '
+                    .'Set the provider to GSUBZ on the settings page; Mock (Test Mode) only works on a development machine.',
+                severity: 'critical',
+                url: url('/admin/settings'),
+                payload: [
+                    'type' => 'vtu_provider_unchargeable',
+                    'provider' => $spelling,
+                    'severity' => 'critical',
+                ],
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Failed to notify admins about an unchargeable VTU provider setting.', [
+                'provider' => $spelling,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     public function dataServiceForm(string $service)
     {
         $services = $this->catalogue->dataServices();
@@ -438,7 +555,11 @@ class VtuController extends Controller
         }
         $request->merge(['phone' => $phone]);
 
-        $provider = (string) setting('provider', 'gsubz');
+        $provider = $this->configuredProvider();
+
+        if ($refusal = $this->refuseUnchargeableProvider($request, 'vtu.data', $wallet, $provider, 'Data')) {
+            return $refusal;
+        }
 
         $serviceSlug = str_replace(' ', '_', strtolower(trim((string) $request->service_id)));
         $services = $this->catalogue->dataServices();
@@ -462,7 +583,7 @@ class VtuController extends Controller
         $priceOverrideApplied = false;
         $providerServiceId = $this->providerServiceId($serviceSlug);
 
-        if (in_array($provider, ['gsubz', 'alt'], true)) {
+        if ($this->isChargeableProvider($provider)) {
             $pricing = $this->resolvePlanPricing($serviceSlug, (string) $request->plan);
             if ($pricing === null) {
                 return $this->respondResult(
@@ -537,7 +658,7 @@ class VtuController extends Controller
                 ],
             ]);
 
-            if (in_array($provider, ['gsubz', 'alt'], true)) {
+            if ($this->isChargeableProvider($provider)) {
                 $payload = [
                     'serviceID' => $providerServiceId,
                     'plan'      => $request->plan,
@@ -597,8 +718,8 @@ class VtuController extends Controller
             }
 
             $order->status = 'success';
+            $order->meta = array_merge((array) $order->meta, ['simulated' => true]);
             $order->save();
-            $this->awardReferralCommission($order);
             DB::commit();
             return $this->respondResult(
                 request: $request,
@@ -662,7 +783,13 @@ class VtuController extends Controller
 
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
-        $provider = (string) setting('provider', 'gsubz');
+        $provider = $this->configuredProvider();
+
+        if ($refusal = $this->refuseUnchargeableProvider(
+            $request, 'vtu.recharge-card', $wallet, $provider, 'Recharge card'
+        )) {
+            return $refusal;
+        }
 
         $network = strtolower((string) $request->network);
 
@@ -739,7 +866,7 @@ class VtuController extends Controller
                 ],
             ]);
 
-            if (in_array($provider, ['gsubz', 'alt'], true)) {
+            if ($this->isChargeableProvider($provider)) {
                 $payload = [
                     'serviceID' => $providerServiceId,
                     'network' => $network,
@@ -799,8 +926,8 @@ class VtuController extends Controller
             }
 
             $order->status = 'success';
+            $order->meta = array_merge((array) $order->meta, ['simulated' => true]);
             $order->save();
-            $this->awardReferralCommission($order);
             DB::commit();
 
             return $this->respondResult(
@@ -880,14 +1007,18 @@ class VtuController extends Controller
             return $refusal;
         }
 
-        $provider = (string) setting('provider', 'gsubz');
+        $provider = $this->configuredProvider();
+
+        if ($refusal = $this->refuseUnchargeableProvider($request, 'vtu.cable', $wallet, $provider, 'Cable')) {
+            return $refusal;
+        }
 
         $baseAmountNaira = (float) $request->base_amount;
         $sellingAmountNaira = $baseAmountNaira;
         $priceOverrideApplied = false;
         $providerServiceId = $this->providerServiceId((string) $request->service_id);
 
-        if (in_array($provider, ['gsubz', 'alt'], true)) {
+        if ($this->isChargeableProvider($provider)) {
             $pricing = $this->resolvePlanPricing((string) $request->service_id, (string) $request->plan);
             if ($pricing === null) {
                 return $this->respondResult(
@@ -965,7 +1096,7 @@ class VtuController extends Controller
                 ],
             ]);
 
-            if (in_array($provider, ['gsubz', 'alt'], true)) {
+            if ($this->isChargeableProvider($provider)) {
                 $payload = [
                     'serviceID'  => $providerServiceId,
                     'plan'       => $request->plan,
@@ -1026,8 +1157,8 @@ class VtuController extends Controller
             }
 
             $order->status = 'success';
+            $order->meta = array_merge((array) $order->meta, ['simulated' => true]);
             $order->save();
-            $this->awardReferralCommission($order);
             DB::commit();
             return $this->respondResult(
                 request: $request,
@@ -1106,7 +1237,11 @@ class VtuController extends Controller
             return $refusal;
         }
 
-        $provider = (string) setting('provider', 'gsubz');
+        $provider = $this->configuredProvider();
+
+        if ($refusal = $this->refuseUnchargeableProvider($request, 'vtu.electricity', $wallet, $provider, 'Electricity')) {
+            return $refusal;
+        }
 
         $baseAmountNaira = (float) $request->amount;
         $markupNaira     = (float) setting('markup_electricity', 0);
@@ -1168,7 +1303,7 @@ class VtuController extends Controller
                 ],
             ]);
 
-            if (in_array($provider, ['gsubz', 'alt'], true)) {
+            if ($this->isChargeableProvider($provider)) {
                 $providerServiceId = $this->providerServiceId($request->service_id);
                 $payload = [
                     'serviceID'      => $providerServiceId,
@@ -1231,8 +1366,8 @@ class VtuController extends Controller
             }
 
             $order->status = 'success';
+            $order->meta = array_merge((array) $order->meta, ['simulated' => true]);
             $order->save();
-            $this->awardReferralCommission($order);
             DB::commit();
             return $this->respondResult(
                 request: $request,
@@ -1350,7 +1485,11 @@ class VtuController extends Controller
         }
         $request->merge(['phone' => $phone]);
 
-        $provider = (string) setting('provider', 'gsubz');
+        $provider = $this->configuredProvider();
+
+        if ($refusal = $this->refuseUnchargeableProvider($request, 'vtu.exam', $wallet, $provider, 'Exam pin')) {
+            return $refusal;
+        }
 
         $examDefaults = exam_price_defaults();
         $markupNaira = (float) setting('price_exam_transaction_fee', $examDefaults['fee']);
@@ -1438,7 +1577,7 @@ class VtuController extends Controller
                 ],
             ]);
 
-            if (in_array($provider, ['gsubz', 'alt'], true)) {
+            if ($this->isChargeableProvider($provider)) {
                 $payload = [
                     'serviceID' => $providerServiceId,
                     'amount'    => $baseNaira > 0 ? $baseNaira : $markupNaira,
@@ -1505,8 +1644,8 @@ class VtuController extends Controller
             }
 
             $order->status = 'success';
+            $order->meta = array_merge((array) $order->meta, ['simulated' => true]);
             $order->save();
-            $this->awardReferralCommission($order);
             DB::commit();
             return $this->respondResult(
                 request: $request,
@@ -1568,7 +1707,12 @@ class VtuController extends Controller
         $user = auth()->user();
         $wallet = $this->requireWallet($user->wallet);
 
-        $provider = (string) setting('provider', 'gsubz');
+        $provider = $this->configuredProvider();
+
+        if ($refusal = $this->refuseUnchargeableProvider($request, 'vtu.premium-apps', $wallet, $provider, 'Premium app')) {
+            return $refusal;
+        }
+
         $baseAmountNaira = (float) $request->amount;
         $markupNaira = (float) setting('markup_premium', 0);
         $totalNaira = $baseAmountNaira + $markupNaira;
@@ -1696,8 +1840,8 @@ class VtuController extends Controller
             }
 
             $order->status = 'success';
+            $order->meta = array_merge((array) $order->meta, ['simulated' => true]);
             $order->save();
-            $this->awardReferralCommission($order);
             DB::commit();
             return $this->respondResult(
                 request: $request,

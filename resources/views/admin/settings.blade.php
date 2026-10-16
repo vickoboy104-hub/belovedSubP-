@@ -780,7 +780,32 @@
                     if (trim((string) config('services.flutterwave.secret_key', '')) === '') {
                         $missingIntegrations[] = 'Flutterwave secret key — wallet funding and virtual accounts';
                     }
+
+                    // App\Http\Controllers\VtuController::refuseUnchargeableProvider() turns away every
+                    // VTU purchase while the box reads anything but the two names it can actually call.
+                    $providerCannotSell = !in_array(strtolower($activeProvider), ['gsubz', 'alt'], true);
                 @endphp
+                @if ($providerCannotSell)
+                    <div class="mt-3 rounded-2xl border px-4 py-3 text-sm" style="border-color:#e8b48f;background:#fdf3ec;color:#8a3d0b;">
+                        <strong>Customers cannot buy airtime, data, cable, electricity, exam pins, recharge cards
+                            or premium apps right now.</strong>
+                        <p class="mt-2">
+                            @if (strtolower($activeProvider) === 'mock')
+                                The provider is set to <strong>Mock (Test Mode)</strong>. A mock purchase is a rehearsal
+                                and is only allowed on a development or test machine; on this site every one of those
+                                purchases is refused <em>before</em> the wallet is touched, so nothing is charged and no
+                                order is written.
+                            @else
+                                The provider is saved as <strong>"{{ $activeProvider === '' ? '(nothing)' : $activeProvider }}"</strong>,
+                                which is not a provider this site knows how to pay. Every one of those purchases is
+                                refused <em>before</em> the wallet is touched, so nothing is charged and no order is
+                                written.
+                            @endif
+                        </p>
+                        <p class="mt-2">Choose <strong>GSUBZ (Live)</strong> below and save its key to sell these
+                            services again.</p>
+                    </div>
+                @endif
                 @if ($missingIntegrations !== [])
                     <div class="mt-3 rounded-2xl border px-4 py-3 text-sm" style="border-color:#e8b48f;background:#fdf3ec;color:#8a3d0b;">
                         <strong>These services cannot run yet</strong> because no key is saved for them:
@@ -789,8 +814,7 @@
                                 <li>{{ $missing }}</li>
                             @endforeach
                         </ul>
-                        <p class="mt-2">Keys are read from this page only — never from the browser. Choose
-                            <strong>Mock (Test Mode)</strong> above to rehearse orders without a provider.</p>
+                        <p class="mt-2">Keys are read from this page only — never from the browser.</p>
                     </div>
                 @endif
 
