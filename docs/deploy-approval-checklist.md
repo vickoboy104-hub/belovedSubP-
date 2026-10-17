@@ -14,12 +14,12 @@ re-investigation.
 
 | # | Row | State | Evidence |
 |---|---|---|---|
-| A1 | Deploy target is the reviewed branch head | **PASS** | remote `6db7a49b46c2c399439efdafee992f7dbb800c51`, ls-remote verified 2026-10-17 (pushed under the owner's per-batch approval); any later commit re-pins checklist §0.1 by sha |
+| A1 | Deploy target is the reviewed branch head | **PASS** | remote `f2cfaa5f5351d5a28958b2265ee45900eaf99fc0`, ls-remote verified 2026-10-17 (pushed under the owner's per-batch approval); the three commits after the reviewed `6db7a49b` touch only docs and the CI workflow - `git diff --name-status 6db7a49b..f2cfaa5f` shows no application code; any later commit re-pins checklist §0.1 by sha |
 | A2 | Fast-forward from what is live | **PASS** | `0935a7f7..8992cbaa` linear; `merge-base --is-ancestor` exits 0 |
 | A3 | Range content known and reviewed | **PASS** | 33 commits (29 runtime + 4 documentation-only), 117 files, +18,126 / −640, re-measured 2026-10-17; the runtime content is [deploy-preflight.md](deploy-preflight.md)'s 29-commit review |
 | A4 | All seven migrations present in the range | **PASS** | `git diff --name-status 0935a7f7..4daaaee9 -- database/migrations`: seven `A` rows, the exact set of preflight §2 |
 | A5 | Compiled assets present and understood | **PASS** | 2 new hashed bundles (`app-D-vIop72.css`, `app-DXuAyQnv.js`) + rewritten `manifest.json`; the 2 old hashed files are **removed by the checkout** - preflight §5 (corrected 2026-10-17) covers the straggler case and the window that closes it |
-| A6 | Suite green on the machine that built it | **PASS** | 481 passed / 12 skipped / 3,615 assertions on sqlite; the 12 MySQL-only proofs passed on real InnoDB (MySQL 8.4.3, 110 assertions) |
+| A6 | Suite green on the machine that built it | **PASS** | 481 passed / 12 skipped / 3,615 assertions on sqlite; the 12 MySQL-only proofs passed on real InnoDB (MySQL 8.4.3, 110 assertions); the same 12 proofs passed on MariaDB 10.6.28 - GitHub Actions `mariadb:10.6` service container, run 38999509204, 2026-10-17, zero skips (row C5) |
 
 ## B. Production facts - owner-verified, closed, never re-asked
 
@@ -46,7 +46,7 @@ re-investigation.
 | C2 | Remaining key presences (production-checks §3) | **PASS** | `provider_gsubz_api_key`, `nin_api_key`, `bvn_api_key`, `flutterwave_public_key`, `fixed_account_bvn` all present (owner-read 2026-10-17) |
 | C3 | Log counts (production-checks §8) | **PASS** | Flutterwave webhook 28, `user not found` 7, `held for reconciliation` 0 (owner-read 2026-10-17) |
 | C4 | The 1 pending + 3 failed credits characterized | **PENDING - PLAN READY** | production-checks §11's read-only plan is corrected (same reference / same wallet+amount are clues, not proof; only matching charge identity is proof; old rows are not backfilled into held deposits). The commands are ready and privacy-safe, but the actual ledger output has not been supplied yet, so the per-row buckets in the summary below are still blank. Does not block the deploy by itself once the results are read |
-| C5 | MariaDB proof run | **DECIDED - OPEN** | owner decision 2026-10-17: run the twelve tests against a disposable, empty MariaDB 10.6 outside production, synthetic data only. The development box cannot host it - no MariaDB exists under `C:\laragon\bin` (MySQL only), every other binary there is on the infected list, installs forbidden on the compromised machine - so the MySQL 8.4.3 pass is **not** read as MariaDB proof. A GitHub Actions workflow using a `mariadb:10.6` service container is proposed (see final report). Closes by: approved GitHub Actions run; the trusted second machine (pre-deploy); a host scratch database (post-deploy only - the suite files themselves arrive with this deploy, and it is production infrastructure, so it counts only if the owner reads "outside production" as including it); or documented acceptance |
+| C5 | MariaDB proof run | **PASS** | Closed 2026-10-17 by the owner-approved GitHub Actions route: a `mariadb:10.6` service container, disposable empty database `vtu_money_tests`, synthetic credentials only, `permissions: contents: read`, workflow fails itself on skips. Run 2 ([38999509204](https://github.com/vickoboy104-hub/belovedSubP-/actions/runs/38999509204), commit `f2cfaa5f`): `MariaDB version: 10.6.28-MariaDB-ubu2204` - the same 10.6.28 the live box reports - driver `mysql`, `Tests: 12 passed (110 assertions)`, zero skips. Run 1 failed on workflow ordering (artisan before `composer install`) and was repaired workflow-only, exactly as pre-authorized; no application code was changed |
 | C6 | ConfirmIdent billing for a failed check | **ADVISORY** | does not block the deploy; every ambiguous NIN lookup costs ₦160 until answered (checklist §9 item 3) |
 
 ### C4 summary - the one pending and three failed credits
@@ -78,10 +78,10 @@ Run the three commands in [production-checks.md](production-checks.md) §11.1, �
 ## E. The decision rule
 
 **GO requires, all at once:** every row of A and B PASS (already true as of 2026-10-17);
-C1 done; C2 and C3 answered and acceptable; C5 closed - the MariaDB run executed (GitHub
-Actions with a `mariadb:10.6` service container is acceptable) or the residual risk accepted
-in writing (the decision to run is recorded; the run itself is what is awaited, and the MySQL
-8.4.3 pass does not substitute for it); C4's results read and the pending row's disposition
+C1 done; C2 and C3 answered and acceptable; C5 closed - **closed 2026-10-17**: the MariaDB
+run executed on GitHub Actions (`mariadb:10.6` service container) and passed, 12 tests /
+110 assertions / zero skips, on the same 10.6.28 the live box reports (row C5); C4's results
+read and the pending row's disposition
 understood; and the owner's explicit go-ahead. Anything less is **NO-GO**, and the response is
 this document plus checklist §10 (rollback) - never an improvised fix on the box.
 

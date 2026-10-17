@@ -18,7 +18,7 @@ Read this whole file before touching the live box. Two rules override everything
 
 | # | Check | How to check | Pass looks like |
 |---|---|---|---|
-| 0.1 | The branch you are deploying is the reviewed one | `git -C /home/beloveds/vtu rev-parse origin/codex/identity-first-jhtech-experience` | `8992cbaa0f089e2db7b85ff0bbed01b146709b75` or a descendant the owner has read - currently `6db7a49b46c2c399439efdafee992f7dbb800c51`, reviewed and push-approved by name 2026-10-17 |
+| 0.1 | The branch you are deploying is the reviewed one | `git -C /home/beloveds/vtu rev-parse origin/codex/identity-first-jhtech-experience` | `8992cbaa0f089e2db7b85ff0bbed01b146709b75` or a descendant the owner has read - currently `f2cfaa5f5351d5a28958b2265ee45900eaf99fc0`; the three commits after `6db7a49b` touch only docs and the CI workflow (verified by `git diff --name-status 6db7a49b..f2cfaa5f`) |
 | 0.2 | It is a fast-forward from what is live | `git merge-base --is-ancestor <live-HEAD> <new-HEAD>; echo $?` | `0`. If it is not `0`, **stop** and work out why before pulling |
 | 0.3 | The full suite is green on the machine that built it | `php artisan test` | no failures, and the twelve MySQL concurrency tests run somewhere before a money-path change ships (section 9, item 4) |
 | 0.4 | Every credential has been rotated **after** the machine cleaning | owner's list: GitHub, cPanel, FTP, DB, GSUBZ, ConfirmIdent, Flutterwave, SMTP | done. Until it is done this deploy is **not** cleared for production - see section 6 |
@@ -526,12 +526,11 @@ Recorded honestly, in the order they should be closed:
    no MariaDB distribution exists on it at all (`C:\laragon\bin` ships MySQL only), every
    other binary under that tree is on the infected list, and installing fresh vendor binaries
    on an uncleaned machine is what the rule above forbids - so the MySQL 8.4.3 pass is
-   **not** read as MariaDB proof. What closes C5 now: the trusted second machine (pre-deploy),
-   a scratch database on the host (post-deploy only - the suite files themselves do not exist
-   on the box until this range's checkout lands, and a shared-hosting two-process lock test
-   wants a quiet minute; it is production infrastructure, so it counts only if the owner reads
-   "outside production" as including it), or documented acceptance. Until one of those
-   happens, C5 stays open.
+   **not** read as MariaDB proof. **Closed 2026-10-17 by the owner-approved GitHub Actions
+   route:** run [38999509204](https://github.com/vickoboy104-hub/belovedSubP-/actions/runs/38999509204)
+   executed the twelve tests against a disposable `mariadb:10.6` service container
+   (`10.6.28-MariaDB-ubu2204`, driver `mysql`) on commit `f2cfaa5f` -
+   **12 passed / 110 assertions / zero skips**. C5 is PASS in the approval checklist.
 5. **The SparkTech API key** — their `/developer` surface is gated per account and a User
    login is told to contact support. Not our code; needs the owner to ask them.
 6. **None of 8.2's protection exists on the live site until this checklist is run.** The Mock

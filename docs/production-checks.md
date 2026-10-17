@@ -47,13 +47,14 @@ Recorded so nobody re-asks them. Section references show where each question was
 twelve money-path concurrency proofs passed against MySQL 8.4.3 on the development
 machine. The follow-up reads closed most of the distance - isolation REPEATABLE-READ and a
 50 s lock timeout are exactly the pair the proofs ran under - so the remaining delta is the
-engine implementation itself. That last step is now decided (2026-10-17, approval row C5):
-the owner chose a run against a disposable, empty MariaDB 10.6 outside production, synthetic
-data only. The development box cannot host it - no MariaDB distribution exists on it at all,
-and installs are forbidden on a compromised machine - so the run awaits the trusted second
-machine (pre-deploy) or a host scratch database (post-deploy only: the test files themselves
-arrive with this deploy). Until then the MySQL 8.4.3 pass is explicitly **not** read as
-MariaDB proof. Tracked as checklist §9 item 4 and approval row C5.
+engine implementation itself. That delta is now closed (2026-10-17, approval row C5): the
+owner approved a GitHub Actions run against a disposable `mariadb:10.6` service container -
+synthetic `vtu_money_tests` data, no production contact - and run
+[38999509204](https://github.com/vickoboy104-hub/belovedSubP-/actions/runs/38999509204)
+passed on commit `f2cfaa5f` with `MariaDB version: 10.6.28-MariaDB-ubu2204` (the same 10.6.28
+this box reports), driver `mysql`, **12 tests / 110 assertions / zero skips**. The MySQL 8.4.3
+pass no longer needs to stand in for anything: the proofs have now run on the live engine's
+own version. Tracked as checklist §9 item 4 and approval row C5.
 
 ---
 
