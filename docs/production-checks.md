@@ -372,10 +372,12 @@ classifying the row as settled.
 
 The **definitive** previous-payment check compares the Flutterwave charge identity tokens
 stored in `meta` (`flutterwave_charge_id`, `id`, `flw_ref`) against every successful credit
-in the same window. This command prints only `yes` or `no` and never exposes the tokens:
+in the same window. This command prints only `yes` or `no` and never exposes the tokens.
+A match exits only the two inner loops (`break 2`), never the loop over the target rows, so
+each of the four rows always gets its own line:
 
 ```sh
-php artisan tinker --execute='foreach (\App\Models\WalletTransaction::query()->where("type","credit")->where("channel","like","flutterwave%")->whereIn("status",["pending","failed"])->where("created_at",">=",now()->subDays(30))->orderBy("id")->get() as $t) { $m = $t->meta ?? []; $ids = array_values(array_filter([$m["flutterwave_charge_id"] ?? null, $m["id"] ?? null, $m["flw_ref"] ?? null])); $match = false; if ($ids !== []) { $successes = \App\Models\WalletTransaction::query()->where("type","credit")->where("status","success")->where("channel","like","flutterwave%")->where("created_at",">=",now()->subDays(30))->get(); foreach ($successes as $s) { $sm = $s->meta ?? []; $sids = array_values(array_filter([$sm["flutterwave_charge_id"] ?? null, $sm["id"] ?? null, $sm["flw_ref"] ?? null])); foreach ($ids as $id) { if (in_array($id, $sids, true)) { $match = true; break 3; } } } } echo "#".$t->id." (".$t->status."): same-charge-identity success exists: ".($match ? "yes" : "no").PHP_EOL; }'
+php artisan tinker --execute='foreach (\App\Models\WalletTransaction::query()->where("type","credit")->where("channel","like","flutterwave%")->whereIn("status",["pending","failed"])->where("created_at",">=",now()->subDays(30))->orderBy("id")->get() as $t) { $m = $t->meta ?? []; $ids = array_values(array_filter([$m["flutterwave_charge_id"] ?? null, $m["id"] ?? null, $m["flw_ref"] ?? null])); $match = false; if ($ids !== []) { $successes = \App\Models\WalletTransaction::query()->where("type","credit")->where("status","success")->where("channel","like","flutterwave%")->where("created_at",">=",now()->subDays(30))->get(); foreach ($successes as $s) { $sm = $s->meta ?? []; $sids = array_values(array_filter([$sm["flutterwave_charge_id"] ?? null, $sm["id"] ?? null, $sm["flw_ref"] ?? null])); foreach ($ids as $id) { if (in_array($id, $sids, true)) { $match = true; break 2; } } } } echo "#".$t->id." (".$t->status."): same-charge-identity success exists: ".($match ? "yes" : "no").PHP_EOL; }'
 ```
 
 `yes` here is the only result that proves the same charge was already credited; everything

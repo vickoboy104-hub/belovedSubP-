@@ -18,7 +18,7 @@ Read this whole file before touching the live box. Two rules override everything
 
 | # | Check | How to check | Pass looks like |
 |---|---|---|---|
-| 0.1 | The branch you are deploying is the reviewed one | `git -C /home/beloveds/vtu rev-parse origin/codex/identity-first-jhtech-experience` | `8992cbaa0f089e2db7b85ff0bbed01b146709b75` or a descendant the owner has read - currently `f2cfaa5f5351d5a28958b2265ee45900eaf99fc0`; the three commits after `6db7a49b` touch only docs and the CI workflow (verified by `git diff --name-status 6db7a49b..f2cfaa5f`) |
+| 0.1 | The branch you are deploying is the reviewed one | `git -C /home/beloveds/vtu rev-parse origin/codex/identity-first-jhtech-experience` | `8992cbaa0f089e2db7b85ff0bbed01b146709b75` or a descendant the owner has read - head at the time of writing `b5b93a638e9636853d126637dceaf6099f1047a1`; every commit after the reviewed `6db7a49b` is docs/CI-only, which any later head proves with `git diff --name-status 6db7a49b..<head>` listing only `docs/` and `.github/` files |
 | 0.2 | It is a fast-forward from what is live | `git merge-base --is-ancestor <live-HEAD> <new-HEAD>; echo $?` | `0`. If it is not `0`, **stop** and work out why before pulling |
 | 0.3 | The full suite is green on the machine that built it | `php artisan test` | no failures, and the twelve MySQL concurrency tests run somewhere before a money-path change ships (section 9, item 4) |
 | 0.4 | Every credential has been rotated **after** the machine cleaning | owner's list: GitHub, cPanel, FTP, DB, GSUBZ, ConfirmIdent, Flutterwave, SMTP | done. Until it is done this deploy is **not** cleared for production - see section 6 |
