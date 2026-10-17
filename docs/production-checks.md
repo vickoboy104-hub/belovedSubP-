@@ -55,8 +55,10 @@ passed on commit `f2cfaa5f` with `MariaDB version: 10.6.28-MariaDB-ubu2204` (the
 this box reports), driver `mysql`, **12 tests / 110 assertions / zero skips**. The MySQL 8.4.3
 pass no longer needs to stand in for anything **on the commit that ran**. It does not cover the
 three runtime commits now sitting on this branch, because `f2cfaa5f` is older than all of them:
-the MariaDB proof has to run again here before any GO claim, and since that workflow triggers on
-a push, this machine cannot do it alone (approval rows A1 and A6). The MySQL 8.4.3 half **is**
+the MariaDB proof has to run again here before any GO claim. The 2026-10-17 push did not start it -
+that workflow's push trigger is filtered to its own file, so it needs a hand-started
+`workflow_dispatch` run on GitHub, which this machine cannot do (approval rows A1, A6 and C5). The
+MySQL 8.4.3 half **is**
 current - re-run 2026-10-17 on head `69418773`, 12 passed / 110 assertions, scratch database
 verified empty again afterwards. Tracked as checklist §9 item 4 and approval row C5.
 
@@ -795,10 +797,34 @@ branch is never exercised on either side.
 - If live payloads **never** carry it, that branch is dead and harmless, and the widening in §11.6
   was defence against a case that cannot occur.
 
-The same read also sizes the one duplicate-credit path the code review found, which no guard
-covers: an admin manual credit (`Admin/UsersController::fundWallet:176-215`) writes channel
-`admin_manual_credit` with **no gateway identity and no charge claim**, so a later report of the
-same charge passes every check and credits a customer who was already helped.
+The same read also sizes the one duplicate-credit path the code review found. **There are two
+manual-credit channels, and both are counted here** (widened 2026-10-17 after the owner pointed out
+that support also uses the balance-adjustment screen):
+
+- `Admin/UsersController::fundWallet` writes channel `admin_manual_credit`, reference `ADMINFUND…`.
+- `Admin/UsersController`'s adjustment screen writes channel `admin_wallet_adjustment`, reference
+  `ADMINADJ…`, `type = credit` when money was added (and `debit`, or a credit under `set` mode that
+  raised the balance) otherwise.
+
+Both book **no gateway identity and take no charge claim**, so a later report of the same transfer
+passes every check and credits a customer who was already helped. Measured on this branch, the
+approved hold does **not** see either of them: `WalletFundingService::chargeDealtWithBefore()`
+matches only a row carrying `meta.manually_settled` (`:694-711`) or a `failed` gateway row carrying
+this charge's identity (`:718-738`), and `Admin/FundingRequestController::record:87-91` refuses to
+set that marker on anything except an **open `flutterwave…` request row** - so the marker can never
+live on a manual-credit row. Proven by a throwaway probe on a scratch sqlite (created, run, deleted;
+the harness is not in the tree), recorded with its four cases in
+[wallet-funding-review.md](wallet-funding-review.md) §3d: a wallet already holding a
+₦3,000 `admin_wallet_adjustment` credit or `admin_manual_credit` was credited **again** for the same
+₦3,000 charge (295,000 kobo after the funding fee, 0 held rows), while the same arrival was correctly
+held once an admin marked the matching request settled - and a genuinely new charge into a wallet
+that had earlier received an unrelated adjustment was still credited in full, which is the behaviour
+any future fix must preserve.
+
+One schema fact that changes how the counts below are read: `wallet_transactions.reference` has a
+UNIQUE index (`wallet_transactions_reference_unique`), so the application's own reference column can
+never repeat across two rows. The reuse counts therefore key on the **gateway payload** `reference`
+- the account-scoped token in question - not on that column.
 
 Counts only. This command prints no reference, no account number, no name, email, phone, amount or
 payload value.
@@ -808,15 +834,16 @@ php artisan tinker --execute='
 $rows = DB::table("wallet_transactions")
   ->where("created_at", ">=", now()->subDays(30))
   ->where("type", "credit")
-  ->where(function ($q) { $q->where("channel","like","flutterwave%")->orWhere("channel","admin_manual_credit"); })
+  ->where(function ($q) { $q->where("channel","like","flutterwave%")->orWhereIn("channel",["admin_manual_credit","admin_wallet_adjustment"]); })
   ->orderBy("id")
   ->get();
-$withPayload = 0; $refPresent = 0; $refIsChargeIdentity = 0; $noIdentity = 0;
+$withPayload = 0; $refPresent = 0; $refIsChargeIdentity = 0; $noIdentity = 0; $settledMarked = 0;
 $byRef = []; $byWalletRef = [];
 foreach ($rows as $r) {
   $meta = json_decode((string) $r->meta, true) ?: [];
   $payload = (array) ($meta["flutterwave_payload"] ?? []);
   if ($payload !== []) { $withPayload++; }
+  if (!empty($meta["manually_settled"])) { $settledMarked++; }
   $ref  = trim((string) ($payload["reference"] ?? ($meta["flutterwave_reference"] ?? "")));
   $flw  = trim((string) ($payload["flw_ref"] ?? ($meta["flw_ref"] ?? ($meta["flutterwave_id"] ?? ""))));
   $id   = trim((string) ($payload["id"] ?? ($meta["flutterwave_charge_id"] ?? "")));
@@ -835,17 +862,42 @@ echo "credit rows in 30d: ".$rows->count()." (payload stored: ".$withPayload.")"
 echo "rows carrying a gateway reference: ".$refPresent.", of which equal to the charge own identity: ".$refIsChargeIdentity.PHP_EOL;
 echo "distinct references reused on more than one row: ".$sharedAnywhere.", reused within ONE wallet: ".$sharedSameWallet.PHP_EOL;
 echo "gateway credit rows storing no gateway identity at all: ".$noIdentity.PHP_EOL;
+echo "rows carrying the settled-by-hand marker: ".$settledMarked." (zero until this branch is live; that marker is what the hold reads)".PHP_EOL;
 // A Collection cannot apply SQL "like", so the gateway rows are matched by prefix in PHP.
-$manual = $rows->where("channel","admin_manual_credit");
-$open   = $rows->filter(fn ($r) => str_starts_with((string) $r->channel, "flutterwave"))
+$hand     = $rows->where("channel","admin_manual_credit");
+$adjusted = $rows->where("channel","admin_wallet_adjustment");
+$helped   = $hand->merge($adjusted);
+$open     = $rows->filter(fn ($r) => str_starts_with((string) $r->channel, "flutterwave"))
     ->whereIn("status",["pending","failed"]);
-$manualWallets = $manual->pluck("wallet_id")->unique();
+$helpedWallets = $helped->pluck("wallet_id")->unique();
 $openWallets   = $open->pluck("wallet_id")->unique();
-echo "manual admin credits: ".$manual->count()." across ".$manualWallets->count()." wallet(s)".PHP_EOL;
+echo "hand credits (admin_manual_credit): ".$hand->count()." across ".$hand->pluck("wallet_id")->unique()->count()." wallet(s)".PHP_EOL;
+echo "balance-adjustment credits (admin_wallet_adjustment): ".$adjusted->count()." across ".$adjusted->pluck("wallet_id")->unique()->count()." wallet(s)".PHP_EOL;
 echo "open (pending/failed) gateway credits: ".$open->count()." across ".$openWallets->count()." wallet(s)".PHP_EOL;
-echo "wallets helped manually that ALSO hold an open gateway credit: ".$manualWallets->intersect($openWallets)->count()." <- the duplicate-credit exposure".PHP_EOL;
+echo "wallets holding BOTH any manual credit and an open gateway credit: ".$helpedWallets->intersect($openWallets)->count()." <- candidates, NOT proof of the same money".PHP_EOL;
 '
 ```
+
+**Self-test before running it on the live box** (2026-10-17, throwaway sqlite copy with eight
+synthetic rows covering every bucket: one `admin_wallet_adjustment` credit, one `admin_manual_credit`,
+one gateway reference reused twice inside a single wallet, one failed + success pair on a second
+wallet, one `manually_settled` row, one gateway row with no identity). All nine lines printed, and
+each count landed where the seeded shape predicts it:
+
+```
+credit rows in 30d: 8 (payload stored: 5)
+rows carrying a gateway reference: 5, of which equal to the charge own identity: 0
+distinct references reused on more than one row: 2, reused within ONE wallet: 2
+gateway credit rows storing no gateway identity at all: 1
+rows carrying the settled-by-hand marker: 1 (zero until this branch is live; that marker is what the hold reads)
+hand credits (admin_manual_credit): 1 across 1 wallet(s)
+balance-adjustment credits (admin_wallet_adjustment): 1 across 1 wallet(s)
+open (pending/failed) gateway credits: 3 across 3 wallet(s)
+wallets holding BOTH any manual credit and an open gateway credit: 2 <- candidates, NOT proof of the same money
+```
+
+If a live run prints fewer than nine lines, the command was typed, not copied - re-copy it from this
+block.
 
 How to read it, and what each answer decides:
 
@@ -861,10 +913,17 @@ How to read it, and what each answer decides:
   the drop already happening: a transfer arrived, the row stayed as it was and only the info log
   recorded it. That is the case to escalate to the owner immediately, because it means money was
   received and not credited.
-- **`wallets helped manually that ALSO hold an open gateway credit`** - the number of customers for
-  whom the manual-then-arrival double-credit sequence is possible today. Zero means the approved
-  hold-instead-of-credit change is protecting a case that has not occurred yet; anything above zero
-  means the owner should look at those wallets (read-only, through §11.6) before any deploy.
+- **`wallets holding BOTH any manual credit and an open gateway credit`** - the number of customers
+  for whom the manual-then-arrival double-credit sequence is *possible* today. This is a candidate
+  list, never a finding: **a manual credit is not proof that it relates to any particular failed
+  transfer**, and the owner's rule forbids treating a matching wallet (or a matching amount) as
+  proof of the same money. Read each one through §11.6 and let the owner decide. Zero means the
+  approved hold is protecting a case that has not occurred yet; anything above zero means those
+  wallets deserve a read-only look before any deploy, and that the missing coverage in §3c above is
+  not theoretical.
+- **`balance-adjustment credits`** is the channel the hold cannot see at all, and it is the one a
+  support desk reaches for when there is no open request row to mark. Counting it separately is the
+  point of the widening.
 - **`gateway credit rows storing no gateway identity at all`** - arrivals the global claim could
   never lock (`:335-337`), which is why they are only ever credited after the ownership gate.
   Manual admin credits are excluded from this count on purpose: they are not gateway arrivals.

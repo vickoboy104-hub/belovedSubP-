@@ -20,11 +20,16 @@ No step in this file has been run against production; it was assembled from the 
 
 Since this file was written the branch has moved again. Documentation-only commits followed
 `f4ab0ad8` - the last **runtime** commit the owner reviewed is
-`cd19810c123c57e4cc53b122502d5527c30f8fe7`, and the pushed remote head above it, `46f0d8c3`, is
-documentation and CI only on top of it (7 files, none outside `docs/` and `.github/`). Then three
-**runtime** commits landed under the owner's later approvals. They are **local to the
-development machine and unpushed**, so no box can pull them yet, and this file does not pretend
-to have reviewed them. Section 2b records what they are.
+`cd19810c123c57e4cc53b122502d5527c30f8fe7`, and when this paragraph was first written the remote
+head above it, `46f0d8c3`, was documentation and CI only on top of it (7 files, none outside `docs/`
+and `.github/`). Then three **runtime** commits landed under the owner's later approvals, with two
+documentation commits around them. On 2026-10-17 the owner authorized a **development-only push** of
+that batch for independent review and testing, so the remote review branch head is now
+`e32744d45d10ccec3cdeb5cdcfea4db6e94ff288`: `46f0d8c3 → 3d7deacb` (docs) `→ f2d40bd2 → 3be00d41 →
+69418773` (runtime) `→ e32744d4` (docs, 8 files, all under `docs/`), which makes **`69418773` the
+runtime head on the remote** and leaves `main` untouched at `17cb6eec…`. Those three runtime commits
+are now reviewable; they are still **not reviewed as a deploy target and not approved for one**, and
+this file describes them rather than certifying them. Section 2b records what they are.
 
 ## 1. The range at a glance
 
@@ -74,8 +79,9 @@ section 8 for what that changes and does not change.
 
 Sections 2-8 were written against `0935a7f7..f4ab0ad8`. These three commits came after, under
 the owner's approvals for the duplicate-credit fix, the administrator audit trail and the
-mobile admin work. They are on the development branch only - unpushed, and this section is a
-description, not the review. Nothing here was run against production.
+mobile admin work. They are on the **development review branch only** - pushed on 2026-10-17 for
+review and testing, not merged, not deployed, and this section is a description, not the review.
+Nothing here was run against production.
 
 **`f2d40bd2` - hold a charge the wallet already dealt with.** `WalletFundingService` gains
 `chargeDealtWithBefore()`, which runs **before** the ownership gate and before `claimCharge` and
@@ -93,7 +99,18 @@ be told it exists. **And because this commit edits the money path itself, the tw
 InnoDB proofs had to be re-run on this head.** That re-run happened on 2026-10-17 on real MySQL
 **8.4.3** - **12 passed / 110 assertions / 28.57 s**, scratch database verified empty afterwards
 (approval row A6). What remains open is the same twelve on **MariaDB 10.6.28**, the version the
-live box reports, and that workflow triggers on a push (row C5).
+live box reports. That workflow's push trigger is filtered to its own file, so the 2026-10-17 push
+did not start it and no code push will; it has to be started from `workflow_dispatch` on GitHub,
+which this machine cannot do (row C5 carries both routes).
+**What this commit does not cover, measured the same day at the owner's question:** the
+`already_settled_manually` branch only ever reads a row that can carry the marker, and
+`Admin/FundingRequestController::record:87-91` refuses to put that marker on anything except an open
+`flutterwave…` request. So neither `admin_manual_credit` nor a credit written by the balance
+adjustment screen (`admin_wallet_adjustment`) can hold a later arrival - the duplicate-credit
+possibility the commit was written for is closed only on the Flutterwave-request side. See
+[wallet-funding-review.md](wallet-funding-review.md) §3d for the four measured cases, including the
+one that must keep working: a genuinely new charge into a wallet that received an unrelated manual
+credit is still credited in full.
 
 **`3be00d41` - the append-only administrator trail.** One migration (row 8 above), 17 admin
 controllers instrumented, `CorrelationId` prepended to the `web` middleware group (it only sets
@@ -108,10 +125,21 @@ Four things about it are deploy decisions, not code details:
    The screens only become readable when the owner names their own user id in `.env`, and
    `php artisan config:cache` at the end of checklist §4 must run **after** that edit or the
    cached config keeps the empty list.
-2. **`AUDIT_DATABASE_TRIGGERS` is read by the migration.** It defaults to `false`. If the owner
-   ever wants the `BEFORE UPDATE` / `BEFORE DELETE` triggers, the flag must be in `.env`
-   **before** `migrate --force`, because a migration that has already said `Ran` will not run
-   again - and it needs the `TRIGGER` privilege, which shared hosting may not grant.
+2. **`AUDIT_DATABASE_TRIGGERS` does nothing yet, and the docs used to say otherwise.** Measured
+   on this head: `config/audit.php:45` declares the flag, and **no code anywhere reads it** -
+   `grep -rniE "create trigger|before update|before delete" app config database tests` finds the
+   string only in that config comment and in two unrelated tests that build triggers to prove a
+   database guard *would* work (`WalletLedgerSafetyTest:393`, `ManualOrderAnswerSafetyTest:403`).
+   The `admin_activity_logs` migration contains no trigger DDL. So the append-only guarantee in
+   this batch is **application-level only**: `AdminActivityLog::booted()` throws on `updating` and
+   `deleting` (`:60-69`), which stops every Eloquent write, while the recorder itself inserts
+   through `DB::table(...)->insertOrIgnore()` (`AdminActivityRecorder:146`), a path the model guard
+   does not - and cannot - bind. Anyone holding the database password can still change the table.
+   Turning the flag on would not change that, because there is nothing behind it to turn on; the
+   missing piece is trigger DDL plus the `TRIGGER` privilege, which is a decision and a separate
+   change, not a `.env` edit. The stale comment in `config/audit.php:33-41` saying the migration
+   installs triggers is listed as a one-line correction the owner has not yet approved, because
+   that file is under `config/` and would make this documentation batch runtime-touching.
 3. **A manual wallet movement now requires a note.** `Admin/UsersController` validates `note`
    as `required|string|min:10|max:255` on the hand credit (`:279`) and on the
    credit/debit/set adjustment (`:399`), and the balance only moves if that write and the log

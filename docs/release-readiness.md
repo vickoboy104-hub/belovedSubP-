@@ -26,9 +26,11 @@ isolated second instance, port 3307, scratch database, synthetic rows only - and
 **What that does not prove.** The live box is not MySQL 8.4.3, it is **MariaDB 10.6.28**, and the
 only run on that version (GitHub Actions run 38999509204, 2026-10-17) executed on `f2cfaa5f`,
 which is **before** the prior-settlement hold, the audit trail and this batch. So the number that
-matters for the box has not yet seen this code. The route to it is the push-triggered workflow -
-it cannot be reproduced on this machine, and I am not going to describe a MariaDB result that
-MariaDB never produced. Approval rows A6 and C5 carry that gap.
+matters for the box has not yet seen this code. The route to it is a **hand-started** Actions run:
+the workflow's push trigger is filtered to its own file, so the 2026-10-17 review push started
+nothing, and `workflow_dispatch` needs a signed-in GitHub session this machine does not have. I am
+not going to describe a MariaDB result that MariaDB never produced. Approval rows A6 and C5 carry
+that gap and both routes to closing it.
 
 ## Where the code stands
 
@@ -43,14 +45,20 @@ that head is documentation and CI only.
 | `d6931635` | **yes** | The deposit ownership gate, the held-deposit table, admin screen and 10 attribution tests. |
 | `882188bb` | **yes** | The InnoDB re-proof of that gate plus the corrected verification figures. |
 | `cd19810c` | **yes** | Last **runtime** commit reviewed: `deposits:audit --references=0` off the network, duplicate accounts counted without printing them. |
-| `f2d40bd2` | **no - and pushing needs its own approval** | Hold a charge the wallet already dealt with instead of crediting it twice; 10 new tests, and it changes `WalletFundingService` itself. |
-| `3be00d41` | **no - same** | The append-only administrator activity trail, its migration, the mandatory note on manual wallet movements, and the two owner-only screens. |
-| `69418773` | **no - same** | The phone-usable admin boards, the read-side figure mask, the shared pager and the Transaction Explorer. This is the head the numbers above were measured on. |
+| `3d7deacb` | **yes - 2026-10-17, review only** | Docs: the read-only gateway-reference probe (§11.7). No code. |
+| `f2d40bd2` | **yes - 2026-10-17, review only** | Hold a charge the wallet already dealt with instead of crediting it twice; 10 new tests, and it changes `WalletFundingService` itself. |
+| `3be00d41` | **yes - 2026-10-17, review only** | The append-only administrator activity trail, its migration, the mandatory note on manual wallet movements, and the two owner-only screens. |
+| `69418773` | **yes - 2026-10-17, review only** | The phone-usable admin boards, the read-side figure mask, the shared pager and the Transaction Explorer. This is the head the numbers above were measured on, and the **runtime head on the remote**. |
+| `e32744d4` | **yes - 2026-10-17, review only** | Docs: every figure the last three commits made stale, re-measured. The current remote head. |
+
+"Pushed" here means **on `codex/identity-first-jhtech-experience` for independent review and
+testing**, under the owner's 2026-10-17 development-only authorization. It does not mean merged,
+deployed, migrated or reviewed-and-approved; `main` is untouched at `17cb6eec…`.
 
 `www.belovedsubp.com` still runs whatever `~/vtu` was last checked out to (`0935a7f7`, 45
 commits behind this head). None of the above is live.
 
-The three unpushed commits touch **49 files** under `app/ tests/ database/ config/ routes/
+The three runtime commits now on the review branch touch **49 files** under `app/ tests/ database/ config/ routes/
 resources/ bootstrap/ public/`, and they **do** change `resources/css` and `public/build`, so
 there is an asset step in this batch. The layout delta is **not** admin-only, and the honest
 wording is this: `resources/css/app.css` gained **109 lines and rewrote 7** (its diffstat is
@@ -206,24 +214,34 @@ development copy: `prices:sync` hourly, `wallet:sync-deposits` every five minute
 
 ## The decision this leaves on the table
 
-**Safe to ship as a set of guards.** Every behaviour change in the two unpushed commits makes
-money *harder* to move wrongly: an ambiguous deposit now pays nobody and waits for a human; a
-duplicate charge is refused at a unique index; a mock or retired provider refuses before the
-wallet is touched. Nothing in them changes a price, a form, a brand, a layout or a customer's
-wording, and no asset needs rebuilding.
+**Safe to ship as a set of guards.** Every behaviour change in the runtime commits now on the review
+branch makes money *harder* to move wrongly: an ambiguous deposit now pays nobody and waits for a
+human; a duplicate charge is refused at a unique index; a charge the wallet already dealt with is
+held instead of paid twice; a mock or retired provider refuses before the wallet is touched. What is
+NOT true, and was said here before it was measured: no change to a price or a customer form is real
+(prices untouched, `app/Helpers/settings.php` diff empty across the range), but **the layout did
+move on shared classes**, so customer pages render differently on a phone and an asset step exists
+in this batch - row A5 and §8 above carry that.
 
 **Not yet cleared for a deploy**, and none of it is code:
 
-1. the two commits are unpushed and awaiting approval for this branch, let alone a deploy;
-2. nobody has read `crontab -l`, `FLUTTERWAVE_SECRET_HASH`, `provider`, `nin_verify_mode` or
-   `bvn_verify_mode` on the live box (production-checks §2-§4 answers all five in minutes);
-3. hosting's MySQL version, isolation level and lock timeout are unmeasured - the InnoDB
-   proofs ran on a scratch 8.4.3;
+1. the three runtime commits are on the review branch as of 2026-10-17 and have **not been reviewed
+   as a deploy target**; the reviewed runtime anchor is still `cd19810c` (row A1);
+2. answered since this list was first written - `crontab -l`, `FLUTTERWAVE_SECRET_HASH`, `provider`,
+   `nin_verify_mode` and `bvn_verify_mode` are all owner-read and recorded in approval rows B2-B11;
+3. hosting's engine is now read (**MariaDB 10.6.28**, isolation REPEATABLE-READ, lock timeout 50 s,
+   row B3-B4), but the twelve two-process proofs have only run on scratch MySQL 8.4.3; the run on
+   the live engine's own version has to be started by hand because the workflow's push trigger is
+   path-filtered (rows A6 and C5);
 4. how many live customers already share one virtual account number is unmeasured
    (production-checks §7) - that number decides whether the held-deposit queue opens with two
    rows or two hundred;
 5. credential rotation is owed and owned by the owner, separately;
-6. ConfirmIdent's billing answer for a failed check is still open.
+6. ConfirmIdent's billing answer for a failed check is still open;
+7. the duplicate-credit hold does not see either admin credit channel, so a manual help followed by
+   a gateway report of the same money is still a live double-credit path. The proposed closure needs
+   an explicit admin-declared link, never amount or account matching - approval row C9, and it is a
+   money-path change, so it waits on the owner.
 
 The honest sequence is: push on approval → run the read-only checks → decide the deploy with
 the five answers in hand → migrate → smoke test read-only → then, only with a yes, one real

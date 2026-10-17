@@ -86,13 +86,19 @@ and no PHP in this repository can prevent that. The real answers are database
 triggers that reject `UPDATE`/`DELETE`, or a store the application's own credentials
 cannot write to (an append-only replica, object lock on a daily export).
 
-Trigger DDL is written but **disabled by default** (`config/audit.php` →
-`database_triggers`, env `AUDIT_DATABASE_TRIGGERS`). Enabling it needs the
-`TRIGGER` privilege for the app's MySQL user and an extra deploy step, so it is the
-owner's call, not something to switch on quietly. Until it is on, the honest statement
-is: **the trail cannot be edited by anyone using the site, and it can be edited by
-anyone holding the database password.** C1 (credential rotation) is still the open
-security item on this release.
+There is **no trigger DDL in this branch**, and this document previously said there was one
+waiting behind a switch. Measured on the head as pushed: `config/audit.php:45` declares
+`database_triggers` from env `AUDIT_DATABASE_TRIGGERS`, and **nothing reads it**. The
+`admin_activity_logs` migration installs the table only. So the flag is a promise, not a feature,
+and setting it in `.env` changes nothing - it is not a switch to approve, it is work not yet done
+(trigger DDL, plus the `TRIGGER` privilege for the app's MySQL user, plus a deploy step a plain
+`git pull` and `migrate` cannot reproduce). Until that work exists and is approved, the honest
+statement is unchanged and now stated without the false comfort: **the trail cannot be edited by
+anyone using the site, and it can be edited by anyone holding the database password.** The model
+guard (`AdminActivityLog:60-69`) binds Eloquent writes; the recorder's own insert goes through
+`DB::table()->insertOrIgnore()` (`AdminActivityRecorder:146`), which no model event sees. C1
+(credential rotation) is therefore still the open security item on this release, and it is the only
+current protection against a database-level rewrite of history.
 
 ## 4. Who can see it
 

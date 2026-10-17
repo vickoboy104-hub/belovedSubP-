@@ -544,9 +544,12 @@ Recorded honestly, in the order they should be closed:
    (`10.6.28-MariaDB-ubu2204`, driver `mysql`) on commit `f2cfaa5f` -
    **12 passed / 110 assertions / zero skips**. C5 is PASS in the approval checklist **for that
    commit**. `f2cfaa5f` is older than the three runtime commits now on this branch, so the
-   workflow has to run again for them, and because it triggers on a push that touches it, that
-   re-run is a consequence of approval row A1 and the owner's push authorization - not something
-   this machine can do on its own.
+   workflow has to run again for them. The batch **was** pushed on 2026-10-17 for review, and that
+   push started nothing: the workflow's push trigger is filtered to its own file
+   (`on.push.paths`), so it must be started by hand from `workflow_dispatch` on GitHub - or by one
+   CI-only commit touching that file. Neither is possible from this machine (the only `gh` binary on
+   it is the Grenam payload and will not be run, and the connected browser is signed out of GitHub),
+   so the run needs the owner. Approval rows A6 and C5 carry the gap and both routes.
 5. **The SparkTech API key** — their `/developer` surface is gated per account and a User
    login is told to contact support. Not our code; needs the owner to ask them.
 6. **None of 8.2's protection exists on the live site until this checklist is run.** The Mock

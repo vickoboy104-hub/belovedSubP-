@@ -181,12 +181,14 @@ data decision for the owner, section 7) is the real end of this problem, not the
 ### 3c. The gate for money that was already dealt with by hand (added 2026-10-17, owner-approved)
 
 Both gates above answer "has this charge been **banked** before?". Neither can see a manual
-settlement: `Admin/UsersController::fundWallet:176-215` books a credit with channel
+settlement: `Admin/UsersController::fundWallet:272` books a credit with channel
 `admin_manual_credit`, reference `ADMINFUND…` and no gateway identity at all, and it takes no
 charge claim. So when a support desk pays a customer for a stuck transfer and the gateway later
 reports that transfer as successful, every existing check reads "not yet paid" and the customer is
 paid a second time. That is the one duplicate-credit path the code review found, and it needed a
-behavior change, which the owner approved on 2026-10-17.
+behavior change, which the owner approved on 2026-10-17. Read **3d** before quoting this section as
+complete: the marker this gate reads can only sit on a Flutterwave request row, so neither admin
+credit channel is covered by it.
 
 `WalletFundingService::chargeDealtWithBefore()` now runs before the ownership gate and before
 `claimCharge`, and pays nobody in two cases:
@@ -214,6 +216,58 @@ as failed, and the check only ever reads this wallet's own rows.
 marked request also holds genuinely new transfers into that account until an admin releases or
 reopens it. Holding was chosen over crediting because a held deposit is written down, visible and
 one click from correct, while a second credit is neither. Ordinary, unmarked funding is untouched.
+
+### 3d. What the gate still cannot see: the two admin credit channels (measured 2026-10-17, raised by the owner and ChatGPT)
+
+The question was whether both manual-credit paths are covered. Measured answer: **neither one is,
+and the hold cannot be made to see them from the money side.**
+
+`chargeDealtWithBefore()` (`:692-742`) reads two things, and both are narrower than "this customer
+was already paid":
+
+1. `meta.manually_settled` - a marker only `Admin/FundingRequestController::record()` writes, and
+   `:87-91` aborts with 422 unless the row is `type=credit`, `channel` starts with `flutterwave`
+   and status is `pending` or `failed`. An admin credit row is `status=success` from the moment it
+   is created, so **no amount of clicking can put that marker on one**.
+2. a `status='failed'` credit row carrying this charge's own gateway identity (return at `:738`). An
+   admin credit never failed and never stores `flutterwave_charge_id` / `flw_ref`, so it can never
+   match here either.
+
+So the two helper channels - `admin_manual_credit` (`UsersController::fundWallet:272`, `ADMINFUND…`) and
+`admin_wallet_adjustment` of type credit (`UsersController::adjustWallet:392`, row written at
+`:440-458`, which also covers the "set balance to a number" mode) - are invisible to the gate. A
+support desk that helps a customer through either screen, followed by a gateway report of the same
+money, still credits twice. The hold protects the case it was built for and nothing wider.
+
+Measured with a throwaway test on a scratch sqlite (created, run, deleted; the file is not in the
+tree, so nothing red lingers). Every case used a fresh 300,000 gross charge, which credits 295,000
+after the funding fee - `WalletFundingService:331` returns `setting('wallet_funding_fee', 50)` in
+naira, 5,000 kobo by default, and `:40` documents the return as the kobo actually added to the
+balance:
+
+- **A** - wallet holds an `admin_wallet_adjustment` credit, charge has never been seen →
+  credited 295,000, held 0.
+- **B** - wallet holds an `admin_manual_credit`, charge has never been seen → credited 295,000,
+  held 0.
+- **C** - genuinely new charge into a wallet that earlier received an unrelated adjustment →
+  credited 295,000, held 0. **This is correct behaviour and any fix must preserve it.**
+- **D** - wallet holds a `flutterwave…` request an admin marked settled → credited 0, held 1,
+  reason `already_settled_manually`.
+
+A and B are the gap; C is the reason the gap must not be closed by matching on amounts or account
+numbers - the owner's own rule says a matching amount or a matching customer is not proof that two
+records are the same money. The only honest closure is an **explicit admin-declared link**: when a
+manual credit or adjustment is made *for a specific open funding request*, the admin names that
+request, the link is stored on the manual row (and audited), and the gate treats a named link the
+way it treats `manually_settled` today. Manual help given for anything else - a refund, a
+correction, a goodwill credit - stays invisible and must never block a new deposit. That is a
+money-path change and is not implemented; it needs the owner's approval first (checklist row C9).
+
+One schema fact found while measuring, because it changes how §11.7 is read:
+`wallet_transactions.reference` carries a UNIQUE index (`wallet_transactions_reference_unique`), so
+the app's own reference column can never repeat across two rows. The reuse counts in §11.7 therefore
+key on the **gateway payload** `reference`, which is the account-scoped token in question, not on
+the unique column.
 
 ## 4. What the sweep looks for, and when it stops
 
