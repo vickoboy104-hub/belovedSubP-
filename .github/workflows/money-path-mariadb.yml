@@ -41,13 +41,13 @@ jobs:
           php-version: '8.3'
           extensions: mbstring, pdo_mysql
 
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
       - name: Prepare Laravel environment
         run: |
           cp .env.example .env
           php artisan key:generate
-
-      - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Verify MariaDB version and connection
         env:
@@ -72,8 +72,13 @@ jobs:
           DB_PASSWORD: vtu_money_tests
           MONEY_TESTS_DATABASE: vtu_money_tests
         run: |
+          set -o pipefail
           php artisan test --filter=MysqlMoneyPath | tee test-output.txt
           if grep -qi 'skipped:' test-output.txt; then
             echo "Tests were skipped instead of executed. Failing."
+            exit 1
+          fi
+          if grep -qi 'no tests executed' test-output.txt; then
+            echo "The filter matched no tests. Failing."
             exit 1
           fi
