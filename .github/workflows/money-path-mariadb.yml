@@ -1,0 +1,79 @@
+name: Money-path MariaDB 10.6 concurrency tests
+
+on:
+  push:
+    branches:
+      - codex/identity-first-jhtech-experience
+    paths:
+      - '.github/workflows/money-path-mariadb.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mariadb-concurrency:
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:10.6
+        env:
+          MYSQL_DATABASE: vtu_money_tests
+          MYSQL_USER: vtu_money_tests
+          MYSQL_PASSWORD: vtu_money_tests
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql
+
+      - name: Prepare Laravel environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Verify MariaDB version and connection
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: vtu_money_tests
+          DB_USERNAME: vtu_money_tests
+          DB_PASSWORD: vtu_money_tests
+        run: |
+          php artisan tinker --execute="echo 'MariaDB version: '.DB::selectOne('select version() as v')->v.PHP_EOL;"
+          php artisan tinker --execute="echo 'Driver: '.DB::connection()->getDriverName().PHP_EOL;"
+
+      - name: Run InnoDB money-path concurrency tests
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: vtu_money_tests
+          DB_USERNAME: vtu_money_tests
+          DB_PASSWORD: vtu_money_tests
+          MONEY_TESTS_DATABASE: vtu_money_tests
+        run: |
+          php artisan test --filter=MysqlMoneyPath | tee test-output.txt
+          if grep -qi 'skipped:' test-output.txt; then
+            echo "Tests were skipped instead of executed. Failing."
+            exit 1
+          fi

@@ -430,6 +430,87 @@ The one hard rule stands regardless of bucket: nothing in this investigation ref
 edits or deletes anything. It only sorts the four rows into the buckets above so the
 post-deploy work has a list instead of a surprise.
 
+### 11.6 One-shot privacy-safe C4 summary
+
+Run this single command on the live box. It prints the same four rows in one line each,
+never exposing the full reference, account number, customer name, email or phone. It reports
+attribution as a holder-count case, duplicate-reference counts, a same-wallet/same-amount
+clue, the only definitive check (matching charge identity), and log-line mentions.
+
+```sh
+php artisan tinker --execute='
+use Illuminate\Support\Facades\File;
+$targets = \App\Models\WalletTransaction::query()
+  ->where("type","credit")
+  ->where("channel","like","flutterwave%")
+  ->whereIn("status",["pending","failed"])
+  ->where("created_at",">=",now()->subDays(30))
+  ->orderBy("id")
+  ->get();
+foreach ($targets as $t) {
+  $meta = $t->meta ?? [];
+  $acct = $meta["virtual_account_number"] ?? null;
+  $holders = $acct ? \App\Models\User::where("virtual_account_number",$acct)->pluck("id")->all() : [];
+  $owner = DB::table("wallets")->where("id",$t->wallet_id)->value("user_id");
+  $holderCase = $acct
+    ? (count($holders) === 0
+      ? "0 holders"
+      : (count($holders) > 1
+        ? ">1 holders"
+        : ($holders[0] == $owner ? "1 holder = wallet user" : "1 holder != wallet user")))
+    : "no account stored";
+  $ref = $t->reference ?: null;
+  $dup = 0; $dupStatuses = [];
+  if ($ref) {
+    $rows = DB::table("wallet_transactions")
+      ->where("type","credit")
+      ->where("channel","like","flutterwave%")
+      ->where("reference",$ref)
+      ->select("status")
+      ->get();
+    $dup = $rows->count();
+    $dupStatuses = $rows->pluck("status")->unique()->sort()->values()->all();
+  }
+  $twin = \App\Models\WalletTransaction::query()
+    ->where("wallet_id",$t->wallet_id)
+    ->where("type","credit")
+    ->where("status","success")
+    ->where("amount",$t->amount)
+    ->whereBetween("created_at",[$t->created_at->copy()->subDay(), $t->created_at->copy()->addDay()])
+    ->count();
+  $ids = array_values(array_filter([$meta["flutterwave_charge_id"]??null, $meta["id"]??null, $meta["flw_ref"]??null]));
+  $verified = false;
+  if ($ids !== []) {
+    $successes = \App\Models\WalletTransaction::query()
+      ->where("type","credit")
+      ->where("status","success")
+      ->where("channel","like","flutterwave%")
+      ->where("created_at",">=",now()->subDays(30))
+      ->get();
+    foreach ($successes as $s) {
+      $sm = $s->meta ?? [];
+      $sids = array_values(array_filter([$sm["flutterwave_charge_id"]??null, $sm["id"]??null, $sm["flw_ref"]??null]));
+      foreach ($ids as $id) { if (in_array($id,$sids,true)) { $verified=true; break 3; } }
+    }
+  }
+  $logCount = 0;
+  if ($ref && File::exists(storage_path("logs/laravel.log"))) {
+    foreach (File::lines(storage_path("logs/laravel.log")) as $line) { if (str_contains($line,$ref)) $logCount++; }
+  }
+  $bucket = $verified
+    ? "settled (verified identity)"
+    : ($t->status === "failed"
+      ? (($dup>1 || $twin>0) ? "dashboard-check (clue)" : "manual-reconcile candidate")
+      : "pending-watch");
+  echo "#".$t->id." | ".$t->status." | amount ".$t->amount." | ".round($t->created_at->diffInDays(now(),true),1)."d old | wallet user ".($owner??"?")." | ".$holderCase." | same-ref rows ".$dup." (".implode(",",$dupStatuses).") | same-wallet+amount twin ".$twin." | verified identity match ".($verified?"yes":"no")." | log mentions ".$logCount." | bucket: ".$bucket.PHP_EOL;
+}
+'
+```
+
+Read the output against the buckets in §11.4. `verified identity match = yes` is the only
+result that proves the same Flutterwave charge was already credited; everything else is a
+clue that needs independent evidence.
+
 ### 11.5 What this plan deliberately does not do
 
 - **No Flutterwave call of any kind** - not `deposits:audit` without `--references=0`, no
