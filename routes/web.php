@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\ServiceFormsController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\WalletTransactionsController;
+use App\Http\Controllers\Admin\FundingRequestController;
 use App\Http\Controllers\Admin\HeldDepositController;
 use App\Http\Controllers\Admin\WalletStatsController;
 use App\Http\Controllers\Admin\SupportChatsController;
@@ -160,6 +161,8 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::get('/wallet-deposits/held', [HeldDepositController::class, 'index'])->name('admin.wallet.deposits.held');
     Route::post('/wallet-deposits/held/{deposit}/credit', [HeldDepositController::class, 'credit'])->name('admin.wallet.deposits.held.credit');
     Route::post('/wallet-deposits/held/{deposit}/dismiss', [HeldDepositController::class, 'dismiss'])->name('admin.wallet.deposits.held.dismiss');
+    Route::post('/wallet-requests/{transaction}/mark-settled', [FundingRequestController::class, 'markSettled'])->name('admin.wallet.requests.mark-settled');
+    Route::post('/wallet-requests/{transaction}/unmark-settled', [FundingRequestController::class, 'unmarkSettled'])->name('admin.wallet.requests.unmark-settled');
     Route::get('/wallet-stats', [WalletStatsController::class, 'index'])->name('admin.wallet-stats');
     Route::post('/notifications/read-all', [DashboardController::class, 'markNotificationsRead'])->name('admin.notifications.read-all');
     Route::get('/notifications', [DashboardController::class, 'notificationsIndex'])->name('admin.notifications.index');

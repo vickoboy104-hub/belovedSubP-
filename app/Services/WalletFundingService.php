@@ -106,6 +106,28 @@ class WalletFundingService
                customer other than this wallet's owner, pay nobody and hold it for
                a human to decide. */
             if (!$ownershipApproved) {
+                $dealtWith = $this->chargeDealtWithBefore($lockedWallet, $chargeId, $flutterwaveId, $txRef);
+
+                if ($dealtWith !== null) {
+                    $this->holdUnattributedCharge(
+                        $lockedWallet,
+                        $charge,
+                        $channel,
+                        $via,
+                        [
+                            'ambiguous' => true,
+                            'reason' => $dealtWith['reason'],
+                            'holders' => [(int) $lockedWallet->user_id],
+                        ],
+                        $grossKobo,
+                        $chargeId,
+                        $flutterwaveId,
+                        $txRef
+                    );
+
+                    return 0;
+                }
+
                 $attribution = $this->depositAttribution($lockedWallet, $charge, $txRef);
 
                 if ($attribution['ambiguous']) {
@@ -645,6 +667,78 @@ class WalletFundingService
                 && $txRef !== ''
                 && ((string) $row->reference === $txRef || (string) ($row->meta['tx_ref'] ?? '') === $txRef)
         );
+    }
+
+    /**
+     * Whether this wallet has already dealt with this exact money.
+     *
+     * Two kinds of record answer yes, and they are looked up differently on purpose.
+     *
+     * A request an admin marked as settled by hand is matched on the funding
+     * reference: that is the only handle a manual settlement has, because the money
+     * was moved outside the gateway and left no charge identity behind anywhere. The
+     * cost is honest and bounded - a permanent account repeats one reference, so a
+     * marked request also holds later transfers into that account until an admin
+     * releases or reopens it. Held is the safe side of that trade: the money is
+     * written down, paid to nobody, and one click finishes it.
+     *
+     * A charge that this wallet already saw close as failed is matched only on the
+     * identifiers Flutterwave gives an individual charge. Matching it on the account
+     * number or the funding reference instead would hold every genuine new transfer
+     * into an already-used account behind one old failure.
+     *
+     * @return array{reason:string,transaction_id:int}|null
+     */
+    private function chargeDealtWithBefore(Wallet $wallet, string $chargeId, string $flutterwaveId, string $txRef): ?array
+    {
+        $marked = WalletTransaction::query()
+            ->where('wallet_id', $wallet->id)
+            ->where('type', 'credit')
+            ->where(function ($query) use ($txRef): void {
+                $query->where('meta->manually_settled', true);
+
+                if ($txRef !== '') {
+                    $query->where(function ($inner) use ($txRef): void {
+                        $inner->where('reference', $txRef)->orWhere('meta->tx_ref', $txRef);
+                    });
+                }
+            })
+            ->lockForUpdate()
+            ->orderBy('id')
+            ->first();
+
+        if ($marked) {
+            return ['reason' => 'already_settled_manually', 'transaction_id' => (int) $marked->id];
+        }
+
+        if ($chargeId === '' && $flutterwaveId === '') {
+            return null;
+        }
+
+        $closed = WalletTransaction::query()
+            ->where('wallet_id', $wallet->id)
+            ->where('type', 'credit')
+            ->where('status', 'failed')
+            ->where(function ($query) use ($chargeId, $flutterwaveId): void {
+                if ($chargeId !== '') {
+                    $query->orWhere('meta->flutterwave_charge_id', $chargeId)
+                        ->orWhere('meta->flutterwave_payload.id', $chargeId);
+                }
+                if ($flutterwaveId !== '') {
+                    $query->orWhere('meta->flutterwave_id', $flutterwaveId)
+                        ->orWhere('meta->flw_ref', $flutterwaveId)
+                        ->orWhere('meta->flutterwave_payload.flw_ref', $flutterwaveId);
+                }
+            })
+            ->lockForUpdate()
+            ->orderBy('id')
+            ->first();
+
+        if ($closed) {
+            return ['reason' => 'charge_previously_reported_failed', 'transaction_id' => (int) $closed->id];
+        }
+
+        return null;
     }
 
     /**

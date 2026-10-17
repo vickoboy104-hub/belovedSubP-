@@ -176,6 +176,43 @@ account number and no reference this wallet can claim is not provably ambiguous,
 goes through the ordinary path - which is why making `users.virtual_account_number` unique (a
 data decision for the owner, section 7) is the real end of this problem, not the gate.
 
+### 3c. The gate for money that was already dealt with by hand (added 2026-10-17, owner-approved)
+
+Both gates above answer "has this charge been **banked** before?". Neither can see a manual
+settlement: `Admin/UsersController::fundWallet:176-215` books a credit with channel
+`admin_manual_credit`, reference `ADMINFUND…` and no gateway identity at all, and it takes no
+charge claim. So when a support desk pays a customer for a stuck transfer and the gateway later
+reports that transfer as successful, every existing check reads "not yet paid" and the customer is
+paid a second time. That is the one duplicate-credit path the code review found, and it needed a
+behavior change, which the owner approved on 2026-10-17.
+
+`WalletFundingService::chargeDealtWithBefore()` now runs before the ownership gate and before
+`claimCharge`, and pays nobody in two cases:
+
+- **`already_settled_manually`** - this wallet holds a credit row that an admin marked as settled
+  (`meta.manually_settled`) and the arriving charge names that row's funding reference. The marker
+  is written by `Admin/FundingRequestController` (`POST /admin/wallet-requests/{id}/mark-settled`,
+  and `unmark-settled` to reverse it) with a mandatory note of at least ten characters, under a row
+  lock. **The marking moves no money.**
+- **`charge_previously_reported_failed`** - this wallet already holds a `failed` credit row
+  carrying the same charge identity (`meta.flutterwave_charge_id` / `flutterwave_payload.id` /
+  `flw_ref`). A charge that was once reported failed and now reports success is a historical
+  failure, and the owner's rule is that historical failures are never replayed into a wallet
+  automatically.
+
+Either way the arrival goes to `flutterwave_held_deposits` with its own reason and nobody is paid,
+and because the hold happens **before** `claimCharge` it leaves the global claim free - so the
+admin can release the same held record later through the ordinary path and it pays exactly once.
+Proven by `tests/Feature/FlutterwavePriorSettlementHoldTest.php` (10 tests, 50 assertions),
+including the three the change must not break: a brand-new charge still funds with nobody consulted,
+a second real transfer into a permanent account is still credited even when the first request closed
+as failed, and the check only ever reads this wallet's own rows.
+
+**The trade, stated plainly.** A permanent virtual account repeats its one funding reference, so a
+marked request also holds genuinely new transfers into that account until an admin releases or
+reopens it. Holding was chosen over crediting because a held deposit is written down, visible and
+one click from correct, while a second credit is neither. Ordinary, unmarked funding is untouched.
+
 ## 4. What the sweep looks for, and when it stops
 
 `WalletDepositSync::sweep()` (`app/Console/Commands/WalletDepositSync.php:69`):

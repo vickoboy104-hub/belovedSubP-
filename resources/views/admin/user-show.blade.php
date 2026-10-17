@@ -98,6 +98,7 @@
                                     <th class="p-3 text-left">Status</th>
                                     <th class="p-3 text-left">Channel</th>
                                     <th class="p-3 text-left">Reference</th>
+                                    <th class="p-3 text-left">Settlement</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-200 text-slate-700">
@@ -109,10 +110,37 @@
                                         <td class="p-3">{{ strtoupper($t->status ?? '-') }}</td>
                                         <td class="p-3">{{ $t->channel ?? '-' }}</td>
                                         <td class="table-token p-3 text-xs text-slate-500">{{ $t->reference ?? '-' }}</td>
+                                        <td class="p-3 align-top">
+                                            @php($rowMeta = (array) ($t->meta ?? []))
+                                            @if($t->type === 'credit'
+                                                && str_starts_with((string) $t->channel, 'flutterwave')
+                                                && in_array($t->status, ['pending', 'failed'], true))
+                                                @php($settled = ($rowMeta['manually_settled'] ?? null) === true)
+                                                <details class="max-w-[15rem]">
+                                                    <summary class="cursor-pointer text-xs font-bold {{ $settled ? 'text-emerald-700' : 'text-slate-500' }}">
+                                                        {{ $settled ? 'Settled by hand' : 'Already settled?' }}
+                                                    </summary>
+                                                    <form method="POST"
+                                                          action="{{ route($settled ? 'admin.wallet.requests.unmark-settled' : 'admin.wallet.requests.mark-settled', $t->id) }}"
+                                                          class="mt-2 space-y-2">
+                                                        @csrf
+                                                        <label class="block text-xs text-slate-500">
+                                                            {{ $settled ? 'Why reopen it' : 'Where the customer was paid instead' }}
+                                                            (min 10 characters, kept on the record)
+                                                        </label>
+                                                        <textarea name="note" required minlength="10" maxlength="2000" rows="3"
+                                                                  class="w-full rounded-xl border border-slate-300 p-2 text-sm">{{ $rowMeta['manually_settled_note'] ?? '' }}</textarea>
+                                                        <button type="submit" class="btn-soft text-xs">
+                                                            {{ $settled ? 'Open it again' : 'Mark as settled' }}
+                                                        </button>
+                                                    </form>
+                                                </details>
+                                            @endif
+                                        </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="p-5 text-center text-slate-500">No wallet transactions found.</td>
+                                        <td colspan="7" class="p-5 text-center text-slate-500">No wallet transactions found.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
