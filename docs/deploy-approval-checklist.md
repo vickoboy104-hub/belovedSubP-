@@ -35,7 +35,7 @@ re-investigation.
 | B8 | Saved modes | **PASS** | `provider` = gsubz; NIN = automatic; BVN = automatic (₦160 / ₦80 per answered check - live money) |
 | B9 | Flutterwave credentials | **PASS** | secret key present; secret hash present in Laravel `config()` |
 | B10 | Scheduler | **PASS** | cron every minute; `wallet:sync-deposits` observed executing and completing |
-| B11 | 30-day funding ledger | **PASS** | 36 successful, 1 pending, 3 failed - the §6 baseline the post-deploy audit compares against |
+| B11 | 30-day funding ledger | **PASS** | read 2026-10-16: 36 successful, 1 pending, 3 failed - the §6 baseline the post-deploy audit compares against. Re-read 2026-10-17: **1 pending + 4 failed**; the successful count was not re-read |
 | B12 | Untracked paths | **PASS** | `server.js`, `tmp/` preserved; no collision with the range (preflight §6); never `git clean` |
 
 ## C. Open before GO
@@ -45,22 +45,82 @@ re-investigation.
 | C1 | Credential rotation (checklist §0.4) | **FAIL until done** | owner rotates GitHub, cPanel, FTP, DB, GSUBZ, ConfirmIdent, Flutterwave, SMTP - the one hard red gate |
 | C2 | Remaining key presences (production-checks §3) | **PASS** | `provider_gsubz_api_key`, `nin_api_key`, `bvn_api_key`, `flutterwave_public_key`, `fixed_account_bvn` all present (owner-read 2026-10-17) |
 | C3 | Log counts (production-checks §8) | **PASS** | Flutterwave webhook 28, `user not found` 7, `held for reconciliation` 0 (owner-read 2026-10-17) |
-| C4 | The 1 pending + 3 failed credits characterized | **PENDING - PLAN READY** | production-checks §11's read-only plan is corrected (same reference / same wallet+amount are clues, not proof; only matching charge identity is proof; old rows are not backfilled into held deposits). §11.6's one-shot command was corrected 2026-10-17: its match loop exited the whole targets loop (`break 3`), truncating the report after the first verified match; it now breaks only the inner loops, and a verified match credited to a **different wallet** buckets as `ownership-review` instead of `settled`. The identical `break 3` defect in §11.2's per-row identity check was fixed the same way. Both corrected commands were then run verbatim as extracted from this document against four synthetic target rows (match in the first row): all four lines printed, one per bucket. The actual ledger output has not been supplied yet, so the per-row buckets in the summary below are still blank. Does not block the deploy by itself once the results are read |
+| C4 | The open Flutterwave credits characterized | **RESULTS IN - RUN 1 NOT DECISIVE** | The owner ran §11.6 read-only on 2026-10-17 over 1 pending + 4 failed rows; the five rows are recorded in the C4 summary below. Run 1 settled none of them, and §11.6 was widened the same day for three reasons: its charge-identity list omitted `flutterwave_id` and the stored `flutterwave_payload`, so a success row written under those names was invisible to it; it printed neither the channel nor the amount unit (`wallet_transactions.amount` is kobo), so a card failure and a bulk-closed virtual-account failure looked identical; and it answered only `yes`/`no`, when the honest answer for a row that never stored an identity is `not determinable`. `tx_ref` and `flutterwave_reference` stay **out** of the proof list, because a permanent virtual account reuses them for every transfer into it (`app/Services/WalletFundingService.php:624-629`). All three §11 commands were then re-proven verbatim as extracted from the document, against seven synthetic open rows and four success rows: all seven lines printed (the first row being a verified match, so the `break 2` rule holds), every bucket appeared, and a row sharing only account-scoped tokens came out as a clue rather than `settled`. Closing C4 needs one more read-only run of §11.6, plus the provider dashboard for any row still `not determinable` - an owner action outside the site, and not part of the deploy. Not a deploy blocker by itself: the new code can only credit a provable owner or hold a new arrival |
 | C5 | MariaDB proof run | **PASS** | Closed 2026-10-17 by the owner-approved GitHub Actions route: a `mariadb:10.6` service container, disposable empty database `vtu_money_tests`, synthetic credentials only, `permissions: contents: read`, workflow fails itself on skips. Run 2 ([38999509204](https://github.com/vickoboy104-hub/belovedSubP-/actions/runs/38999509204), commit `f2cfaa5f`): `MariaDB version: 10.6.28-MariaDB-ubu2204` - the same 10.6.28 the live box reports - driver `mysql`, `Tests: 12 passed (110 assertions)`, zero skips. Run 1 failed on workflow ordering (artisan before `composer install`) and was repaired workflow-only, exactly as pre-authorized; no application code was changed |
 | C6 | ConfirmIdent billing for a failed check | **ADVISORY** | does not block the deploy; every ambiguous NIN lookup costs ₦160 until answered (checklist §9 item 3) |
 
-### C4 summary - the one pending and three failed credits
+### C4 summary - the open Flutterwave credits, owner's read-only live run 2026-10-17
 
-Run the three commands in [production-checks.md](production-checks.md) §11.1, §11.2 and §11.3, then fill this table. Nothing here changes a row; it only records the pre-deploy picture.
+The baseline moved: the 2026-10-16 read was 1 pending + 3 failed, the **2026-10-17 read is 1
+pending + 4 failed** (production-checks §6 and §11). Why the failed count moved is not
+established from the two reads - the 30-day window slides, and nothing here claims a cause.
 
-| Ledger id | Status | Amount | Wallet user | Account holders | Duplicate reference? | Same wallet+amount twin? | Same charge identity success? | Log lines present | Bucket |
-|---|---|---|---|---|---|---|---|---|---|
-| | | | | | | | | | |
-| | | | | | | | | | |
-| | | | | | | | | | |
-| | | | | | | | | | |
+Five rows are open. Nothing about them was resolved by this run; the run is the record of what
+the site's own database and logs can and cannot say. **No row below is evidence that money was
+received, and no row is evidence that money was not received.**
 
-**Bucket meanings.** `settled` = verified charge identity match to a successful row on the **same wallet**, nothing owed. `ownership-review` = verified identity match but the successful credit sits on a **different wallet** - the money was banked, and who owns it is the owner's decision, never the command's. `dashboard-check` = a strong clue (same reference or same wallet+amount within a day) but no proven identity; the owner checks the Flutterwave dashboard. `manual-reconcile` = failed, no proven match and no strong clue; if the dashboard shows the charge completed, resolve after deploy by ordinary admin credit with an audit note (not through Held Deposits, which does not backfill old rows). `pending-watch` = still pending with no proven match; post-deploy audit re-run decides it, and the new code can only credit a provable owner or hold a **new** arrival.
+| Ledger id | Status | Amount as reported | Wallet user | Same wallet+amount success? | Verified charge identity? | Log mentions | Bucket under the widened rules | What is still open |
+|---|---|---|---|---|---|---|---|---|
+| 4801 | failed | ₦500 (unit unconfirmed - see below) | 4 | **yes, 1** | not determinable (run 1's key list) | not quoted | `dashboard-check (clue)` | Is the success row this charge, or a separate retry by the same customer? Only a shared charge-scoped identity says "same money" |
+| 4846 | failed | ₦1,500 (unit unconfirmed) | 4 | no | not determinable (run 1's key list) | 2 | `not determinable locally` or `manual-reconcile candidate`, depending on whether the row stores a charge-scoped token - run 1 did not print that | What the 2 log lines actually say (§11.3, read-only); then the provider dashboard |
+| 5013 | **pending** | ₦1,000 (unit unconfirmed) | 112 | no | not determinable (run 1's key list) | not quoted | `pending-watch` | The account number on the row has **no holder today**, so a new arrival there becomes a held deposit, not a credit. Whether the sweep ever got an answer for this reference is a separate question (§11 note below) |
+| 5055 | failed | ₦10,000 (unit unconfirmed) | 154 | no | not determinable (run 1's key list) | 1 | as 4846 | log line content, then the provider dashboard |
+| 5064 | failed | ₦100,000 (unit unconfirmed) | 154 | no | not determinable (run 1's key list) | 0 | `not determinable locally` (no clue of any kind) | provider dashboard only - the site has nothing left to ask |
+
+Three distinct customers are involved: wallet users **4** (two rows), **112** (one) and **154**
+(two, and the two largest figures). No row was credited by this investigation, no refund was
+made, nothing was edited, and no provider call was made.
+
+**Why run 1 could not settle any row, and what run 2 fixes.** Run 1's command was corrected for
+its loop bug on 2026-10-17 but still compared only `flutterwave_charge_id`, `id` and `flw_ref`.
+The arrival code also writes `flutterwave_id` and stores the charge payload, whose `id` and
+`flw_ref` sit **inside** `meta.flutterwave_payload`
+(`app/Services/WalletFundingService.php:151-170`, compared at `:654-689`). A success row written
+under those names was therefore invisible to run 1: its `no verified match` was partly an
+artifact of the key list, not a finding about the money. Run 1 also printed neither the
+**channel** nor the unit of the amount, and a `failed` row on `flutterwave` (a card attempt the
+customer abandoned, rejected by the callback, or rejected by the site's own checks) is a
+different event from a `failed` row on `flutterwave_virtual_account`, most of which the site
+writes in bulk when a customer asks for a new account number
+(`app/Http/Controllers/VirtualAccountController.php:311-318`) or 60 minutes after Flutterwave
+answered "no transfer" (`app/Services/WalletDepositSync.php:270-280`).
+
+**The amount unit is unresolved and matters.** `wallet_transactions.amount` is **kobo**
+(`database/migrations/2026_01_14_190722_create_wallet_transactions_table.php:19`) and the funding
+minimum is ₦100 (`app/Http/Controllers/FlutterwaveController.php:26`). The five figures above are
+quoted as the owner reported them; whether each was read from the raw column or after dividing by
+100 is not established by the report text, so none of them is written here as a confirmed naira
+value. §11.1 and §11.6 now print `kobo 150000 = N1,500.00` on every line so run 2 cannot be
+ambiguous. A release document should not quote any of these figures as money until then.
+
+**Run 2 - what to do, and what it can decide.** Re-run §11.6's one command (read-only, no
+provider call, no write). It now prints channel, both amount units, whether the sweep is still
+asking, holder attribution, three kinds of clue, and a three-state identity verdict:
+`yes` / `no (N checked)` / `not determinable`. It can close a row as **settled** (same-wallet
+verified identity) or route it to **ownership-review** (verified identity credited elsewhere). It
+cannot turn a `not determinable` row into a settled row - for those, the only remaining evidence
+is the provider's own dashboard, which is an owner action outside the site and is not part of the
+deploy.
+
+**Bucket meanings.** `settled` = verified charge-scoped identity match to a successful row on the
+**same wallet**, nothing owed. `ownership-review` = verified identity match but the successful
+credit sits on a **different wallet** - the money was banked, and who owns it is the owner's
+decision, never the command's. `dashboard-check (clue)` = a clue (same reference, same
+wallet+amount within a day, same account number + amount, or a success sharing the row's
+**account-scoped** `tx_ref`/`flutterwave_reference`) but no proven identity; the owner checks the
+Flutterwave dashboard. `manual-reconcile candidate` = failed, the row does carry its own
+charge-scoped identity, and no success row has it - the strongest negative the local records can
+give; if the dashboard shows the charge completed, resolve after deploy by ordinary admin credit
+with an audit note (not through Held Deposits, which does not backfill old rows). `not
+determinable locally` = failed and the row never stored a charge identity, so the site can neither
+prove nor disprove an arrival; **this is not a finding that nothing is owed**. `pending-watch` =
+still pending; post-deploy audit re-run decides it, and the new code can only credit a provable
+owner or hold a **new** arrival.
+
+Account-scoped tokens are never treated as proof anywhere in this plan: a permanent virtual
+account is issued once and every later transfer into it carries the same `tx_ref` and gateway
+`reference` (`app/Services/WalletFundingService.php:624-629`), so matching them would call a
+customer's second payment a replay of their first.
 
 ## D. The deploy, executed as written (deploy-checklist.md owns every block)
 
@@ -73,16 +133,18 @@ Run the three commands in [production-checks.md](production-checks.md) §11.1, �
 | 4 | Review + migrate §1.3 | `migrate:status` shows exactly seven Pending; `--pretend` read against preflight §2 (five `create table`, two `alter table orders`; the backfills are PHP logic and do not appear); `migrate --force` leaves seven `Ran`; `flutterwave_charge_claims` count > 0 - roughly B11's 36 successful rows expected, greater than zero required |
 | 5 | Docroot §3 | copy loop prints nothing new to copy - nothing outside `build/` changed under `public/` this range |
 | 6 | Finish §4 | `optimize`, then `up`; `/settings` answers 302, `/up` answers 200 |
-| 7 | Smoke §7.1-§7.9 | every row PASS - including 7.8's exactly three schedule jobs and 7.9's offline audit matching B11's baseline (36 / 1 / 3) |
+| 7 | Smoke §7.1-§7.9 | every row PASS - including 7.8's exactly three schedule jobs and 7.9's offline audit matching the B11 baseline read **immediately before the window opens** (2026-10-17 read: 1 pending + 4 failed; the successful count was last read as 36 on 2026-10-16 and has not been re-read) |
 
 ## E. The decision rule
 
 **GO requires, all at once:** every row of A and B PASS (already true as of 2026-10-17);
 C1 done; C2 and C3 answered and acceptable; C5 closed - **closed 2026-10-17**: the MariaDB
 run executed on GitHub Actions (`mariadb:10.6` service container) and passed, 12 tests /
-110 assertions / zero skips, on the same 10.6.28 the live box reports (row C5); C4's results
-read and the pending row's disposition
-understood; and the owner's explicit go-ahead. Anything less is **NO-GO**, and the response is
+110 assertions / zero skips, on the same 10.6.28 the live box reports (row C5); C4 read once
+more with the widened §11.6 command and the disposition of every open row understood - which
+for a row that comes back `not determinable` means recorded as an owner-reconciliation item
+with its bucket, not silently treated as nothing owed; and the owner's explicit go-ahead.
+Anything less is **NO-GO**, and the response is
 this document plus checklist §10 (rollback) - never an improvised fix on the box.
 
 ## What this checklist deliberately does not do
@@ -90,7 +152,7 @@ this document plus checklist §10 (rollback) - never an improvised fix on the bo
 - **Re-ask anything in section B.** Those rows are closed with the owner's own readings;
   the standing instruction to stop requesting completed hosting checks is honoured here.
 - **No provider calls, no test payments, no refunds or credits, no live row edits.** The
-  investigation of the four ledger rows is production-checks §11, read-only by
+  investigation of the open ledger rows is production-checks §11, read-only by
   construction, and its resolution paths run after the deploy through the screens and
   sweeps the code provides.
 - **No new feature work.** This document is the end of the milestone, not the start of

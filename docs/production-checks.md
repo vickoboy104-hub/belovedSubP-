@@ -39,7 +39,7 @@ Recorded so nobody re-asks them. Section references show where each question was
 | Flutterwave secret key | present |
 | Flutterwave secret hash in `config()` | present - the cached-config failure mode in §3 does not apply |
 | `wallet:sync-deposits` | observed executing and completing |
-| 30-day Flutterwave credits | 36 successful, 1 pending, 3 failed (§6's baseline) |
+| 30-day Flutterwave credits | read 2026-10-16: 36 successful, 1 pending, 3 failed (§6's baseline). Re-read 2026-10-17: **1 pending + 4 failed** (§11); the successful count was not re-read |
 | New migrations | not installed yet - expected before the deploy (§5) |
 | PHP (CLI) | 8.3.35 |
 
@@ -218,8 +218,15 @@ last month is not something the new code can silently repair.
 
 **The baseline is in (2026-10-16): 36 successful, 1 pending, 3 failed in the last 30
 days.** The post-deploy audit compares against exactly these three numbers, and §11
-characterizes the one pending and three failed rows now, so their future is a decision
+characterizes the pending and failed rows now, so their future is a decision
 rather than a surprise.
+
+**Re-read by the owner on 2026-10-17: 1 pending and 4 failed.** One more failed row is in the
+open set than on 2026-10-16. Why is not established from these two reads alone - the 30-day
+window slides, so a new request may have failed, or an older failed row may have aged out while
+another aged in; nothing here claims a cause. The successful count for the current window was
+not re-read, so the "36 successful" half of the baseline is still the 2026-10-16 figure. The
+five open rows are recorded per row in §11 and in `deploy-approval-checklist.md`'s C4 summary.
 
 Two follow-up counts, both read-only, and both expected to fail before the deploy:
 
@@ -289,12 +296,13 @@ counts.
 
 ## 10. Report back in this shape
 
-Thirteen rows, and §0's recorded answers now cover all but two of them in full - the key
-presences (§3, answered for `flutterwave_secret_key` and the hash pair, open for the other
-four plus `fixed_account_bvn`) and the audit totals (§6's status counts are in: 36 / 1 / 3;
-the pending and failed rows' characterization is §11). What is still worth reporting is the
-small open set and nothing else: §3's remaining key presences, §8's four log counts, and
-§11's results.
+Thirteen rows. As of 2026-10-17 every one of them has an owner-supplied answer, recorded in §0
+and in `deploy-approval-checklist.md`'s sections B and C: the key presences (§3) are all present,
+§8's log counts are in (webhook 28, `user not found` 7, `held for reconciliation` 0), and §6's
+status counts were read 2026-10-16 as 36 / 1 / 3 and re-read 2026-10-17 as **1 pending + 4
+failed** (the successful count was not re-read). What is left is not a hosting question: it is
+§11's characterization of those five open rows, and for any row §11.6 still calls `not
+determinable`, the provider dashboard - which is the owner's action, not the site's.
 
 | Check | Answer |
 |---|---|
@@ -314,26 +322,43 @@ small open set and nothing else: §3's remaining key presences, §8's four log c
 
 Those thirteen answers are what turns "the code is ready" into "the deployment is a decision".
 
-## 11. The one pending and three failed Flutterwave credits - a read-only investigation
+## 11. The pending and failed Flutterwave credits - a read-only investigation
 
-The 30-day baseline (§6) is 36 successful, 1 pending, 3 failed. The successful 36 are
-history; the other four are the rows an owner eventually has to think about. This plan
-characterizes them **without asking Flutterwave anything, and without refunding, crediting
-or editing a single row** - local database reads and log reads only. Run it before the
+The 30-day baseline (§6, read 2026-10-16) was 36 successful, 1 pending, 3 failed. The owner's
+re-read on **2026-10-17** gives **1 pending and 4 failed**: the open set is now **five** rows -
+ledger ids #4801, #4846, #5013, #5055, #5064 - and their per-row record is in
+`docs/deploy-approval-checklist.md`, section "C4 summary". The successful-row count for the
+current window was **not** re-read, so nothing below claims a number for it; the 36 is history
+either way. Because the open set changed, the two commands that classify it were widened and
+re-proven the same day (§11.2 and §11.6) - the first live run exposed that its identity-token
+list was narrower than what the funding code writes. This plan characterizes the rows
+**without asking Flutterwave anything, and without refunding, crediting or editing a single
+row** - local database reads and log reads only. Run it before the
 deploy; nothing in it changes anything, and its output is the pre-deploy picture the
 post-deploy audit gets compared against. This is approval row C4, and it answers three
-questions for each of the four rows: is the reference a duplicate, is there a previous
+questions for each open row: is the reference a duplicate, is there a previous
 successful payment that already settled the same money, and does the row need manual
 reconciliation once the new code is live.
 
 Nothing here prints an account number or a secret: rows are identified by ledger id, and
 attribution is reported as user-id counts.
 
-### 11.1 List the four rows with their attribution facts
+### 11.1 List the open rows with their attribution facts
 
 ```sh
-php artisan tinker --execute='foreach (\App\Models\WalletTransaction::query()->where("type","credit")->where("channel","like","flutterwave%")->whereIn("status",["pending","failed"])->where("created_at",">=",now()->subDays(30))->orderBy("id")->get() as $t) { $meta = $t->meta ?? []; $acct = $meta["virtual_account_number"] ?? null; $holders = $acct ? \App\Models\User::where("virtual_account_number",$acct)->pluck("id")->all() : []; $owner = DB::table("wallets")->where("id",$t->wallet_id)->value("user_id"); echo "#".$t->id." | ".$t->status." | amount ".$t->amount." | ".$t->created_at->format("Y-m-d H:i")." | ref ".($t->reference ?: "-")." | wallet user ".($owner ?? "?")." | meta keys: ".implode(",", array_keys($meta))." | account-number holders: ".($acct ? (count($holders) === 0 ? "none" : implode(",", $holders)) : "not stored").PHP_EOL; }'
+php artisan tinker --execute='foreach (\App\Models\WalletTransaction::query()->where("type","credit")->where("channel","like","flutterwave%")->whereIn("status",["pending","failed"])->where("created_at",">=",now()->subDays(30))->orderBy("id")->get() as $t) { $meta = (array) ($t->meta ?? []); $acct = trim((string) ($meta["virtual_account_number"] ?? "")); $holders = $acct !== "" ? \App\Models\User::where("virtual_account_number",$acct)->pluck("id")->all() : []; $owner = DB::table("wallets")->where("id",$t->wallet_id)->value("user_id"); echo "#".$t->id." | ".$t->status." | ".($t->channel ?: "-")." | kobo ".$t->amount." = ".number_format(((int) $t->amount) / 100, 2, ".", ",")." N | ".$t->created_at->format("Y-m-d H:i")." | ref ".($t->reference ?: "-")." | wallet user ".($owner ?? "?")." | meta keys: ".implode(",", array_keys($meta))." | account-number holders: ".($acct === "" ? "not stored" : ($holders === [] ? "none" : implode(",", $holders))).PHP_EOL; }'
 ```
+
+The channel is printed because two very different failures share the word `failed`: a card
+checkout that the customer abandoned or that the gateway rejected
+(`flutterwave`, `app/Http/Controllers/FlutterwaveController.php:162-191`), and a virtual-account
+request that the site itself closes out in bulk - every pending transfer row on a wallet is
+marked failed the moment the customer asks for a new account number
+(`flutterwave_virtual_account`, `app/Http/Controllers/VirtualAccountController.php:311-318`), and
+again 60 minutes after Flutterwave answered "no transfer"
+(`app/Services/WalletDepositSync.php:270-280`). The amount is printed in kobo **with** the naira
+figure, for the same reason as §11.6. `meta keys` names the metadata fields without printing any
+value, which is how you can see at a glance whether the row ever had a gateway identity to match.
 
 Read each line against three cases:
 
@@ -344,22 +369,25 @@ Read each line against three cases:
 - **2+ holders, or 1 holder that is a different user** - ambiguous or wrong-wallet:
   post-deploy, exactly the case the held-deposits screen exists for.
 
-### 11.2 Has any of the four references been seen again?
+### 11.2 Could the same money have been credited a second time?
 
-A failed row followed by a successful row on the same reference is a **strong clue** that a
-retry worked, but it is **not proof** the same Flutterwave charge was paid - two different
-transfers can share a reference. Only a matching charge identity (see below) is proof. Two
-successful rows on one reference would be a pre-guard double payment, which the 2026-10-16
-measurement says the old code could produce:
+`wallet_transactions.reference` carries a UNIQUE index
+(`database/migrations/2026_01_14_190722_create_wallet_transactions_table.php:20`), so two rows
+cannot share one at all. That makes this first query a **schema-integrity probe** rather than a
+payment clue: an empty answer is what the index guarantees, and a non-empty answer would mean
+the live table is missing the index - which would widen the double-payment question far beyond
+what this document assumes, and would be reported to the owner before anything else.
 
 ```sh
 php artisan tinker --execute='echo json_encode(DB::table("wallet_transactions")->selectRaw("reference, group_concat(distinct status) as statuses, count(*) as rows_total")->where("channel","like","flutterwave%")->where("type","credit")->whereNotNull("reference")->where("reference","<>","")->groupBy("reference")->havingRaw("count(*) > 1")->get(), JSON_PRETTY_PRINT); echo PHP_EOL;'
 ```
 
-An empty answer is the quiet one: every reference appears exactly once.
+An empty answer says the index is doing its job. It says nothing about whether a customer was
+paid for twice, because a successful retry is written under a **new** reference - which is what
+the two checks below exist for.
 
 A retry can also succeed under a **new** reference, which no reference-grouped query can see.
-For each of the four rows, count same-wallet, same-amount **successful** credits within a day
+For each open row, count same-wallet, same-amount **successful** credits within a day
 either side - a previous-successful-payment **clue**:
 
 ```sh
@@ -370,18 +398,60 @@ A nonzero answer is a clue that a retry may have paid the same customer, but it 
 proof - two unrelated transfers can share a wallet and amount. Verify charge identity before
 classifying the row as settled.
 
-The **definitive** previous-payment check compares the Flutterwave charge identity tokens
-stored in `meta` (`flutterwave_charge_id`, `id`, `flw_ref`) against every successful credit
-in the same window. This command prints only `yes` or `no` and never exposes the tokens.
-A match exits only the two inner loops (`break 2`), never the loop over the target rows, so
-each of the four rows always gets its own line:
+The **definitive** previous-payment check compares the **charge-scoped** gateway identity
+tokens stored in `meta` against every successful credit in the same window -
+`flutterwave_charge_id`, `flutterwave_id`, `flw_ref`, legacy `id`, and the same fields inside the
+stored `flutterwave_payload`. The original three-key version could not see a success row written
+under `flutterwave_id` or under the payload, which is most of what the arrival code stores
+(`app/Services/WalletFundingService.php:151-170`). `tx_ref` and `flutterwave_reference` are
+deliberately excluded: a permanent virtual account reuses them for every transfer into it, so
+matching them would call two different charges the same money (§11.6 explains, with the code's
+own comment at `app/Services/WalletFundingService.php:624-629`). This command prints only counts
+and verdicts, never the tokens. A match exits only the two inner loops (`break 2`), never the
+loop over the target rows, so each row always gets its own line:
 
 ```sh
-php artisan tinker --execute='foreach (\App\Models\WalletTransaction::query()->where("type","credit")->where("channel","like","flutterwave%")->whereIn("status",["pending","failed"])->where("created_at",">=",now()->subDays(30))->orderBy("id")->get() as $t) { $m = $t->meta ?? []; $ids = array_values(array_filter([$m["flutterwave_charge_id"] ?? null, $m["id"] ?? null, $m["flw_ref"] ?? null])); $match = false; if ($ids !== []) { $successes = \App\Models\WalletTransaction::query()->where("type","credit")->where("status","success")->where("channel","like","flutterwave%")->where("created_at",">=",now()->subDays(30))->get(); foreach ($successes as $s) { $sm = $s->meta ?? []; $sids = array_values(array_filter([$sm["flutterwave_charge_id"] ?? null, $sm["id"] ?? null, $sm["flw_ref"] ?? null])); foreach ($ids as $id) { if (in_array($id, $sids, true)) { $match = true; break 2; } } } } echo "#".$t->id." (".$t->status."): same-charge-identity success exists: ".($match ? "yes" : "no").PHP_EOL; }'
+php artisan tinker --execute='
+$keys = ["flutterwave_charge_id","flutterwave_id","flw_ref","id"];
+$payloadKeys = ["id","flw_ref"];
+$tokens = static function (mixed $meta) use ($keys, $payloadKeys): array {
+  $meta = (array) $meta;
+  $payload = (array) ($meta["flutterwave_payload"] ?? []);
+  $out = [];
+  foreach ($keys as $key) {
+    $value = $meta[$key] ?? null;
+    if (is_scalar($value) && trim((string) $value) !== "") { $out[] = trim((string) $value); }
+  }
+  foreach ($payloadKeys as $key) {
+    $value = $payload[$key] ?? null;
+    if (is_scalar($value) && trim((string) $value) !== "") { $out[] = trim((string) $value); }
+  }
+  return array_values(array_unique($out));
+};
+$successes = \App\Models\WalletTransaction::query()
+  ->where("type","credit")
+  ->where("status","success")
+  ->where("channel","like","flutterwave%")
+  ->where("created_at",">=",now()->subDays(30))
+  ->get();
+foreach (\App\Models\WalletTransaction::query()->where("type","credit")->where("channel","like","flutterwave%")->whereIn("status",["pending","failed"])->where("created_at",">=",now()->subDays(30))->orderBy("id")->get() as $t) {
+  $ids = $tokens($t->meta ?? []);
+  $verdict = $ids === [] ? "not determinable (row stores no charge identity)" : "no (".count($ids)." checked, none credited)";
+  foreach ($successes as $s) {
+    $sids = $tokens($s->meta ?? []);
+    foreach ($ids as $id) {
+      if (in_array($id,$sids,true)) { $verdict = "yes"; break 2; }
+    }
+  }
+  echo "#".$t->id." (".$t->status.", ".($t->channel ?: "-").", kobo ".$t->amount."): same-charge-identity success exists: ".$verdict.PHP_EOL;
+}'
 ```
 
-`yes` here is the only result that proves the same charge was already credited; everything
-else is a clue that needs independent evidence.
+`yes` here is the only result that proves the same charge was already credited. `no (N checked)`
+is a real negative for that exact charge within the window. `not determinable` says nothing
+about the money at all - it says the row was written before any charge identity existed to
+store, which is the normal shape of every card-callback failure and every virtual-account
+funding request (§11.6 explains why, with the line references).
 
 ### 11.3 What the site itself said at the time - logs, not the provider
 
@@ -393,18 +463,37 @@ grep -c '<reference-from-11.1>' storage/logs/laravel.log
 grep '<reference-from-11.1>' storage/logs/laravel.log | tail -5
 ```
 
-How to read it: a `failed` credit row is the ledger's record that the deposit did not
-complete - no balance ever moved. A still-`pending` row has been swept and stayed
-unresolved, which is either a transfer that has not arrived or one that arrived and could
-not be attributed.
+How to read it: a `failed` credit row is the site's own record that **this request** did not
+complete. It is not a record about the money. A failed row does **not** prove money was
+received (the branch that writes it can be driven by the customer's browser, or by a gateway
+lookup that never returned a verdict - `app/Http/Controllers/FlutterwaveController.php:162-181`),
+and it equally does **not** prove money was not received: when a charge arrives for a request
+row that is already `failed`, the funding code adopts only `pending` or `success` rows
+(`app/Services/WalletFundingService.php:643-647`), so the money is banked under a **brand-new
+success row with a different reference** (`:180-189`) and the failed request stays failed
+forever. A still-`pending` row has either not been swept, or been swept and stayed
+unattributable - a transfer that has not arrived, or one that arrived and could not be
+attached to an owner. **Do not read `pending` as "the sweep asked and nothing was there."** The
+sweep is deliberately small: up to 10 customers per run (`sweep(int $limit = 10)`), up to 8
+references and 12 charges per customer, and a per-customer throttle on top
+(`app/Services/WalletDepositSync.php:30-33`, `:69`, `:322`, `:385`, `:190-195`). A pending row
+turns to `failed` only when the gateway actually answered "nothing on this reference" **and** the
+row is older than 60 minutes (`:264-280`), so a pending row can simply be starved by those caps
+rather than resolved. Whether a given pending reference was ever answered is therefore not
+knowable from the ledger - and the sweep now runs from a cron every minute (verified 2026-10-16,
+§4), so an old pending row has had many chances, not none.
 
 ### 11.4 Which rows become manual reconciliation candidates
 
 Read 11.1's attribution case, 11.2's three checks and 11.3's log lines together. The rule is:
-only a **verified charge identity** (matching `flutterwave_charge_id`, `id` or `flw_ref`
-between two rows) is proof that the same Flutterwave charge was paid. Same reference or same
-wallet+amount is a clue, not proof - two different charges can share a reference typo or the
-same amount.
+only a **verified charge identity** is proof that the same Flutterwave charge was paid - the
+charge-scoped gateway tokens (`flutterwave_charge_id`, `flutterwave_id`, `flw_ref`, legacy `id`,
+and the same fields inside the stored `flutterwave_payload`; see
+`app/Services/WalletFundingService.php:654-689`). `tx_ref` and `flutterwave_reference` are
+**account**-scoped: a permanent virtual account reuses them for every transfer, so they are
+clues, never proof. Same reference, same wallet+amount or same account+amount is a clue too -
+two different charges can share a reference typo, the same amount, or the same ever-present
+virtual account number.
 
 Also: migration `2026_10_16_000002_create_flutterwave_held_deposits_table` is forward-only and
 does **not** backfill old `pending` or `failed` rows. So an old failed deposit will **not**
@@ -412,42 +501,138 @@ automatically appear in Admin → Held Deposits after the deploy. The held-depos
 for **new** ambiguous arrivals; old rows are resolved through ordinary admin credit with an
 audit note, not through that screen.
 
-With that, each of the four rows lands in one bucket:
+With that, each row lands in one bucket:
 
 - **Verified charge identity match to a successful row** - the same Flutterwave charge was
   already credited. If that credit sits on the **same wallet**, nothing is owed; annotate
   only. If it sits on a **different wallet**, the money was banked but who owns it is an
   ownership decision - flag for review, do not label the row settled.
-- **No verified identity match, but a strong clue** (same reference, or same wallet+amount
-  within a day) - flag for the owner to check the Flutterwave dashboard. It is **not** closed.
-- **Failed, no verified match and no strong clue** - no balance ever moved. Whether
-  Flutterwave is holding the money is a dashboard question, not a site API question. If the
-  dashboard shows the charge completed, the row is a **manual reconciliation candidate**:
-  resolve after the deploy through an ordinary manual credit with an audit note - never a
-  hand-written SQL fix, never during the deploy itself, and not through the held-deposits
-  screen (old rows are not backfilled there).
-- **Pending, no verified match** - swept repeatedly and still unresolved: either the transfer
-  never completed (nothing owed) or it arrived unattributed, which the old code drops quietly.
-  Post-deploy, §6's audit re-run answers it: the new code can only credit a provable owner or
-  hold a **new** arrival for an admin. An old pending row is not backfilled into held deposits.
+- **No verified identity match, but a clue** (same reference, same wallet+amount within a day,
+  a same-account+amount success, or a success sharing the row's account-scoped gateway
+  reference) - `dashboard-check (clue)`. Flag for the owner to check the Flutterwave dashboard.
+  It is **not** closed.
+- **Failed, carrying its own charge-scoped identity, and no success row has it** -
+  `manual-reconcile candidate`. This is the strongest negative the local records can give: the
+  charge was looked for by name and is not on record as credited. Whether Flutterwave is holding
+  the money is
+  still a dashboard question, not a site API question. If the dashboard shows the charge
+  completed, resolve after the deploy through an ordinary manual credit with an audit note -
+  never a hand-written SQL fix, never during the deploy itself, and not through the
+  held-deposits screen (old rows are not backfilled there).
+- **Failed, and the row stores no charge-scoped identity at all** - `not determinable locally`.
+  The old code never persisted a verdict for this request, so the site's records can neither
+  prove nor disprove an arrival, and a later transfer for the same money may have been banked
+  under a different reference (§11.3). Only the provider's own dashboard can settle it. Do **not**
+  read this bucket as "nothing was owed".
+- **Pending, no verified match** - swept (or not yet swept) and still unresolved: either the
+  transfer never completed (nothing owed) or it arrived unattributed, which the old code drops
+  quietly. Post-deploy, §6's audit re-run answers it: the new code can only credit a provable
+  owner or hold a **new** arrival for an admin. An old pending row is not backfilled into held
+  deposits.
 
 The one hard rule stands regardless of bucket: nothing in this investigation refunds, credits,
-edits or deletes anything. It only sorts the four rows into the buckets above so the
+edits or deletes anything. It only sorts the open rows into the buckets above so the
 post-deploy work has a list instead of a surprise.
 
-### 11.6 One-shot privacy-safe C4 summary
+### 11.6 One-shot privacy-safe C4 summary (widened 2026-10-17 after the first live run)
 
-Run this single command on the live box. It prints the same four rows in one line each,
-never exposing the full reference, account number, customer name, email or phone. It reports
-attribution as a holder-count case, duplicate-reference counts, a same-wallet/same-amount
-clue, the only definitive check (matching charge identity), and log-line mentions. A
-verified match whose credit sits on a **different wallet** is bucketed
-`ownership-review`, never `settled`. On a match the two inner loops exit via `break 2` -
-deliberately one level short of the targets loop, so every target row always gets its line.
+Run this single command on the live box. It prints the pending and failed rows in one line
+each, never exposing the full reference, account number, customer name, email or phone. It
+reports the channel, the amount in kobo **and** naira, how long ago the row was created and
+last touched, whether the deposit sweep is still asking about it, attribution as a
+holder-count case plus a coarse count of the customers whose own account metadata mentions
+that account number, what the ledger said when it closed the row out, duplicate-reference
+counts, three clues (same wallet + amount, same account number + amount, same account-scoped
+gateway reference), the definitive charge-identity check, and log-line mentions. A verified
+match whose credit sits on a
+**different wallet** is bucketed `ownership-review`, never `settled`. On a match the two inner
+loops exit via `break 2` - deliberately one level short of the targets loop, so every target
+row always gets its line.
+
+`wallet_transactions.amount` is **kobo**
+(`database/migrations/2026_01_14_190722_create_wallet_transactions_table.php:19`), and the site
+minimum is ₦100 (`app/Http/Controllers/FlutterwaveController.php:26`), so a raw column read is
+100× away from the naira figure. Every line states both, because no row in this report should
+be unit-ambiguous when it is quoted into a release document.
+
+**What the definitive column can and cannot say - and why the first live run could not say it.**
+The first version of this command compared only `flutterwave_charge_id`, `id` and `flw_ref`. The
+arrival code writes more names than that (`app/Services/WalletFundingService.php:151-170`), so a
+success row stored under a key the command never looked at could not be matched, and the
+command's `no` was partly an artifact of its own narrow list rather than a finding about the
+money. The widening also had to separate the two **kinds** of token Flutterwave issues, because
+they do not mean the same thing:
+
+- **Charge-scoped - proof.** `flutterwave_charge_id` (the charge's own `id`), `flutterwave_id`
+  and `flw_ref` (the charge's `flw_ref`), the legacy top-level `id`, and the same two fields
+  inside the stored `flutterwave_payload`. Flutterwave issues one of these to one charge, so two
+  rows sharing one are the same money. These are the names `isSameCharge()` compares
+  (`app/Services/WalletFundingService.php:654-689`).
+- **Account-scoped - clue only.** `tx_ref`, `flutterwave_reference` and the payload's
+  `reference`. A permanent virtual account is issued once and paid into as many times as its
+  owner likes, and the code's own comment records that every one of those transfers carries the
+  single reference the account was created under (`app/Services/WalletFundingService.php:624-629`).
+  Matching on it would call a customer's second payment a replay of their first and could mark
+  an unpaid row `settled`, so it is reported as `same-session(success) N [account-scoped, clue
+  only]` and never as `verified`. Same for a same-account-number + same-amount success
+  (`same account+amount success N`).
+
+With the list corrected, the command also stops pretending one bare `no` is a single answer. It
+now reports three states, and the distinction is the point:
+
+- `yes (credit on wallet user N)` - the same charge **is** on record as credited.
+- `no (N checked, none credited)` - this exact charge was looked for by its own charge-scoped
+  identity and no success row in the window carries it. A real negative, for that window.
+- `not determinable (no charge identity stored)` - the row holds no charge-scoped identity at
+  all, so local records cannot say either way. **This is not evidence that no money arrived.**
+  It is a fact about what the old code persisted: a card funding request stores only amount, fee,
+  email and consent before the gateway is even called
+  (`app/Http/Controllers/FlutterwaveController.php:53-69`), and none of the paths that mark such
+  a row failed ever obtains or stores a charge identity - `:162-165` and `:171-181` do not touch
+  `meta` at all, and `:185-191` adds only a `gateway_response` string, no id
+  (`:162-165` additionally trusts the customer's browser for `status`/`transaction_id`;
+  `:171-181` is the case where the gateway lookup itself failed, so no verdict was ever
+  obtained). A virtual-account funding request stores its `tx_ref` and account number
+  and nothing gateway-issued (`app/Http/Controllers/VirtualAccountController.php:323-341`),
+  and the two bulk close-outs (`:311-318` when a customer asks for a new account number,
+  `app/Services/WalletDepositSync.php:270-280` after 60 unanswered minutes) change only
+  `status` and `description`, never `meta`.
 
 ```sh
 php artisan tinker --execute='
 use Illuminate\Support\Facades\File;
+// Charge-scoped tokens: Flutterwave issues these once, per charge, so equality proves
+// the two rows are the same money.
+$proofKeys = ["flutterwave_charge_id","flutterwave_id","flw_ref","id"];
+$proofPayloadKeys = ["id","flw_ref"];
+// Account-scoped tokens: a permanent virtual account carries the same tx_ref / gateway
+// reference for every transfer ever made into it, so these link a session, not a charge.
+$sessionKeys = ["tx_ref","flutterwave_reference"];
+$sessionPayloadKeys = ["reference"];
+$pick = static function (mixed $meta, array $keys, array $payloadKeys): array {
+  $meta = (array) $meta;
+  $payload = (array) ($meta["flutterwave_payload"] ?? []);
+  $out = [];
+  foreach ($keys as $key) {
+    $value = $meta[$key] ?? null;
+    if (is_scalar($value) && trim((string) $value) !== "") { $out[] = trim((string) $value); }
+  }
+  foreach ($payloadKeys as $key) {
+    $value = $payload[$key] ?? null;
+    if (is_scalar($value) && trim((string) $value) !== "") { $out[] = trim((string) $value); }
+  }
+  return array_values(array_unique($out));
+};
+$proof = static fn (mixed $meta): array => $pick($meta, $proofKeys, $proofPayloadKeys);
+$session = static fn (mixed $meta): array => $pick($meta, $sessionKeys, $sessionPayloadKeys);
+$story = static function (?string $text): string {
+  $text = (string) $text;
+  if (str_contains($text,"a new one-time account was generated")) return "closed: a new account number replaced it";
+  if (str_contains($text,"No transfer arrived for this funding request")) return "closed: the sweep asked, no transfer found";
+  if (str_contains($text,"Waiting for a bank transfer")) return "waiting on the account it names";
+  if (str_contains($text,"Wallet funding via")) return "ordinary funding request";
+  return $text === "" ? "no description" : "other wording";
+};
 $targets = \App\Models\WalletTransaction::query()
   ->where("type","credit")
   ->where("channel","like","flutterwave%")
@@ -455,18 +640,27 @@ $targets = \App\Models\WalletTransaction::query()
   ->where("created_at",">=",now()->subDays(30))
   ->orderBy("id")
   ->get();
+$successes = \App\Models\WalletTransaction::query()
+  ->where("type","credit")
+  ->where("status","success")
+  ->where("channel","like","flutterwave%")
+  ->where("created_at",">=",now()->subDays(30))
+  ->get();
 foreach ($targets as $t) {
-  $meta = $t->meta ?? [];
-  $acct = $meta["virtual_account_number"] ?? null;
-  $holders = $acct ? \App\Models\User::where("virtual_account_number",$acct)->pluck("id")->all() : [];
+  $meta = (array) ($t->meta ?? []);
+  $acct = trim((string) ($meta["virtual_account_number"] ?? ""));
+  $holders = $acct !== "" ? \App\Models\User::where("virtual_account_number",$acct)->pluck("id")->all() : [];
   $owner = DB::table("wallets")->where("id",$t->wallet_id)->value("user_id");
-  $holderCase = $acct
-    ? (count($holders) === 0
+  $holderCase = $acct === ""
+    ? "no account stored"
+    : (count($holders) === 0
       ? "0 holders"
       : (count($holders) > 1
         ? ">1 holders"
-        : ($holders[0] == $owner ? "1 holder = wallet user" : "1 holder != wallet user")))
-    : "no account stored";
+        : ($holders[0] == $owner ? "1 holder = wallet user" : "1 holder != wallet user")));
+  $accountMentions = $acct !== ""
+    ? DB::table("users")->whereNotNull("virtual_account_metadata")->where("virtual_account_metadata","like","%".$acct."%")->count()
+    : 0;
   $ref = $t->reference ?: null;
   $dup = 0; $dupStatuses = [];
   if ($ref) {
@@ -486,48 +680,84 @@ foreach ($targets as $t) {
     ->where("amount",$t->amount)
     ->whereBetween("created_at",[$t->created_at->copy()->subDay(), $t->created_at->copy()->addDay()])
     ->count();
-  $ids = array_values(array_filter([$meta["flutterwave_charge_id"]??null, $meta["id"]??null, $meta["flw_ref"]??null]));
-  $verified = false; $matchUserId = null;
-  if ($ids !== []) {
-    $successes = \App\Models\WalletTransaction::query()
-      ->where("type","credit")
-      ->where("status","success")
-      ->where("channel","like","flutterwave%")
-      ->where("created_at",">=",now()->subDays(30))
-      ->get();
+  $acctTwin = 0;
+  if ($acct !== "") {
     foreach ($successes as $s) {
-      $sm = $s->meta ?? [];
-      $sids = array_values(array_filter([$sm["flutterwave_charge_id"]??null, $sm["id"]??null, $sm["flw_ref"]??null]));
-      foreach ($ids as $id) {
-        if (in_array($id,$sids,true)) {
-          $verified = true;
-          $matchUserId = DB::table("wallets")->where("id",$s->wallet_id)->value("user_id");
-          break 2;
-        }
+      $sm = (array) ($s->meta ?? []);
+      if ((int) $s->amount === (int) $t->amount && trim((string) ($sm["virtual_account_number"] ?? "")) === $acct) { $acctTwin++; }
+    }
+  }
+  $ids = $proof($meta);
+  $verified = false; $matchUserId = null;
+  foreach ($successes as $s) {
+    $sids = $proof($s->meta ?? []);
+    foreach ($ids as $id) {
+      if (in_array($id,$sids,true)) {
+        $verified = true;
+        $matchUserId = DB::table("wallets")->where("id",$s->wallet_id)->value("user_id");
+        break 2;
       }
+    }
+  }
+  $linked = $session($meta);
+  $sessionTwin = 0;
+  if ($linked !== []) {
+    foreach ($successes as $s) {
+      if (array_intersect($linked, $session($s->meta ?? [])) !== []) { $sessionTwin++; }
     }
   }
   $logCount = 0;
   if ($ref && File::exists(storage_path("logs/laravel.log"))) {
     foreach (File::lines(storage_path("logs/laravel.log")) as $line) { if (str_contains($line,$ref)) $logCount++; }
   }
-  $bucket = $verified
-    ? ((isset($matchUserId) && $matchUserId == $owner)
+  $naira = number_format(((int) $t->amount) / 100, 2, ".", ",");
+  $age = round($t->created_at->diffInDays(now(),true),1);
+  $touch = round($t->updated_at->diffInDays(now(),true),1);
+  $sweepAsks = ($t->status === "pending" || $touch <= 14) ? "yes" : "no";
+  if ($verified) {
+    $bucket = ($matchUserId !== null && $matchUserId == $owner)
       ? "settled (verified identity, same wallet)"
-      : "ownership-review (verified identity, other wallet)")
-    : ($t->status === "failed"
-      ? (($dup>1 || $twin>0) ? "dashboard-check (clue)" : "manual-reconcile candidate")
-      : "pending-watch");
-  echo "#".$t->id." | ".$t->status." | amount ".$t->amount." | ".round($t->created_at->diffInDays(now(),true),1)."d old | wallet user ".($owner??"?")." | ".$holderCase." | same-ref rows ".$dup." (".implode(",",$dupStatuses).") | same-wallet+amount twin ".$twin." | verified identity match ".($verified?"yes (credit on wallet user ".($matchUserId??"?").")":"no")." | log mentions ".$logCount." | bucket: ".$bucket.PHP_EOL;
+      : "ownership-review (verified identity, other wallet)";
+  } elseif ($t->status === "pending") {
+    $bucket = "pending-watch".($ids === [] ? " (charge identity not on record)" : " (charge identity checked, no match)");
+  } elseif ($dup > 1 || $twin > 0 || $acctTwin > 0 || $sessionTwin > 0) {
+    $bucket = "dashboard-check (clue)";
+  } elseif ($ids === []) {
+    $bucket = "not determinable locally (no charge identity stored, no clue)";
+  } else {
+    $bucket = "manual-reconcile candidate (charge identity checked, no match, no clue)";
+  }
+  echo "#".$t->id
+    ." | ".$t->status
+    ." | ".($t->channel ?: "-")
+    ." | kobo ".$t->amount." = N".$naira
+    ." | ".$age."d old, touched ".$touch."d ago, sweep asks ".$sweepAsks
+    ." | wallet user ".($owner ?? "?")
+    ." | ".$holderCase.($acct !== "" ? " (account named in ".$accountMentions." user record(s), coarse)" : "")
+    ." | said: ".$story($t->description)
+    ." | same-ref rows ".$dup." (".implode(",",$dupStatuses).")"
+    ." | same wallet+amount success ".$twin
+    ." | same account+amount success ".$acctTwin
+    ." | same-session(success) ".$sessionTwin." [account-scoped, clue only]"
+    ." | charge-identity tokens on row ".count($ids)
+    ." | verified identity match ".($verified ? "yes (credit on wallet user ".($matchUserId ?? "?").")" : ($ids === [] ? "not determinable (no charge identity stored)" : "no (".count($ids)." checked, none credited)"))
+    ." | log mentions ".$logCount
+    ." | bucket: ".$bucket
+    .PHP_EOL;
 }
 '
 ```
+
+`same-ref rows` can only exceed 1 if the UNIQUE index on `reference`
+(`2026_01_14_190722_create_wallet_transactions_table.php:20`) is not present on the live table;
+§11.2's group-by query is the authoritative duplicate-reference check either way.
 
 Read the output against the buckets in §11.4. `verified identity match = yes` is the only
 result that proves the same Flutterwave charge was already credited - and the bucket then
 says whether that credit sits on the same wallet (`settled`) or a different one
 (`ownership-review`: the money was banked, but who owns it is the owner's decision, never
-the command's). Everything else is a clue that needs independent evidence.
+the command's). Everything else is a clue or a blank, and a blank (`not determinable`) is
+strictly **not** an answer about whether money arrived.
 
 ### 11.5 What this plan deliberately does not do
 
@@ -535,9 +765,10 @@ the command's). Everything else is a clue that needs independent evidence.
   dashboard lookup, no test payment. Whether the money actually arrived is a question the
   post-deploy sweep and webhook answer as part of normal operation, not something this
   investigation pays to ask.
-- **No refunds, no credits, no row edits, no deletes.** If any of the four turns out to be
-  owed money, the resolution path after the deploy is the held-deposits screen or the
-  ordinary sweep - never a hand-written SQL fix.
+- **No refunds, no credits, no row edits, no deletes.** If any open row turns out to be
+  owed money, the resolution path after the deploy is the ordinary sweep finding a later
+  arrival, or an admin credit with an audit note - never a hand-written SQL fix. Not the
+  held-deposits screen: old rows are not backfilled into it (§11.4).
 - **The pending row does not block the deploy.** The new code is strictly safer for it: it
   can only be credited to a provable owner or held for an admin, never quietly dropped -
   which is what the current code does with a transfer it cannot attribute.
