@@ -18,11 +18,11 @@ Read this whole file before touching the live box. Two rules override everything
 
 | # | Check | How to check | Pass looks like |
 |---|---|---|---|
-| 0.1 | The branch you are deploying is the reviewed one | `git -C /home/beloveds/vtu rev-parse origin/codex/identity-first-jhtech-experience` | `afb3260d54d5e6c58402ed8ba1bb75cdca3c7cbb` or a descendant the owner has read |
+| 0.1 | The branch you are deploying is the reviewed one | `git -C /home/beloveds/vtu rev-parse origin/codex/identity-first-jhtech-experience` | `afb3260d54d5e6c58402ed8ba1bb75cdca3c7cbb` or a descendant the owner has read - currently `8992cbaa0f089e2db7b85ff0bbed01b146709b75`, reviewed and push-approved by name 2026-10-17 |
 | 0.2 | It is a fast-forward from what is live | `git merge-base --is-ancestor <live-HEAD> <new-HEAD>; echo $?` | `0`. If it is not `0`, **stop** and work out why before pulling |
 | 0.3 | The full suite is green on the machine that built it | `php artisan test` | no failures, and the twelve MySQL concurrency tests run somewhere before a money-path change ships (section 9, item 4) |
 | 0.4 | Every credential has been rotated **after** the machine cleaning | owner's list: GitHub, cPanel, FTP, DB, GSUBZ, ConfirmIdent, Flutterwave, SMTP | done. Until it is done this deploy is **not** cleared for production - see section 6 |
-| 0.5 | A database backup exists, verified, outside the docroot | section 1.0's blocks | a gzipped dump under `/home/beloveds/backups/` read back (CREATE TABLE count + completion line) **and restored into a scratch MariaDB database with matching money-table row counts**, its filename recorded beside `last-good-sha.txt` (section 10.0) |
+| 0.5 | A database backup exists, verified, outside the docroot | section 1.0's blocks | a gzipped dump under `/home/beloveds/backups/` whose **dump command exited zero** (1.0's guard deletes the file when it did not - a gzip filename alone never passes), read back with table counts that equal the live schema plus a completion line, **and restored into a scratch MariaDB database with matching money-table row counts**, its filename recorded beside `last-good-sha.txt` (section 10.0) |
 
 ---
 
@@ -35,18 +35,28 @@ This range is the first whose migrations **write data** (two backfills - see
 forbids rolling the database back, so a copy of the database is the only recovery for data
 the range touches. Gate 0.5 checks it happened; this is where it happens.
 
-Written 2026-10-17, not yet exercised on this host - run the availability check first, and
-fall back to cPanel's phpMyAdmin Export (gzip) if the shell refuses:
+Written 2026-10-17, not yet exercised on this host (its failure detection was hardened the
+same day after review) - run the availability check first, and fall back to cPanel's
+phpMyAdmin Export (gzip) if the shell refuses:
 
 ```bash
 cd /home/beloveds/vtu
-command -v mysqldump || echo "no mysqldump in this shell - use cPanel phpMyAdmin Export"
+command -v mysqldump mysql || echo "mysqldump or mysql missing in this shell - use cPanel phpMyAdmin Export"
 mysqldump --version
 ```
 
+**A failed dump must fail loudly.** `mysqldump ... | gzip > file` is not an acceptable command
+here: the pipeline's exit status belongs to gzip, so a mysqldump that dies mid-dump still ends
+the line with exit zero and leaves a small `.sql.gz` file wearing a backup's name - exactly
+the false backup this gate exists to refuse. `set -o pipefail` is not the fix: this shell
+family already rejects `<( ... )`, so it cannot be relied on to support pipefail either. The
+block below therefore never pipes. `mysqldump` writes the plain `.sql` file itself, **its own
+exit status is tested directly**, the partial file is deleted when that status is nonzero,
+and only a dump that exited zero is compressed afterwards.
+
 `mysqldump --version` should answer **MariaDB Dump 10.6.x**: the live engine is MariaDB
 10.6.28 (read 2026-10-16), and the host's own client is the version-matched pairing the
-backup wants. `--single-transaction`, `--routines` and the gzip pipe are long-standing
+backup wants. `--single-transaction`, `--routines` and gzip are long-standing
 MariaDB 10.6 behaviour, and the JSON columns - `LONGTEXT` with `json_valid` checks under
 MariaDB - dump and restore natively between identical engines. The phpMyAdmin fallback is
 cPanel's own MariaDB tool and needs no compatibility argument at all.
@@ -63,41 +73,93 @@ DB_PASS=$(sed -n 's/^DB_PASSWORD=//p' .env | sed 's/^"//;s/"$//')
 mkdir -p /home/beloveds/backups && chmod 700 /home/beloveds/backups
 printf '[client]\nhost=%s\nuser=%s\npassword=%s\n' "$DB_HOST" "$DB_USER" "$DB_PASS" > /home/beloveds/.my.dump.cnf
 chmod 600 /home/beloveds/.my.dump.cnf
-mysqldump --defaults-extra-file=/home/beloveds/.my.dump.cnf --single-transaction --routines "$DB_NAME" \
-  | gzip > "/home/beloveds/backups/predeploy-$(date +%Y%m%d-%H%M).sql.gz"
+BASE="/home/beloveds/backups/predeploy-$(date +%Y%m%d-%H%M)"
+if mysqldump --defaults-extra-file=/home/beloveds/.my.dump.cnf --single-transaction --routines "$DB_NAME" > "$BASE.sql"; then
+  gzip "$BASE.sql" && echo "dump exited zero and is compressed: $BASE.sql.gz"
+else
+  echo "DUMP FAILED - $BASE.sql was partial and has been removed; it is not a backup. Read the error above before doing anything else."
+  rm -f "$BASE.sql"
+fi
 rm -f /home/beloveds/.my.dump.cnf
+[ -e /home/beloveds/.my.dump.cnf ] && echo "credential file still present - remove it now"
 chmod 600 /home/beloveds/backups/predeploy-*.sql.gz
 ls -l /home/beloveds/backups/
 ```
+
+The `rm -f` of the credential file sits **outside** the `if`, so the database password leaves
+the disk whether the dump succeeded or failed; the `[ -e ]` line that follows is its
+verification and prints nothing when the removal worked.
 
 `--single-transaction` takes a consistent snapshot of the InnoDB tables without locking
 them (the four money tables are InnoDB, read on the box 2026-10-16), so the site stays up
 while the dump runs.
 
-**Verify the copy reads back - a backup that has never been read is a hope, not a backup:**
+**Read the copy back - a backup that has never been read is a hope, not a backup.** Two table
+counts, one from the live schema and one from the dump, and the two numbers must be **equal** -
+a dump truncated mid-way loses its tail tables and fails this pair:
 
 ```bash
-zcat /home/beloveds/backups/predeploy-*.sql.gz | grep -c 'CREATE TABLE'
-zcat /home/beloveds/backups/predeploy-*.sql.gz | tail -n 3
+cd /home/beloveds/vtu
+BASE="/home/beloveds/backups/predeploy-YYYYMMDD-HHMM"   # the filename shown by ls -l above, minus .sql.gz
+php artisan tinker --execute="echo 'tables in the live schema: '.DB::select('select count(*) c from information_schema.tables where table_schema = database()')[0]->c.PHP_EOL;"
+zcat "$BASE.sql.gz" | grep -c '^CREATE TABLE'
+zcat "$BASE.sql.gz" | tail -n 3
 ```
 
-The count must not be zero, and the tail must end with the dump's completion line
-(`-- Dump completed`), not stop mid-table; a few-kilobyte file is a failed dump wearing a
-filename. **The stronger check is required for this range, not optional**: a restore into
-a scratch database created for the purpose (cPanel → MySQL Databases), comparing the four
-money tables' row counts against live, then dropping the scratch database at once,
-because it holds a second copy of customer identities. That restore is also the
-MariaDB 10.6 compatibility proof - a dump that comes back up on the same engine with
-matching counts is a verified backup, not a compatible-looking one - and it happens
-**before any live migration runs**: 1.0 sits before 1.1's window, and gate 0.5 fails the
-deploy if it did not happen.
+The tail must end with the dump's completion line (`-- Dump completed`), not stop mid-table. A
+few-kilobyte file is a failed dump wearing a filename - though after the guard above it should
+no longer exist long enough to be mistaken for one.
+
+**The restore is required for this range, not optional, and it is what turns "a dump exists"
+into "a backup is verified".** Create the scratch database first: cPanel → MySQL Databases,
+name it `restore` (cPanel prefixes it to `beloveds_restore`), and attach the live database's
+own user with All Privileges. Then bring the dump back up in it, compare the four money
+tables' row counts against live, and drop the scratch database once the two count lines have
+been read - it holds a second copy of customer identities:
+
+```bash
+cd /home/beloveds/vtu
+BASE="/home/beloveds/backups/predeploy-YYYYMMDD-HHMM"
+DB_HOST=$(sed -n 's/^DB_HOST=//p' .env | sed 's/^"//;s/"$//')
+DB_USER=$(sed -n 's/^DB_USERNAME=//p' .env | sed 's/^"//;s/"$//')
+DB_PASS=$(sed -n 's/^DB_PASSWORD=//p' .env | sed 's/^"//;s/"$//')
+printf '[client]\nhost=%s\nuser=%s\npassword=%s\n' "$DB_HOST" "$DB_USER" "$DB_PASS" > /home/beloveds/.my.dump.cnf
+chmod 600 /home/beloveds/.my.dump.cnf
+gunzip -c "$BASE.sql.gz" > /home/beloveds/backups/restore-check.sql
+if mysql --defaults-extra-file=/home/beloveds/.my.dump.cnf beloveds_restore < /home/beloveds/backups/restore-check.sql; then
+  echo "restore completed into beloveds_restore"
+else
+  echo "RESTORE FAILED - this backup is not proven. Do not continue with the deploy."
+fi
+php artisan tinker --execute="echo 'live: users '.DB::table('users')->count().' | orders '.DB::table('orders')->count().' | wallets '.DB::table('wallets')->count().' | wallet_transactions '.DB::table('wallet_transactions')->count().PHP_EOL;"
+mysql --defaults-extra-file=/home/beloveds/.my.dump.cnf -N -e "SELECT CONCAT('restored: users ', COUNT(*)) FROM beloveds_restore.users UNION ALL SELECT CONCAT('orders ', COUNT(*)) FROM beloveds_restore.orders UNION ALL SELECT CONCAT('wallets ', COUNT(*)) FROM beloveds_restore.wallets UNION ALL SELECT CONCAT('wallet_transactions ', COUNT(*)) FROM beloveds_restore.wallet_transactions;"
+mysql --defaults-extra-file=/home/beloveds/.my.dump.cnf -e "DROP DATABASE beloveds_restore"
+rm -f /home/beloveds/.my.dump.cnf
+[ -e /home/beloveds/.my.dump.cnf ] && echo "credential file still present - remove it now"
+rm -f /home/beloveds/backups/restore-check.sql
+```
+
+The restore reads the file through a redirect rather than a pipe, for the same reason the dump
+does: `mysql`'s own exit status is what the `if` tests. That restore is also the MariaDB 10.6
+compatibility proof - a dump that comes back up on the same engine with matching counts is a
+verified backup, not a compatible-looking one - and it happens **before any live migration
+runs**: 1.0 sits before 1.1's window, and gate 0.5 fails the deploy if it did not happen.
+
+When the two count lines agree, record the filename beside the sha - together they are the
+rollback record (section 10.0):
+
+```bash
+echo "verified backup: $BASE.sql.gz" >> /home/beloveds/last-good-sha.txt
+```
 
 - **Private means outside `public_html`** - `/home/beloveds/backups/` with the permissions
   above; anything under the docroot is web-served.
 - Download a copy off the server before the deploy proceeds.
 - Keep it until the deploy has been stable for a week, then delete it deliberately.
-- Record the filename beside `last-good-sha.txt` (section 10.0) - together they are the
-  rollback record.
+- The plain-text `restore-check.sql` and the scratch database are deleted inside their own
+  block - neither outlives section 1.0.
+- Record the filename beside `last-good-sha.txt` with the final block above, only once the
+  counts agreed - together they are the rollback record.
 
 ### 1.1 Take the site down - the maintenance window opens
 
@@ -458,6 +520,18 @@ Recorded honestly, in the order they should be closed:
    database: that would put live DB credentials on an exposed machine. Documented
    acceptance of the residual risk is the third option, and it is the owner's call -
    tracked as row C5 of the approval checklist.
+   **Owner decision, 2026-10-17: the run happens.** A disposable, empty MariaDB 10.6 outside
+   production, synthetic data only, never the live database or customer records. The
+   development box cannot provide that environment, and this is recorded rather than glossed:
+   no MariaDB distribution exists on it at all (`C:\laragon\bin` ships MySQL only), every
+   other binary under that tree is on the infected list, and installing fresh vendor binaries
+   on an uncleaned machine is what the rule above forbids - so the MySQL 8.4.3 pass is
+   **not** read as MariaDB proof. What closes C5 now: the trusted second machine (pre-deploy),
+   a scratch database on the host (post-deploy only - the suite files themselves do not exist
+   on the box until this range's checkout lands, and a shared-hosting two-process lock test
+   wants a quiet minute; it is production infrastructure, so it counts only if the owner reads
+   "outside production" as including it), or documented acceptance. Until one of those
+   happens, C5 stays open.
 5. **The SparkTech API key** — their `/developer` surface is gated per account and a User
    login is told to contact support. Not our code; needs the owner to ask them.
 6. **None of 8.2's protection exists on the live site until this checklist is run.** The Mock

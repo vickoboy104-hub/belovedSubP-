@@ -14,9 +14,9 @@ re-investigation.
 
 | # | Row | State | Evidence |
 |---|---|---|---|
-| A1 | Deploy target is the reviewed branch head | **PASS** | remote `4daaaee936926bbcf119577fbbb134ff33e4d44c`, ls-remote verified 2026-10-17; any later commit re-pins checklist §0.1 by sha |
-| A2 | Fast-forward from what is live | **PASS** | `0935a7f7..4daaaee9` linear; `merge-base --is-ancestor` exits 0 |
-| A3 | Range content known and reviewed | **PASS** | 31 commits (29 runtime + 2 documentation-only), 116 files, +17,793 / −640, re-measured 2026-10-17; the runtime content is [deploy-preflight.md](deploy-preflight.md)'s 29-commit review |
+| A1 | Deploy target is the reviewed branch head | **PASS** | remote `8992cbaa0f089e2db7b85ff0bbed01b146709b75`, ls-remote verified 2026-10-17 (pushed under the owner's per-batch approval); any later commit re-pins checklist §0.1 by sha |
+| A2 | Fast-forward from what is live | **PASS** | `0935a7f7..8992cbaa` linear; `merge-base --is-ancestor` exits 0 |
+| A3 | Range content known and reviewed | **PASS** | 32 commits (29 runtime + 3 documentation-only), 117 files, +18,011 / −640, re-measured 2026-10-17; the runtime content is [deploy-preflight.md](deploy-preflight.md)'s 29-commit review |
 | A4 | All seven migrations present in the range | **PASS** | `git diff --name-status 0935a7f7..4daaaee9 -- database/migrations`: seven `A` rows, the exact set of preflight §2 |
 | A5 | Compiled assets present and understood | **PASS** | 2 new hashed bundles (`app-D-vIop72.css`, `app-DXuAyQnv.js`) + rewritten `manifest.json`; the 2 old hashed files are **removed by the checkout** - preflight §5 (corrected 2026-10-17) covers the straggler case and the window that closes it |
 | A6 | Suite green on the machine that built it | **PASS** | 481 passed / 12 skipped / 3,615 assertions on sqlite; the 12 MySQL-only proofs passed on real InnoDB (MySQL 8.4.3, 110 assertions) |
@@ -45,8 +45,8 @@ re-investigation.
 | C1 | Credential rotation (checklist §0.4) | **FAIL until done** | owner rotates GitHub, cPanel, FTP, DB, GSUBZ, ConfirmIdent, Flutterwave, SMTP - the one hard red gate |
 | C2 | Remaining key presences (production-checks §3) | **PENDING** | one read-only command: `provider_gsubz_api_key`, `nin_api_key`, `bvn_api_key`, `flutterwave_public_key`, `fixed_account_bvn` - presence only, no values |
 | C3 | Log counts (production-checks §8) | **PENDING** | webhook count, `user not found` count, `held for reconciliation` count (expected zero pre-deploy), summary tail - read-only |
-| C4 | The 1 pending + 3 failed credits characterized | **PENDING** | production-checks §11's read-only plan; results recorded beside B11; does not block the deploy by itself |
-| C5 | MariaDB proof run | **DECISION** | recommendation: minimal MariaDB 10.6 on the **trusted second machine**, twelve tests, empty database (checklist §9 item 4 has the alternatives); never from the compromised box, never against production data - documented acceptance is the owner's other option |
+| C4 | The 1 pending + 3 failed credits characterized | **PENDING** | production-checks §11's read-only plan answers the three questions - duplicate references (§11.2), previous successful payments (§11.2's retry check), manual-reconciliation candidates (§11.4); results recorded beside B11; does not block the deploy by itself |
+| C5 | MariaDB proof run | **DECIDED - OPEN** | owner decision 2026-10-17: run the twelve tests against a disposable, empty MariaDB 10.6 outside production, synthetic data only. The development box cannot host it - no MariaDB exists under `C:\laragon\bin` (MySQL only), every other binary there is on the infected list, installs forbidden on the compromised machine - so the MySQL 8.4.3 pass is **not** read as MariaDB proof. Closes by: the trusted second machine (pre-deploy); a host scratch database (post-deploy only - the suite files themselves arrive with this deploy, and it is production infrastructure, so it counts only if the owner reads "outside production" as including it); or documented acceptance |
 | C6 | ConfirmIdent billing for a failed check | **ADVISORY** | does not block the deploy; every ambiguous NIN lookup costs ₦160 until answered (checklist §9 item 3) |
 
 ## D. The deploy, executed as written (deploy-checklist.md owns every block)
@@ -54,7 +54,7 @@ re-investigation.
 | Step | What | Pass looks like |
 |---|---|---|
 | 0 | Gates §0.1-§0.5 | all PASS - including 0.5's backup, made and verified in §1.0 **before the window opens** |
-| 1 | Backup §1.0 | `mysqldump --version` answers MariaDB Dump 10.6.x; read-back counts non-zero with a completion line; scratch-DB restore with matching money-table row counts, scratch dropped after; filename recorded beside `last-good-sha.txt` |
+| 1 | Backup §1.0 | `mysqldump --version` answers MariaDB Dump 10.6.x; the dump command exits zero (1.0's guard deletes the file when it does not - a gzip filename alone never passes); live-vs-dump table counts equal; completion line present; scratch-DB restore with matching money-table row counts, scratch dropped after; filename recorded beside `last-good-sha.txt` |
 | 2 | Window §1.1 | `down --retry=15`; opening time recorded; skipped only by an explicit owner choice |
 | 3 | Pull §1.2 | `git status` clean except the two known `??` paths (`server.js`, `tmp/`) |
 | 4 | Review + migrate §1.3 | `migrate:status` shows exactly seven Pending; `--pretend` read against preflight §2 (five `create table`, two `alter table orders`; the backfills are PHP logic and do not appear); `migrate --force` leaves seven `Ran`; `flutterwave_charge_claims` count > 0 - roughly B11's 36 successful rows expected, greater than zero required |
@@ -65,10 +65,12 @@ re-investigation.
 ## E. The decision rule
 
 **GO requires, all at once:** every row of A and B PASS (already true as of 2026-10-17);
-C1 done; C2 and C3 answered and acceptable; C5 decided - run, or documented acceptance;
-C4's results read and the pending row's disposition understood; and the owner's explicit
-go-ahead. Anything less is **NO-GO**, and the response is this document plus checklist
-§10 (rollback) - never an improvised fix on the box.
+C1 done; C2 and C3 answered and acceptable; C5 closed - the MariaDB run executed, or the
+residual risk accepted in writing (the decision to run is recorded; the run itself is what is
+awaited, and the MySQL 8.4.3 pass does not substitute for it); C4's results read and the
+pending row's disposition understood; and the owner's explicit go-ahead. Anything less is
+**NO-GO**, and the response is this document plus checklist §10 (rollback) - never an
+improvised fix on the box.
 
 ## What this checklist deliberately does not do
 

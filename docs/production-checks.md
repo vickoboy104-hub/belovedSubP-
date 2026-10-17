@@ -47,10 +47,13 @@ Recorded so nobody re-asks them. Section references show where each question was
 twelve money-path concurrency proofs passed against MySQL 8.4.3 on the development
 machine. The follow-up reads closed most of the distance - isolation REPEATABLE-READ and a
 50 s lock timeout are exactly the pair the proofs ran under - so the remaining delta is the
-engine implementation itself. Whether that last step is run (a minimal MariaDB 10.6 on the
-trusted second machine, or a scratch database on the host; never from the compromised
-development box, never against production data) is an owner decision, tracked as checklist
-§9 item 4 and the approval checklist's C5.
+engine implementation itself. That last step is now decided (2026-10-17, approval row C5):
+the owner chose a run against a disposable, empty MariaDB 10.6 outside production, synthetic
+data only. The development box cannot host it - no MariaDB distribution exists on it at all,
+and installs are forbidden on a compromised machine - so the run awaits the trusted second
+machine (pre-deploy) or a host scratch database (post-deploy only: the test files themselves
+arrive with this deploy). Until then the MySQL 8.4.3 pass is explicitly **not** read as
+MariaDB proof. Tracked as checklist §9 item 4 and approval row C5.
 
 ---
 
@@ -315,7 +318,10 @@ history; the other four are the rows an owner eventually has to think about. Thi
 characterizes them **without asking Flutterwave anything, and without refunding, crediting
 or editing a single row** - local database reads and log reads only. Run it before the
 deploy; nothing in it changes anything, and its output is the pre-deploy picture the
-post-deploy audit gets compared against.
+post-deploy audit gets compared against. This is approval row C4, and it answers three
+questions for each of the four rows: is the reference a duplicate, is there a previous
+successful payment that already settled the same money, and does the row need manual
+reconciliation once the new code is live.
 
 Nothing here prints an account number or a secret: rows are identified by ledger id, and
 attribution is reported as user-id counts.
@@ -347,6 +353,17 @@ php artisan tinker --execute='echo json_encode(DB::table("wallet_transactions")-
 
 An empty answer is the quiet one: every reference appears exactly once.
 
+A retry can also succeed under a **new** reference, which no reference-grouped query can see.
+For each of the four rows, count same-wallet, same-amount **successful** credits within a day
+either side - the previous-successful-payment question:
+
+```sh
+php artisan tinker --execute='foreach (\App\Models\WalletTransaction::query()->where("type","credit")->where("channel","like","flutterwave%")->whereIn("status",["pending","failed"])->where("created_at",">=",now()->subDays(30))->orderBy("id")->get() as $t) { $twins = \App\Models\WalletTransaction::query()->where("wallet_id",$t->wallet_id)->where("type","credit")->where("status","success")->where("amount",$t->amount)->whereBetween("created_at",[$t->created_at->copy()->subDay(),$t->created_at->copy()->addDay()])->count(); echo "#".$t->id." (".$t->status.", amount ".$t->amount."): same-wallet same-amount successes within a day: ".$twins.PHP_EOL; }'
+```
+
+A nonzero answer means the customer's money most likely arrived through the retry: the failed
+row is the record of an attempt, not an unpaid debt.
+
 ### 11.3 What the site itself said at the time - logs, not the provider
 
 For each reference from 11.1, read the site's own record of the arrival: the webhook, the
@@ -362,7 +379,29 @@ complete - no balance ever moved. A still-`pending` row has been swept and staye
 unresolved, which is either a transfer that has not arrived or one that arrived and could
 not be attributed.
 
-### 11.4 What this plan deliberately does not do
+### 11.4 Which rows become manual reconciliation candidates
+
+Read 11.1's attribution case, 11.2's duplicate answers and 11.3's log lines together, and each
+of the four rows lands in exactly one bucket:
+
+- **A successful twin exists** (same reference from 11.2, or same wallet and amount from the
+  retry check) - the money already arrived through the retry. Nothing is owed; the row needs
+  no action beyond this note.
+- **Failed, no twin** - no balance ever moved, and whether Flutterwave is holding the money is
+  a question for the owner's dashboard, not for this site's API. If the dashboard shows the
+  transfer completed, the row is a **manual reconciliation candidate**: resolution after the
+  deploy runs through the held-deposits screen or a manual credit with an audit note - never
+  a hand-written SQL fix, and never anything during the deploy itself.
+- **Pending, no twin** - swept repeatedly and still unresolved: either the transfer never
+  completed (nothing owed) or it arrived in a form the old code could not attribute, which the
+  old code drops quietly. Post-deploy, §6's audit re-run answers it: the new code can only
+  credit a provable owner or hold the row for an admin.
+
+The one hard rule stands regardless of bucket: nothing in this investigation refunds, credits,
+edits or deletes anything. It only sorts the four rows into the buckets above so the
+post-deploy work has a list instead of a surprise.
+
+### 11.5 What this plan deliberately does not do
 
 - **No Flutterwave call of any kind** - not `deposits:audit` without `--references=0`, no
   dashboard lookup, no test payment. Whether the money actually arrived is a question the
