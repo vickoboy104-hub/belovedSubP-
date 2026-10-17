@@ -1,4 +1,12 @@
 <x-app-layout>
+    @php
+        // One screen lists up to a hundred people at once, and this one is opened
+        // on a phone in a shop, shared with a colleague and photographed. Phone
+        // numbers and virtual account numbers therefore keep only their last four
+        // digits here; both are whole on the customer's own profile, which is where
+        // an agent actually reads them out.
+        $mask = '\App\Support\SensitiveFigures::mask';
+    @endphp
     <x-page-hero class="reference-shared-banner" title="User Accounts" subtitle="Manage users, profile data, discounts, and recovery access." />
 
     <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
@@ -16,6 +24,11 @@
                     @endif
                 </div>
             </form>
+
+            <p class="mt-3 text-xs text-slate-500">
+                Phone numbers and virtual account numbers show their last four digits on this list - searching still
+                matches the full number. Both are complete on the customer's own profile page.
+            </p>
         </section>
 
         <section class="app-section p-4 sm:p-6">
@@ -44,7 +57,7 @@
                         <div class="app-record-grid">
                             <div>
                                 <div class="app-record-label">Phone</div>
-                                <div class="app-record-value">{{ $u->phone ?: '-' }}</div>
+                                <div class="app-record-value">{{ $mask($u->phone ?: '-') }}</div>
                             </div>
                             <div>
                                 <div class="app-record-label">Joined</div>
@@ -62,7 +75,7 @@
                                 <div class="app-record-label">Virtual Account</div>
                                 <div class="app-record-value">
                                     @if($u->virtual_account_number)
-                                        {{ $u->virtual_account_bank ?: 'Bank' }} - {{ $u->virtual_account_number }}
+                                        {{ $u->virtual_account_bank ?: 'Bank' }} - {{ $mask($u->virtual_account_number) }}
                                         <div class="mt-1 text-xs font-medium text-slate-500">{{ $u->virtual_account_name }}</div>
                                     @else
                                         Not generated
@@ -166,7 +179,7 @@
                                 </td>
 
                                 <td class="p-4">
-                                    <div class="text-slate-800">{{ $u->phone ?: '-' }}</div>
+                                    <div class="text-slate-800">{{ $mask($u->phone ?: '-') }}</div>
                                     <div class="text-xs text-slate-500 mt-1">First name: {{ $u->first_name ?: '-' }}</div>
                                     <div class="text-xs text-slate-500">Last name: {{ $u->last_name ?: '-' }}</div>
                                 </td>
@@ -174,7 +187,7 @@
                                 <td class="p-4">
                                     @if($u->virtual_account_number)
                                         <div class="font-semibold text-slate-900">{{ $u->virtual_account_bank ?: 'Bank' }}</div>
-                                        <div class="text-slate-800">{{ $u->virtual_account_number }}</div>
+                                        <div class="text-slate-800">{{ $mask($u->virtual_account_number) }}</div>
                                         <div class="text-xs text-slate-500 mt-1">{{ $u->virtual_account_name }}</div>
                                     @else
                                         <span class="text-slate-400">Not generated</span>

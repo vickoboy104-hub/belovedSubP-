@@ -12,6 +12,7 @@
     'emptyText' => 'No records yet.',
     'searchable' => true,
     'hidden' => [],
+    'caption' => '',
 ])
 
 @php
@@ -22,6 +23,12 @@
     $pages = max(1, (int) $pages);
     $dash = '—';
 
+    // A wide table has to be allowed to become wider than the screen, otherwise the
+    // columns just crush into each other and the horizontal scroll never engages.
+    // Six rem per column keeps the boards that already fit at 768px exactly as they
+    // are, and gives the fourteen-column audit board room to scroll instead.
+    $minWidth = min(96, max(36, $columns->count() * 6));
+
     // A cell is either a plain value or a styled badge; anything blank prints the
     // provider's em dash rather than a zero or an empty box.
     $valueOf = function ($cell) use ($dash): string {
@@ -31,6 +38,7 @@
     };
     $toneOf = fn ($cell): string => is_array($cell) ? (string) ($cell['tone'] ?? '') : '';
     $isStrong = fn ($cell): bool => is_array($cell) && !empty($cell['strong']);
+    $isCopy = fn ($cell): bool => is_array($cell) && !empty($cell['copy']);
 @endphp
 
 <div class="records-panel" x-data="{ open: null }">
@@ -76,8 +84,11 @@
 
     {{-- Desktop reads as the provider's table; phones get the same rows behind
          the provider's "+" expand, so nothing wraps into a column of one letter. --}}
-    <div class="records-table-wrap">
+    <div class="records-table-wrap" style="--records-min: {{ $minWidth }}rem">
         <table class="records-table">
+            @if($caption !== '')
+                <caption class="sr-only">{{ $caption }}</caption>
+            @endif
             <thead>
                 <tr>
                     <th class="records-cell-toggle" aria-label="Expand"></th>
@@ -104,6 +115,11 @@
                                     <span class="records-badge records-badge-{{ $toneOf($cell) }}">{{ $valueOf($cell) }}</span>
                                 @else
                                     <span @class(['records-cell-strong' => $isStrong($cell)])>{{ $valueOf($cell) }}</span>
+                                    @if($isCopy($cell))
+                                        <button type="button" class="records-copy"
+                                                data-copy-text="{{ $valueOf($cell) }}"
+                                                aria-label="Copy {{ $column['label'] }}">Copy</button>
+                                    @endif
                                     @if(is_array($cell) && !empty($cell['note']))
                                         <span class="records-note">{{ $cell['note'] }}</span>
                                     @endif
@@ -116,14 +132,20 @@
                         <td colspan="{{ $columns->count() }}">
                             <div class="records-detail">
                                 @foreach($detailColumns as $column)
+                                    @php $detailCell = $row['cells'][$column['key']] ?? null; @endphp
                                     <div class="records-detail-item">
                                         <span class="records-detail-label">{{ $column['label'] }}</span>
-                                        <span class="records-detail-value">{{ $valueOf($row['cells'][$column['key']] ?? null) }}</span>
+                                        <span class="records-detail-value">{{ $valueOf($detailCell) }}</span>
+                                        @if($isCopy($detailCell))
+                                            <button type="button" class="records-copy"
+                                                    data-copy-text="{{ $valueOf($detailCell) }}"
+                                                    aria-label="Copy {{ $column['label'] }}">Copy</button>
+                                        @endif
                                     </div>
                                 @endforeach
-                                @if(!empty($row['action']))
-                                    <a href="{{ $row['action']['href'] }}" class="records-action">{{ $row['action']['label'] }}</a>
-                                @endif
+                                @foreach(collect($row['actions'] ?? [])->prepend($row['action'] ?? null)->filter() as $link)
+                                    <a href="{{ $link['href'] }}" class="records-action">{{ $link['label'] }}</a>
+                                @endforeach
                             </div>
                         </td>
                     </tr>
@@ -166,14 +188,20 @@
 
                 <div class="records-detail" x-show="open === @js($rowId)" x-cloak>
                     @foreach($detailColumns as $column)
+                        @php $cardCell = $row['cells'][$column['key']] ?? null; @endphp
                         <div class="records-detail-item">
                             <span class="records-detail-label">{{ $column['label'] }}</span>
-                            <span class="records-detail-value">{{ $valueOf($row['cells'][$column['key']] ?? null) }}</span>
+                            <span class="records-detail-value">{{ $valueOf($cardCell) }}</span>
+                            @if($isCopy($cardCell))
+                                <button type="button" class="records-copy"
+                                        data-copy-text="{{ $valueOf($cardCell) }}"
+                                        aria-label="Copy {{ $column['label'] }}">Copy</button>
+                            @endif
                         </div>
                     @endforeach
-                    @if(!empty($row['action']))
-                        <a href="{{ $row['action']['href'] }}" class="records-action records-action-block">{{ $row['action']['label'] }}</a>
-                    @endif
+                    @foreach(collect($row['actions'] ?? [])->prepend($row['action'] ?? null)->filter() as $link)
+                        <a href="{{ $link['href'] }}" class="records-action records-action-block">{{ $link['label'] }}</a>
+                    @endforeach
                 </div>
             </article>
         @empty

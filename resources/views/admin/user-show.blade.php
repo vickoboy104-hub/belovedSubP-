@@ -79,6 +79,66 @@
                     </div>
                 </form>
 
+                @if($openFunding->isNotEmpty())
+                    <section class="app-section p-5 sm:p-6">
+                        <h2 class="text-xl font-extrabold text-slate-900">Open funding requests</h2>
+                        <p class="mt-1 text-sm text-slate-500">
+                            Credits the gateway reported that this wallet has not been given. Recording one as settled
+                            is a note on the row: it credits nothing, debits nothing, and the reason is kept with the
+                            name of whoever saved it. This list covers every open request for this customer, not only
+                            the page of the ledger you are looking at.
+                        </p>
+
+                        <div class="mt-4 space-y-3">
+                            @foreach($openFunding as $funding)
+                                @php
+                                    $fundingMeta = (array) ($funding->meta ?? []);
+                                    $settled = ($fundingMeta['manually_settled'] ?? null) === true;
+                                @endphp
+                                <article class="rounded-2xl border p-4 {{ $settled ? 'border-emerald-300 bg-emerald-50' : 'border-amber-300 bg-amber-50' }}">
+                                    <div class="flex flex-wrap items-start justify-between gap-3">
+                                        <div class="min-w-0">
+                                            <div class="amount-fit text-lg font-extrabold text-slate-900">
+                                                &#8358;{{ number_format(((int) $funding->amount) / 100, 2) }}
+                                            </div>
+                                            <div class="mt-1 text-xs font-bold {{ $settled ? 'text-emerald-800' : 'text-amber-900' }}">
+                                                {{ $settled ? 'Marked settled by hand' : 'Not marked as settled' }}
+                                            </div>
+                                            <div class="mt-1 text-xs text-slate-600">
+                                                Ledger #{{ $funding->id }} · {{ optional($funding->created_at)->format('d M Y, h:ia') }} · {{ $funding->channel }} · {{ $funding->status }}
+                                            </div>
+                                            <div class="mt-1 break-all text-xs text-slate-600">{{ $funding->reference ?: 'No reference recorded' }}</div>
+                                        </div>
+
+                                        @if($funding->reference)
+                                            <button type="button" class="records-copy"
+                                                    data-copy-text="{{ $funding->reference }}"
+                                                    aria-label="Copy reference">Copy</button>
+                                        @endif
+                                    </div>
+
+                                    <form method="POST"
+                                          action="{{ route($settled ? 'admin.wallet.requests.unmark-settled' : 'admin.wallet.requests.mark-settled', $funding->id) }}"
+                                          class="mt-3 space-y-2">
+                                        @csrf
+                                        <label class="block text-xs text-slate-600">
+                                            <span class="font-bold">
+                                                {{ $settled ? 'Why reopen it' : 'Where the customer was paid instead' }}
+                                            </span>
+                                            <span>(min 10 characters, kept on the record)</span>
+                                            <textarea name="note" required minlength="10" maxlength="2000" rows="3"
+                                                      class="input-field mt-1">{{ $fundingMeta['manually_settled_note'] ?? '' }}</textarea>
+                                        </label>
+                                        <button type="submit" class="btn-soft text-xs">
+                                            {{ $settled ? 'Open it again' : 'Mark as settled' }}
+                                        </button>
+                                    </form>
+                                </article>
+                            @endforeach
+                        </div>
+                    </section>
+                @endif
+
                 <section class="app-section p-5 sm:p-6">
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -88,101 +148,109 @@
                         <a href="{{ route('admin.wallet.transactions', ['search' => $user->email]) }}" class="btn-soft">Open Full List</a>
                     </div>
 
-                    <div class="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
-                        <table class="min-w-full text-sm">
-                            <thead class="bg-slate-50 text-slate-500">
-                                <tr>
-                                    <th class="p-3 text-left">Date</th>
-                                    <th class="p-3 text-left">Type</th>
-                                    <th class="p-3 text-left">Amount</th>
-                                    <th class="p-3 text-left">Status</th>
-                                    <th class="p-3 text-left">Channel</th>
-                                    <th class="p-3 text-left">Reference</th>
-                                    <th class="p-3 text-left">Settlement</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-200 text-slate-700">
-                                @forelse($walletTransactions as $t)
-                                    <tr>
-                                        <td class="p-3">{{ optional($t->created_at)->format('d M Y, h:ia') }}</td>
-                                        <td class="p-3 font-bold {{ $t->type === 'credit' ? 'text-emerald-700' : 'text-rose-700' }}">{{ strtoupper($t->type ?? '-') }}</td>
-                                        <td class="amount-fit p-3 font-bold text-slate-900">&#8358;{{ number_format(((int) ($t->amount ?? 0)) / 100, 2) }}</td>
-                                        <td class="p-3">{{ strtoupper($t->status ?? '-') }}</td>
-                                        <td class="p-3">{{ $t->channel ?? '-' }}</td>
-                                        <td class="table-token p-3 text-xs text-slate-500">{{ $t->reference ?? '-' }}</td>
-                                        <td class="p-3 align-top">
-                                            @php($rowMeta = (array) ($t->meta ?? []))
-                                            @if($t->type === 'credit'
-                                                && str_starts_with((string) $t->channel, 'flutterwave')
-                                                && in_array($t->status, ['pending', 'failed'], true))
-                                                @php($settled = ($rowMeta['manually_settled'] ?? null) === true)
-                                                <details class="max-w-[15rem]">
-                                                    <summary class="cursor-pointer text-xs font-bold {{ $settled ? 'text-emerald-700' : 'text-slate-500' }}">
-                                                        {{ $settled ? 'Settled by hand' : 'Already settled?' }}
-                                                    </summary>
-                                                    <form method="POST"
-                                                          action="{{ route($settled ? 'admin.wallet.requests.unmark-settled' : 'admin.wallet.requests.mark-settled', $t->id) }}"
-                                                          class="mt-2 space-y-2">
-                                                        @csrf
-                                                        <label class="block text-xs text-slate-500">
-                                                            {{ $settled ? 'Why reopen it' : 'Where the customer was paid instead' }}
-                                                            (min 10 characters, kept on the record)
-                                                        </label>
-                                                        <textarea name="note" required minlength="10" maxlength="2000" rows="3"
-                                                                  class="w-full rounded-xl border border-slate-300 p-2 text-sm">{{ $rowMeta['manually_settled_note'] ?? '' }}</textarea>
-                                                        <button type="submit" class="btn-soft text-xs">
-                                                            {{ $settled ? 'Open it again' : 'Mark as settled' }}
-                                                        </button>
-                                                    </form>
-                                                </details>
-                                            @endif
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="7" class="p-5 text-center text-slate-500">No wallet transactions found.</td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
+                    @php
+                        $mask = '\App\Support\SensitiveFigures::mask';
+                        $ledgerTones = ['success' => 'success', 'failed' => 'danger', 'pending' => 'warning'];
+                        $paged = $walletTransactions instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator;
+                        $ledgerItems = collect($paged ? $walletTransactions->items() : $walletTransactions);
+
+                        $ledgerColumns = [
+                            ['key' => 'time', 'label' => 'Time'],
+                            ['key' => 'direction', 'label' => 'Direction'],
+                            ['key' => 'amount', 'label' => 'Amount'],
+                            ['key' => 'status', 'label' => 'Status'],
+                            ['key' => 'channel', 'label' => 'Channel'],
+                            ['key' => 'reference', 'label' => 'Reference'],
+                            ['key' => 'description', 'label' => 'Description'],
+                            ['key' => 'written_by', 'label' => 'Written by'],
+                            ['key' => 'balance', 'label' => 'Wallet after'],
+                            ['key' => 'ledger_id', 'label' => 'Ledger ID'],
+                        ];
+
+                        $ledgerRows = $ledgerItems->map(static function ($t) use ($mask, $ledgerTones): array {
+                            $meta = (array) ($t->meta ?? []);
+
+                            return [
+                                'id' => 'ledger-'.$t->id,
+                                'cells' => [
+                                    'time' => optional($t->created_at)->format('d M Y, h:ia') ?: '—',
+                                    'direction' => ['value' => strtoupper($t->type), 'strong' => true],
+                                    'amount' => ['value' => '₦'.number_format(((int) $t->amount) / 100, 2), 'strong' => true],
+                                    'status' => ['value' => ucfirst($t->status), 'tone' => $ledgerTones[$t->status] ?? ''],
+                                    'channel' => $t->channel ?: '—',
+                                    'reference' => ['value' => $t->reference ?: '—', 'copy' => true],
+                                    'description' => $mask($t->description) ?: '—',
+                                    'written_by' => isset($meta['admin_user_id'])
+                                        ? 'Administrator #'.$meta['admin_user_id'].' by hand'
+                                        : 'The customer or the gateway',
+                                    'balance' => isset($meta['balance_after_kobo'])
+                                        ? '₦'.number_format(((int) $meta['balance_after_kobo']) / 100, 2)
+                                        : '—',
+                                    'ledger_id' => '#'.$t->id,
+                                ],
+                            ];
+                        })->all();
+                    @endphp
+
+                    <div class="mt-5">
+                        <x-records-table
+                            :columns="$ledgerColumns"
+                            :rows="$ledgerRows"
+                            :compact="['time', 'direction', 'amount', 'status']"
+                            :total="$paged ? $walletTransactions->total() : $ledgerItems->count()"
+                            :page="$paged ? $walletTransactions->currentPage() : 1"
+                            :pages="$paged ? $walletTransactions->lastPage() : 1"
+                            :searchable="false"
+                            empty-text="No wallet transactions found."
+                            caption="This customer's wallet transactions"
+                        />
                     </div>
 
-                    @if($walletTransactions instanceof \Illuminate\Contracts\Pagination\Paginator)
+                    @if($paged)
                         <div class="mt-5">{{ $walletTransactions->appends(request()->except('wallet_page'))->links() }}</div>
                     @endif
                 </section>
 
                 <section class="app-section p-5 sm:p-6">
                     <h2 class="text-xl font-extrabold text-slate-900">Orders</h2>
-                    <div class="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
-                        <table class="min-w-full text-sm">
-                            <thead class="bg-slate-50 text-slate-500">
-                                <tr>
-                                    <th class="p-3 text-left">Date</th>
-                                    <th class="p-3 text-left">ID</th>
-                                    <th class="p-3 text-left">Service</th>
-                                    <th class="p-3 text-left">Customer</th>
-                                    <th class="p-3 text-left">Amount</th>
-                                    <th class="p-3 text-left">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-200 text-slate-700">
-                                @forelse($orders as $order)
-                                    <tr>
-                                        <td class="p-3">{{ optional($order->created_at)->format('d M Y, h:ia') }}</td>
-                                        <td class="p-3 font-bold">#{{ $order->id }}</td>
-                                        <td class="p-3 capitalize">{{ str_replace('-', ' ', $order->meta['type'] ?? '-') }}</td>
-                                        <td class="table-token p-3">{{ $order->customer_ref }}</td>
-                                        <td class="amount-fit p-3 font-bold text-slate-900">&#8358;{{ number_format(((int) $order->amount) / 100, 2) }}</td>
-                                        <td class="p-3">{{ strtoupper($order->status ?? '-') }}</td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="6" class="p-5 text-center text-slate-500">No orders found.</td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
+
+                    @php
+                        $orderColumns = [
+                            ['key' => 'time', 'label' => 'Time'],
+                            ['key' => 'order_id', 'label' => 'Order'],
+                            ['key' => 'service', 'label' => 'Service'],
+                            ['key' => 'recipient', 'label' => 'Top-up target'],
+                            ['key' => 'amount', 'label' => 'Amount'],
+                            ['key' => 'status', 'label' => 'Status'],
+                        ];
+
+                        $orderRows = collect($orders->items())->map(static function ($order) use ($ledgerTones): array {
+                            return [
+                                'id' => 'order-'.$order->id,
+                                'cells' => [
+                                    'time' => optional($order->created_at)->format('d M Y, h:ia') ?: '—',
+                                    'order_id' => '#'.$order->id,
+                                    'service' => ['value' => ucfirst(str_replace('-', ' ', (string) ($order->meta['type'] ?? '—'))), 'strong' => true],
+                                    'recipient' => $order->customer_ref ?: '—',
+                                    'amount' => ['value' => '₦'.number_format(((int) $order->amount) / 100, 2), 'strong' => true],
+                                    'status' => ['value' => ucfirst($order->status), 'tone' => $ledgerTones[$order->status] ?? 'warning'],
+                                ],
+                            ];
+                        })->all();
+                    @endphp
+
+                    <div class="mt-5">
+                        <x-records-table
+                            :columns="$orderColumns"
+                            :rows="$orderRows"
+                            :compact="['time', 'service', 'amount', 'status']"
+                            :total="$orders->total()"
+                            :page="$orders->currentPage()"
+                            :pages="$orders->lastPage()"
+                            :searchable="false"
+                            empty-text="No orders found."
+                            caption="This customer's orders"
+                        />
                     </div>
 
                     <div class="mt-5">{{ $orders->appends(request()->except('orders_page'))->links() }}</div>

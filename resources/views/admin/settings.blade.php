@@ -1575,7 +1575,7 @@
             <div id="group-error-codes" class="scroll-mt-44">
                 <div class="text-lg font-extrabold">Transaction Error Codes</div>
                 <div class="rounded-2xl border border-gray-200 overflow-x-auto mt-3">
-                    <table class="w-full text-sm">
+                    <table class="w-full min-w-[520px] text-sm">
                         <thead class="bg-slate-50">
                         <tr>
                             <th class="text-left p-3">Code</th>

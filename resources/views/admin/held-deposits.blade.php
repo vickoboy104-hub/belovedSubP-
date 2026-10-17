@@ -15,6 +15,12 @@
                 as any other deposit: one transfer can still only be paid once.
             </p>
 
+            <p class="mt-3 text-xs text-slate-500">
+                The payer's account number is shown in full on this board and nowhere else in the admin area, because
+                it is the one figure that decides the case: masking it would leave an agent guessing whose money this
+                is, and a guess is how the wrong wallet gets credited.
+            </p>
+
             <div class="mt-4 flex flex-wrap gap-3">
                 <a href="{{ route('admin.wallet.deposits.held') }}"
                    class="app-choice-chip {{ $showResolved ? '' : 'is-active' }}">Held ({{ $heldCount }})</a>
@@ -63,10 +69,20 @@
                     <div>
                         <div class="app-record-label">Flutterwave charge</div>
                         <div class="app-record-value break-all">{{ $held->flutterwave_charge_id ?: ($held->flutterwave_id ?? '-') }}</div>
+                        @if($held->flutterwave_charge_id || $held->flutterwave_id)
+                            <button type="button" class="records-copy"
+                                    data-copy-text="{{ $held->flutterwave_charge_id ?: $held->flutterwave_id }}"
+                                    aria-label="Copy gateway charge id">Copy</button>
+                        @endif
                     </div>
                     <div>
                         <div class="app-record-label">Our reference</div>
                         <div class="app-record-value break-all">{{ $held->tx_ref ?: '-' }}</div>
+                        @if($held->tx_ref)
+                            <button type="button" class="records-copy"
+                                    data-copy-text="{{ $held->tx_ref }}"
+                                    aria-label="Copy our reference">Copy</button>
+                        @endif
                     </div>
                 </div>
 

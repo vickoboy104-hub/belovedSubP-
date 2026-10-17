@@ -17,9 +17,14 @@ The read-only checks to run before anyone decides are in
 | **LOCAL-FAKE** | The route is exercised end to end, but against a faked provider or gateway. The shape of the request is asserted; the real service's answer never was. |
 | **LIVE** | Cannot be proven from this machine at all. Somebody has to read it on `s3470`, or spend real money with the owner's say-so. |
 
-Suite as it stands on this branch: **481 passed, 12 skipped, 3,615 assertions** (sqlite), and
-the money-path suite on real **MySQL 8.4.3: 12 passed, 110 assertions**. The 12 skips are the
-InnoDB proofs, which cannot run on sqlite by design and did run on MySQL.
+Suite as it stands on this branch: **516 passed, 12 skipped, 3,846 assertions** (sqlite), and
+the money-path suite on the live engine's own version - **MariaDB 10.6.28: 12 passed,
+110 assertions, zero skips** (GitHub Actions run 38999509204, 2026-10-17; the same 12 passed on
+MySQL 8.4.3 on 2026-10-16). The 12 skips are the
+InnoDB proofs, which cannot run on sqlite by design and did run on MySQL. **Neither engine run
+includes this batch**: the mobile/admin work touched two admin controllers, one shared support
+class and nine views, so the run has to be repeated before these numbers are quoted as current
+(Part 4).
 
 ## Where the code stands
 

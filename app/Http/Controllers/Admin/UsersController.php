@@ -58,6 +58,20 @@ class UsersController extends Controller
             ? $user->wallet->transactions()->latest()->paginate(12, ['*'], 'wallet_page')
             : collect();
 
+        // A gateway credit that never arrived stays open until an admin says the
+        // money was paid elsewhere, and that decision belongs on its own shelf, not
+        // inside a reading table: whichever page of the ledger the admin happens to
+        // be on, every one of this customer's open requests is listed here.
+        $openFunding = $user->wallet
+            ? $user->wallet->transactions()
+                ->where('type', 'credit')
+                ->where('channel', 'like', 'flutterwave%')
+                ->whereIn('status', ['pending', 'failed'])
+                ->latest()
+                ->limit(50)
+                ->get()
+            : collect();
+
         $orders = Order::query()
             ->where('user_id', $user->id)
             ->latest()
@@ -72,6 +86,7 @@ class UsersController extends Controller
         return view('admin.user-show', compact(
             'user',
             'walletTransactions',
+            'openFunding',
             'orders',
             'referralsCount',
             'qualifiedReferralsCount',

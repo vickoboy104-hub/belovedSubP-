@@ -1,5 +1,11 @@
 <x-app-layout>
     @php
+        // This queue can hold dozens of requests on one screen, so the identity
+        // figures the job is worked from are printed with only their last digits
+        // showing. The full number is still one click away, on the request itself,
+        // which is the only place an agent actually types it into the provider.
+        $mask = '\App\Support\SensitiveFigures::mask';
+
         $statusTabs = [
             'pending' => 'Waiting',
             'in_progress' => 'In progress',
@@ -16,7 +22,7 @@
             ]));
         };
 
-        $readRequest = function ($o) use ($fulfilment) {
+        $readRequest = function ($o) use ($fulfilment, $mask) {
             $meta = is_array($o->meta) ? $o->meta : [];
             $expectedBy = null;
 
@@ -33,10 +39,13 @@
             return [
                 'title' => (string) ($meta['manual_service_title'] ?? '—'),
                 'slug' => (string) ($meta['manual_service'] ?? ''),
-                'quick_look' => $fulfilment->quickLook(
+                'quick_look' => collect($fulfilment->quickLook(
                     (string) ($meta['manual_service'] ?? ''),
                     is_array($meta['submitted'] ?? null) ? $meta['submitted'] : [],
-                ),
+                ))->map(static function (array $chip) use ($mask): array {
+                    $chip['value'] = $mask($chip['value']);
+                    return $chip;
+                })->all(),
                 'expected_by' => $expectedBy,
                 'overdue' => $o->status === 'pending' && $expectedBy && $expectedBy->isPast(),
                 'started' => $held,
@@ -121,6 +130,11 @@
                     </a>
                 @endif
             </form>
+
+            <p class="mt-4 text-xs text-slate-500">
+                NIN, BVN and phone figures are masked on this queue. Open a request to read the number in full -
+                masking here changes nothing that is stored, and the audit trail never carries the digits.
+            </p>
         </section>
 
         <section class="app-section p-4 sm:p-6">
@@ -145,7 +159,7 @@
                         <div class="mt-3 rounded-[18px] border border-slate-200 bg-slate-50 p-3">
                             <div class="text-sm font-bold text-slate-900">{{ $o->user?->name ?? 'Unknown' }}</div>
                             <div class="mt-1 text-xs text-slate-500">{{ $o->user?->email ?? '-' }}</div>
-                            <div class="mt-1 text-xs text-slate-500">{{ $o->user?->phone ?? '-' }}</div>
+                            <div class="mt-1 text-xs text-slate-500">{{ $mask($o->user?->phone ?? '-') }}</div>
                             @if($row['holder'])
                                 <div class="mt-1 text-xs font-bold text-amber-700">Held by {{ $row['holder'] }}</div>
                             @endif
@@ -212,7 +226,7 @@
                                 <td class="p-4">
                                     <div class="font-semibold text-slate-900">{{ $o->user?->name ?? 'Unknown' }}</div>
                                     <div class="text-xs text-slate-500">{{ $o->user?->email ?? '-' }}</div>
-                                    <div class="text-xs text-slate-500">{{ $o->user?->phone ?? '-' }}</div>
+                                    <div class="text-xs text-slate-500">{{ $mask($o->user?->phone ?? '-') }}</div>
                                 </td>
                                 <td class="p-4">
                                     <div class="flex max-w-[22rem] flex-wrap gap-2">

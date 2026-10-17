@@ -5,7 +5,7 @@ Every line below names the test that proves it, in the form
 `tests/Feature/File::method`. Nothing in this file is an opinion about behaviour I did not
 run; where a claim is *not* proven by a test it says so.
 
-Whole suite as it stands: **481 passed, 12 skipped, 3,615 assertions** (sqlite, in-memory).
+Whole suite as it stands: **516 passed, 12 skipped, 3,846 assertions** (sqlite, in-memory).
 
 The 12 skips are all in `MysqlMoneyPathConcurrencyTest` when it runs on sqlite: those proofs
 need two operating-system processes and row locks, which sqlite does not have. They are not
@@ -15,6 +15,11 @@ nothing else, covering `flutterwave_held_deposits` in both the engine check and 
 `::test_two_processes_hold_one_ambiguous_transfer_once`, where a second operating-system
 process meets the first one's uncommitted hold and the outcome is one held record, no charge
 claim and nobody paid.
+
+**Those engine figures are from before this batch.** The mobile/admin work changed views, one
+shared support class (`app/Support/SensitiveFigures.php`) and two admin controllers, so the
+engine run belongs to the pre-deployment evidence and has to be repeated before any GO
+statement; the 516 above is current, the 110 is not.
 
 ---
 

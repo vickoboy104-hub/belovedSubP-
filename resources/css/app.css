@@ -1175,7 +1175,7 @@ html[data-theme="ember"] .app-modal-close:focus-visible {
     }
 
     .mobile-topbar-icon {
-        @apply flex h-10 w-10 items-center justify-center rounded-2xl text-white;
+        @apply flex h-11 w-11 items-center justify-center rounded-2xl text-white;
         background: rgba(255, 248, 239, 0.08);
     }
 
@@ -1831,8 +1831,17 @@ html[data-theme="ember"] .app-modal-close:focus-visible {
 
     .app-modal-btn {
         width: 100%;
-        min-height: 2.45rem;
+        min-height: 2.75rem;
         padding: 0.62rem 0.75rem;
+    }
+
+    /* The cross and the two buttons are the only ways out of a sheet, so on a
+       thumb-sized screen they are all given the full 44px rather than the desktop
+       36px. A mis-tap here either submits a payment nobody meant to make or
+       leaves the sheet on screen. */
+    .app-modal-close {
+        height: 2.75rem;
+        width: 2.75rem;
     }
 
     .btn-primary,
@@ -2065,7 +2074,10 @@ a.reference-service-tile:hover { transform: translateY(-3px); box-shadow: 0 10px
     .reference-sidebar { width: min(280px, 78vw); box-shadow: 8px 0 26px rgba(5,27,61,.2); }
     .reference-profile { min-height: 172px; padding: 1.5rem .8rem 1rem; }
     .reference-nav { padding: .6rem .45rem 1.5rem; }
-    .reference-nav-link { padding: .68rem .75rem; font-weight: 500; }
+    /* The drawer is the part of this app operated with a thumb while the other
+       hand holds the phone, so its links keep the full 44px height rather than the
+       text height a pointer would be happy with. */
+    .reference-nav-link { display: flex; min-height: 2.75rem; align-items: center; padding: .68rem .75rem; font-weight: 500; }
     .reference-dashboard { background: #f6f8fc; }
     .reference-page-banner { min-height: 218px; padding: 2rem 2.1rem 4.4rem; background: linear-gradient(100deg,rgba(20,48,90,.95),rgba(32,72,123,.82)), linear-gradient(25deg,#2c5384,#112c55); }
     .reference-page-banner h1 { font-size: 1.5rem; }
@@ -3111,6 +3123,10 @@ html[data-theme="ember"] .app-modal-close { background: var(--surface-card); }
 
 .records-table {
     width: 100%;
+    /* Set per board by the component from its column count. Without it a fourteen
+       column table squeezes into the viewport instead of scrolling, which is the
+       one thing a wide table must not do. */
+    min-width: var(--records-min, 40rem);
     border-collapse: collapse;
     font-size: .82rem;
     color: #33445e;
@@ -3142,13 +3158,13 @@ html[data-theme="ember"] .app-modal-close { background: var(--surface-card); }
 .records-expand {
     display: inline-grid;
     place-items: center;
-    width: 1.7rem;
-    height: 1.7rem;
+    width: 2.1rem;
+    height: 2.1rem;
     border: 1px solid #cbd6e4;
     border-radius: 50%;
     background: #fff;
     color: #173f74;
-    font-size: .95rem;
+    font-size: 1.05rem;
     font-weight: 800;
     line-height: 1;
 }
@@ -3198,6 +3214,28 @@ html[data-theme="ember"] .app-modal-close { background: var(--surface-card); }
 
 .records-action:hover { background: #225697; }
 .records-action-block { width: 100%; }
+
+/* Copy is the one action a transaction screen needs that is not a navigation, so
+   it is styled as a quiet chip beside the value rather than a second button row. */
+.records-copy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: .3rem;
+    padding: .3rem .7rem;
+    min-height: 2rem;
+    border: 1px solid #cbd6e4;
+    border-radius: .4rem;
+    background: #fbfcfe;
+    color: #173f74;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.records-copy:hover { background: #eaf1ff; border-color: #b9cbe8; }
+.records-copy.is-copied { background: #d4edda; border-color: #a6d8b0; color: #155724; }
 .records-empty { color: #6b7c95; font-size: .82rem; }
 
 /* Status blocks are the provider's green, red and grey badges. */
@@ -3248,10 +3286,74 @@ html[data-theme="ember"] .app-modal-close { background: var(--surface-card); }
     .records-toolbar { padding: .7rem .8rem; }
     .records-tools { width: 100%; }
     .records-search { flex: 1 1 150px; width: auto; }
-    .records-expand { min-width: 1.7rem; min-height: 1.7rem; }
     .records-card-label { font-size: .58rem; }
     .records-card-value { font-size: .8rem; }
     .records-badge { font-size: .62rem; padding: .26rem .5rem; }
+
+    /* A thumb is not a cursor. Every control on a board - the box you type in, the
+       + that opens a row, the chip that copies a reference - is set to 44px here so
+       the smallest one a finger has to hit is never the one that decides whether
+       the screen was readable. */
+    .records-search,
+    .records-select,
+    .records-search-button { min-height: 2.75rem; }
+    /* Safari zooms the page to 16px text when a smaller field takes focus, and the
+       mobile shell hides sideways overflow, so a zoomed board cannot be dragged
+       back. Typing at 16px keeps the whole board in view. */
+    .records-search { font-size: 1rem; }
+    .records-expand { min-width: 2.75rem; min-height: 2.75rem; }
+    .records-copy { min-height: 2.75rem; padding: .55rem 1rem; }
+}
+
+/* ── Pager ────────────────────────────────────────────────────────────────
+   One pager for every list, admin and customer alike. The buttons wrap rather
+   than sit on one unwrapping line: sideways overflow on these pages is hidden
+   by the shell, so a line that ran past the screen edge would hide the later
+   pages behind it with no way to scroll to them. */
+.pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+}
+
+.pager-count { color: #617189; font-size: .78rem; font-weight: 700; }
+.pager-strong { color: #213b62; }
+
+.pager-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+
+.pager-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.6rem;
+    min-width: 2.6rem;
+    padding: .3rem .7rem;
+    border: 1px solid #d6deea;
+    border-radius: .5rem;
+    background: #fff;
+    color: #173f74;
+    font-size: .8rem;
+    font-weight: 800;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.pager-button:hover { background: #eaf1ff; border-color: #b9ccea; }
+
+.pager-button-now {
+    background: #173f74;
+    border-color: #173f74;
+    color: #fff;
+    cursor: default;
+}
+
+.pager-button-off { color: #9aa8bb; background: #f6f8fb; border-color: #e6ebf3; cursor: default; }
+
+@media (max-width: 767px) {
+    .pager { justify-content: flex-start; }
+    .pager-button { min-height: 2.75rem; min-width: 2.75rem; }
 }
 
 /* ── Service request form ─────────────────────────────────────────────────

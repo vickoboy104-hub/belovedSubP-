@@ -13,6 +13,7 @@ use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Event;
 
 class AppServiceProvider extends ServiceProvider
@@ -40,6 +41,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         User::observe(UserObserver::class);
+
+        // Every list in the site shares one pager. The framework's own view builds a
+        // single unwrapping line of small buttons that runs off a phone screen whose
+        // layout hides sideways overflow, so the later pages cannot be reached at all.
+        Paginator::defaultView('components.pagination');
+        Paginator::defaultSimpleView('components.pagination');
 
         // Sign-in and sign-out are audited from the framework's own events rather
         // than from the login controller, so a refusal the controller never learns

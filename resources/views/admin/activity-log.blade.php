@@ -70,6 +70,17 @@
             </form>
 
             @php
+                // The recorder masks description, reason and changes on the way IN, so
+                // nothing in those columns should hold a long digit run. This is the one
+                // screen that prints rows that did not come through the recorder - written
+                // straight to the table by a migration, an import or anyone holding the
+                // database password - and those are shown here exactly as stored. Applying
+                // the identical rule on the way out cannot hide anything the writer kept,
+                // because it is the same rule, so it costs nothing and closes that gap on
+                // the screen. The Reference column is deliberately not included: the
+                // writer keeps it whole so the trail stays searchable.
+                $mask = '\App\Support\SensitiveFigures::mask';
+
                 $columns = [
                     ['key' => 'id', 'label' => 'ID'],
                     ['key' => 'time', 'label' => 'Time'],
@@ -101,11 +112,15 @@
                         'action' => $log->action,
                         'result' => ['value' => ucfirst($log->result), 'tone' => $resultTones[$log->result] ?? ''],
                         'target' => $log->target_type ? $log->target_type.($log->target_id !== null ? ' #'.$log->target_id : '') : '—',
+                        // Not masked: the recorder stores this column whole on purpose,
+                        // because it is what the trail is searched by, and a gateway id
+                        // that arrives as digits would be unreadable here. Hiding it on
+                        // the way out would make the screen disagree with the writer.
                         'reference' => $log->reference ?: '—',
-                        'description' => $log->description ?: '—',
-                        'reason' => $log->reason ?: '—',
+                        'description' => $log->description ? $mask($log->description) : '—',
+                        'reason' => $log->reason ? $mask($log->reason) : '—',
                         'changes' => $log->changes
-                            ? implode('; ', array_map(fn ($k, $v): string => $k.': '.(is_scalar($v) ? $v : json_encode($v)), array_keys((array) $log->changes), array_values((array) $log->changes)))
+                            ? $mask(implode('; ', array_map(fn ($k, $v): string => $k.': '.(is_scalar($v) ? $v : json_encode($v)), array_keys((array) $log->changes), array_values((array) $log->changes))))
                             : '—',
                         'correlation' => $log->correlation_id ?: '—',
                         'ip' => $log->ip_address ?: '—',

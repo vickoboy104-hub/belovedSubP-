@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AdminActivityLog;
+use App\Support\SensitiveFigures;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -250,27 +251,12 @@ class AdminActivityRecorder
     }
 
     /**
-     * Nine or more digits in a row is the shape of a NIN, a BVN, a card number or
-     * a bank account. This site's own references carry letters, so they survive
-     * intact and stay searchable.
-     *
-     * Groups are allowed between the digits, because that is how the sensitive
-     * numbers are actually written: a card arrives as "5555 5555 5555 4444" and a
-     * phone as "+234 801 234 5678". A rule that only looked at unbroken runs would
-     * store those two verbatim while masking the NIN, which is the opposite of what
-     * protection is for.
+     * The same rule the ledger boards use, kept in one place so the trail and the
+     * screen an admin reads cannot disagree about what counts as a secret.
      */
     private function mask(string $value): string
     {
-        return (string) preg_replace_callback(
-            '/\d(?:[ \-]?\d){8,}/',
-            static function (array $match): string {
-                $digits = (string) preg_replace('/\D/', '', $match[0]);
-
-                return str_repeat('*', max(0, strlen($digits) - 4)).substr($digits, -4);
-            },
-            $value
-        );
+        return SensitiveFigures::mask($value);
     }
 
     private function correlationId(): string

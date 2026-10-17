@@ -32,17 +32,36 @@ is visible as what it is.
 
 ## 2. What is never stored
 
-The recorder drops or masks before the INSERT, so the value never reaches the table -
-not "stored then hidden", which would still leak with the database.
+Anything written through the recorder is dropped or masked before the INSERT, so the value never
+reaches the table - not "stored then hidden", which would still leak with the database. Section 3
+explains why a row can still get in without the recorder, and what the screen does about that;
+the write-side rule below is the guarantee, and the read-side mask is a second net under it,
+never a substitute for it.
 
 - **Secrets by key name.** Any change key matching
   `password|secret|token|authorization|cookie|api[_-]?key|private[_-]?key|signature|pin|otp|cvv|cvc|session|remember|hash|payload`
   is removed. A settings save records the **keys** that changed, never their values;
   otherwise the trail would become a second copy of every gateway credential.
-- **Long digit runs.** Nine or more digits, including grouped ones, are reduced to
-  `***last4`. That covers NIN, BVN, card numbers written as `5555 5555 5555 4444`,
-  and phone numbers written as `+234 801 234 5678`. This site's own references carry
-  letters, so they survive intact and stay searchable.
+- **Long digit runs.** Nine or more digits, including grouped ones, are reduced to as many
+  asterisks as there are hidden digits, then the last four: `12345678901` becomes `*******8901`
+  and `5555 5555 5555 4444` becomes `************4444`. That covers NIN, BVN, card numbers
+  written as `5555 5555 5555 4444`, and phone numbers written as `+234 801 234 5678`. This
+  site's own references carry letters, so they survive intact and stay searchable - which is
+  also why the rule cannot be applied to the `reference` column: a gateway id that ends in
+  eleven digits would lose eight of them. Note that a space or a hyphen between digits does
+  **not** end the run, so `20261017-000451` is treated as fourteen digits. That is the correct
+  behaviour for a card number written in groups and the reason the exemption above exists.
+
+**Where the rule is applied.** `AdminActivityRecorder` masks `description`, `reason` and
+`changes` on the way in, and `activity-log.blade.php` applies the same call to the same three
+columns on the way out. Two layers, one rule, so neither can hide what the other kept. The
+read-side layer exists for rows that did not pass through the recorder at all - written straight
+to the table by a migration, an import, or anyone holding the database password, which section 3
+says is possible. `reference` is masked by neither, on purpose. The rule lives in one place,
+  `App\Support\SensitiveFigures::mask`, and the recorder calls it rather than keeping
+  its own copy - so the trail and the screen can never disagree about what counts as
+  a secret. The same call now masks the admin boards that print many rows at once
+  (see `docs/mobile-admin-audit.md`, section 4.5).
 - **Typed search text.** Reading the ledger records which filters were used and how
   many rows came back, not what was typed into the box.
 - **Session identifiers.** Only `HMAC-SHA256(session id, app key)` truncated to 32
@@ -128,7 +147,27 @@ walk into the admin area by editing its own row.
   an owner decision; the table's indexes (`admin_user_id, created_at` and
   `category, created_at`) exist so an export by month is cheap.
 
-## 7. Known gaps, stated plainly
+## 7. The screens the trail is read on
+
+Two rules shaped these pages, and both came from the owner's brief.
+
+**A board that reads must not hold the decision.** The customer profile page used to carry the
+"mark this gateway credit as settled" form inside its wallet ledger. That put a money decision
+on a reading table, and only on whichever page of the ledger the admin happened to be looking
+at. The decision now lives in its own shelf on the same page, "Open funding requests", which
+lists **every** open credit on that wallet rather than the ones on the current page, says in
+plain words that it credits nothing and debits nothing, and keeps the required 10-character
+note. The ledger below it is read-only: no row on it can be clicked into a payment.
+
+**One pager, one table generation.** `Illuminate\Pagination\Paginator::defaultView()` is set to
+`components.pagination` in `AppServiceProvider`, so all 14 `->links()` call sites - including
+the two audit screens - share a wrapping, 44px, brand-styled pager. The framework's own pager
+put every page number on one unwrapping line, and the mobile shell hides sideways overflow, so
+on a phone the later pages could not be reached at all. Both audit screens use
+`x-records-table` (`components/records-table.blade.php`), the same markup as the Transaction
+Explorer, so a wide board scrolls inside its own box instead of widening the page.
+
+## 8. Known gaps, stated plainly
 
 1. **`admin_activity_logs` has never been created on the production database.** The
    migration is prepared and proven against sqlite; running it in production is the

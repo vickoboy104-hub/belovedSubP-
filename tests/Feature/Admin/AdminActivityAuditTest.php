@@ -374,7 +374,7 @@ class AdminActivityAuditTest extends TestCase
         $this->assertStringNotContainsString($nin, $stored, 'A search box can hold an identity number; it must not be copied into the trail.');
         $this->assertStringNotContainsString($nin, (string) $log->description);
         $this->assertSame(['filters', 'results'], array_keys((array) $log->changes));
-        $this->assertContains('search', (array) $log->changes['filters'], 'The trail must say which filter was used.');
+        $this->assertContains('q', (array) $log->changes['filters'], 'The trail must say which filter was used.');
         $this->assertContains('status', (array) $log->changes['filters']);
     }
 

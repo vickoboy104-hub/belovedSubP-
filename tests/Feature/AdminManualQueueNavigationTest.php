@@ -40,7 +40,13 @@ class AdminManualQueueNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get('/admin/manual-orders')
             ->assertOk()
-            ->assertSee('12345678901')
+            // The queue lists dozens of requests on one screen and is opened on a
+            // phone, so it shows the last four digits of the identity number and
+            // nothing more; the tracking id is alphanumeric and stays whole. The
+            // full figure is on the one request the agent opens - asserted in
+            // SensitiveListTest, along with the search below still working.
+            ->assertSee('*******8901')
+            ->assertDontSee('12345678901')
             ->assertSee('ABCDEFGHIJKLMNO')
             ->assertSee('Waiting (2)')
             ->assertSee('Completed (0)');
