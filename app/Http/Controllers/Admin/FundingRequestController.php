@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\WalletTransaction;
+use App\Services\AdminActivityRecorder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * A funding request that an admin has already settled by hand - a credit given
@@ -21,13 +23,18 @@ use Illuminate\Support\Facades\DB;
  */
 class FundingRequestController extends Controller
 {
+    public function __construct(
+        private readonly AdminActivityRecorder $audit,
+    ) {
+    }
+
     public function markSettled(Request $request, WalletTransaction $transaction)
     {
         $validated = $request->validate([
             'note' => ['required', 'string', 'min:10', 'max:2000'],
         ]);
 
-        $this->record($transaction, 'settled', $validated['note'], (int) $request->user()->id);
+        $this->apply($transaction, 'settled', $validated['note'], (int) $request->user()->id);
 
         return back()->with(
             'success',
@@ -41,12 +48,30 @@ class FundingRequestController extends Controller
             'note' => ['required', 'string', 'min:10', 'max:2000'],
         ]);
 
-        $this->record($transaction, 'reopened', $validated['note'], (int) $request->user()->id);
+        $this->apply($transaction, 'reopened', $validated['note'], (int) $request->user()->id);
 
         return back()->with(
             'success',
             'Funding request #'.$transaction->id.' is open again. A later arrival will be credited normally.'
         );
+    }
+
+    /**
+     * A refusal is written after the transaction has already rolled back, so the
+     * attempt can be seen even though nothing it tried to touch was changed.
+     */
+    private function apply(WalletTransaction $transaction, string $action, string $note, int $adminId): void
+    {
+        try {
+            $this->record($transaction, $action, $note, $adminId);
+        } catch (HttpException $e) {
+            $this->audit->recordQuietly('denied', 'transaction_review', 'funding_request.'.$action, 'Attempt to mark a funding request that is not open.', [
+                'target' => ['wallet_transaction', $transaction->id],
+                'reason' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
     }
 
     /**
@@ -81,6 +106,23 @@ class FundingRequestController extends Controller
             $meta['manually_settled_at'] = $action === 'settled' ? now()->toIso8601String() : null;
 
             $locked->forceFill(['meta' => $meta])->save();
+
+            // Inside the same transaction as the marker: this flag decides whether
+            // a later bank transfer is paid or held, so who set it, when, and why
+            // has to be as durable as the flag itself.
+            $this->audit->record(
+                'success',
+                'transaction_review',
+                'funding_request.'.$action,
+                $action === 'settled'
+                    ? 'Marked an open funding request as already settled by hand.'
+                    : 'Reopened a funding request so a later arrival is processed normally.', [
+                    'target' => ['wallet_transaction', $locked->id],
+                    'reference' => (string) $locked->reference,
+                    'reason' => $note,
+                    'changes' => ['amount_kobo' => (int) $locked->amount, 'manually_settled' => $action === 'settled'],
+                ]
+            );
         });
     }
 }

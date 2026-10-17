@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Notifications\ManualOrderNotification;
+use App\Services\AdminActivityRecorder;
 use App\Services\ManualFulfilmentService;
 use App\Services\WalletLedger;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,6 +27,7 @@ class ManualOrdersController extends Controller
     public function __construct(
         private readonly ManualFulfilmentService $manualServices,
         private readonly WalletLedger $ledger,
+        private readonly AdminActivityRecorder $audit,
     ) {
     }
 
@@ -186,6 +188,15 @@ class ManualOrdersController extends Controller
         // response header.
         $name = str_replace(['"', '\\', "\r", "\n"], '', (string) ($upload['name'] ?? $field));
 
+        // Somebody read a customer's identity document. That is the one admin action
+        // with no other trace - nothing is saved, nothing changes - so it is recorded
+        // here, against the request and the field, not the document's contents.
+        $this->audit->recordQuietly('success', 'customer', 'customer.document_viewed', 'Opened a document a customer uploaded.', [
+            'target' => ['order', $manualOrder->id],
+            'changes' => ['field' => $field],
+            'throttle_seconds' => 60,
+        ]);
+
         return response()->file(Storage::disk('local')->path($path), [
             'Content-Disposition' => 'inline; filename="'.$name.'"',
         ]);
@@ -212,6 +223,11 @@ class ManualOrdersController extends Controller
         // to hold: writing a claim over it would suggest somebody is still working
         // a job that has been answered.
         if ($manualOrder->status !== 'pending') {
+            $this->audit->recordQuietly('failed', 'order', 'manual_order.assignment', 'Attempt to change who is working an answered request.', [
+                'target' => ['order', $manualOrder->id],
+                'reason' => 'The request is already '.$manualOrder->status.'.',
+            ]);
+
             return back()->with('error', 'This request is already '.$manualOrder->status.', so nobody is working it.');
         }
 
@@ -259,8 +275,26 @@ class ManualOrdersController extends Controller
                 // Nothing was written, so the history cannot disagree with the hold.
                 DB::rollBack();
 
+                $this->audit->recordQuietly('denied', 'order', 'manual_order.assignment', 'Attempt to change who is working this request was refused.', [
+                    'target' => ['order', $manualOrder->id],
+                    'reason' => $refused,
+                    'changes' => ['requested_action' => $action],
+                ]);
+
                 return back()->with('error', $refused);
             }
+
+            // Written inside the same transaction as the hold, so an assignment
+            // that rolled back cannot leave a trail claiming somebody took a job.
+            $this->audit->record('success', 'order', 'manual_order.'.$action, match ($action) {
+                'release' => 'Released a request back to the waiting queue.',
+                'take_over' => 'Took over a request another agent was holding.',
+                default => 'Took a request from the waiting queue.',
+            }, [
+                'target' => ['order', $manualOrder->id],
+                'reason' => $note,
+                'changes' => ['previous_holder_user_id' => $holder, 'taken_by_user_id' => $adminId],
+            ]);
 
             DB::commit();
         } catch (\Throwable $e) {
@@ -465,6 +499,11 @@ class ManualOrdersController extends Controller
         // cannot leave a customer's document sitting on the disk attached to nothing.
         $refused = $this->answerRefused($manualOrder, $adminId, $overrideReason);
         if ($refused !== null) {
+            $this->audit->recordQuietly('denied', 'order', 'manual_order.answer', 'Attempt to publish a result was refused.', [
+                'target' => ['order', $manualOrder->id],
+                'reason' => $refused,
+            ]);
+
             return back()->with('error', $refused);
         }
 
@@ -486,12 +525,22 @@ class ManualOrdersController extends Controller
             if (!in_array($fresh->status, ['pending', 'success'], true)) {
                 DB::rollBack();
 
+                $this->audit->recordQuietly('failed', 'order', 'manual_order.answer', 'Result could not be saved: the request had already been answered another way.', [
+                    'target' => ['order', $manualOrder->id],
+                    'reason' => 'The request is now '.$fresh->status.'.',
+                ]);
+
                 return back()->with('error', 'This request is already '.$fresh->status.', so it cannot be completed.');
             }
 
             $refused = $this->answerRefused($fresh, $adminId, $overrideReason);
             if ($refused !== null) {
                 DB::rollBack();
+
+                $this->audit->recordQuietly('denied', 'order', 'manual_order.answer', 'Second check refused this answer before anything was written.', [
+                    'target' => ['order', $manualOrder->id],
+                    'reason' => $refused,
+                ]);
 
                 return back()->with('error', $refused);
             }
@@ -545,8 +594,25 @@ class ManualOrdersController extends Controller
 
                 DB::rollBack();
 
+                $this->audit->recordQuietly('failed', 'order', 'manual_order.answer', 'Two admins answered the same request; this one lost.', [
+                    'target' => ['order', $manualOrder->id],
+                    'reason' => 'Another answer was written first.',
+                ]);
+
                 return back()->with('error', 'Somebody else has just answered this request. Reload the page to see the current result.');
             }
+
+            $this->audit->record('success', 'order', $over !== null ? 'manual_order.answered_over' : 'manual_order.answered', $over === null
+                ? 'Published a result for this request.'
+                : 'Published a result over the top of the agent holding this request.', [
+                'target' => ['order', $manualOrder->id],
+                'reason' => $overrideReason !== '' ? $overrideReason : trim((string) ($data['admin_note'] ?? '')),
+                'changes' => [
+                    'result_document' => $storedPath !== null ? basename((string) $storedPath) : null,
+                    'overridden_holder_user_id' => $over,
+                    'updated_existing_result' => !$answered,
+                ],
+            ]);
 
             DB::commit();
         } catch (\Throwable $e) {
@@ -601,6 +667,11 @@ class ManualOrdersController extends Controller
         $manualOrder = $this->findManualOrder($order);
 
         if ($manualOrder->status !== 'pending') {
+            $this->audit->recordQuietly('failed', 'wallet', 'manual_order.reject', 'Attempt to reject and refund an already answered request.', [
+                'target' => ['order', $manualOrder->id],
+                'reason' => 'The request is already '.$manualOrder->status.'.',
+            ]);
+
             return back()->with('error', 'This request is already '.$manualOrder->status.', so it cannot be rejected.');
         }
 
@@ -614,6 +685,11 @@ class ManualOrdersController extends Controller
 
         $refused = $this->answerRefused($manualOrder, $adminId, $overrideReason);
         if ($refused !== null) {
+            $this->audit->recordQuietly('denied', 'order', 'manual_order.reject', 'Attempt to reject this request was refused.', [
+                'target' => ['order', $manualOrder->id],
+                'reason' => $refused,
+            ]);
+
             return back()->with('error', $refused);
         }
 
@@ -636,12 +712,22 @@ class ManualOrdersController extends Controller
             if ($fresh->status !== 'pending') {
                 DB::rollBack();
 
+                $this->audit->recordQuietly('failed', 'wallet', 'manual_order.reject', 'Refund refused: the request had already been answered.', [
+                    'target' => ['order', $manualOrder->id],
+                    'reason' => 'It is now '.$fresh->status.', so the money has already been dealt with once.',
+                ]);
+
                 return back()->with('error', 'This request has already been '.($fresh->status === 'failed' ? 'rejected and refunded' : 'completed').', so nothing was refunded again.');
             }
 
             $refused = $this->answerRefused($fresh, $adminId, $overrideReason);
             if ($refused !== null) {
                 DB::rollBack();
+
+                $this->audit->recordQuietly('denied', 'order', 'manual_order.reject', 'Second check refused this rejection before anything was written.', [
+                    'target' => ['order', $manualOrder->id],
+                    'reason' => $refused,
+                ]);
 
                 return back()->with('error', $refused);
             }
@@ -666,6 +752,11 @@ class ManualOrdersController extends Controller
             if (!$this->settleAnswer($fresh, $meta, 'failed')) {
                 DB::rollBack();
 
+                $this->audit->recordQuietly('failed', 'wallet', 'manual_order.reject', 'Two admins answered the same request; this rejection lost and refunded nothing.', [
+                    'target' => ['order', $manualOrder->id],
+                    'reason' => 'Another answer was written first.',
+                ]);
+
                 return back()->with('error', 'Somebody else has just answered this request. Nothing was refunded.');
             }
 
@@ -681,6 +772,16 @@ class ManualOrdersController extends Controller
                     'Refund for cancelled '.$title.': '.$reason,
                 );
             }
+
+            $this->audit->record('success', 'wallet', 'manual_order.rejected_refunded', 'Rejected this request and returned ₦'.number_format($amountKobo / 100, 2).' to the customer.', [
+                'target' => ['order', $manualOrder->id],
+                'reference' => 'REFUND-'.$reference,
+                'reason' => $reason,
+                'changes' => [
+                    'refund_kobo' => $amountKobo,
+                    'overridden_holder_user_id' => $over,
+                ],
+            ]);
 
             DB::commit();
         } catch (\Throwable $e) {

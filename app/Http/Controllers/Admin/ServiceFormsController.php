@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ServiceForm;
+use App\Services\AdminActivityRecorder;
 use App\Services\ManualFulfilmentService;
 use App\Services\ServiceFormRepository;
 use App\Support\ServiceForm\Schema;
@@ -59,6 +60,7 @@ class ServiceFormsController extends Controller
     public function __construct(
         private readonly ManualFulfilmentService $manual,
         private readonly ServiceFormRepository $forms,
+        private readonly AdminActivityRecorder $audit,
     ) {
     }
 
@@ -165,6 +167,19 @@ class ServiceFormsController extends Controller
             'cost_text' => (string) ($posted['cost_text'] ?? '') !== '' ? $posted['cost_text'] : null,
         ]));
 
+        // What a customer is asked for decides what gets bought, so the shape of
+        // the saved form is the finding. The questions themselves are not copied:
+        // they are stored, versioned and visible on the service page.
+        $this->audit->recordQuietly('success', 'platform', 'platform.service_form_saved', 'Saved the form customers see for a service.', [
+            'target' => ['service_form', $service],
+            'changes' => [
+                'service' => $service,
+                'group' => $posted['group'],
+                'field_count' => count($compiled['fields'] ?? []),
+                'note_count' => count($compiled['notes'] ?? []),
+            ],
+        ]);
+
         return redirect()
             ->route('admin.services.edit', $service)
             ->with('success', $posted['title'].' saved. Customers now see these questions.');
@@ -179,6 +194,11 @@ class ServiceFormsController extends Controller
         abort_unless($this->forms->find($service) !== null, 404);
 
         $this->forms->delete($service);
+
+        $this->audit->recordQuietly('success', 'platform', 'platform.service_form_reset', 'Reset a service form to the shipped version.', [
+            'target' => ['service_form', $service],
+            'changes' => ['service' => $service],
+        ]);
 
         return redirect()
             ->route('admin.services.edit', $service)

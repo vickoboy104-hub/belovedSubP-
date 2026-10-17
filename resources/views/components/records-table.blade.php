@@ -11,6 +11,7 @@
     'searchPlaceholder' => 'Search',
     'emptyText' => 'No records yet.',
     'searchable' => true,
+    'hidden' => [],
 ])
 
 @php
@@ -41,6 +42,12 @@
             </div>
 
             <div class="records-tools">
+                @foreach($hidden as $name => $value)
+                    @if($value !== null && $value !== '')
+                        <input type="hidden" name="{{ $name }}" value="{{ $value }}">
+                    @endif
+                @endforeach
+
                 <input type="search"
                        name="q"
                        value="{{ $search }}"

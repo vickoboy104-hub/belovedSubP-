@@ -20,6 +20,8 @@ use App\Http\Controllers\SupportBotController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\Admin\WebsiteEditorController;
+use App\Http\Controllers\Admin\AdministratorsController;
+use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\ReferralController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 
@@ -184,4 +186,13 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::get('/broadcast', [BroadcastController::class, 'index'])->name('admin.broadcast');
     Route::post('/broadcast/send', [BroadcastController::class, 'send'])->name('admin.broadcast.send');
     Route::get('/broadcast/export', [BroadcastController::class, 'export'])->name('admin.broadcast.export');
+
+    // The trail belongs to the owner, not to every account with is_admin turned on,
+    // so these two screens sit behind audit_owner as well as the admin group. The
+    // owner list ships empty, which means they 403 for everyone until the owner
+    // names their own account.
+    Route::middleware(['audit_owner'])->group(function () {
+        Route::get('/administrators', [AdministratorsController::class, 'index'])->name('admin.administrators');
+        Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('admin.activity-log');
+    });
 });

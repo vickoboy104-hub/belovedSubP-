@@ -4,12 +4,18 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
+use App\Services\AdminActivityRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class WebsiteEditorController extends Controller
 {
+    public function __construct(
+        private readonly AdminActivityRecorder $audit,
+    ) {
+    }
+
     /**
      * @var array<int, string>
      */
@@ -99,6 +105,19 @@ class WebsiteEditorController extends Controller
 
         settings_flush_cache();
 
+        // Custom JavaScript here runs in every customer's browser, so the moment it
+        // was switched on, and how much of it there is, are the findings. The code
+        // itself is not copied into the trail.
+        $this->audit->recordQuietly('success', 'platform', 'platform.website_editor_updated', 'Applied Website Editor changes.', [
+            'changes' => [
+                'applied_keys' => array_keys($data),
+                'custom_css_enabled' => $data['editor_enable_custom_css'] ?? null,
+                'custom_js_enabled' => $data['editor_enable_custom_js'] ?? null,
+                'custom_css_length' => strlen((string) ($data['editor_custom_css'] ?? '')),
+                'custom_js_length' => strlen((string) ($data['editor_custom_js'] ?? '')),
+            ],
+        ]);
+
         return back()->with('success', 'Website Editor changes applied successfully.');
     }
 
@@ -109,6 +128,10 @@ class WebsiteEditorController extends Controller
             ->delete();
 
         settings_flush_cache();
+
+        $this->audit->recordQuietly('success', 'platform', 'platform.website_editor_reset', 'Reset Website Editor settings to the shipped defaults.', [
+            'changes' => ['cleared_keys' => count($this->editableKeys)],
+        ]);
 
         return back()->with('success', 'Website Editor settings have been reset to default.');
     }

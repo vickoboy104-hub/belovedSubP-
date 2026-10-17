@@ -334,7 +334,7 @@ class WalletLedgerSafetyTest extends TestCase
             ->post(route('admin.users.adjust-wallet', $customer), [
                 'adjustment_type' => 'debit',
                 'amount' => '500.00',
-                'note' => 'Reversal',
+                'note' => 'Reversal of double debit',
             ])
             ->assertSessionHas('error');
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Notifications\ManualOrderNotification;
+use App\Services\AdminActivityRecorder;
 use App\Support\IssuedKeys;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -12,6 +13,11 @@ use Illuminate\Support\Facades\Validator;
 
 class OrdersController extends Controller
 {
+    public function __construct(
+        private readonly AdminActivityRecorder $audit,
+    ) {
+    }
+
     public function index(Request $request)
     {
         $query = Order::with('user')->latest();
@@ -53,6 +59,15 @@ class OrdersController extends Controller
         $issuedOrder = Order::query()->findOrFail($order);
         $issuedOrder->load('user');
 
+        // This screen shows live card credentials. Opening it leaves no other
+        // trace, so the view itself is the event worth recording - never the
+        // values on show.
+        $this->audit->recordQuietly('success', 'order', 'order.keys_viewed', 'Opened the card keys screen for an order.', [
+            'target' => ['order', $issuedOrder->id],
+            'changes' => ['key_count' => count(IssuedKeys::forOrder($issuedOrder))],
+            'throttle_seconds' => 60,
+        ]);
+
         return view('admin.order-keys', [
             'order' => $issuedOrder,
             'keys' => IssuedKeys::forOrder($issuedOrder),
@@ -88,6 +103,15 @@ class OrdersController extends Controller
             'keys_issued_by' => $request->user()?->id,
         ]);
         $issuedOrder->save();
+
+        // The keys themselves stay out of the trail: a card serial and PIN are
+        // exactly what this table must never hold. How many were written, and
+        // whether they replaced a set the customer already had, is the part a
+        // later reader needs.
+        $this->audit->recordQuietly('success', 'order', 'order.keys_issued', 'Saved '.count($keys).' card key(s) against an order.'.($hadKeys ? ' Replaced the keys already there.' : ''), [
+            'target' => ['order', $issuedOrder->id],
+            'changes' => ['key_count' => count($keys), 'replaced_existing' => $hadKeys],
+        ]);
 
         $this->notifyCustomer(
             $issuedOrder,

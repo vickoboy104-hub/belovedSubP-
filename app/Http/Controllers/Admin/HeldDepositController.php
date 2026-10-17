@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\FlutterwaveHeldDeposit;
 use App\Models\User;
+use App\Services\AdminActivityRecorder;
 use App\Services\WalletFundingService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -17,6 +18,11 @@ use Illuminate\Validation\Rule;
  */
 class HeldDepositController extends Controller
 {
+    public function __construct(
+        private readonly AdminActivityRecorder $audit,
+    ) {
+    }
+
     public function index(Request $request)
     {
         $query = FlutterwaveHeldDeposit::query()
@@ -68,6 +74,11 @@ class HeldDepositController extends Controller
         ]);
 
         if (!$deposit->isHeld()) {
+            $this->audit->recordQuietly('failed', 'wallet', 'held_deposit.credit', 'Attempt to release a held deposit that was already dealt with.', [
+                'target' => ['held_deposit', $deposit->id],
+                'reason' => 'Its status is '.$deposit->status.'.',
+            ]);
+
             return back()->with('error', 'This deposit has already been dealt with.');
         }
 
@@ -75,8 +86,19 @@ class HeldDepositController extends Controller
         $credited = $funding->creditHeldDepositTo($deposit, $customer, $request->user(), $validated['note']);
 
         if ($credited <= 0) {
+            $this->audit->recordQuietly('failed', 'wallet', 'held_deposit.credit', 'Nothing was credited: this charge has already been paid out.', [
+                'target' => ['held_deposit', $deposit->id],
+                'changes' => ['chosen_user_id' => $customer->id],
+            ]);
+
             return back()->with('error', 'Nothing was credited: this charge has already been paid out somewhere.');
         }
+
+        $this->audit->recordQuietly('success', 'wallet', 'held_deposit.credit', 'Released a held deposit: credited '.number_format($credited / 100, 2).' to a customer.', [
+            'target' => ['held_deposit', $deposit->id],
+            'reason' => $validated['note'],
+            'changes' => ['credited_kobo' => $credited, 'chosen_user_id' => $customer->id],
+        ]);
 
         return back()->with('success', 'Credited '.number_format($credited / 100, 2).' to '.$customer->name.'.');
     }
@@ -99,8 +121,21 @@ class HeldDepositController extends Controller
             ]);
 
         if ($dismissed !== 1) {
+            $this->audit->recordQuietly('failed', 'transaction_review', 'held_deposit.dismiss', 'Attempt to dismiss a held deposit that was already dealt with.', [
+                'target' => ['held_deposit', $deposit->id],
+                'reason' => 'Its status is '.$deposit->status.'.',
+            ]);
+
             return back()->with('error', 'This deposit has already been dealt with.');
         }
+
+        // Recording that money was judged *not ours to credit* matters as much as
+        // recording a credit: it is the branch where a customer was left unpaid on
+        // purpose, by name, with a reason.
+        $this->audit->recordQuietly('success', 'transaction_review', 'held_deposit.dismiss', 'Dismissed a held deposit without crediting anyone.', [
+            'target' => ['held_deposit', $deposit->id],
+            'reason' => $validated['note'],
+        ]);
 
         return back()->with('success', 'Marked as not ours to credit. The record is kept.');
     }

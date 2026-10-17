@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\Setting;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Services\AdminActivityRecorder;
 use App\Services\ManualFulfilmentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -212,7 +213,7 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function resetMetric(Request $request): RedirectResponse
+    public function resetMetric(Request $request, AdminActivityRecorder $audit): RedirectResponse
     {
         $payload = $request->validate([
             'metric' => ['required', 'string', 'in:funding,purchases,profit,all'],
@@ -251,6 +252,18 @@ class DashboardController extends Controller
         }
 
         settings_flush_cache();
+
+        // A reset changes what the platform reports it has ever handled, without
+        // touching one ledger row - which is exactly the kind of edit that needs a
+        // name and a time attached to it.
+        $audit->recordQuietly('success', 'platform', 'platform.metrics_reset', 'Reset the reported '.str_replace('all', 'every', $metric).' total.', [
+            'changes' => [
+                'metric' => $metric,
+                'funding_offset_kobo' => in_array($metric, ['funding', 'all'], true) ? $currentFunding : null,
+                'purchases_offset_kobo' => in_array($metric, ['purchases', 'all'], true) ? $currentPurchases : null,
+                'profit_offset_kobo' => in_array($metric, ['profit', 'all'], true) ? $currentProfit : null,
+            ],
+        ]);
 
         return back()->with('success', 'Selected metric totals have been reset.');
     }

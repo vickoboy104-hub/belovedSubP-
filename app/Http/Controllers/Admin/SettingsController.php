@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ProviderPlanPrice;
 use App\Models\Setting;
+use App\Services\AdminActivityRecorder;
 use App\Services\ManualFulfilmentService;
 use App\Services\ProviderPlanPriceService;
 use App\Support\ServiceAvailability;
@@ -15,6 +16,7 @@ class SettingsController extends Controller
     public function __construct(
         private readonly ProviderPlanPriceService $planPrices,
         private readonly ServiceAvailability $availability,
+        private readonly AdminActivityRecorder $audit,
     ) {
     }
 
@@ -371,6 +373,13 @@ class SettingsController extends Controller
 
         settings_flush_cache();
 
+        // Which settings were written, never what was written into them: this form
+        // carries provider API keys and webhook secrets, and a trail that copied
+        // them would leak every credential it was meant to police.
+        $this->audit->recordQuietly('success', 'platform', 'platform.settings_updated', 'Saved platform settings.', [
+            'changes' => ['setting_keys' => array_keys($data)],
+        ]);
+
         return back()->with('success', 'Settings updated successfully!');
     }
 
@@ -387,6 +396,22 @@ class SettingsController extends Controller
         if ((int) $summary['stale'] > 0) {
             $message .= ' '.(int) $summary['stale'].' services were not reached before the time limit - run sync again to continue.';
         }
+
+        $this->audit->recordQuietly(
+            empty($summary['failed_services']) ? 'success' : 'failed',
+            'platform',
+            'platform.provider_prices_synced',
+            'Ran the provider price sync.',
+            [
+                'reason' => $message,
+                'changes' => [
+                    'synced_plans' => (int) $summary['synced_plans'],
+                    'attempted_services' => count($summary['attempted_services']),
+                    'failed_services' => array_slice((array) $summary['failed_services'], 0, 20),
+                    'stale' => (int) $summary['stale'],
+                ],
+            ]
+        );
 
         return empty($summary['failed_services'])
             ? back()->with('success', $message)

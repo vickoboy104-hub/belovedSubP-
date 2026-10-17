@@ -118,9 +118,14 @@
                                 <input type="number" name="amount" min="1" step="0.01" required
                                        placeholder="Fund amount (N)"
                                        class="input-field">
-                                <input type="text" name="note"
-                                       placeholder="Reason (optional)"
-                                       class="input-field">
+                                <div>
+                                    <label class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500"
+                                           for="fund-note-{{ $u->id }}">Reason (required)</label>
+                                    <input type="text" id="fund-note-{{ $u->id }}" name="note"
+                                           required minlength="10" maxlength="255"
+                                           placeholder="Why this credit is owed - at least 10 characters"
+                                           class="input-field mt-1">
+                                </div>
                                 <button class="btn-primary w-full justify-center">
                                     Fund Wallet
                                 </button>
@@ -248,7 +253,9 @@
                                                        placeholder="Fund amount (N)"
                                                        class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900">
                                                 <input type="text" name="note"
-                                                       placeholder="Reason (optional)"
+                                                       required minlength="10" maxlength="255"
+                                                       placeholder="Reason (required, 10+ characters)"
+                                                       aria-label="Reason for this credit, required"
                                                        class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900">
                                                 <button class="btn-primary px-3 py-2 text-xs">
                                                     Fund Wallet

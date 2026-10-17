@@ -241,8 +241,9 @@
                             <input type="number" name="amount" min="0.01" step="0.01" required class="input-field mt-1">
                         </label>
                         <label class="block">
-                            <span class="text-sm font-bold text-slate-700">Reason</span>
-                            <input name="note" maxlength="255" placeholder="Required for audit clarity" class="input-field mt-1">
+                            <span class="text-sm font-bold text-slate-700">Reason (required)</span>
+                            <input name="note" required minlength="10" maxlength="255"
+                                   placeholder="Why this change is owed - at least 10 characters" class="input-field mt-1">
                         </label>
                         <button class="btn-primary w-full">Apply Wallet Change</button>
                     </div>

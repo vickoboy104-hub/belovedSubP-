@@ -23,6 +23,14 @@
         ['label' => 'Settings', 'route' => 'admin.settings'],
     ];
 
+    // The two audit screens are the owner's, so the links appear only for accounts
+    // named in the owner list. Showing every admin a door that refuses them is
+    // worse than a quieter menu: it invites them to assume they have access.
+    if (\App\Http\Middleware\AuditOwnerAccess::isOwner(request())) {
+        $adminPages[] = ['label' => 'All Administrators', 'route' => 'admin.administrators'];
+        $adminPages[] = ['label' => 'Activity Log', 'route' => 'admin.activity-log'];
+    }
+
     // The settings page keeps its Save card in the same corner, so the handle lifts.
     $lifted = request()->routeIs('admin.settings');
 @endphp

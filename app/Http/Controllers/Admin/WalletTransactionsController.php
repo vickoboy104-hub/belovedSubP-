@@ -4,10 +4,16 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\WalletTransaction;
+use App\Services\AdminActivityRecorder;
 use Illuminate\Http\Request;
 
 class WalletTransactionsController extends Controller
 {
+    public function __construct(
+        private readonly AdminActivityRecorder $audit,
+    ) {
+    }
+
     public function index(Request $request)
     {
         $query = WalletTransaction::with(['wallet.user'])->latest();
@@ -36,6 +42,21 @@ class WalletTransactionsController extends Controller
         }
 
         $transactions = $query->paginate(20)->appends($request->query());
+
+        // Reading the ledger is itself an event worth recording: the question
+        // "who looked at this customer's money" has no other answer. What was
+        // typed stays out of the trail - a search box can hold anything, including
+        // someone's NIN - so the record names the filters and how many rows came
+        // back, not the query.
+        if ($request->query() !== []) {
+            $this->audit->recordQuietly('success', 'transaction_review', 'wallet.transactions_searched', 'Searched the wallet transaction ledger.', [
+                'changes' => [
+                    'filters' => array_keys($request->query()),
+                    'results' => $transactions->total(),
+                ],
+                'throttle_seconds' => 60,
+            ]);
+        }
 
         return view('admin.wallet-transactions', compact('transactions'));
     }

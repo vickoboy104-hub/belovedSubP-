@@ -6,6 +6,7 @@ use App\Contracts\SmsGateway;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Notifications\AdminBroadcastNotification;
+use App\Services\AdminActivityRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
@@ -23,6 +24,7 @@ class BroadcastController extends Controller
 
     public function __construct(
         private readonly SmsGateway $sms,
+        private readonly AdminActivityRecorder $audit,
     ) {
     }
 
@@ -111,6 +113,26 @@ class BroadcastController extends Controller
 
         $lastId = (int) ($recipients->last()?->id ?? $after);
 
+        // One send walks the whole customer table a page at a time, so the trail
+        // gets two lines per broadcast - the first page, and the end of the list -
+        // instead of one per batch of twenty-five.
+        if ($after === 0) {
+            $this->audit->recordQuietly('success', 'broadcast', 'broadcast.started', 'Started a broadcast to customers.', [
+                'changes' => [
+                    'requested_channels' => $data['channels'],
+                    'channels' => $channels,
+                    'title' => $data['title'],
+                    'message_length' => strlen((string) $data['message']),
+                    'mail_skipped' => $wantedMail && !$this->mailReady(),
+                    'sms_skipped' => $wantedSms && !$this->sms->isConfigured(),
+                ],
+            ]);
+        } elseif ($recipients->isEmpty()) {
+            $this->audit->recordQuietly('success', 'broadcast', 'broadcast.finished', 'A broadcast reached the end of the customer list.', [
+                'changes' => ['channels' => $channels, 'last_user_id' => $lastId],
+            ]);
+        }
+
         return response()->json([
             'ok' => true,
             'sent' => $recipients->count(),
@@ -136,6 +158,17 @@ class BroadcastController extends Controller
     public function export(): StreamedResponse
     {
         $filename = 'broadcast-recipients-'.now()->format('Y-m-d').'.csv';
+
+        // The most leakable thing an admin can do here: take every customer's name
+        // and number off the server in one file. How many rows left is recorded; the
+        // rows themselves are not.
+        $this->audit->recordQuietly('success', 'customer', 'customer.contacts_exported', 'Downloaded the customer contact list.', [
+            'changes' => [
+                'rows' => User::query()->whereNotNull('phone')->where('phone', '!=', '')->count(),
+                'file' => $filename,
+            ],
+            'throttle_seconds' => 60,
+        ]);
 
         return response()->streamDownload(function () {
             $handle = fopen('php://output', 'wb');
