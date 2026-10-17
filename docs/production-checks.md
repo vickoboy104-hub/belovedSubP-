@@ -47,14 +47,18 @@ Recorded so nobody re-asks them. Section references show where each question was
 twelve money-path concurrency proofs passed against MySQL 8.4.3 on the development
 machine. The follow-up reads closed most of the distance - isolation REPEATABLE-READ and a
 50 s lock timeout are exactly the pair the proofs ran under - so the remaining delta is the
-engine implementation itself. That delta is now closed (2026-10-17, approval row C5): the
-owner approved a GitHub Actions run against a disposable `mariadb:10.6` service container -
+engine implementation itself. That delta was closed on 2026-10-17 **for the commit that ran**,
+and the owner approved a GitHub Actions run against a disposable `mariadb:10.6` service container -
 synthetic `vtu_money_tests` data, no production contact - and run
 [38999509204](https://github.com/vickoboy104-hub/belovedSubP-/actions/runs/38999509204)
 passed on commit `f2cfaa5f` with `MariaDB version: 10.6.28-MariaDB-ubu2204` (the same 10.6.28
 this box reports), driver `mysql`, **12 tests / 110 assertions / zero skips**. The MySQL 8.4.3
-pass no longer needs to stand in for anything: the proofs have now run on the live engine's
-own version. Tracked as checklist §9 item 4 and approval row C5.
+pass no longer needs to stand in for anything **on the commit that ran**. It does not cover the
+three runtime commits now sitting on this branch, because `f2cfaa5f` is older than all of them:
+the MariaDB proof has to run again here before any GO claim, and since that workflow triggers on
+a push, this machine cannot do it alone (approval rows A1 and A6). The MySQL 8.4.3 half **is**
+current - re-run 2026-10-17 on head `69418773`, 12 passed / 110 assertions, scratch database
+verified empty again afterwards. Tracked as checklist §9 item 4 and approval row C5.
 
 ---
 

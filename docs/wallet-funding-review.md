@@ -109,8 +109,10 @@ deposit as already paid. InnoDB: `test_one_verified_transfer_cannot_fund_two_wal
 where a **second operating-system process** (`tests/Concurrency/MysqlRivalChargeCredit.php`)
 tries to credit the same charge into a different wallet while the first credit is still
 uncommitted - MySQL makes it wait at the index and then refuses it. Whole suite on MySQL
-8.4.3: **12 passed, 110 assertions** (re-run 2026-10-16 after section 3b went in), database
-empty again afterwards. The backfill on real
+8.4.3: **12 passed, 110 assertions** (first run 2026-10-16 after section 3b went in, then
+**re-run 2026-10-17 on head `69418773`**, which is the tree that contains section 3c's
+prior-settlement hold, so `MysqlRivalAmbiguousCredit.php` met a live `WalletFundingService`
+that had actually changed), database empty again afterwards. The backfill on real
 MySQL json was checked separately, including a debit, a NULL meta and a duplicate token.
 
 ## 3b. Being paid once is not the same as being paid to the right customer

@@ -1,6 +1,8 @@
 # Final functional audit - what each claim rests on
 
-Audited 2026-10-16 on the development branch `codex/identity-first-jhtech-experience`.
+Audited 2026-10-16 on the development branch `codex/identity-first-jhtech-experience`, and every
+line re-run on 2026-10-17 against head `69418773` (the full sqlite suite plus the twelve InnoDB
+proofs on real MySQL).
 Every line below names the test that proves it, in the form
 `tests/Feature/File::method`. Nothing in this file is an opinion about behaviour I did not
 run; where a claim is *not* proven by a test it says so.
@@ -9,17 +11,20 @@ Whole suite as it stands: **516 passed, 12 skipped, 3,846 assertions** (sqlite, 
 
 The 12 skips are all in `MysqlMoneyPathConcurrencyTest` when it runs on sqlite: those proofs
 need two operating-system processes and row locks, which sqlite does not have. They are not
-skips of convenience - the same suite was re-run on **MySQL 8.4.3 on 2026-10-16 after the
-deposit ownership gate went in: 12 passed, 110 assertions**, in a scratch database that held
-nothing else, covering `flutterwave_held_deposits` in both the engine check and the new
-`::test_two_processes_hold_one_ambiguous_transfer_once`, where a second operating-system
-process meets the first one's uncommitted hold and the outcome is one held record, no charge
-claim and nobody paid.
+skips of convenience - the suite was re-run on **MySQL 8.4.3 on 2026-10-17, on this head
+(`69418773`), and passed: 12 passed, 110 assertions, 28.57 s**, in an isolated second instance
+on port 3307 against a scratch database that held nothing else, and `evidence.php` afterwards
+showed every money table empty again (25 tables, rows only in `migrations`). That run covers
+`flutterwave_held_deposits` in both the engine check and
+`::test_two_processes_hold_one_ambiguous_transfer_once`, where a second operating-system process
+meets the first one's uncommitted hold and the outcome is one held record, no charge claim and
+nobody paid, and it exercises the eighth migration (`admin_activity_logs`) on real InnoDB as
+part of building the schema.
 
-**Those engine figures are from before this batch.** The mobile/admin work changed views, one
-shared support class (`app/Support/SensitiveFigures.php`) and two admin controllers, so the
-engine run belongs to the pre-deployment evidence and has to be repeated before any GO
-statement; the 516 above is current, the 110 is not.
+**What that run is not.** The live box reports **MariaDB 10.6.28**, not MySQL 8.4.3, and the only
+run on that version was GitHub Actions run 38999509204 on `f2cfaa5f`, which does not contain this
+batch. Approval row A6 carries that gap; no MariaDB number is quoted here for this head, because
+MariaDB never produced one for it.
 
 ---
 
@@ -150,18 +155,33 @@ Private by default:
   uploaded it cannot read it back through the admin route. Both the direct URL and the
   route-generated URL are refused; documents live outside `public/`.
 
-## 8. No selling price moved and no approved layout moved
+## 8. No selling price moved; the layout moved on shared classes, and that is recorded here
 
 - Prices are defined in `app/Helpers/settings.php` (`jhtech_price_reference()` and the
   `price_manual_*` table) and read through `ManualFulfilmentService::priceNaira()`; VTU plan
   selling prices come from `provider_plan_prices`. `IdentityPriceReferenceTest` (11 methods)
   pins retail ≥ provider cost for every key, the ₦160 / ₦80 provider costs, and that an owner
   override still works. The four NIN Modification tiers are pinned as in section 4.
-- The last four commits touch **one** view file: `resources/views/admin/settings.blade.php`,
-  +26/-2, the admin-only "customers cannot buy right now" banner inside the approved mock
-  fix. `git diff --name-only HEAD~4 HEAD` shows no `resources/css`, no `resources/js`, no
-  `public/build` - so there is no rebuilt-asset step in this batch and no customer-visible
-  layout change.
+- **Prices: unchanged, and this is checkable.** `git diff --name-only 0935a7f7..HEAD --
+  app/Helpers/settings.php` returns nothing across all 45 commits of the deploy range, so no
+  price key moved.
+- **Layout: the older "no customer-visible layout change" line in this section is superseded,
+  and I am correcting it rather than leaving it standing.** It was true of the four commits that
+  existed when it was written (`resources/views/admin/settings.blade.php`, +26/−2, was then the
+  only view touched). It is not true of this head. Measured over the three runtime commits above
+  the reviewed anchor (`git diff --numstat cd19810c..HEAD`): `resources/css/app.css` **109 added /
+  7 removed**, `resources/views/components/records-table.blade.php` **44 / 9**, and the CSS
+  bundle swaps from `app-D-vIop72.css` (185,588 B) to `app-k_-jzmjF.css` (187,639 B). Those are
+  **shared** classes and a **shared** component, and three customer pages render that component
+  (`resources/views/vtu/manual-service.blade.php`, `resources/views/vtu/orders.blade.php`,
+  `resources/views/wallet/transactions.blade.php`), so a phone holding a customer session sees
+  new dimensions: drawer links, modal buttons and the close control reach 44 px, and a records
+  table now takes a per-board `min-width` so a wide table scrolls instead of crushing.
+  **What did not move:** no customer **view file** is edited in the range (the view diff lists
+  nine `admin/` files, one new shared component and two changed shared components), no price, no
+  brand value, no form field and no copy. `resources/js` is not in the range at all, and the JS
+  bundle `app-DXuAyQnv.js` (106,512 B) is byte-for-byte the file already accounted for at the
+  anchor.
 - This audit pass adds no production code at all: the files it changes are the three test
   suites named above plus the two documents it writes itself
   (`MockProviderChargeTest`, `NinModificationWorkflowTest`, `WalletFundingAgreementTest`,

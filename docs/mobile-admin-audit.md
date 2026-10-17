@@ -15,6 +15,17 @@ Every admin page had to be usable on a phone, and specifically:
   sticky headers that do not cover content;
 - the Transaction Explorer answering every filter in the database, not in the browser.
 
+**Scope, stated honestly because it is wider than the title.** The fixes went into the **shared**
+table component and the shared stylesheet, not into admin-only templates, so three customer pages
+inherit them: `resources/views/vtu/manual-service.blade.php`, `resources/views/vtu/orders.blade.php`
+and `resources/views/wallet/transactions.blade.php` all render
+`resources/views/components/records-table.blade.php`, and `.reference-nav-link`, `.app-modal-btn`,
+`.app-modal-close` and `.mobile-topbar-icon` are customer-chrome classes. Nothing here changes a
+customer's price, form, wording or money path - it changes dimensions a phone was already being
+shown - but the deploy risk of this batch is **not** confined to admin screens, and the customer
+history presentation is covered by `tests/Feature/TransactionHistoryPresentationTest.php` (8
+methods) rather than by the admin tests alone.
+
 ## 2. How this was verified, and what that does NOT prove
 
 The browser in this workspace is a hidden tab: screenshots fail and `requestAnimationFrame`
@@ -292,6 +303,11 @@ pages. Nothing else on the admin surface relies on it.
    which is a long card and a mis-tap risk next to `Fund Wallet`. Moving those actions behind a
    link to the customer's own profile would make it a read board like the others - but that
    page writes money and permissions, so it is the owner's call, not a drive-by refactor.
-3. **Nothing here is a production change.** The release stays NO-GO: C1 credential rotation,
-   the owner user ID still unnamed, `admin_activity_logs` not migrated on production, and the
-   Part 4 evidence set unfinished.
+3. **Nothing here is a production change.** The release stays NO-GO, and the blockers are the
+   ones [deploy-approval-checklist.md](deploy-approval-checklist.md) lists, not new ones: C1
+   credential rotation (the hard red gate), the owner user ID still unnamed so `AUDIT_OWNER_USER_IDS`
+   ships empty and both audit screens answer 403 by design (row C8), the BVN agent code's live
+   value unconfirmed (C7), `admin_activity_logs` not migrated on production, the deploy-target
+   rows A1/A3/A4/A6 reopened by this batch, the C4 rows still awaiting the owner's disposition,
+   and the Part 4 evidence set unfinished - including the twelve InnoDB proofs, which have not
+   been re-run on a tree containing this work.

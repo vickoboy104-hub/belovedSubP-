@@ -17,33 +17,54 @@ The read-only checks to run before anyone decides are in
 | **LOCAL-FAKE** | The route is exercised end to end, but against a faked provider or gateway. The shape of the request is asserted; the real service's answer never was. |
 | **LIVE** | Cannot be proven from this machine at all. Somebody has to read it on `s3470`, or spend real money with the owner's say-so. |
 
-Suite as it stands on this branch: **516 passed, 12 skipped, 3,846 assertions** (sqlite), and
-the money-path suite on the live engine's own version - **MariaDB 10.6.28: 12 passed,
-110 assertions, zero skips** (GitHub Actions run 38999509204, 2026-10-17; the same 12 passed on
-MySQL 8.4.3 on 2026-10-16). The 12 skips are the
-InnoDB proofs, which cannot run on sqlite by design and did run on MySQL. **Neither engine run
-includes this batch**: the mobile/admin work touched two admin controllers, one shared support
-class and nine views, so the run has to be repeated before these numbers are quoted as current
-(Part 4).
+Suite as it stands on this branch: **516 passed, 12 skipped, 3,846 assertions** (sqlite, head
+`69418773`, 2026-10-17). The 12 skips are the two-process InnoDB proofs, which cannot run on
+sqlite by design. They were **re-run on this head on 2026-10-17 against real MySQL 8.4.3** -
+isolated second instance, port 3307, scratch database, synthetic rows only - and passed:
+**12 passed, 110 assertions, 28.57 s**, with every money table verified empty again afterwards.
+
+**What that does not prove.** The live box is not MySQL 8.4.3, it is **MariaDB 10.6.28**, and the
+only run on that version (GitHub Actions run 38999509204, 2026-10-17) executed on `f2cfaa5f`,
+which is **before** the prior-settlement hold, the audit trail and this batch. So the number that
+matters for the box has not yet seen this code. The route to it is the push-triggered workflow -
+it cannot be reproduced on this machine, and I am not going to describe a MariaDB result that
+MariaDB never produced. Approval rows A6 and C5 carry that gap.
 
 ## Where the code stands
 
-Branch `codex/identity-first-jhtech-experience`.
+Branch `codex/identity-first-jhtech-experience`. Remote head, read with `git ls-remote` on
+2026-10-17: **`46f0d8c3`**. Everything from the last reviewed runtime commit `cd19810c` up to
+that head is documentation and CI only.
 
 | Commit | Pushed? | What it is |
 |---|---|---|
 | `ab8076b5` | yes | Refuse to pay out one bank transfer twice (the global charge claim). |
 | `127f45df` | yes | The functional audit and the read-only production check list. |
-| `d6931635df3d265e407b2c42d8af81038b99fa91` | **no - awaiting the owner's approval** | The deposit ownership gate, the held-deposit table, admin screen and 10 attribution tests. |
-| `882188bb6388241baa95592bdb2df2057167c115` | **no - same approval** | The InnoDB re-proof of that gate plus the corrected verification figures. |
+| `d6931635` | **yes** | The deposit ownership gate, the held-deposit table, admin screen and 10 attribution tests. |
+| `882188bb` | **yes** | The InnoDB re-proof of that gate plus the corrected verification figures. |
+| `cd19810c` | **yes** | Last **runtime** commit reviewed: `deposits:audit --references=0` off the network, duplicate accounts counted without printing them. |
+| `f2d40bd2` | **no - and pushing needs its own approval** | Hold a charge the wallet already dealt with instead of crediting it twice; 10 new tests, and it changes `WalletFundingService` itself. |
+| `3be00d41` | **no - same** | The append-only administrator activity trail, its migration, the mandatory note on manual wallet movements, and the two owner-only screens. |
+| `69418773` | **no - same** | The phone-usable admin boards, the read-side figure mask, the shared pager and the Transaction Explorer. This is the head the numbers above were measured on. |
 
-`www.belovedsubp.com` still runs whatever `~/vtu` was last checked out to. None of the above is
-live.
+`www.belovedsubp.com` still runs whatever `~/vtu` was last checked out to (`0935a7f7`, 45
+commits behind this head). None of the above is live.
 
-The two unpushed commits touch **14 files** and no `resources/css`, `resources/js`,
-`public/build`, `sw.js` or `manifest.webmanifest` - there is no asset rebuild step and no
-customer-visible layout change in this batch. No price, brand, form or design value was
-changed in any commit on this branch.
+The three unpushed commits touch **49 files** under `app/ tests/ database/ config/ routes/
+resources/ bootstrap/ public/`, and they **do** change `resources/css` and `public/build`, so
+there is an asset step in this batch. The layout delta is **not** admin-only, and the honest
+wording is this: `resources/css/app.css` gained **109 lines and rewrote 7** (its diffstat is
+116 changed lines) of size and tap-target rules on
+**shared** classes - `.reference-nav-link` (the customer drawer), `.app-modal-btn` and
+`.app-modal-close`, `.mobile-topbar-icon`, and `.records-table` now carries a computed
+`min-width` - and the shared component `resources/views/components/records-table.blade.php` is
+rendered by three customer pages (`resources/views/vtu/manual-service.blade.php`,
+`resources/views/vtu/orders.blade.php`, `resources/views/wallet/transactions.blade.php`), so
+those pages render at new dimensions on a phone. No customer **view file** itself changed
+(`git diff --name-status cd19810c..HEAD -- resources/views` lists nine `admin/` files, two
+components and one new component - none under `vtu/` or `wallet/`), no price, brand, form field
+or copy was changed in any commit on this branch, and `git diff --name-only 0935a7f7..HEAD --
+app/Helpers/settings.php` returns nothing.
 
 ---
 
@@ -171,9 +192,9 @@ development copy: `prices:sync` hourly, `wallet:sync-deposits` every five minute
 | Step | Status | Where it is written |
 |---|---|---|
 | The exact deploy order, including the docroot copy that has bitten every deploy (`public_html` is a hand-kept copy of `vtu/public`, so new assets 404 after a perfect `git pull`) | - | deploy-checklist §1-§3, run verbatim |
-| Both new money tables arrive by `git checkout` **then** `php artisan migrate --force`; `migrate:status` must show `flutterwave_charge_claims` and `flutterwave_held_deposits` as `Ran` | LOCAL migration, LIVE run | deploy-checklist §4, production-readiness §5 |
+| The three tables this branch adds (`flutterwave_charge_claims`, `flutterwave_held_deposits`, `admin_activity_logs`) arrive by `git checkout` **then** `php artisan migrate --force`; `migrate:status` must show all **eight** migrations of the range as `Ran` | LOCAL migration, LIVE run | deploy-checklist §1.3 and §7.4, preflight §2 and §2b |
 | The migrations only add rows; no pre-existing ledger row or balance is rewritten | LOCAL | the claim-backfill test and `held_deposits` having **no** backfill at all |
-| Front-end build is only needed if CSS/JS changed - it does not in this batch; when it does, `artisan view:cache` first and compare byte sizes | LOCAL | deploy-checklist §2 |
+| **CSS changed in this batch, so the built bundle is what ships.** `resources/css/app.css` gained the mobile rules and `public/build/assets/app-k_-jzmjF.css` (187,639 bytes) is force-committed with it. `/public/build` is gitignored and only ever arrives by `git add -f`, so a checkout without that file renders an unstyled site - and rebuilding on the box instead would produce a different hash and a manifest that disagrees with the docroot copy | LOCAL, built and committed on the development machine | deploy-checklist §2 and §3; the byte-size comparison in §7.2 |
 | `sw.js` `CACHE_VERSION` bumps in the same commit as any unhashed asset change | not needed here | production-readiness §4 |
 | The deploy **ends** with `php artisan optimize` | - | deploy-checklist §4 |
 | Post-deploy smoke test, read-only first (HTTP 200, matching hashed CSS bytes, migrate:status, `deposits:audit --references=0`, the Held Deposits screen, log tail, `setting('provider')`, one admin queue row) | - | production-readiness §8 |
