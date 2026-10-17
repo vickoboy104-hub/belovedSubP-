@@ -1,3 +1,6 @@
+# Comment-only edits here are the no-login substitute for workflow_dispatch: the file
+# already declares it, but GitHub only shows "Run workflow" for a workflow that exists on
+# the default branch, and this one is on the development branch only.
 name: Money-path MariaDB 10.6 concurrency tests
 
 on:
