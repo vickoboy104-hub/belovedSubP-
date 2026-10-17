@@ -7,16 +7,28 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class ProfileController extends Controller
 {
     /**
-     * Display the user's profile form.
+     * Display what the account records about the customer. Nothing on this page
+     * writes; edits live on the settings page, so a read never leaves a trace.
+     */
+    public function show(Request $request): View
+    {
+        return view('profile.show', [
+            'user' => $request->user(),
+        ]);
+    }
+
+    /**
+     * Display the forms that can change the account.
      */
     public function edit(Request $request): View
     {
-        return view('profile.edit', [
+        return view('settings.account', [
             'user' => $request->user(),
         ]);
     }
@@ -46,9 +58,18 @@ class ProfileController extends Controller
             $user->email_verified_at = null;
         }
 
+        if ($request->hasFile('image')) {
+            $previous = trim((string) $user->getRawOriginal('avatar'));
+            $user->avatar = $request->file('image')->store('avatars', 'public');
+
+            if ($previous !== '' && !str_starts_with($previous, 'http')) {
+                Storage::disk('public')->delete($previous);
+            }
+        }
+
         $user->save();
 
-        return Redirect::route('profile.edit')->with('status', 'profile-updated');
+        return Redirect::route('profile.show')->with('status', 'profile-updated');
     }
 
     /**

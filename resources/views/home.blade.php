@@ -14,15 +14,17 @@
             <x-nin-marquee :message="$homeMarquee" />
         @endif
 
-        <section class="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_420px] lg:items-center">
-            <div class="space-y-6">
-                <div class="app-chip">Fast and Reliable</div>
+        <section class="reference-home-intro">
+            <div class="reference-home-hero space-y-6">
+                <div class="reference-home-eyebrow">Identity services • Wallet • Payments</div>
                 <div>
-                    <h1 class="app-page-title max-w-3xl">Buy airtime, data, cable, electricity, education and identity services from one clean wallet dashboard.</h1>
-                    <p class="app-page-subtitle max-w-2xl">
-                        A polished VTU experience built for mobile and desktop, with instant checkout flows, wallet funding and clear service navigation.
+                    <h1 class="max-w-3xl">Verify your identity in seconds.</h1>
+                    <p class="max-w-2xl">
+                        Verify NIN and BVN, request NIN validation, and manage your wallet in a simple mobile experience. Data, airtime, bills and more are here too.
                     </p>
                 </div>
+
+                <span class="reference-progress" data-device-battery role="status" aria-live="polite">Checking battery…</span>
 
                 <div class="flex flex-wrap gap-3">
                     @auth
@@ -31,7 +33,7 @@
                         <a href="{{ route('register') }}" class="btn-primary">Create Account</a>
                         <a href="{{ route('login') }}" class="btn-outline">Login</a>
                     @endauth
-                    <a href="{{ route('download.app') }}" class="btn-soft">Download App</a>
+                    <a href="{{ route('download.app') }}" class="btn-soft">Install on your phone</a>
                 </div>
 
                 <div id="pricing" class="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -54,41 +56,23 @@
                 </div>
             </div>
 
-            <div class="app-section-muted relative overflow-hidden p-6 sm:p-8">
+            <div class="reference-home-quick relative overflow-hidden p-6 sm:p-8">
                 <div class="flex items-center justify-between">
                     <div>
                         <div class="app-kicker">Quick Access</div>
-                        <h2 class="mt-2 text-2xl font-extrabold text-slate-900">Most used services</h2>
+                        <h2 class="mt-2 text-2xl font-extrabold text-slate-900">Start here</h2>
                     </div>
                     <div class="app-icon-ring">
-                        <img src="{{ asset('images/providers/mtn.png') }}" alt="provider" class="h-10 w-10 object-contain">
+                        <span aria-hidden="true" class="text-2xl">✦</span>
                     </div>
                 </div>
 
                 <div class="mt-6 space-y-3">
-                    <a href="{{ route('vtu.data') }}" class="app-service-card block">
+                    <a href="{{ route('vtu.nin') }}" class="app-service-card block">
                         <div class="flex items-center justify-between gap-3">
                             <div>
-                                <div class="text-lg font-extrabold text-slate-900">Buy Data</div>
-                                <div class="mt-1 text-sm text-slate-500">MTN, Glo, Airtel and 9mobile plans</div>
-                            </div>
-                            <span class="text-2xl font-bold text-slate-400">&rsaquo;</span>
-                        </div>
-                    </a>
-                    <a href="{{ route('vtu.airtime') }}" class="app-service-card block">
-                        <div class="flex items-center justify-between gap-3">
-                            <div>
-                                <div class="text-lg font-extrabold text-slate-900">Buy Airtime</div>
-                                <div class="mt-1 text-sm text-slate-500">Instant recharge for all major networks</div>
-                            </div>
-                            <span class="text-2xl font-bold text-slate-400">&rsaquo;</span>
-                        </div>
-                    </a>
-                    <a href="{{ route('wallet.fund') }}" class="app-service-card block">
-                        <div class="flex items-center justify-between gap-3">
-                            <div>
-                                <div class="text-lg font-extrabold text-slate-900">Fund Wallet</div>
-                                <div class="mt-1 text-sm text-slate-500">Virtual account and checkout funding</div>
+                                <div class="text-lg font-extrabold text-slate-900">NIN verification</div>
+                                <div class="mt-1 text-sm text-slate-500">Search an identity record and choose a slip</div>
                             </div>
                             <span class="text-2xl font-bold text-slate-400">&rsaquo;</span>
                         </div>
@@ -96,8 +80,26 @@
                     <a href="{{ route('vtu.bvn') }}" class="app-service-card block">
                         <div class="flex items-center justify-between gap-3">
                             <div>
-                                <div class="text-lg font-extrabold text-slate-900">BVN Services</div>
-                                <div class="mt-1 text-sm text-slate-500">Verify BVN details or run the retrieval workflow from one page.</div>
+                                <div class="text-lg font-extrabold text-slate-900">BVN verification</div>
+                                <div class="mt-1 text-sm text-slate-500">Verify a BVN or start retrieval</div>
+                            </div>
+                            <span class="text-2xl font-bold text-slate-400">&rsaquo;</span>
+                        </div>
+                    </a>
+                    <a href="{{ route('vtu.nin-validation') }}" class="app-service-card block">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <div class="text-lg font-extrabold text-slate-900">NIN validation</div>
+                                <div class="mt-1 text-sm text-slate-500">Submit and track a validation request</div>
+                            </div>
+                            <span class="text-2xl font-bold text-slate-400">&rsaquo;</span>
+                        </div>
+                    </a>
+                    <a href="{{ route('login') }}" class="app-service-card block">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <div class="text-lg font-extrabold text-slate-900">All identity services</div>
+                                <div class="mt-1 text-sm text-slate-500">Sign in to explore the full identity dashboard.</div>
                             </div>
                             <span class="text-2xl font-bold text-slate-400">&rsaquo;</span>
                         </div>
@@ -107,10 +109,7 @@
         </section>
 
         <section class="space-y-4">
-            <div>
-                <div class="app-page-title text-[2rem] sm:text-[2.4rem]">Services</div>
-                <div class="app-divider mt-4 w-full max-w-6xl"></div>
-            </div>
+            <h2 class="reference-section-title">Services</h2>
 
             <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <a href="{{ route('vtu.data') }}" class="app-service-card block">
@@ -175,12 +174,12 @@
             <div class="app-section p-6 sm:p-8">
                 <div class="app-kicker">Helpful Guides</div>
                 <div class="mt-4 grid gap-3">
-                    <a href="{{ route('guides.cheap-data') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">How to Buy Cheap Data in Nigeria</a>
-                    <a href="{{ route('guides.fund-wallet') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">How to Fund Your VTU Wallet</a>
-                    <a href="{{ route('guides.electricity-bills') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">How to Buy Electricity Bills Online</a>
-                    <a href="{{ route('guides.nin-services') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">NIN Services Guide</a>
-                    <a href="{{ route('guides.education-services') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">Education Services Guide</a>
-                    <a href="{{ route('guides.premium-apps') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-white/40">Premium Apps Guide</a>
+                    <a href="{{ route('guides.cheap-data') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-[#eaf1ff]">How to Buy Cheap Data in Nigeria</a>
+                    <a href="{{ route('guides.fund-wallet') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-[#eaf1ff]">How to Fund Your VTU Wallet</a>
+                    <a href="{{ route('guides.electricity-bills') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-[#eaf1ff]">How to Buy Electricity Bills Online</a>
+                    <a href="{{ route('guides.nin-services') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-[#eaf1ff]">NIN Services Guide</a>
+                    <a href="{{ route('guides.education-services') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-[#eaf1ff]">Education Services Guide</a>
+                    <a href="{{ route('guides.premium-apps') }}" class="app-glass-card block rounded-[20px] p-4 text-sm font-bold text-slate-900 hover:bg-[#eaf1ff]">Premium Apps Guide</a>
                 </div>
             </div>
         </section>

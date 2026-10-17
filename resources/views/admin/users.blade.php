@@ -1,26 +1,35 @@
 <x-app-layout>
-    <div class="mx-auto max-w-6xl space-y-6">
-        <section class="app-section p-6 sm:p-8">
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                    <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">User Accounts</h1>
-                    <p class="app-page-subtitle">Manage users, profile data, discounts, and recovery access.</p>
-                </div>
+    @php
+        // One screen lists up to a hundred people at once, and this one is opened
+        // on a phone in a shop, shared with a colleague and photographed. Phone
+        // numbers and virtual account numbers therefore keep only their last four
+        // digits here; both are whole on the customer's own profile, which is where
+        // an agent actually reads them out.
+        $mask = '\App\Support\SensitiveFigures::mask';
+    @endphp
+    <x-page-hero class="reference-shared-banner" title="User Accounts" subtitle="Manage users, profile data, discounts, and recovery access." />
 
-                <form method="GET" action="{{ route('admin.users') }}" class="w-full lg:max-w-md">
-                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
-                        <input type="text"
-                               name="search"
-                               value="{{ $search ?? '' }}"
-                               placeholder="Search email, phone, or username"
-                               class="input-field">
-                        <button class="btn-primary justify-center">Search</button>
-                        @if(!empty($search))
-                            <a href="{{ route('admin.users') }}" class="btn-outline justify-center">Clear</a>
-                        @endif
-                    </div>
-                </form>
-            </div>
+    <div class="reference-flow-page mx-auto max-w-6xl space-y-6">
+        <section class="app-section p-6 sm:p-8">
+            <form method="GET" action="{{ route('admin.users') }}" class="w-full lg:max-w-md">
+                <div class="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
+                    <input type="text"
+                           name="search"
+                           value="{{ $search ?? '' }}"
+                           placeholder="Search user ID, email, phone or name"
+                           class="input-field">
+                    <button class="btn-primary justify-center">Search</button>
+                    @if(!empty($search))
+                        <a href="{{ route('admin.users') }}" class="btn-outline justify-center">Clear</a>
+                    @endif
+                </div>
+            </form>
+
+            <p class="mt-3 text-xs text-slate-500">
+                Phone numbers and virtual account numbers show their last four digits on this list - searching still
+                matches the full number. Both are complete on the customer's own profile page. Typing a User ID finds
+                that one account.
+            </p>
         </section>
 
         <section class="app-section p-4 sm:p-6">
@@ -37,8 +46,8 @@
                                 <div class="mt-1 text-sm text-slate-500">{{ $u->email }}</div>
                             </div>
                             <div class="flex flex-wrap items-center gap-2 justify-end">
-                                <span class="px-2 py-1 rounded-full text-xs font-semibold {{ $u->is_admin ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">
-                                    {{ $u->is_admin ? 'Admin' : 'User' }}
+                                <span class="px-2 py-1 rounded-full text-xs font-semibold {{ $u->is_admin ? ($u->isMasterAdmin() ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700') : 'bg-slate-100 text-slate-600' }}">
+                                    {{ $u->accountRoleLabel() }}
                                 </span>
                                 @if($u->id === auth()->id())
                                     <span class="text-xs text-slate-400">You</span>
@@ -48,8 +57,16 @@
 
                         <div class="app-record-grid">
                             <div>
+                                <div class="app-record-label">User ID</div>
+                                <div class="app-record-value font-mono">{{ $u->id }}</div>
+                            </div>
+                            <div>
+                                <div class="app-record-label">Account role</div>
+                                <div class="app-record-value">{{ $u->accountRoleLabel() }}</div>
+                            </div>
+                            <div>
                                 <div class="app-record-label">Phone</div>
-                                <div class="app-record-value">{{ $u->phone ?: '-' }}</div>
+                                <div class="app-record-value">{{ $mask($u->phone ?: '-') }}</div>
                             </div>
                             <div>
                                 <div class="app-record-label">Joined</div>
@@ -67,7 +84,7 @@
                                 <div class="app-record-label">Virtual Account</div>
                                 <div class="app-record-value">
                                     @if($u->virtual_account_number)
-                                        {{ $u->virtual_account_bank ?: 'Bank' }} - {{ $u->virtual_account_number }}
+                                        {{ $u->virtual_account_bank ?: 'Bank' }} - {{ $mask($u->virtual_account_number) }}
                                         <div class="mt-1 text-xs font-medium text-slate-500">{{ $u->virtual_account_name }}</div>
                                     @else
                                         Not generated
@@ -90,6 +107,7 @@
                         <div class="mt-4 space-y-3">
                             <a href="{{ route('admin.users.show', $u) }}" class="btn-outline w-full justify-center">View Details</a>
 
+                            @can('customers.discount')
                             <form method="POST" action="{{ route('admin.users.discount', $u) }}" class="grid grid-cols-[1fr_auto] gap-2">
                                 @csrf
                                 <input type="number" min="0" max="100" step="0.01" name="discount_percent"
@@ -97,37 +115,51 @@
                                        class="input-field" placeholder="Discount %">
                                 <button class="btn-primary justify-center px-4">Update</button>
                             </form>
+                            @endcan
 
+                            @can('admins.grant')
                             <form method="POST" action="{{ route('admin.users.admin', $u) }}">
                                 @csrf
                                 <input type="hidden" name="is_admin" value="{{ $u->is_admin ? '0' : '1' }}">
-                                <button class="btn-primary w-full justify-center {{ $u->is_admin ? '!bg-rose-600 hover:!bg-rose-700' : '!bg-blue-600 hover:!bg-blue-700' }}"
+                                <button class="{{ $u->is_admin ? 'btn-danger' : 'btn-primary' }} w-full justify-center"
                                         @disabled($u->id === auth()->id())>
                                     {{ $u->is_admin ? 'Remove Admin' : 'Make Admin' }}
                                 </button>
                             </form>
+                            @endcan
 
+                            @can('customers.password_reset')
                             <form method="POST"
+                                  id="resetPasswordForm-{{ $u->id }}"
                                   action="{{ route('admin.users.reset-password', $u) }}"
-                                  onsubmit="return confirm('Generate a new temporary password for this user?');">
+                                  data-confirm-sheet="confirmTempPassword"
+                                  data-confirm-details='{"Action":"Generate a temporary password","Effect":"This user must set a new one at the next sign-in."}'>
                                 @csrf
-                                <button class="btn-primary w-full justify-center !bg-amber-600 hover:!bg-amber-700">
+                                <button class="btn-outline w-full justify-center">
                                     Generate Temp Password
                                 </button>
                             </form>
+                            @endcan
 
+                            @can('wallet.credit')
                             <form method="POST" action="{{ route('admin.users.fund-wallet', $u) }}" class="space-y-2">
                                 @csrf
                                 <input type="number" name="amount" min="1" step="0.01" required
                                        placeholder="Fund amount (N)"
                                        class="input-field">
-                                <input type="text" name="note"
-                                       placeholder="Reason (optional)"
-                                       class="input-field">
-                                <button class="btn-primary w-full justify-center !bg-emerald-600 hover:!bg-emerald-700">
+                                <div>
+                                    <label class="text-xs font-bold uppercase tracking-[0.12em] text-slate-500"
+                                           for="fund-note-{{ $u->id }}">Reason (required)</label>
+                                    <input type="text" id="fund-note-{{ $u->id }}" name="note"
+                                           required minlength="10" maxlength="255"
+                                           placeholder="Why this credit is owed - at least 10 characters"
+                                           class="input-field mt-1">
+                                </div>
+                                <button class="btn-primary w-full justify-center">
                                     Fund Wallet
                                 </button>
                             </form>
+                            @endcan
                         </div>
                     </article>
                 @empty
@@ -164,7 +196,7 @@
                                 </td>
 
                                 <td class="p-4">
-                                    <div class="text-slate-800">{{ $u->phone ?: '-' }}</div>
+                                    <div class="text-slate-800">{{ $mask($u->phone ?: '-') }}</div>
                                     <div class="text-xs text-slate-500 mt-1">First name: {{ $u->first_name ?: '-' }}</div>
                                     <div class="text-xs text-slate-500">Last name: {{ $u->last_name ?: '-' }}</div>
                                 </td>
@@ -172,7 +204,7 @@
                                 <td class="p-4">
                                     @if($u->virtual_account_number)
                                         <div class="font-semibold text-slate-900">{{ $u->virtual_account_bank ?: 'Bank' }}</div>
-                                        <div class="text-slate-800">{{ $u->virtual_account_number }}</div>
+                                        <div class="text-slate-800">{{ $mask($u->virtual_account_number) }}</div>
                                         <div class="text-xs text-slate-500 mt-1">{{ $u->virtual_account_name }}</div>
                                     @else
                                         <span class="text-slate-400">Not generated</span>
@@ -181,8 +213,8 @@
 
                                 <td class="p-4">
                                     <div class="flex flex-wrap items-center gap-2">
-                                        <span class="px-2 py-1 rounded-full text-xs font-semibold {{ $u->is_admin ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">
-                                            {{ $u->is_admin ? 'Admin' : 'User' }}
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold {{ $u->is_admin ? ($u->isMasterAdmin() ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700') : 'bg-slate-100 text-slate-600' }}">
+                                            {{ $u->accountRoleLabel() }}
                                         </span>
                                         @if($u->id === auth()->id())
                                             <span class="text-xs text-slate-400">You</span>
@@ -215,46 +247,58 @@
                                                 View Details
                                             </a>
 
+                                            @can('customers.discount')
                                             <form method="POST" action="{{ route('admin.users.discount', $u) }}" class="grid grid-cols-[1fr_auto] gap-2">
                                                 @csrf
                                                 <input type="number" min="0" max="100" step="0.01" name="discount_percent"
                                                        value="{{ old('discount_percent', $u->discount_percent ?? 0) }}"
                                                        class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
-                                                <button class="rounded-xl bg-[#17233d] px-3 py-2 text-xs font-bold text-white">
+                                                <button class="btn-primary justify-center px-3 py-2 text-xs">
                                                     Update %
                                                 </button>
                                             </form>
+                                            @endcan
 
+                                            @can('admins.grant')
                                             <form method="POST" action="{{ route('admin.users.admin', $u) }}">
                                                 @csrf
                                                 <input type="hidden" name="is_admin" value="{{ $u->is_admin ? '0' : '1' }}">
-                                                <button class="flex min-h-10 w-full items-center justify-center rounded-xl px-3 py-2 text-xs font-bold text-white {{ $u->is_admin ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700' }}"
+                                                <button class="{{ $u->is_admin ? 'btn-danger' : 'btn-primary' }} w-full justify-center px-3 py-2 text-xs"
                                                         @disabled($u->id === auth()->id())>
                                                     {{ $u->is_admin ? 'Remove Admin' : 'Make Admin' }}
                                                 </button>
                                             </form>
+                                            @endcan
 
+                                            @can('customers.password_reset')
                                             <form method="POST"
+                                                  id="resetPasswordTableForm-{{ $u->id }}"
                                                   action="{{ route('admin.users.reset-password', $u) }}"
-                                                  onsubmit="return confirm('Generate a new temporary password for this user?');">
+                                                  data-confirm-sheet="confirmTempPassword"
+                                                  data-confirm-details='{"Action":"Generate a temporary password","Effect":"This user must set a new one at the next sign-in."}'>
                                                 @csrf
-                                                <button class="flex min-h-10 w-full items-center justify-center rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700">
+                                                <button class="btn-outline w-full justify-center px-3 py-2 text-xs">
                                                     Generate Temp Password
                                                 </button>
                                             </form>
+                                            @endcan
 
+                                            @can('wallet.credit')
                                             <form method="POST" action="{{ route('admin.users.fund-wallet', $u) }}" class="grid gap-2 xl:grid-cols-[1fr_1fr_auto]">
                                                 @csrf
                                                 <input type="number" name="amount" min="1" step="0.01" required
                                                        placeholder="Fund amount (N)"
                                                        class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900">
                                                 <input type="text" name="note"
-                                                       placeholder="Reason (optional)"
+                                                       required minlength="10" maxlength="255"
+                                                       placeholder="Reason (required, 10+ characters)"
+                                                       aria-label="Reason for this credit, required"
                                                        class="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900">
-                                                <button class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">
+                                                <button class="btn-primary px-3 py-2 text-xs">
                                                     Fund Wallet
                                                 </button>
                                             </form>
+                                            @endcan
                                         </div>
                                     </div>
                                 </td>
@@ -273,4 +317,6 @@
             </div>
         </section>
     </div>
+
+    <x-confirm-modal id="confirmTempPassword" title="Confirm Password Reset" confirmText="Generate Password" />
 </x-app-layout>

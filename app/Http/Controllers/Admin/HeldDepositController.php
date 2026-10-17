@@ -1,0 +1,205 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\FlutterwaveHeldDeposit;
+use App\Models\User;
+use App\Models\WalletSettlementLink;
+use App\Services\AdminActivityRecorder;
+use App\Services\WalletFundingService;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+
+/**
+ * A bank transfer that this site can prove arrived, but cannot prove who sent it,
+ * is held here rather than paid to whichever customer a lookup found first. The
+ * transfer, the amount and the candidate customers are all recorded; a human reads
+ * the payment and names the account it belongs to.
+ */
+class HeldDepositController extends Controller
+{
+    public function __construct(
+        private readonly AdminActivityRecorder $audit,
+    ) {
+    }
+
+    public function index(Request $request)
+    {
+        $query = FlutterwaveHeldDeposit::query()
+            ->with(['resolvedBy', 'resolvedWallet.user'])
+            ->when(
+                $request->input('status') === 'resolved',
+                fn ($q) => $q->where('status', '!=', 'held'),
+                fn ($q) => $q->where('status', 'held')
+            )
+            ->latest('id')
+            ->paginate(20)
+            ->appends($request->query());
+
+        // The names an admin needs to choose between are the reason the deposit is
+        // here, so they are read with the record rather than left as user ids.
+        $ids = $query->getCollection()
+            ->flatMap(fn (FlutterwaveHeldDeposit $held): array => (array) $held->holder_user_ids)
+            ->unique()
+            ->values()
+            ->all();
+
+        $candidates = $ids === []
+            ? collect()
+            : User::query()->with('wallet')->whereIn('id', $ids)->get()->keyBy('id');
+
+        // A charge that somebody declared as already paid by hand cannot be released
+        // from this board, so the board says so on the card instead of letting the
+        // admin press a button that only refuses them.
+        $tokens = $query->getCollection()
+            ->flatMap(fn (FlutterwaveHeldDeposit $held): array => array_filter([
+                trim((string) ($held->flutterwave_charge_id ?? '')),
+                trim((string) ($held->flutterwave_id ?? '')),
+            ]))
+            ->unique()
+            ->values()
+            ->all();
+
+        $declarations = $tokens === []
+            ? collect()
+            : WalletSettlementLink::query()
+                ->where('status', 'active')
+                ->whereIn('charge_token', $tokens)
+                ->get()
+                ->keyBy('charge_token');
+
+        return view('admin.held-deposits', [
+            'deposits' => $query,
+            'candidates' => $candidates,
+            'declarations' => $declarations,
+            'heldCount' => FlutterwaveHeldDeposit::query()->where('status', 'held')->count(),
+            'resolvedCount' => FlutterwaveHeldDeposit::query()->where('status', '!=', 'held')->count(),
+            'showResolved' => $request->input('status') === 'resolved',
+        ]);
+    }
+
+    public function credit(Request $request, FlutterwaveHeldDeposit $deposit, WalletFundingService $funding)
+    {
+        /* The choice is limited to the customers this transfer could actually have
+           come from. Somebody else's wallet is what the manual credit tool is for:
+           letting this screen name any account would rebuild the guess it replaced,
+           only slower and with a note attached to make it look decided.
+
+           A row with no candidate at all is the opposite case: every lookup that
+           could own this money came back empty, so there is no guess to protect
+           against and nothing on this board except a human reading the bank side.
+           The admin then names the account, and the record says plainly that nobody
+           was ever a candidate for it. */
+        $candidates = array_map(
+            static fn ($id): int => (int) $id,
+            (array) $deposit->holder_user_ids
+        );
+        $namedWithoutCandidates = $candidates === [];
+
+        $validated = $request->validate([
+            'user_id' => [
+                'required',
+                'integer',
+                $namedWithoutCandidates
+                    ? Rule::exists('users', 'id')
+                    : Rule::in($candidates),
+            ],
+            'note' => ['required', 'string', 'min:10', 'max:2000'],
+        ], $namedWithoutCandidates
+            ? ['user_id.exists' => 'This transfer named no customer here, so the account you name must exist.']
+            : []);
+
+        if (!$deposit->isHeld()) {
+            $this->audit->recordQuietly('failed', 'wallet', 'held_deposit.credit', 'Attempt to release a held deposit that was already dealt with.', [
+                'target' => ['held_deposit', $deposit->id],
+                'reason' => 'Its status is '.$deposit->status.'.',
+            ]);
+
+            return back()->with('error', 'This deposit has already been dealt with.');
+        }
+
+        $customer = User::query()->findOrFail($validated['user_id']);
+
+        /* A declaration against this charge means an admin already recorded the money
+           as paid by hand. Releasing the hold on top of it would pay the customer
+           twice, so the declaration has to be retracted - explicitly and on the
+           record - before this button can fund anything. */
+        $declared = $funding->declaredSettlementFor((array) ($deposit->payload ?? []));
+        if ($declared !== null) {
+            $this->audit->recordQuietly('failed', 'wallet', 'held_deposit.credit', 'Refused to release a held deposit: this charge is declared already settled by hand.', [
+                'target' => ['held_deposit', $deposit->id],
+                'reference' => $declared['charge_token'],
+                'reason' => $declared['reason'],
+                'changes' => ['settlement_link_id' => $declared['id'], 'chosen_user_id' => $customer->id],
+            ]);
+
+            return back()->with('error', 'This charge is recorded as already settled by hand (declaration #'.$declared['id'].'). Retract that declaration first if it was made in error.');
+        }
+
+        $credited = $funding->creditHeldDepositTo($deposit, $customer, $request->user(), $validated['note']);
+
+        if ($credited <= 0) {
+            $this->audit->recordQuietly('failed', 'wallet', 'held_deposit.credit', 'Nothing was credited from this held deposit.', [
+                'target' => ['held_deposit', $deposit->id],
+                'changes' => ['chosen_user_id' => $customer->id, 'held_because' => $deposit->reason],
+            ]);
+
+            if ($deposit->reason === 'amount_below_fee') {
+                return back()->with('error', 'This transfer landed smaller than the funding fee, so there is nothing to credit from it. Keep the record or dismiss it - do not press this button again.');
+            }
+
+            return back()->with('error', 'Nothing was credited: this charge has already been paid out somewhere.');
+        }
+
+        $this->audit->recordQuietly('success', 'wallet', 'held_deposit.credit', 'Released a held deposit: credited '.number_format($credited / 100, 2).' to a customer.', [
+            'target' => ['held_deposit', $deposit->id],
+            'reason' => $validated['note'],
+            'changes' => [
+                'credited_kobo' => $credited,
+                'chosen_user_id' => $customer->id,
+                'named_without_candidates' => $namedWithoutCandidates,
+                'held_because' => $deposit->reason,
+            ],
+        ]);
+
+        return back()->with('success', 'Credited '.number_format($credited / 100, 2).' to '.$customer->name.'.');
+    }
+
+    public function dismiss(Request $request, FlutterwaveHeldDeposit $deposit)
+    {
+        $validated = $request->validate([
+            'note' => ['required', 'string', 'min:10', 'max:2000'],
+        ]);
+
+        $dismissed = FlutterwaveHeldDeposit::query()
+            ->whereKey($deposit->id)
+            ->where('status', 'held')
+            ->update([
+                'status' => 'dismissed',
+                'resolution_note' => $validated['note'],
+                'resolved_by_user_id' => $request->user()->id,
+                'resolved_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+        if ($dismissed !== 1) {
+            $this->audit->recordQuietly('failed', 'transaction_review', 'held_deposit.dismiss', 'Attempt to dismiss a held deposit that was already dealt with.', [
+                'target' => ['held_deposit', $deposit->id],
+                'reason' => 'Its status is '.$deposit->status.'.',
+            ]);
+
+            return back()->with('error', 'This deposit has already been dealt with.');
+        }
+
+        // Recording that money was judged *not ours to credit* matters as much as
+        // recording a credit: it is the branch where a customer was left unpaid on
+        // purpose, by name, with a reason.
+        $this->audit->recordQuietly('success', 'transaction_review', 'held_deposit.dismiss', 'Dismissed a held deposit without crediting anyone.', [
+            'target' => ['held_deposit', $deposit->id],
+            'reason' => $validated['note'],
+        ]);
+
+        return back()->with('success', 'Marked as not ours to credit. The record is kept.');
+    }
+}

@@ -56,8 +56,10 @@ Route::middleware(['auth', 'no_cache'])->group(function () {
 
     Route::put('password', [PasswordController::class, 'update'])->name('password.update');
 
-    // ✅ Profile routes (this is what your layout needs)
-    Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    // The profile page is the account mirror; the settings page is the only place
+    // that writes to it, so the two are separate addresses with separate names.
+    Route::get('profile', [ProfileController::class, 'show'])->name('profile.show');
+    Route::get('settings', [ProfileController::class, 'edit'])->name('settings.edit');
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 

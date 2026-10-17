@@ -1,11 +1,11 @@
 <x-guest-layout>
     <div class="space-y-6">
-        <h2 class="text-2xl font-extrabold text-gray-900 dark:text-white">Forgot Password?</h2>
-        <p class="text-gray-600 dark:text-white/60 text-sm">
-            No worries. Enter your email and we'll send you a reset link.
+        <h1 class="text-3xl font-extrabold text-slate-900">Forgot your password?</h1>
+        <p class="text-slate-600 text-sm leading-6">
+            Enter your email address and we'll send you a password reset link.
         </p>
 
-        <x-auth-session-status class="mb-4 text-gray-600 dark:text-white/70" :status="session('status')" />
+        <x-auth-session-status class="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800" :status="session('status')" />
 
         <form method="POST" action="{{ route('password.email', absolute: false) }}" class="space-y-5">
             @csrf
@@ -18,20 +18,22 @@
                               name="email"
                               :value="old('email')"
                               required
-                              autofocus />
-                <x-input-error :messages="$errors->get('email')" class="mt-2 text-red-500 dark:text-red-400" />
+                              autofocus
+                              autocomplete="email"
+                              placeholder="you@example.com" />
+                <x-input-error :messages="$errors->get('email')" class="mt-2 text-rose-600" />
             </div>
 
-            <div class="flex items-center justify-end">
-                <x-primary-button>
+            <div>
+                <x-primary-button class="w-full justify-center py-3">
                     {{ __('Send Reset Link') }}
                 </x-primary-button>
             </div>
         </form>
 
-        <p class="text-sm text-gray-600 dark:text-white/60">
+        <p class="text-center text-sm text-slate-600">
             Remembered your password?
-            <a href="{{ route('login', absolute: false) }}" class="text-orange-500 dark:text-orange-400 font-semibold hover:text-orange-400 dark:hover:text-orange-300">
+            <a href="{{ route('login', absolute: false) }}" class="font-semibold text-blue-900 hover:underline">
                 Login
             </a>
         </p>

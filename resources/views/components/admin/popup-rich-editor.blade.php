@@ -34,5 +34,5 @@
 </div>
 
 @if($helper)
-    <div class="mt-2 text-xs text-white/50">{{ $helper }}</div>
+    <div class="mt-2 text-xs text-slate-500">{{ $helper }}</div>
 @endif

@@ -1,70 +1,74 @@
-﻿@props([
+@props([
     'id' => 'confirmModal',
     'title' => 'Confirm Transaction',
     'confirmText' => 'Confirm & Proceed',
     'whatsapp' => null,
+    'danger' => false,
 ])
 
 @php
-    $whatsapp = $whatsapp ?: setting('whatsapp_link', 'https://wa.me/2348165587119');
+    $whatsapp = $whatsapp ?: whatsapp_link();
 @endphp
 
 <div id="{{ $id }}_overlay"
      data-wallet-kobo="{{ (int) (auth()->user()?->wallet->balance ?? 0) }}"
-     class="fixed inset-0 z-[2147483647] hidden items-center justify-center p-4"
-     style="isolation:isolate;">
+     class="app-modal-overlay fixed inset-0 z-[97] hidden items-center justify-center p-4"
+     style="isolation:isolate;"
+     role="dialog"
+     aria-modal="true">
 
-    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
-
-    <div class="relative w-full max-w-lg">
-        <div class="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_22px_55px_rgba(18,31,56,0.24)]">
+    <div class="relative w-full app-confirm-modal">
+        <div class="app-modal-panel overflow-hidden">
+            <div class="app-dialog-accent is-{{ $danger ? 'error' : 'info' }}"></div>
             <div class="p-6 sm:p-7">
                 <div class="flex items-start justify-between gap-3">
                     <div>
-                        <div class="text-xl font-extrabold text-slate-900">{{ $title }}</div>
-                        <div class="mt-1 text-sm text-slate-600">
+                        <div class="text-xl font-extrabold">{{ $title }}</div>
+                        <div class="mt-1 text-sm opacity-80">
                             Please review the details carefully before proceeding.
                         </div>
                     </div>
 
                     <button type="button"
-                            class="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:bg-slate-100"
+                            class="app-modal-close"
+                            aria-label="Close"
                             data-modal-close="{{ $id }}">
                         &times;
                     </button>
                 </div>
 
-                <div class="mt-4 space-y-0" data-confirm-rows></div>
+                <div class="mt-4" data-confirm-rows></div>
 
-                <div class="mt-3 rounded-[20px] border border-slate-200 bg-slate-50 px-3 py-2" data-confirm-balance hidden>
-                    <div class="flex items-center gap-2 overflow-x-auto whitespace-nowrap text-[11px] text-slate-500 sm:text-xs">
-                        <span class="shrink-0 font-bold uppercase tracking-[0.18em] text-slate-400">Wallet</span>
-                        <span class="shrink-0 rounded-full bg-white px-2 py-1">Bal <span class="font-bold text-slate-900" data-balance-current>&#8358;0.00</span></span>
-                        <span class="shrink-0 rounded-full bg-white px-2 py-1">Debit <span class="font-bold text-slate-900" data-balance-deduct>&#8358;0.00</span></span>
-                        <span class="shrink-0 rounded-full bg-white px-2 py-1">Left <span class="font-bold text-slate-900" data-balance-remaining>&#8358;0.00</span></span>
+                <div class="mt-3 app-confirm-balance" data-confirm-balance hidden>
+                    <div class="flex flex-wrap items-center gap-1.5 text-[11px] sm:text-xs">
+                        <span class="shrink-0 font-bold uppercase tracking-[0.14em] opacity-70">Wallet</span>
+                        <span class="shrink-0 app-confirm-balance-pill">Bal <span class="font-bold" data-balance-current>&#8358;0.00</span></span>
+                        <span class="shrink-0 app-confirm-balance-pill">Debit <span class="font-bold" data-balance-deduct>&#8358;0.00</span></span>
+                        <span class="shrink-0 app-confirm-balance-pill">Left <span class="font-bold" data-balance-remaining>&#8358;0.00</span></span>
                     </div>
                 </div>
 
                 <div class="mt-4 flex items-center justify-between gap-3">
-                    <div class="text-xs text-slate-500">
+                    <div class="app-confirm-help">
                         Need help? Chat support.
                     </div>
                     <a href="{{ $whatsapp }}"
                        target="_blank"
-                       class="text-sm font-extrabold text-emerald-700 transition hover:text-emerald-800">
+                       rel="noopener"
+                       class="app-support-link">
                         Chat WhatsApp &rarr;
                     </a>
                 </div>
 
-                <div class="mt-5 grid grid-cols-2 gap-3">
+                <div class="mt-5 app-modal-actions">
                     <button type="button"
-                            class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 font-extrabold text-slate-700 transition hover:bg-slate-100"
+                            class="app-modal-btn app-modal-btn-muted"
                             data-modal-cancel="{{ $id }}">
                         Cancel
                     </button>
 
                     <button type="button"
-                            class="rounded-2xl bg-[#d8b07a] px-4 py-3 font-extrabold text-slate-900 transition hover:bg-[#c99c60]"
+                            class="app-modal-btn app-modal-btn-{{ $danger ? 'danger' : 'primary' }}"
                             data-modal-confirm="{{ $id }}">
                         {{ $confirmText }}
                     </button>
@@ -128,6 +132,8 @@
     function hideOverlay(overlay){
         overlay.classList.add('hidden');
         overlay.classList.remove('flex');
+        const pending = document.getElementById(overlay.dataset.formTarget || '');
+        if (pending) delete pending.dataset.sheetConfirmed;
         overlay.dataset.formTarget = '';
     }
 
@@ -140,21 +146,18 @@
             .filter(([,v]) => v !== undefined && v !== null && String(v).trim() !== '');
 
         if (entries.length === 0) {
-            box.innerHTML = '<div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-1.5 text-sm text-slate-500">No details provided.</div>';
+            box.innerHTML = '<div class="app-confirm-empty">No details provided.</div>';
             return;
         }
 
-        box.innerHTML = entries.map(([k,v], index, arr) => {
+        box.innerHTML = entries.map(([k,v]) => {
             const key = escapeHtml(k);
             const val = escapeHtml(String(v));
-            const edgeClass = index === 0
-                ? 'rounded-t-2xl'
-                : (index === arr.length - 1 ? 'rounded-b-2xl' : 'rounded-none');
 
             return `
-                <div class="flex items-center justify-between gap-3 border border-slate-200 bg-slate-50 px-4 py-1.5 ${edgeClass}">
-                    <div class="text-sm capitalize text-slate-500">${key}</div>
-                    <div class="text-right text-sm font-extrabold text-slate-900">${val}</div>
+                <div class="app-confirm-row">
+                    <div class="app-confirm-key">${key}</div>
+                    <div class="app-confirm-value">${val}</div>
                 </div>
             `;
         }).join('');
@@ -199,9 +202,28 @@
         renderRows(overlay, data || {});
         renderBalanceSummary(overlay, data || {});
         showOverlay(overlay);
+
+        const confirmBtn = qs('[data-modal-confirm="' + modalId + '"]', overlay);
+        if (confirmBtn) {
+            // A previous sheet disables itself while the form runs. If that
+            // request came back without navigating, the next open must not be a
+            // sheet with a dead button in it.
+            confirmBtn.disabled = false;
+            confirmBtn.classList.remove('opacity-60');
+            confirmBtn.focus();
+        }
     };
 
     document.addEventListener('click', function (e) {
+        // Clicking the dimmed area around a sheet means "I did not mean to open
+        // this", the same as the cross in the corner.
+        if (e.target instanceof HTMLElement
+            && e.target.matches('[id$="_overlay"]')
+            && !e.target.classList.contains('hidden')) {
+            hideOverlay(e.target);
+            return;
+        }
+
         const closeBtn = e.target.closest('[data-modal-close]');
         const cancelBtn = e.target.closest('[data-modal-cancel]');
         if (closeBtn) {
@@ -244,8 +266,13 @@
                 setTimeout(() => {
                     try {
                         if (typeof form.requestSubmit === 'function') {
+                            // The flag is what tells the gate below this is the release, not a new request.
+                            if (form.matches('form[data-confirm-sheet]')) {
+                                form.dataset.sheetConfirmed = '1';
+                            }
                             form.requestSubmit();
                         } else {
+                            delete form.dataset.sheetConfirmed;
                             const evt = new Event('submit', { cancelable: true });
                             const allowed = form.dispatchEvent(evt);
                             if (allowed) form.submit();
@@ -258,6 +285,36 @@
                 hideOverlay(ov);
             }
         }
+    });
+
+    // Any form can trade the browser's unstyleable confirm() for this sheet by
+    // declaring data-confirm-sheet with a modal id, plus data-confirm-details
+    // holding the rows to show.
+    document.addEventListener('submit', function (e) {
+        const form = e.target instanceof HTMLElement ? e.target.closest('form[data-confirm-sheet]') : null;
+        if (!form) return;
+
+        if (form.dataset.sheetConfirmed === '1') {
+            delete form.dataset.sheetConfirmed;
+            return;
+        }
+
+        e.preventDefault();
+
+        if (!form.id) {
+            console.error('[Confirm Modal] A sheet-gated form needs an id so the sheet can find it.', form);
+            form.submit();
+            return;
+        }
+
+        let details = {};
+        try {
+            details = JSON.parse(form.getAttribute('data-confirm-details') || '{}');
+        } catch (err) {
+            details = {};
+        }
+
+        window.openConfirmModal(form.getAttribute('data-confirm-sheet'), details, form.id);
     });
 
     document.addEventListener('keydown', function (e) {

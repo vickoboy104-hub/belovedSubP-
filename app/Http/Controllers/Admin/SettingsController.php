@@ -5,15 +5,18 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ProviderPlanPrice;
 use App\Models\Setting;
-use App\Services\GsubzApi;
+use App\Services\AdminActivityRecorder;
+use App\Services\ManualFulfilmentService;
 use App\Services\ProviderPlanPriceService;
+use App\Support\ServiceAvailability;
 use Illuminate\Http\Request;
 
 class SettingsController extends Controller
 {
     public function __construct(
-        private readonly GsubzApi $gsubz,
         private readonly ProviderPlanPriceService $planPrices,
+        private readonly ServiceAvailability $availability,
+        private readonly AdminActivityRecorder $audit,
     ) {
     }
 
@@ -25,7 +28,6 @@ class SettingsController extends Controller
             ->toArray();
 
         $pricingServiceGroups = $this->pricingServiceGroups();
-        $priceSyncSummary = $this->syncProviderPlanPrices();
         $pricingServiceSlugs = collect($pricingServiceGroups)->flatMap(fn ($services) => array_keys($services))->values();
         $provider = $this->planPrices->currentProvider();
         $providerPlanPrices = ProviderPlanPrice::query()
@@ -37,11 +39,30 @@ class SettingsController extends Controller
             ->get()
             ->groupBy('service_slug');
 
-        return view('admin.settings', compact('settings', 'pricingServiceGroups', 'providerPlanPrices', 'provider', 'priceSyncSummary'));
+        // Every service the customer can currently see, grouped so the owner can
+        // take one down without hunting for its slug.
+        $availabilityBoard = $this->availability->board();
+
+        return view('admin.settings', compact(
+            'settings',
+            'pricingServiceGroups',
+            'providerPlanPrices',
+            'provider',
+            'availabilityBoard'
+        ));
     }
 
     public function update(Request $request)
     {
+        // Only switches for services that are actually on the shelf can be
+        // written, so a hand-built post cannot plant arbitrary settings.
+        $availabilitySwitchKeys = [];
+        foreach ($this->availability->board() as $group) {
+            foreach ($group['items'] as $item) {
+                $availabilitySwitchKeys[] = $item['key'];
+            }
+        }
+
         $dataServiceToggleKeys = [
             'data_service_enabled_mtn_awoof',
             'data_service_enabled_mtn_gifting',
@@ -104,11 +125,10 @@ class SettingsController extends Controller
             'service_map_eko-electric',
             'service_map_ibadan-electric',
             'service_map_ikeja-electric',
-            'service_map_jos-electic',
+            'service_map_jos-electric',
             'service_map_kaduna-electric',
             'service_map_kano-electric',
-            'service_map_portharcourt-electric',
-            'service_map_aba-electric',
+            'service_map_phed-electric',
             'service_map_yola-electric',
             'service_map_benin-electric',
             'service_map_enugu-electric',
@@ -124,21 +144,48 @@ class SettingsController extends Controller
         $serviceMapRules['service_exam_jamb'] = ['nullable', 'string', 'max:120'];
         $serviceMapRules['service_map_canva'] = ['nullable', 'string', 'max:120'];
 
+        // Manual (key-less) identity services: price, markup and turnaround for
+        // every catalogue entry, so adding a service never needs an edit here.
+        $manualRules = [];
+        foreach (app(ManualFulfilmentService::class)->settingKeys() as $key) {
+            $manualRules[$key] = str_starts_with($key, 'turnaround_')
+                ? ['nullable', 'integer', 'min:1', 'max:8760']
+                : ['nullable', 'numeric', 'min:0'];
+        }
+
+        // Connecting an SMS gateway is meant to be a settings change only.
+        $smsRules = [
+            'sms_endpoint' => ['nullable', 'string', 'max:255'],
+            'sms_sender_id' => ['nullable', 'string', 'max:60'],
+            'sms_api_key' => ['nullable', 'string', 'max:255'],
+            'sms_auth_header' => ['nullable', 'string', 'max:60'],
+            'sms_body_format' => ['nullable', 'string', 'in:json,form'],
+            'sms_success_field' => ['nullable', 'string', 'max:60'],
+            'sms_success_value' => ['nullable', 'string', 'max:60'],
+            'sms_driver' => ['nullable', 'string', 'max:60'],
+            'sms_param_map' => ['nullable', 'string', 'max:500'],
+            'sms_extra_params' => ['nullable', 'string', 'max:500'],
+        ];
+
         // Add/remove keys here WITHOUT changing your UI structure
         $data = $request->validate(array_merge([
             'site_name'             => ['nullable', 'string', 'max:120'],
             'whatsapp_link'         => ['nullable', 'string', 'max:255'],
             'whatsapp_channel_link' => ['nullable', 'string', 'max:255'],
             'provider'              => ['nullable', 'string', 'in:gsubz,alt,mock'],
+            'site_theme'            => ['nullable', 'string', 'in:' . implode(',', array_keys(site_themes()))],
 
             'home_marquee_message'      => ['nullable', 'string', 'max:500'],
             'home_popup_message'        => ['nullable', 'string', 'max:5000'],
             'dashboard_marquee_message' => ['nullable', 'string', 'max:500'],
             'dashboard_popup_message'   => ['nullable', 'string', 'max:5000'],
+            'login_popup_message'       => ['nullable', 'string', 'max:5000'],
             'fund_wallet_marquee_message' => ['nullable', 'string', 'max:500'],
             'marquee_speed_seconds' => ['nullable', 'numeric', 'min:5', 'max:120'],
+            'popup_line_spacing' => ['nullable', 'numeric', 'min:1.2', 'max:3'],
             'maintenance_overlay_end_at' => ['nullable', 'date'],
             'maintenance_overlay_message' => ['nullable', 'string', 'max:500'],
+            'service_maintenance_message' => ['nullable', 'string', 'max:500'],
 
             'services_airtime'     => ['nullable', 'string', 'max:4000'],
             'services_data'        => ['nullable', 'string', 'max:8000'],
@@ -178,6 +225,7 @@ class SettingsController extends Controller
             'price_exam_nabteb' => ['nullable', 'numeric', 'min:0'],
             'price_exam_transaction_fee' => ['nullable', 'numeric', 'min:0'],
             'price_bvn_verify' => ['nullable', 'numeric', 'min:0'],
+            'price_bvn_print' => ['nullable', 'numeric', 'min:0'],
             'price_bvn_retrieve_phone' => ['nullable', 'numeric', 'min:0'],
             'price_bvn_retrieve_bms' => ['nullable', 'numeric', 'min:0'],
             'price_nin_verify' => ['nullable', 'numeric', 'min:0'],
@@ -206,7 +254,17 @@ class SettingsController extends Controller
             'bvn_verify_endpoint' => ['nullable', 'string', 'max:255'],
             'bvn_retrieve_phone_endpoint' => ['nullable', 'string', 'max:255'],
             'bvn_retrieve_bms_endpoint' => ['nullable', 'string', 'max:255'],
+            // Sent with a BMS retrieval on our own account's behalf, so it belongs
+            // here rather than in a box the customer types into.
+            'bvn_retrieve_agent_code' => ['nullable', 'string', 'max:80'],
             'bvn_print_endpoint' => ['nullable', 'string', 'max:255'],
+
+            // Which mode a verification runs in today. Anything that is not
+            // 'manual' stays automatic, so an unconfigured switch keeps the
+            // provider answering on the spot.
+            'nin_verify_mode' => ['nullable', 'string', 'in:manual,automatic'],
+            'bvn_verify_mode' => ['nullable', 'string', 'in:manual,automatic'],
+
             'app_download_url' => ['nullable', 'string', 'max:255'],
             'app_latest_version' => ['nullable', 'string', 'max:60'],
 
@@ -240,8 +298,30 @@ class SettingsController extends Controller
             'social_whatsapp_url' => ['nullable', 'string', 'max:255'],
 
             'logo'            => ['nullable', 'image', 'max:2048'],
+            'login_logo'      => ['nullable', 'image', 'max:2048'],
+            'loader_logo'     => ['nullable', 'image', 'max:2048'],
             'favicon'         => ['nullable', 'image', 'max:1024'],
-        ], $serviceMapRules));
+        ], $serviceMapRules, $manualRules, $smsRules));
+
+        /* This one page carries three separate powers: what a customer is charged,
+           how the site talks to its providers, and how the site itself behaves. They
+           are granted apart, so the save step decides which of them this post is
+           actually exercising.
+           The form sends every field it holds whether or not the person changed it,
+           so the test is a comparison against what is stored: leaving a provider key
+           untouched is not a provider change, and rewriting one without the grant for
+           it is refused outright rather than quietly dropped, because half a saved
+           settings form is worse than none. */
+        $refusal = $this->unauthorisedSettingWrites(
+            $request,
+            $data,
+            array_merge($dataServiceToggleKeys, $availabilitySwitchKeys, $referralServiceToggleKeys),
+            array_keys($manualRules)
+        );
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
 
         $submittedPlanPrices = $data['provider_plan_prices'] ?? [];
         unset($data['provider_plan_prices']);
@@ -257,6 +337,10 @@ class SettingsController extends Controller
             $data[$toggleKey] = $request->boolean($toggleKey) ? '1' : '0';
         }
 
+        foreach ($availabilitySwitchKeys as $toggleKey) {
+            $data[$toggleKey] = $request->boolean($toggleKey) ? '1' : '0';
+        }
+
         $data['referral_system_enabled'] = $request->boolean('referral_system_enabled') ? '1' : '0';
         foreach ($referralServiceToggleKeys as $toggleKey) {
             $data[$toggleKey] = $request->boolean($toggleKey) ? '1' : '0';
@@ -264,6 +348,7 @@ class SettingsController extends Controller
 
         $data['home_popup_enabled'] = $request->boolean('home_popup_enabled') ? '1' : '0';
         $data['dashboard_popup_enabled'] = $request->boolean('dashboard_popup_enabled') ? '1' : '0';
+        $data['login_popup_enabled'] = $request->boolean('login_popup_enabled') ? '1' : '0';
         $data['maintenance_overlay_enabled'] = $request->boolean('maintenance_overlay_enabled') ? '1' : '0';
 
         // Backward compatibility for old keys
@@ -275,20 +360,26 @@ class SettingsController extends Controller
         if (array_key_exists('dashboard_popup_message', $data)) {
             $data['dashboard_popup_message'] = sanitize_popup_message_html((string) $data['dashboard_popup_message']);
         }
-
-        // handle uploads (store and save URL in settings)
-        if ($request->hasFile('logo')) {
-            $path = $request->file('logo')->store('site', 'public');
-            $data['logo_url'] = '/storage/' . ltrim($path, '/');
+        if (array_key_exists('login_popup_message', $data)) {
+            $data['login_popup_message'] = sanitize_popup_message_html((string) $data['login_popup_message']);
         }
 
-        if ($request->hasFile('favicon')) {
-            $path = $request->file('favicon')->store('site', 'public');
-            $data['favicon_url'] = '/storage/' . ltrim($path, '/');
-        }
+        // Each logo lives in its own setting so an admin can give the dashboard,
+        // the login page, the loading animation and the tab icon different art.
+        $uploadKeys = [
+            'logo' => 'logo_url',
+            'login_logo' => 'login_logo_url',
+            'loader_logo' => 'loader_logo_url',
+            'favicon' => 'favicon_url',
+        ];
 
-        // remove file objects
-        unset($data['logo'], $data['favicon']);
+        foreach ($uploadKeys as $field => $settingKey) {
+            if ($request->hasFile($field)) {
+                $path = $request->file($field)->store('site', 'public');
+                $data[$settingKey] = '/storage/' . ltrim($path, '/');
+            }
+            unset($data[$field]);
+        }
 
         foreach ($data as $key => $value) {
             // Skip nulls if you like; or allow saving empty string
@@ -302,53 +393,191 @@ class SettingsController extends Controller
 
         settings_flush_cache();
 
+        // Which settings were written, never what was written into them: this form
+        // carries provider API keys and webhook secrets, and a trail that copied
+        // them would leak every credential it was meant to police.
+        $this->audit->recordQuietly('success', 'platform', 'platform.settings_updated', 'Saved platform settings.', [
+            'changes' => ['setting_keys' => array_keys($data)],
+        ]);
+
         return back()->with('success', 'Settings updated successfully!');
+    }
+
+    /**
+     * The permission this post would exercise, or null when it exercises none.
+     *
+     * Only a value that is actually different from what is stored counts as a write.
+     * A settings page sends its whole shape on every save, so "present in the
+     * request" says nothing about who changed what; the database does.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  list<string>  $toggleKeys
+     * @return \Illuminate\Http\RedirectResponse|null
+     */
+    private function unauthorisedSettingWrites(Request $request, array $data, array $toggleKeys, array $manualKeys)
+    {
+        $actor = $request->user();
+
+        $prospective = [];
+
+        foreach ($data as $key => $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            $prospective[(string) $key] = $value;
+        }
+
+        foreach ($toggleKeys as $key) {
+            $prospective[$key] = $request->boolean($key) ? '1' : '0';
+        }
+
+        foreach (['logo' => 'logo_url', 'login_logo' => 'login_logo_url', 'loader_logo' => 'loader_logo_url', 'favicon' => 'favicon_url'] as $field => $settingKey) {
+            if ($request->hasFile($field)) {
+                // A new file is a change by definition, whatever it is named.
+                $prospective[$settingKey] = "\0upload";
+            }
+        }
+
+        foreach (['home_popup_message', 'dashboard_popup_message', 'login_popup_message'] as $key) {
+            if (array_key_exists($key, $prospective)) {
+                // Compared after the same cleaning the save applies, so a message
+                // nobody touched is not mistaken for one that changed.
+                $prospective[$key] = sanitize_popup_message_html((string) $prospective[$key]);
+            }
+        }
+
+        if (array_key_exists('home_popup_message', $prospective)) {
+            $prospective['popup_message'] = $prospective['home_popup_message'];
+        }
+
+        $blocked = [];
+
+        foreach ($prospective as $key => $value) {
+            $permission = $this->permissionForSettingKey($key, $manualKeys);
+
+            if ($actor->hasAdminPermission($permission)) {
+                continue;
+            }
+
+            $stored = Setting::query()->where('key', $key)->value('value');
+
+            if ($this->isTheSameValue($value, $stored)) {
+                continue;
+            }
+
+            $blocked[$permission][] = $key;
+        }
+
+        if ($blocked === []) {
+            return null;
+        }
+
+        $this->audit->recordQuietly('denied', 'platform', 'platform.settings_denied', 'Settings save refused: permission not held for the values being changed.', [
+            'reason' => 'Missing permission: '.implode(' or ', array_keys($blocked)).'.',
+            'changes' => ['blocked_keys' => $blocked],
+            'throttle_seconds' => 30,
+        ]);
+
+        return back()->with('error', 'You do not have permission to change: '.implode(', ', array_map(
+            static fn (string $label): string => $label.' settings',
+            array_keys($blocked)
+        )).'. Nothing was saved.');
+    }
+
+    /**
+     * @param  list<string>  $manualKeys
+     */
+    private function permissionForSettingKey(string $key, array $manualKeys): string
+    {
+        // Plan prices are money, whatever the word "provider" in their name says.
+        if ($key === 'provider_plan_prices' || $key === 'wallet_funding_fee' || $key === 'airtime_discount_percent') {
+            return 'prices.edit';
+        }
+
+        if (in_array($key, $manualKeys, true)) {
+            return str_starts_with($key, 'turnaround_') ? 'settings.change' : 'prices.edit';
+        }
+
+        if (str_starts_with($key, 'price_')
+            || str_starts_with($key, 'markup_')
+            || str_starts_with($key, 'referral_percent_')
+            || $key === 'referral_default_percent') {
+            return 'prices.edit';
+        }
+
+        if ($key === 'provider'
+            || str_starts_with($key, 'provider_')
+            || str_starts_with($key, 'nin_')
+            || str_starts_with($key, 'bvn_')
+            || str_starts_with($key, 'sms_')
+            || str_starts_with($key, 'service_map_profile_')) {
+            return 'provider.config';
+        }
+
+        return 'settings.change';
+    }
+
+    /**
+     * Whether the value about to be stored is the value already stored.
+     */
+    private function isTheSameValue(mixed $value, ?string $stored): bool
+    {
+        if (is_array($value) || is_object($value)) {
+            return json_encode($value) === (string) $stored;
+        }
+
+        $string = $value instanceof \Illuminate\Http\UploadedFile
+            ? "\0upload"
+            : trim((string) $value);
+
+        if ($string === "\0upload") {
+            return false;
+        }
+
+        return $string === trim((string) ($stored ?? ''));
     }
 
     public function syncProviderPrices()
     {
         $summary = $this->syncProviderPlanPrices();
 
+        $message = 'Loaded '.$summary['synced_plans'].' plan prices from '.count($summary['attempted_services']).' services.';
+
         if (!empty($summary['failed_services'])) {
-            return back()->with(
-                'error',
-                'Synced '.$summary['synced_plans'].' plans, but these services could not be loaded from GSUBZ: '.implode(', ', $summary['failed_services'])
-            );
+            $message .= ' These could not be loaded from GSUBZ: '.implode(', ', $summary['failed_services']).'.';
         }
 
-        return back()->with('success', 'GSUBZ price list synced successfully. '.$summary['synced_plans'].' plans are available for pricing.');
+        if ((int) $summary['stale'] > 0) {
+            $message .= ' '.(int) $summary['stale'].' services were not reached before the time limit - run sync again to continue.';
+        }
+
+        $this->audit->recordQuietly(
+            empty($summary['failed_services']) ? 'success' : 'failed',
+            'platform',
+            'platform.provider_prices_synced',
+            'Ran the provider price sync.',
+            [
+                'reason' => $message,
+                'changes' => [
+                    'synced_plans' => (int) $summary['synced_plans'],
+                    'attempted_services' => count($summary['attempted_services']),
+                    'failed_services' => array_slice((array) $summary['failed_services'], 0, 20),
+                    'stale' => (int) $summary['stale'],
+                ],
+            ]
+        );
+
+        return empty($summary['failed_services'])
+            ? back()->with('success', $message)
+            : back()->with('error', $message);
     }
 
     private function syncProviderPlanPrices(): array
     {
-        $syncedPlans = 0;
-        $failedServices = [];
-        $provider = $this->planPrices->currentProvider();
-
-        foreach ($this->pricingServiceGroups() as $services) {
-            foreach (array_keys($services) as $serviceSlug) {
-                try {
-                    $providerServiceId = $this->planPrices->providerServiceId($serviceSlug, $provider);
-                    $resp = $this->gsubz->plans($providerServiceId);
-
-                    if (!($resp['ok'] ?? false) || !is_array($resp['plans'] ?? null)) {
-                        $failedServices[] = $serviceSlug;
-                        continue;
-                    }
-
-                    $syncedPlans += $this->planPrices
-                        ->syncPlans($serviceSlug, $resp['plans'], $providerServiceId, $provider)
-                        ->count();
-                } catch (\Throwable $e) {
-                    $failedServices[] = $serviceSlug;
-                }
-            }
-        }
-
-        return [
-            'synced_plans' => $syncedPlans,
-            'failed_services' => array_values(array_unique($failedServices)),
-        ];
+        // One pass over the whole catalogue is 18 provider round trips, so cap
+        // the wall clock to stay inside PHP's max_execution_time.
+        return $this->planPrices->syncProviderPrices(timeout: 10, retries: 1, budgetSeconds: 45);
     }
 
     private function updateProviderPlanPrices(array $submittedPlanPrices): void
@@ -370,34 +599,7 @@ class SettingsController extends Controller
 
     private function pricingServiceGroups(): array
     {
-        return [
-            'MTN Data' => [
-                'mtn_awoof' => 'MTN Awoof Data (Cheap)',
-                'mtn_gifting' => 'MTN Data (Gifting)',
-                'mtn_sme' => 'MTN Data (SME)',
-                'mtn_cg' => 'MTN Data (Corporate)',
-                'mtn_cg_lite' => 'MTN Data (CG Lite)',
-                'mtn_coupon' => 'MTN Coupon',
-                'mtncg' => 'MTN CG',
-            ],
-            'Airtel Data' => [
-                'airtel_sme' => 'Airtel Data (SME)',
-                'airtel_cg' => 'Airtel Data (CG)',
-                'airtel_gifting' => 'Airtel Data (Gifting)',
-            ],
-            'Glo Data' => [
-                'glo_data' => 'Glo Data',
-                'glo_sme' => 'Glo Data (SME)',
-            ],
-            '9mobile Data' => [
-                'etisalat_data' => '9mobile Data',
-            ],
-            'Cable TV' => [
-                'dstv' => 'DSTV',
-                'gotv' => 'GOTV',
-                'startimes' => 'Startimes',
-            ],
-        ];
+        return $this->planPrices->pricingServiceGroups();
     }
 
     private function looksLikePlanPrice(mixed $value): bool

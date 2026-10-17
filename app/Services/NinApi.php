@@ -81,6 +81,7 @@ class NinApi
                 'success' => false,
                 'message' => 'NIN validation endpoint is not configured.',
                 'data' => [],
+                'provider_asked' => false,
             ];
         }
 
@@ -93,6 +94,7 @@ class NinApi
             return [
                 'success' => false,
                 'message' => 'NIN slip print endpoint is not configured.',
+                'provider_asked' => false,
             ];
         }
 
@@ -106,6 +108,7 @@ class NinApi
                 'success' => false,
                 'message' => 'NIN slip reports endpoint is not configured.',
                 'data' => [],
+                'provider_asked' => false,
             ];
         }
 
@@ -132,6 +135,32 @@ class NinApi
         return 'Unable to complete NIN verification at this time.';
     }
 
+    /**
+     * Whether the provider itself said it could not do the job, as opposed to
+     * returning a real answer about the person. Their endpoints fail this way
+     * whenever the NIMC link behind them is busy, and the wording differs per
+     * endpoint, so all of it is matched here.
+     */
+    public function isServiceDown(string $message): bool
+    {
+        $raw = strtolower($message);
+
+        foreach ([
+            'service not available',
+            'network issue',
+            'try again later',
+            'temporarily unavailable',
+            'timed out',
+            'could not connect',
+        ] as $needle) {
+            if (str_contains($raw, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function post(string $path, array $payload): array
     {
         return $this->request('POST', $this->baseUrl . $path, $payload);
@@ -143,11 +172,12 @@ class NinApi
             return [
                 'success' => false,
                 'message' => 'NIN API key is not configured.',
+                'provider_asked' => false,
             ];
         }
 
         try {
-            $client = Http::timeout(45)
+            $client = Http::timeout(20)
                 ->retry(1, 300)
                 ->acceptJson()
                 ->withHeaders([

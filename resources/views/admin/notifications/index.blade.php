@@ -1,27 +1,22 @@
 <x-app-layout>
-    <div class="mx-auto max-w-4xl space-y-6">
-        <section class="app-section p-6 sm:p-8">
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <h1 class="app-page-title text-[2rem] sm:text-[2.5rem]">Admin Notifications</h1>
-                    <p class="app-page-subtitle">You have {{ (int) $unreadCount }} unread notifications.</p>
-                </div>
-                @if($unreadCount > 0)
-                    <form method="POST" action="{{ route('admin.notifications.read-all') }}">
-                        @csrf
-                        <button class="btn-primary">Mark All Read</button>
-                    </form>
-                @endif
-            </div>
-            <div class="app-divider mt-4"></div>
-        </section>
+    <x-page-hero class="reference-shared-banner" title="Admin Notifications" subtitle="{{ (int) $unreadCount }} unread.">
+        @if($unreadCount > 0)
+            <form method="POST" action="{{ route('admin.notifications.read-all') }}">
+                @csrf
+                <button type="submit" class="reference-hero-action">Mark All Read</button>
+            </form>
+        @endif
+    </x-page-hero>
 
+    <div class="reference-flow-page mx-auto max-w-4xl space-y-6">
         <section class="app-section p-4 sm:p-6">
             <div class="space-y-3">
                 @forelse($notifications as $notification)
                     @php
                         $isUnread = is_null($notification->read_at);
                         $data = $notification->data ?? [];
+                        $linkUrl = is_array($data) ? trim((string) ($data['url'] ?? '')) : '';
+                        $isSafeLink = str_starts_with($linkUrl, 'http');
                     @endphp
                     <article class="rounded-[22px] border p-4 {{ $isUnread ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-slate-50' }}">
                         <div class="flex items-start justify-between gap-3">
@@ -31,6 +26,12 @@
                             @endif
                         </div>
                         <div class="mt-2 text-sm leading-6 text-slate-600">{{ $data['message'] ?? '' }}</div>
+                        @if($isSafeLink)
+                            {{-- The alert is only useful if it opens the thing it describes. --}}
+                            <a href="{{ $linkUrl }}" class="mt-2 inline-block text-sm font-bold text-slate-900 underline">
+                                {{ $data['action_label'] ?? 'Open request' }} <span aria-hidden="true">→</span>
+                            </a>
+                        @endif
                         <div class="mt-2 text-xs text-slate-400">{{ optional($notification->created_at)->format('d M Y, h:ia') }}</div>
                     </article>
                 @empty

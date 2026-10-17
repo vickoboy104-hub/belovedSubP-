@@ -37,13 +37,27 @@ class GsubzApi
         }
     }
 
-    public function plans(string $serviceId): array
+    public function configured(): bool
+    {
+        return $this->apiKey !== '';
+    }
+
+    private function unconfiguredResponse(): array
+    {
+        return [
+            'ok' => false,
+            'unconfigured' => true,
+            'message' => 'No provider API key is configured. Add it in Admin → Settings.',
+        ];
+    }
+
+    public function plans(string $serviceId, int $timeout = 30, int $retries = 2): array
     {
         try {
             $url = $this->baseUrl . '/api/plans';
 
-            $resp = Http::timeout(30)
-                ->retry(2, 300)
+            $resp = Http::timeout($timeout)
+                ->retry($retries, 300)
                 ->acceptJson()
                 ->get($url, ['service' => $serviceId])
                 ->throw()
@@ -107,6 +121,10 @@ class GsubzApi
 
     public function pay(array $payload): array
     {
+        if (!$this->configured()) {
+            return $this->unconfiguredResponse();
+        }
+
         try {
             $url = $this->baseUrl . '/api/pay/';
 
@@ -114,7 +132,7 @@ class GsubzApi
                 'api' => $this->apiKey,
             ]);
 
-            $json = $this->client()
+            $json = $this->billableClient()
                 ->asForm()
                 ->post($url, $body)
                 ->throw()
@@ -154,6 +172,10 @@ class GsubzApi
 
     public function balance(): array
     {
+        if (!$this->configured()) {
+            return $this->unconfiguredResponse();
+        }
+
         try {
             $url = $this->baseUrl . '/api/balance/';
 
@@ -223,6 +245,10 @@ class GsubzApi
 
     public function verify(string $requestId): array
     {
+        if (!$this->configured()) {
+            return $this->unconfiguredResponse();
+        }
+
         try {
             $url = $this->baseUrl . '/api/verify/';
 
@@ -399,6 +425,24 @@ class GsubzApi
     {
         return Http::timeout(30)
             ->retry(2, 300)
+            ->acceptJson()
+            ->withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+            ]);
+    }
+
+    /**
+     * The one client that may cost us money twice, so it never sends twice.
+     *
+     * A timeout or a 500 leaves it unknown whether the purchase went through rather
+     * than proving that it did not, and a second send would be a second chargeable
+     * order. What settles that uncertainty is verify(), which asks about the reference
+     * this site already holds - so the read-only calls above keep their retries and
+     * this one has none.
+     */
+    private function billableClient()
+    {
+        return Http::timeout(30)
             ->acceptJson()
             ->withHeaders([
                 'Authorization' => 'Bearer ' . $this->apiKey,
