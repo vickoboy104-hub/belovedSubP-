@@ -107,6 +107,7 @@
             </p>
         </section>
 
+        @can('settings.change')
         <section class="app-section p-4 sm:p-6">
             <p class="text-sm font-semibold text-slate-600 mb-3">Reset Totals</p>
             <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -132,6 +133,7 @@
                 </form>
             </div>
         </section>
+        @endcan
 
         <section class="app-section p-4 sm:p-6">
             <p class="text-sm font-semibold text-slate-600 mb-3">Admin Profit Calculator</p>

@@ -40,7 +40,9 @@
                             <h2 class="text-xl font-extrabold text-slate-900">User Details</h2>
                             <p class="mt-1 text-sm text-slate-500">Names, contact details, and wallet funding account.</p>
                         </div>
+                        @can('customers.edit')
                         <button class="btn-primary">Save Details</button>
+                        @endcan
                     </div>
 
                     <div class="mt-5 grid gap-4 md:grid-cols-2">
@@ -121,6 +123,7 @@
                                         @endif
                                     </div>
 
+                                    @can('wallet.settlement.declare')
                                     <form method="POST"
                                           action="{{ route($settled ? 'admin.wallet.requests.unmark-settled' : 'admin.wallet.requests.mark-settled', $funding->id) }}"
                                           class="mt-3 space-y-2">
@@ -137,6 +140,7 @@
                                             {{ $settled ? 'Open it again' : 'Mark as settled' }}
                                         </button>
                                     </form>
+                                    @endcan
                                 </article>
                             @endforeach
                         </div>
@@ -262,9 +266,11 @@
             </div>
 
             <aside class="space-y-6">
+                @canany(['customers.discount', 'admins.grant', 'customers.password_reset'])
                 <section class="app-section p-5">
                     <h2 class="text-lg font-extrabold text-slate-900">Admin Controls</h2>
                     <div class="mt-4 space-y-3">
+                        @can('customers.discount')
                         <form method="POST" action="{{ route('admin.users.discount', $user) }}" class="space-y-2">
                             @csrf
                             <label class="block">
@@ -273,7 +279,9 @@
                             </label>
                             <button class="btn-primary w-full">Update Discount</button>
                         </form>
+                        @endcan
 
+                        @can('admins.grant')
                         <form method="POST" action="{{ route('admin.users.admin', $user) }}">
                             @csrf
                             <input type="hidden" name="is_admin" value="{{ $user->is_admin ? '0' : '1' }}">
@@ -281,7 +289,9 @@
                                 {{ $user->is_admin ? 'Remove Admin' : 'Make Admin' }}
                             </button>
                         </form>
+                        @endcan
 
+                        @can('customers.password_reset')
                         <form method="POST"
                               id="resetPasswordForm"
                               action="{{ route('admin.users.reset-password', $user) }}"
@@ -292,9 +302,12 @@
                                 Generate Temp Password
                             </button>
                         </form>
+                        @endcan
                     </div>
                 </section>
+                @endcanany
 
+                @canany(['wallet.credit', 'wallet.debit', 'wallet.balance.set'])
                 <form method="POST" action="{{ route('admin.users.adjust-wallet', $user) }}" class="app-section p-5">
                     @csrf
                     <h2 class="text-lg font-extrabold text-slate-900">Wallet Adjustment</h2>
@@ -320,6 +333,7 @@
                         <button class="btn-primary w-full">Apply Wallet Change</button>
                     </div>
                 </form>
+                @endcanany
 
                 <section class="app-section p-5">
                     <h2 class="text-lg font-extrabold text-slate-900">Account Summary</h2>

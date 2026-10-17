@@ -217,6 +217,7 @@
                 @endif
 
                 @if($order->status !== 'failed')
+                    @can('orders.manual.answer')
                     <section class="app-section p-5 sm:p-6">
                         <h2 class="text-xl font-extrabold text-slate-900">
                             {{ $order->status === 'pending' ? 'Publish the result' : 'Update the result' }}
@@ -274,6 +275,7 @@
                             @endif
                         </form>
                     </section>
+                    @endcan
                 @endif
             </div>
 
@@ -332,6 +334,7 @@
                             </div>
                         @endif
 
+                        @can('orders.manual.claim')
                         <form method="POST"
                               action="{{ route('admin.manual-orders.claim', $order->id) }}"
                               class="mt-4 space-y-3">
@@ -366,6 +369,7 @@
                                 </button>
                             @endif
                         </form>
+                        @endcan
                     @endif
 
                     @if(count($handovers) > 0)
@@ -401,6 +405,7 @@
                 </section>
 
                 @if($order->status === 'pending')
+                    @can('orders.manual.answer')
                     <section class="app-section border-rose-200 p-5 sm:p-6">
                         <h2 class="text-lg font-extrabold text-rose-800">Cannot complete it?</h2>
                         <p class="mt-1 text-sm leading-6 text-slate-600">
@@ -438,6 +443,7 @@
                             </button>
                         </form>
                     </section>
+                    @endcan
                 @endif
             </div>
         </div>

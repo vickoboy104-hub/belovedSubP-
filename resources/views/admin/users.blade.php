@@ -107,6 +107,7 @@
                         <div class="mt-4 space-y-3">
                             <a href="{{ route('admin.users.show', $u) }}" class="btn-outline w-full justify-center">View Details</a>
 
+                            @can('customers.discount')
                             <form method="POST" action="{{ route('admin.users.discount', $u) }}" class="grid grid-cols-[1fr_auto] gap-2">
                                 @csrf
                                 <input type="number" min="0" max="100" step="0.01" name="discount_percent"
@@ -114,7 +115,9 @@
                                        class="input-field" placeholder="Discount %">
                                 <button class="btn-primary justify-center px-4">Update</button>
                             </form>
+                            @endcan
 
+                            @can('admins.grant')
                             <form method="POST" action="{{ route('admin.users.admin', $u) }}">
                                 @csrf
                                 <input type="hidden" name="is_admin" value="{{ $u->is_admin ? '0' : '1' }}">
@@ -123,7 +126,9 @@
                                     {{ $u->is_admin ? 'Remove Admin' : 'Make Admin' }}
                                 </button>
                             </form>
+                            @endcan
 
+                            @can('customers.password_reset')
                             <form method="POST"
                                   id="resetPasswordForm-{{ $u->id }}"
                                   action="{{ route('admin.users.reset-password', $u) }}"
@@ -134,7 +139,9 @@
                                     Generate Temp Password
                                 </button>
                             </form>
+                            @endcan
 
+                            @can('wallet.credit')
                             <form method="POST" action="{{ route('admin.users.fund-wallet', $u) }}" class="space-y-2">
                                 @csrf
                                 <input type="number" name="amount" min="1" step="0.01" required
@@ -152,6 +159,7 @@
                                     Fund Wallet
                                 </button>
                             </form>
+                            @endcan
                         </div>
                     </article>
                 @empty
@@ -239,6 +247,7 @@
                                                 View Details
                                             </a>
 
+                                            @can('customers.discount')
                                             <form method="POST" action="{{ route('admin.users.discount', $u) }}" class="grid grid-cols-[1fr_auto] gap-2">
                                                 @csrf
                                                 <input type="number" min="0" max="100" step="0.01" name="discount_percent"
@@ -248,7 +257,9 @@
                                                     Update %
                                                 </button>
                                             </form>
+                                            @endcan
 
+                                            @can('admins.grant')
                                             <form method="POST" action="{{ route('admin.users.admin', $u) }}">
                                                 @csrf
                                                 <input type="hidden" name="is_admin" value="{{ $u->is_admin ? '0' : '1' }}">
@@ -257,7 +268,9 @@
                                                     {{ $u->is_admin ? 'Remove Admin' : 'Make Admin' }}
                                                 </button>
                                             </form>
+                                            @endcan
 
+                                            @can('customers.password_reset')
                                             <form method="POST"
                                                   id="resetPasswordTableForm-{{ $u->id }}"
                                                   action="{{ route('admin.users.reset-password', $u) }}"
@@ -268,7 +281,9 @@
                                                     Generate Temp Password
                                                 </button>
                                             </form>
+                                            @endcan
 
+                                            @can('wallet.credit')
                                             <form method="POST" action="{{ route('admin.users.fund-wallet', $u) }}" class="grid gap-2 xl:grid-cols-[1fr_1fr_auto]">
                                                 @csrf
                                                 <input type="number" name="amount" min="1" step="0.01" required
@@ -283,6 +298,7 @@
                                                     Fund Wallet
                                                 </button>
                                             </form>
+                                            @endcan
                                         </div>
                                     </div>
                                 </td>

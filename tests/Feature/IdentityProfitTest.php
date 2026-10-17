@@ -311,7 +311,11 @@ class IdentityProfitTest extends TestCase
         $start = strpos($page, 'NIN Verification &amp; Printing');
         $this->assertNotFalse($start, 'The dashboard has no NIN block at all.');
 
-        $end = strpos($page, 'Reset Totals', $start);
+        // The block ends where the next always-rendered section begins. It used to
+        // stop at "Reset Totals", which is now behind the settings.change grant -
+        // an admin who cannot reset totals would have made this slice run to the end
+        // of the page and read figures from the wrong board.
+        $end = strpos($page, 'Admin Profit Calculator', $start);
         $this->assertNotFalse($end, 'The NIN block never ends.');
 
         return substr($page, $start, $end - $start);

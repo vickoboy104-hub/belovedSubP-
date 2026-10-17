@@ -579,11 +579,13 @@
                             Every plan a customer opens is fetched from GSUBZ and its price recorded, and the price is re-checked at checkout, so selling prices follow the provider. Editing a value here marks that plan as custom and keeps your price. Use sync to pull the whole catalogue now, including services nobody has browsed recently.
                         </div>
                     </div>
+                    @can('prices.edit')
                     <button type="submit"
                             form="syncProviderPricesForm"
                             class="rounded-xl border border-gray-200 px-4 py-2.5 text-xs font-bold text-gray-500 hover:bg-gray-100">
                         Sync Latest GSUBZ Prices
                     </button>
+                    @endcan
                 </div>
 
                 <div class="mt-4 space-y-5">
@@ -1622,9 +1624,11 @@
             </div>
         </form>
 
+        @can('prices.edit')
         <form id="syncProviderPricesForm" method="POST" action="{{ route('admin.settings.provider-prices.sync') }}" class="hidden">
             @csrf
         </form>
+        @endcan
 
     </div>
 
