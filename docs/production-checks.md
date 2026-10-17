@@ -413,7 +413,9 @@ audit note, not through that screen.
 With that, each of the four rows lands in one bucket:
 
 - **Verified charge identity match to a successful row** - the same Flutterwave charge was
-  already credited. Nothing is owed; annotate only.
+  already credited. If that credit sits on the **same wallet**, nothing is owed; annotate
+  only. If it sits on a **different wallet**, the money was banked but who owns it is an
+  ownership decision - flag for review, do not label the row settled.
 - **No verified identity match, but a strong clue** (same reference, or same wallet+amount
   within a day) - flag for the owner to check the Flutterwave dashboard. It is **not** closed.
 - **Failed, no verified match and no strong clue** - no balance ever moved. Whether
@@ -436,7 +438,10 @@ post-deploy work has a list instead of a surprise.
 Run this single command on the live box. It prints the same four rows in one line each,
 never exposing the full reference, account number, customer name, email or phone. It reports
 attribution as a holder-count case, duplicate-reference counts, a same-wallet/same-amount
-clue, the only definitive check (matching charge identity), and log-line mentions.
+clue, the only definitive check (matching charge identity), and log-line mentions. A
+verified match whose credit sits on a **different wallet** is bucketed
+`ownership-review`, never `settled`. On a match the two inner loops exit via `break 2` -
+deliberately one level short of the targets loop, so every target row always gets its line.
 
 ```sh
 php artisan tinker --execute='
@@ -480,7 +485,7 @@ foreach ($targets as $t) {
     ->whereBetween("created_at",[$t->created_at->copy()->subDay(), $t->created_at->copy()->addDay()])
     ->count();
   $ids = array_values(array_filter([$meta["flutterwave_charge_id"]??null, $meta["id"]??null, $meta["flw_ref"]??null]));
-  $verified = false;
+  $verified = false; $matchUserId = null;
   if ($ids !== []) {
     $successes = \App\Models\WalletTransaction::query()
       ->where("type","credit")
@@ -491,7 +496,13 @@ foreach ($targets as $t) {
     foreach ($successes as $s) {
       $sm = $s->meta ?? [];
       $sids = array_values(array_filter([$sm["flutterwave_charge_id"]??null, $sm["id"]??null, $sm["flw_ref"]??null]));
-      foreach ($ids as $id) { if (in_array($id,$sids,true)) { $verified=true; break 3; } }
+      foreach ($ids as $id) {
+        if (in_array($id,$sids,true)) {
+          $verified = true;
+          $matchUserId = DB::table("wallets")->where("id",$s->wallet_id)->value("user_id");
+          break 2;
+        }
+      }
     }
   }
   $logCount = 0;
@@ -499,18 +510,22 @@ foreach ($targets as $t) {
     foreach (File::lines(storage_path("logs/laravel.log")) as $line) { if (str_contains($line,$ref)) $logCount++; }
   }
   $bucket = $verified
-    ? "settled (verified identity)"
+    ? ((isset($matchUserId) && $matchUserId == $owner)
+      ? "settled (verified identity, same wallet)"
+      : "ownership-review (verified identity, other wallet)")
     : ($t->status === "failed"
       ? (($dup>1 || $twin>0) ? "dashboard-check (clue)" : "manual-reconcile candidate")
       : "pending-watch");
-  echo "#".$t->id." | ".$t->status." | amount ".$t->amount." | ".round($t->created_at->diffInDays(now(),true),1)."d old | wallet user ".($owner??"?")." | ".$holderCase." | same-ref rows ".$dup." (".implode(",",$dupStatuses).") | same-wallet+amount twin ".$twin." | verified identity match ".($verified?"yes":"no")." | log mentions ".$logCount." | bucket: ".$bucket.PHP_EOL;
+  echo "#".$t->id." | ".$t->status." | amount ".$t->amount." | ".round($t->created_at->diffInDays(now(),true),1)."d old | wallet user ".($owner??"?")." | ".$holderCase." | same-ref rows ".$dup." (".implode(",",$dupStatuses).") | same-wallet+amount twin ".$twin." | verified identity match ".($verified?"yes (credit on wallet user ".($matchUserId??"?").")":"no")." | log mentions ".$logCount." | bucket: ".$bucket.PHP_EOL;
 }
 '
 ```
 
 Read the output against the buckets in §11.4. `verified identity match = yes` is the only
-result that proves the same Flutterwave charge was already credited; everything else is a
-clue that needs independent evidence.
+result that proves the same Flutterwave charge was already credited - and the bucket then
+says whether that credit sits on the same wallet (`settled`) or a different one
+(`ownership-review`: the money was banked, but who owns it is the owner's decision, never
+the command's). Everything else is a clue that needs independent evidence.
 
 ### 11.5 What this plan deliberately does not do
 
