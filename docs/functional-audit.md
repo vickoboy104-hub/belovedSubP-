@@ -167,8 +167,9 @@ Private by default:
   pins retail ≥ provider cost for every key, the ₦160 / ₦80 provider costs, and that an owner
   override still works. The four NIN Modification tiers are pinned as in section 4.
 - **Prices: unchanged, and this is checkable.** `git diff --name-only 0935a7f7..HEAD --
-  app/Helpers/settings.php` returns nothing across all 48 commits of the deploy range, so no
-  price key moved.
+  app/Helpers/settings.php` prints nothing, re-run 2026-10-17 across all **49** commits of the
+  deploy range as it now stands (48 to the runtime head `6f14c4e8`, plus the documentation commit
+  above it), so no price key moved.
 - **Layout: the older "no customer-visible layout change" line in this section is superseded,
   and I am correcting it rather than leaving it standing.** It was true of the four commits that
   existed when it was written (`resources/views/admin/settings.blade.php`, +26/−2, was then the

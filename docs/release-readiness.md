@@ -39,7 +39,9 @@ that gap and both routes to closing it.
 
 ## Where the code stands
 
-Branch `codex/identity-first-jhtech-experience`. **Local** head is `6f14c4e8`; the remote head,
+Branch `codex/identity-first-jhtech-experience`. The **runtime** head on this machine is
+`6f14c4e8` and the branch tip above it is documentation (`b54fde5b` plus the commit that records
+it), none of it pushed; the remote head,
 read again with `git ls-remote` on 2026-10-17, is `e32744d4`, and the **runtime** head on the remote
 is `69418773` - everything between it and `e32744d4` is documentation. `6f14c4e8` has not been
 pushed and no push is authorized for it.
@@ -58,13 +60,14 @@ pushed and no push is authorized for it.
 | `e32744d4` | **yes - 2026-10-17, review only** | Docs: every figure the last three commits made stale, re-measured. The current remote head. |
 | `98c96cb1` | **no - local only** | Docs: the measurement showing which manual-credit channels the duplicate-credit hold cannot see (approval-checklist C9), and the widened §11.7 count. No code. |
 | `6f14c4e8` | **no - local only, and no push is authorized for it** | Runtime: granular administrator permissions (27 slugs, the `admin_permission_grants` table, a `can_admin:` gate on the admin routes) and the explicit manual-settlement declaration (`wallet_settlement_links`), real `users.id` display, and the corrected `config/audit.php` comment about database triggers. Two migrations. 44 files, +3,756 / −152. |
+| `b54fde5b` | **no - local only, and no push is authorized for it** | Docs only: seven files, all under `docs/`, zero runtime files. It re-measures everything `6f14c4e8` made stale and corrects two false claims - "573 passed" was really 561 passed plus 12 skipped, and row A5's "no customer view is touched" is contradicted by `resources/views/profile/show.blade.php`. The commit that adds this row is a second documentation commit above the same runtime head, also local, also unpushed. |
 
 "Pushed" here means **on `codex/identity-first-jhtech-experience` for independent review and
 testing**, under the owner's 2026-10-17 development-only authorization. It does not mean merged,
 deployed, migrated or reviewed-and-approved; `main` is untouched at `17cb6eec…`.
 
-`www.belovedsubp.com` still runs whatever `~/vtu` was last checked out to (`0935a7f7`, 48
-commits behind this head). None of the above is live.
+`www.belovedsubp.com` still runs whatever `~/vtu` was last checked out to (`0935a7f7`): 48
+commits behind the runtime head `6f14c4e8`, 49 behind this branch tip. None of the above is live.
 
 The four runtime commits above the reviewed anchor touch **72 files** under `app/ tests/ database/ config/ routes/
 resources/ bootstrap/ public/`, and they **do** change `resources/css` and `public/build`, so
