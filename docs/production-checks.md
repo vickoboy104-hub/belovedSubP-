@@ -772,3 +772,98 @@ strictly **not** an answer about whether money arrived.
 - **The pending row does not block the deploy.** The new code is strictly safer for it: it
   can only be credited to a provable owner or held for an admin, never quietly dropped -
   which is what the current code does with a transfer it cannot attribute.
+
+### 11.7 Does the gateway reference behave like a charge identity or like an account identity? (added 2026-10-17)
+
+§11.6 separates the two kinds of token by rule, not by measurement: `id` and `flw_ref` identify
+**one charge**, while `reference` and `tx_ref` are treated as **account-scoped** because
+`WalletFundingService.php:624-629` says a permanent account is issued once and every transfer into
+it carries the single reference the account was created under. That assumption is load-bearing in
+two opposite directions, and no test can settle it: the fake payload in
+`tests/Feature/FlutterwaveChargeIdempotencyTest.php:85-100` has no `reference` key at all, so the
+branch is never exercised on either side.
+
+- If live payloads **do** carry an account-scoped `reference`, then
+  `WalletFundingService::isSameCharge` (`:673-674`, compared at `:677-681`) contradicts the comment
+  above it: a genuine second transfer into an already-used account is judged "the same money",
+  `creditFlutterwaveCharge` returns zero at `:80-89`, and the arrival is neither credited nor held -
+  only an info log. That is money received and silently not paid out.
+- If live payloads **never** carry it, that branch is dead and harmless, and the widening in §11.6
+  was defence against a case that cannot occur.
+
+The same read also sizes the one duplicate-credit path the code review found, which no guard
+covers: an admin manual credit (`Admin/UsersController::fundWallet:176-215`) writes channel
+`admin_manual_credit` with **no gateway identity and no charge claim**, so a later report of the
+same charge passes every check and credits a customer who was already helped.
+
+Counts only. This command prints no reference, no account number, no name, email, phone, amount or
+payload value.
+
+```sh
+php artisan tinker --execute='
+$rows = DB::table("wallet_transactions")
+  ->where("created_at", ">=", now()->subDays(30))
+  ->where("type", "credit")
+  ->where(function ($q) { $q->where("channel","like","flutterwave%")->orWhere("channel","admin_manual_credit"); })
+  ->orderBy("id")
+  ->get();
+$withPayload = 0; $refPresent = 0; $refIsChargeIdentity = 0; $noIdentity = 0;
+$byRef = []; $byWalletRef = [];
+foreach ($rows as $r) {
+  $meta = json_decode((string) $r->meta, true) ?: [];
+  $payload = (array) ($meta["flutterwave_payload"] ?? []);
+  if ($payload !== []) { $withPayload++; }
+  $ref  = trim((string) ($payload["reference"] ?? ($meta["flutterwave_reference"] ?? "")));
+  $flw  = trim((string) ($payload["flw_ref"] ?? ($meta["flw_ref"] ?? ($meta["flutterwave_id"] ?? ""))));
+  $id   = trim((string) ($payload["id"] ?? ($meta["flutterwave_charge_id"] ?? "")));
+  if ($ref !== "") {
+    $refPresent++;
+    if ($ref === $flw || $ref === $id) { $refIsChargeIdentity++; }
+    $byRef[$ref] = ($byRef[$ref] ?? 0) + 1;
+    $key = $r->wallet_id."|".$ref;
+    $byWalletRef[$key] = ($byWalletRef[$key] ?? 0) + 1;
+  }
+  if ($ref === "" && $flw === "" && $id === "" && str_starts_with((string) $r->channel, "flutterwave")) { $noIdentity++; }
+}
+$sharedAnywhere = 0; foreach ($byRef as $c) { if ($c > 1) { $sharedAnywhere++; } }
+$sharedSameWallet = 0; foreach ($byWalletRef as $c) { if ($c > 1) { $sharedSameWallet++; } }
+echo "credit rows in 30d: ".$rows->count()." (payload stored: ".$withPayload.")".PHP_EOL;
+echo "rows carrying a gateway reference: ".$refPresent.", of which equal to the charge own identity: ".$refIsChargeIdentity.PHP_EOL;
+echo "distinct references reused on more than one row: ".$sharedAnywhere.", reused within ONE wallet: ".$sharedSameWallet.PHP_EOL;
+echo "gateway credit rows storing no gateway identity at all: ".$noIdentity.PHP_EOL;
+// A Collection cannot apply SQL "like", so the gateway rows are matched by prefix in PHP.
+$manual = $rows->where("channel","admin_manual_credit");
+$open   = $rows->filter(fn ($r) => str_starts_with((string) $r->channel, "flutterwave"))
+    ->whereIn("status",["pending","failed"]);
+$manualWallets = $manual->pluck("wallet_id")->unique();
+$openWallets   = $open->pluck("wallet_id")->unique();
+echo "manual admin credits: ".$manual->count()." across ".$manualWallets->count()." wallet(s)".PHP_EOL;
+echo "open (pending/failed) gateway credits: ".$open->count()." across ".$openWallets->count()." wallet(s)".PHP_EOL;
+echo "wallets helped manually that ALSO hold an open gateway credit: ".$manualWallets->intersect($openWallets)->count()." <- the duplicate-credit exposure".PHP_EOL;
+'
+```
+
+How to read it, and what each answer decides:
+
+- **`rows carrying a gateway reference: 0`** - the account-scoped branch in `isSameCharge` never
+  fires on real traffic. Nothing to change there; the §11.6 clue/proof split stays correct as
+  defence.
+- **`reused within ONE wallet` greater than 0 while those wallets hold more than one success** -
+  the account-scoped token is shared *and* the app still banked both, which means the earlier row
+  did not store `flutterwave_reference` (older code). The branch is then a live risk for every
+  future deposit into an already-used account, and the fix belongs in `isSameCharge`, with its own
+  regression test.
+- **`reused within ONE wallet` greater than 0 with no second success behind it** - consistent with
+  the drop already happening: a transfer arrived, the row stayed as it was and only the info log
+  recorded it. That is the case to escalate to the owner immediately, because it means money was
+  received and not credited.
+- **`wallets helped manually that ALSO hold an open gateway credit`** - the number of customers for
+  whom the manual-then-arrival double-credit sequence is possible today. Zero means the approved
+  hold-instead-of-credit change is protecting a case that has not occurred yet; anything above zero
+  means the owner should look at those wallets (read-only, through §11.6) before any deploy.
+- **`gateway credit rows storing no gateway identity at all`** - arrivals the global claim could
+  never lock (`:335-337`), which is why they are only ever credited after the ownership gate.
+  Manual admin credits are excluded from this count on purpose: they are not gateway arrivals.
+
+Nothing here is a money-moving instruction, and the answers are counts: the same shape of output is
+safe to paste into a chat.
