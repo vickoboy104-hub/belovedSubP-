@@ -18,9 +18,9 @@ Read this whole file before touching the live box. Two rules override everything
 
 | # | Check | How to check | Pass looks like |
 |---|---|---|---|
-| 0.1 | The branch you are deploying is the reviewed one | `git -C /home/beloveds/vtu rev-parse origin/codex/identity-first-jhtech-experience` | a head that is docs/CI-only on top of a **reviewed runtime commit**, proven by `git diff --name-status <reviewed-runtime-SHA>..<head>`, which must list only `docs/` and `.github/` files - anything else is a stop. **The reviewed runtime anchor as of 2026-10-17 is `cd19810c123c57e4cc53b122502d5527c30f8fe7`, and the rule passes for the remote head `46f0d8c3`** (7 files between them, none outside `docs/`/`.github/`). It does **not** pass for the branch head on the development machine, `69418773`, which adds 49 runtime files across three unreviewed-as-a-target commits - so if `rev-parse` ever prints that or a descendant, this gate is a **stop**, not a pass, until [deploy-approval-checklist.md](deploy-approval-checklist.md) row A1 names a new reviewed SHA. Never substitute the branch head for the anchor |
+| 0.1 | The branch you are deploying is the reviewed one | `git -C /home/beloveds/vtu rev-parse origin/codex/identity-first-jhtech-experience` | a head that is docs/CI-only on top of a **reviewed runtime commit**, proven by `git diff --name-status <reviewed-runtime-SHA>..<head>`, which must list only `docs/` and `.github/` files - anything else is a stop. **The reviewed runtime anchor as of 2026-10-17 is `cd19810c123c57e4cc53b122502d5527c30f8fe7`.** Measured the same day, the rule **fails for every head that exists**: the remote head `e32744d4` puts **49 runtime files** above the anchor (its runtime head `69418773` is three unreviewed-as-a-target commits deep), and the development machine's own head `6f14c4e8` puts **72** above it across four (84 files in total; the other 12 are 9 `docs/`, `phpunit.xml`, `.env.example` and the workflow file). So whichever SHA `rev-parse` prints, this gate is a **stop** until [deploy-approval-checklist.md](deploy-approval-checklist.md) row A1 names a new reviewed runtime SHA - and note that `6f14c4e8` is not on the remote at all, so a deploy from `origin` today would not even be the tree these documents measured. Never substitute the branch head for the anchor |
 | 0.2 | It is a fast-forward from what is live | `git merge-base --is-ancestor <live-HEAD> <new-HEAD>; echo $?` | `0`. If it is not `0`, **stop** and work out why before pulling |
-| 0.3 | The full suite is green on the machine that built it | `php artisan test` | no failures, and the twelve MySQL concurrency tests run somewhere **on this head** before a money-path change ships (section 9, item 4). As of 2026-10-17 the sqlite run of the proposed head is 516 passed / 12 skipped / 3,846 assertions, and the engine runs that passed earlier were taken on a tree before `f2d40bd2` changed `WalletFundingService.php` - approval row A6 is open until they are repeated here |
+| 0.3 | The full suite is green on the machine that built it | `php artisan test` | no failures, and the twelve MySQL concurrency tests run somewhere **on this head** before a money-path change ships (section 9, item 4). Measured 2026-10-17 on `6f14c4e8`: sqlite **561 passed / 12 skipped / 4,144 assertions** (573 tests, zero failures), and those twelve skipped proofs were run **on this same head** on an isolated MySQL 8.4.3 - **12 passed / 110 assertions**, schema built by every migration in the tree, 27 tables all InnoDB, scratch database counted back to zero. The half that is still missing is the live engine's own version, **MariaDB 10.6.28** - see approval rows A6 and C5; do not read the 8.4.3 figure as a MariaDB one |
 | 0.4 | Every credential has been rotated **after** the machine cleaning | owner's list: GitHub, cPanel, FTP, DB, GSUBZ, ConfirmIdent, Flutterwave, SMTP | done. Until it is done this deploy is **not** cleared for production - see section 6 |
 | 0.5 | A database backup exists, verified, outside the docroot | section 1.0's blocks | a gzipped dump under `/home/beloveds/backups/` whose **dump command exited zero** (1.0's guard deletes the file when it did not - a gzip filename alone never passes), read back with table counts that equal the live schema plus a completion line, **and restored into a scratch MariaDB database with matching money-table row counts**, its filename recorded beside `last-good-sha.txt` (section 10.0) |
 
@@ -190,7 +190,7 @@ git merge --ff-only origin/codex/identity-first-jhtech-experience
 
 ### 1.3 Review the migrations, then run them
 
-The checkout above put the eight new migration files on disk; review what they will do
+The checkout above put the ten new migration files on disk; review what they will do
 before running anything. Both commands are read-only:
 
 ```bash
@@ -199,16 +199,34 @@ php artisan migrate:status | tail -12
 php artisan migrate --pretend
 ```
 
-- `migrate:status` should list exactly the eight migrations from the preflight's section 2
+- `migrate:status` should list exactly the ten migrations from the preflight's section 2
   table as `Pending` - no more, no fewer. The count moved from seven to eight on 2026-10-17
   when `2026_10_17_000001_create_admin_activity_logs_table.php` joined the range
   (`3be00d41`): an append-only log table that touches no money table and backfills nothing.
-  If the owner decides the activity trail does not go live with this deploy, that migration
-  leaves the range **by a commit on the branch**, never by deleting a file on the box.
-- `migrate --pretend` prints the SQL without executing it: six `create table`, and the
-  two `alter table orders` runs with their indexes. The two backfills are PHP logic, so
+  It moves to **ten** with `6f14c4e8`: `2026_10_18_000001_create_wallet_settlement_links_table`
+  (the charge a hand settlement names - arrives empty, nothing to backfill) and
+  `2026_10_18_000002_create_admin_permission_grants_table` (the permission pivot, which
+  **does** backfill: 27 rows for every account already holding `is_admin`, so nobody wakes up
+  unable to drive the site). If the owner decides the activity trail or the permission pivot
+  does not go live with this deploy, that migration leaves the range **by a commit on the
+  branch**, never by deleting a file on the box.
+- **Before `migrate --force`: the owner's `users.id` in `.env`, and the config cache rebuilt.**
+  `bootstrap/cache/config.php` exists between deploys on this host (§4), and while it does the
+  framework does not read `.env` at all - `migrate` included. Measured on the dev box
+  2026-10-17: with the cache present and `AUDIT_OWNER_USER_IDS` emptied in `.env`,
+  `config('audit.owner_user_ids')` still answered the cached `[1]`; only a rebuilt cache
+  answered `[]`. The grants backfill reads that list to decide who is Master, so
+  `php artisan config:clear` (or `config:cache`) has to run after the `.env` edit and before
+  `migrate --force`, or the owner's account is backfilled as an ordinary administrator. §4's
+  closing `optimize` is still what makes the value live for the site.
+- `migrate --pretend` prints the SQL without executing it: eight `create table`, and the
+  two `alter table orders` runs with their indexes. The three backfills are PHP logic, so
   their reads and writes do **not** appear in the pretend output - their behaviour is
-  described in preflight section 3 and proved after the fact by 7.4 and 8.3. Any `drop`,
+  described in preflight section 3 and proved after the fact by 7.4 and 8.3. Confirmed on a
+  throwaway copy of a database that had already run the earlier migrations: the two
+  `2026_10_18_*` files printed **nothing but** `create table "wallet_settlement_links"` and
+  `create table "admin_permission_grants"`, no `drop`, no `alter`, and no sign of the grant
+  backfill. Any `drop`,
   any `update` without a `where`, or any table outside the preflight's list is a stop, not
   a deploy.
 
@@ -360,7 +378,7 @@ fetched in the background.
 | 7.1 | App is up | `curl -s -o /dev/null -w '%{http_code}' https://www.belovedsubp.com/up` | `200` |
 | 7.2 | New assets are not 404 | fetch the newest `public/build/assets/*.css` name from both the site and `git ls-tree` | same bytes, HTTP 200 |
 | 7.3 | Login page renders styled | load `/login` in a browser, view source, confirm the `build/assets` names match the deployed manifest | yes |
-| 7.4 | All eight migrations ran | `php artisan migrate:status \| grep -E 'service_forms\|add_assignment\|retire_saved\|purchase_intents\|document_filings\|flutterwave\|admin_activity_logs'` | all eight `Ran` - [deploy-preflight.md](deploy-preflight.md) section 2 is the list; the two `flutterwave` tables are what stop a single bank transfer funding two wallets, and `admin_activity_logs` is the eighth row, added to this grep on 2026-10-17 when `3be00d41` put it in the range (the command is otherwise unchanged) |
+| 7.4 | All ten migrations ran | `php artisan migrate:status \| grep -E 'service_forms\|add_assignment_to_orders\|retire_saved\|purchase_intents\|document_filings\|flutterwave_charge_claims\|flutterwave_held_deposits\|admin_activity_logs\|wallet_settlement_links\|admin_permission_grants'` | all ten `Ran`, and the command prints **exactly ten lines** - verified 2026-10-17 on a throwaway copy of the development database migrated to this head: 10 lines in, 10 `Ran`, nothing else. [deploy-preflight.md](deploy-preflight.md) section 2 is the list. **The pattern was tightened on purpose.** The one it used to carry ended at bare `flutterwave`, which also matches the baseline `2026_04_20_000001_add_flutterwave_identity_fields_to_users_table`; that row prints `Ran` and is not part of this range, so the old command printed nine lines while the cell claimed eight, and a box counting lines would have stopped for a reason that did not exist. Naming both `flutterwave_*` tables removes the stray match. The two `flutterwave` tables are what stop a single bank transfer funding two wallets; `wallet_settlement_links` is the charge a hand settlement names, and `admin_permission_grants` is the permission pivot whose backfill must be **27 × (administrators not configured as Master)** - measured on the same copy: 3 admin accounts, 1 configured Master, **54 grant rows**, and `wallet_settlement_links` at **0**, because a declaration only exists once an admin signs one |
 | 7.5 | Held-purchase discovery still works | run section 3 of [held-purchase-runbook.md](held-purchase-runbook.md) | returns without error (zero holds is a pass) |
 | 7.6 | Prices unchanged from the approved list | admin settings page, and the ten NIN Modification tiers still ₦6,500 / ₦7,500 / ₦15,000 / ₦40,000 | no silent movement |
 | 7.7 | Log for new fatals | `tail -100 storage/logs/laravel.log` | nothing since the deploy timestamp |
@@ -512,10 +530,13 @@ Recorded honestly, in the order they should be closed:
    and until it is answered the code holds identities, which costs the business ₦160 per
    ambiguous NIN lookup.
 4. **The concurrency proofs versus the live engine** - `tests/Feature/MysqlMoneyPathConcurrencyTest.php`,
-   twelve tests. The 8.4.3 half is current: re-run on **2026-10-17 against the branch head
-   `69418773`** in the isolated scratch instance (port 3307, database `vtu_money_tests`,
-   synthetic rows only) - **12 passed / 110 assertions / 28.57 s**, every money table verified
-   empty again afterwards, instance stopped and the port confirmed closed. That matters because
+   twelve tests. The 8.4.3 half is current: re-run on **2026-10-17 against the development head
+   `6f14c4e8`** in the isolated scratch instance (port 3307, database `vtu_money_tests`,
+   synthetic rows only) - **12 passed / 110 assertions / 18.29 s**; afterwards the scratch schema
+   read back as **27 tables, all of them InnoDB** (including `wallet_settlement_links`,
+   `admin_permission_grants` and `admin_activity_logs`) with **35 rows in `migrations`** against the
+   35 migration files in the tree, and exact `COUNT(*)` zero in every money table; instance stopped,
+   0 listening sockets on 3307, disposable datadir deleted. That matters because
    the batch in question changed `app/Services/WalletFundingService.php` itself, so the earlier
    2026-10-16 run could not speak for this tree.
    The live engine is **MariaDB 10.6.28** with isolation **REPEATABLE-READ**, lock timeout

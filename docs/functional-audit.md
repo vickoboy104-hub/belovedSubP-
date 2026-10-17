@@ -7,19 +7,23 @@ Every line below names the test that proves it, in the form
 `tests/Feature/File::method`. Nothing in this file is an opinion about behaviour I did not
 run; where a claim is *not* proven by a test it says so.
 
-Whole suite as it stands: **516 passed, 12 skipped, 3,846 assertions** (sqlite, in-memory).
+Whole suite as it stands: **561 passed, 12 skipped, 4,144 assertions** (573 tests in total; sqlite,
+in-memory, head `6f14c4e8`, re-run 2026-10-17, zero failures).
 
 The 12 skips are all in `MysqlMoneyPathConcurrencyTest` when it runs on sqlite: those proofs
 need two operating-system processes and row locks, which sqlite does not have. They are not
 skips of convenience - the suite was re-run on **MySQL 8.4.3 on 2026-10-17, on this head
-(`69418773`), and passed: 12 passed, 110 assertions, 28.57 s**, in an isolated second instance
-on port 3307 against a scratch database that held nothing else, and `evidence.php` afterwards
-showed every money table empty again (25 tables, rows only in `migrations`). That run covers
+(`6f14c4e8`), and passed: 12 passed, 110 assertions, 18.29 s**, in an isolated second instance
+on port 3307 against a scratch database that held nothing else, and an `information_schema` read
+afterwards showed **27 tables, all of them InnoDB**, rows only in `migrations` (**35**, one per
+migration file in the tree), with exact `COUNT(*)` zero in `users`, `orders`, `wallet_transactions`,
+`wallet_settlement_links`, `admin_permission_grants` and `admin_activity_logs`. That run covers
 `flutterwave_held_deposits` in both the engine check and
 `::test_two_processes_hold_one_ambiguous_transfer_once`, where a second operating-system process
 meets the first one's uncommitted hold and the outcome is one held record, no charge claim and
-nobody paid, and it exercises the eighth migration (`admin_activity_logs`) on real InnoDB as
-part of building the schema.
+nobody paid, and because the scratch schema is built by running every migration in the tree, the two
+tables `6f14c4e8` adds (`wallet_settlement_links`, `admin_permission_grants`) are created and proved
+on real InnoDB rather than only on sqlite.
 
 **What that run is not.** The live box reports **MariaDB 10.6.28**, not MySQL 8.4.3, and the only
 run on that version was GitHub Actions run 38999509204 on `f2cfaa5f`, which does not contain this
@@ -163,7 +167,7 @@ Private by default:
   pins retail ≥ provider cost for every key, the ₦160 / ₦80 provider costs, and that an owner
   override still works. The four NIN Modification tiers are pinned as in section 4.
 - **Prices: unchanged, and this is checkable.** `git diff --name-only 0935a7f7..HEAD --
-  app/Helpers/settings.php` returns nothing across all 45 commits of the deploy range, so no
+  app/Helpers/settings.php` returns nothing across all 48 commits of the deploy range, so no
   price key moved.
 - **Layout: the older "no customer-visible layout change" line in this section is superseded,
   and I am correcting it rather than leaving it standing.** It was true of the four commits that

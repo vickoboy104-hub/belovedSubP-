@@ -17,11 +17,16 @@ The read-only checks to run before anyone decides are in
 | **LOCAL-FAKE** | The route is exercised end to end, but against a faked provider or gateway. The shape of the request is asserted; the real service's answer never was. |
 | **LIVE** | Cannot be proven from this machine at all. Somebody has to read it on `s3470`, or spend real money with the owner's say-so. |
 
-Suite as it stands on this branch: **516 passed, 12 skipped, 3,846 assertions** (sqlite, head
-`69418773`, 2026-10-17). The 12 skips are the two-process InnoDB proofs, which cannot run on
+Suite as it stands on this branch: **561 passed, 12 skipped, 4,144 assertions** (573 tests in
+total; sqlite, head `6f14c4e8`, re-run 2026-10-17, zero failures). The 12 skips are the two-process
+InnoDB proofs, which cannot run on
 sqlite by design. They were **re-run on this head on 2026-10-17 against real MySQL 8.4.3** -
 isolated second instance, port 3307, scratch database, synthetic rows only - and passed:
-**12 passed, 110 assertions, 28.57 s**, with every money table verified empty again afterwards.
+**12 passed, 110 assertions, 18.29 s**, with the scratch database read back afterwards as **27
+tables, every one of them InnoDB** (including `admin_activity_logs`, `wallet_settlement_links` and
+`admin_permission_grants`), **35 rows in `migrations`** against the 35 migration files in the tree,
+and exact `COUNT(*)` zero in every money table - so the whole migration set on this branch has now
+been applied on InnoDB, not only the ones that were there before.
 
 **What that does not prove.** The live box is not MySQL 8.4.3, it is **MariaDB 10.6.28**, and the
 only run on that version (GitHub Actions run 38999509204, 2026-10-17) executed on `f2cfaa5f`,
@@ -34,9 +39,10 @@ that gap and both routes to closing it.
 
 ## Where the code stands
 
-Branch `codex/identity-first-jhtech-experience`. Remote head, read with `git ls-remote` on
-2026-10-17: **`46f0d8c3`**. Everything from the last reviewed runtime commit `cd19810c` up to
-that head is documentation and CI only.
+Branch `codex/identity-first-jhtech-experience`. **Local** head is `6f14c4e8`; the remote head,
+read again with `git ls-remote` on 2026-10-17, is `e32744d4`, and the **runtime** head on the remote
+is `69418773` - everything between it and `e32744d4` is documentation. `6f14c4e8` has not been
+pushed and no push is authorized for it.
 
 | Commit | Pushed? | What it is |
 |---|---|---|
@@ -50,15 +56,17 @@ that head is documentation and CI only.
 | `3be00d41` | **yes - 2026-10-17, review only** | The append-only administrator activity trail, its migration, the mandatory note on manual wallet movements, and the two owner-only screens. |
 | `69418773` | **yes - 2026-10-17, review only** | The phone-usable admin boards, the read-side figure mask, the shared pager and the Transaction Explorer. This is the head the numbers above were measured on, and the **runtime head on the remote**. |
 | `e32744d4` | **yes - 2026-10-17, review only** | Docs: every figure the last three commits made stale, re-measured. The current remote head. |
+| `98c96cb1` | **no - local only** | Docs: the measurement showing which manual-credit channels the duplicate-credit hold cannot see (approval-checklist C9), and the widened §11.7 count. No code. |
+| `6f14c4e8` | **no - local only, and no push is authorized for it** | Runtime: granular administrator permissions (27 slugs, the `admin_permission_grants` table, a `can_admin:` gate on the admin routes) and the explicit manual-settlement declaration (`wallet_settlement_links`), real `users.id` display, and the corrected `config/audit.php` comment about database triggers. Two migrations. 44 files, +3,756 / −152. |
 
 "Pushed" here means **on `codex/identity-first-jhtech-experience` for independent review and
 testing**, under the owner's 2026-10-17 development-only authorization. It does not mean merged,
 deployed, migrated or reviewed-and-approved; `main` is untouched at `17cb6eec…`.
 
-`www.belovedsubp.com` still runs whatever `~/vtu` was last checked out to (`0935a7f7`, 45
+`www.belovedsubp.com` still runs whatever `~/vtu` was last checked out to (`0935a7f7`, 48
 commits behind this head). None of the above is live.
 
-The three runtime commits now on the review branch touch **49 files** under `app/ tests/ database/ config/ routes/
+The four runtime commits above the reviewed anchor touch **72 files** under `app/ tests/ database/ config/ routes/
 resources/ bootstrap/ public/`, and they **do** change `resources/css` and `public/build`, so
 there is an asset step in this batch. The layout delta is **not** admin-only, and the honest
 wording is this: `resources/css/app.css` gained **109 lines and rewrote 7** (its diffstat is
@@ -68,9 +76,11 @@ wording is this: `resources/css/app.css` gained **109 lines and rewrote 7** (its
 `min-width` - and the shared component `resources/views/components/records-table.blade.php` is
 rendered by three customer pages (`resources/views/vtu/manual-service.blade.php`,
 `resources/views/vtu/orders.blade.php`, `resources/views/wallet/transactions.blade.php`), so
-those pages render at new dimensions on a phone. No customer **view file** itself changed
-(`git diff --name-status cd19810c..HEAD -- resources/views` lists nine `admin/` files, two
-components and one new component - none under `vtu/` or `wallet/`), no price, brand, form field
+those pages render at new dimensions on a phone. Exactly **one customer view file is edited in
+the range**: `resources/views/profile/show.blade.php` shows the signed-in customer their own
+`users.id` (one added line, existing markup, nothing editable) - the other fourteen changed views
+are eleven under `admin/` and three shared components
+(`git diff --name-status cd19810c..HEAD -- resources/views`). No price, brand, form field
 or copy was changed in any commit on this branch, and `git diff --name-only 0935a7f7..HEAD --
 app/Helpers/settings.php` returns nothing.
 

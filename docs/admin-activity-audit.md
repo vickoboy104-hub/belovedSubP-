@@ -87,7 +87,7 @@ triggers that reject `UPDATE`/`DELETE`, or a store the application's own credent
 cannot write to (an append-only replica, object lock on a daily export).
 
 There is **no trigger DDL in this branch**, and this document previously said there was one
-waiting behind a switch. Measured on the head as pushed: `config/audit.php:45` declares
+waiting behind a switch. Measured on this head: `config/audit.php:49` declares
 `database_triggers` from env `AUDIT_DATABASE_TRIGGERS`, and **nothing reads it**. The
 `admin_activity_logs` migration installs the table only. So the flag is a promise, not a feature,
 and setting it in `.env` changes nothing - it is not a switch to approve, it is work not yet done
@@ -176,8 +176,10 @@ Explorer, so a wide board scrolls inside its own box instead of widening the pag
 ## 8. Known gaps, stated plainly
 
 1. **`admin_activity_logs` has never been created on the production database.** The
-   migration is prepared and proven against sqlite; running it in production is the
-   owner's call and part of the deploy checklist.
+   migration is prepared and proven against sqlite and against real InnoDB (MySQL
+   8.4.3, 2026-10-17: the table exists on that engine and the scratch database was
+   left empty); running it in production is the owner's call and part of the deploy
+   checklist.
 2. Broadcast's four "no usable channel" `422` aborts are HTTP aborts, not validation
    failures, so they are not recorded. The success and finish of a broadcast are.
 3. A held-deposit release is recorded at the controller, one statement after the

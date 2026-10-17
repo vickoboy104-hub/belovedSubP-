@@ -11,6 +11,14 @@ through 8 below describe the 29 commits the owner reviewed; **section 2b is the 
 had not seen when it was written - three further runtime commits, one of them a migration** -
 and nothing in sections 2-8 is contradicted by them.
 
+**Re-measured again the same day against `6f14c4e8` (the granular permission set, the settlement
+declarations and the phone-board evidence, one commit, 42 runtime files + `.env.example` +
+`phpunit.xml`): `git rev-list --count 0935a7f7..6f14c4e8` = **48 commits**, `git diff
+--shortstat` = **177 files, +27,440 / −965**, and the split by the rule printed in checklist A3
+is **28 runtime + 20 documentation/CI-only**. Still linear, still a fast-forward.** It is **local
+only** - not pushed, not reviewed by the owner as a deploy target - so section 2c describes it and
+row A1 stays PENDING. `6f14c4e8` is not on the remote; the remote review head remains `e32744d4`.
+
 The shorthand that got us here - "two new tables and no changed assets" - is wrong for this
 range, and this file is the correction. It invents no procedure: every command block that gets
 run lives in [deploy-checklist.md](deploy-checklist.md) and is run there exactly as written.
@@ -31,25 +39,32 @@ runtime head on the remote** and leaves `main` untouched at `17cb6eec…`. Those
 are now reviewable; they are still **not reviewed as a deploy target and not approved for one**, and
 this file describes them rather than certifying them. Section 2b records what they are.
 
+**And a fourth has landed since, which is not pushed at all.** `6f14c4e8` (granular administrator
+permissions + the manual-settlement declaration + the corrected `config/audit.php` comment, 44 files,
++3,756 / −152, **two migrations**) sits on this machine above a documentation commit `98c96cb1`, with
+nothing on the remote above `e32744d4`. Section 2c records it. The consequence for the desk is worth
+stating plainly: `git pull` on the live box can only ever reach `69418773` today, and that tree is
+**not** the one rows A3, A4 and A6 of the approval checklist now describe.
+
 ## 1. The range at a glance
 
 | What | In this range |
 |---|---|
-| Migrations | **eight** as of 2026-10-17 (the first seven below, all additive with two data backfills, plus `admin_activity_logs` from section 2b) |
-| Composer / npm dependencies | **none changed** - §1's "no composer install unless the lock moved" holds with nothing to check (`composer.json`, `composer.lock`, `package.json`, `package-lock.json`, `vite.config.js`, `tailwind.config.js`, `postcss.config.js`, `phpunit.xml` are all identical between the live box and this head) |
+| Migrations | **ten** as of 2026-10-17 (the first seven below, all additive with two data backfills, plus `admin_activity_logs` from section 2b and, from `6f14c4e8` described in section 2c, `wallet_settlement_links` and `admin_permission_grants` - the second of them carries a backfill of its own) |
+| Composer / npm dependencies | **none changed** - §1's "no composer install unless the lock moved" holds with nothing to check: `git diff --name-only 0935a7f7..HEAD -- composer.json composer.lock package.json package-lock.json vite.config.js tailwind.config.js postcss.config.js` returns **nothing**. The one file in that old list that is no longer identical is `phpunit.xml`, changed by `6f14c4e8`; it is read by the test runner only, never by the running site, and it adds no dependency |
 | `public/` outside `build/` | **nothing changed** - verified the same way as the dependency list, `git diff --name-only 0935a7f7..HEAD -- public` returns only `public/build/...`, so §3's docroot copy loop has nothing new to copy this time |
 | Compiled assets | 2 new hashed files (`app-k_-jzmjF.css`, `app-DXuAyQnv.js`), the 2 live ones **removed by the checkout** (`app-BIpqTlIl.css`, `app-BXQwVUL5.js`), `manifest.json` rewritten (section 5) |
 | Scheduled jobs | exactly one added: `manual:recover-documents`, every 5 minutes (section 6) |
 | Saved settings and prices | **untouched** - no migration writes a settings row, no seeder runs during deploy, and `app/Helpers/settings.php` is unchanged in the range |
-| Config and routes | **changed, and this corrects an earlier "unchanged" in this table**: `config/audit.php` is new, `config/services.php` gained one key (`bvn.retrieve_agent_code`, env `BVN_RETRIEVE_AGENT_CODE`, default empty), `routes/web.php` gained 14 route definitions including an `audit_owner` middleware group, and `bootstrap/app.php` registers that alias, prepends `CorrelationId` to the `web` group and adds a validation-failure render hook. `.env.example` and the seeders are still unchanged |
+| Config and routes | **changed, and this corrects an earlier "unchanged" in this table**: `config/audit.php` and `config/admin.php` are new, `config/services.php` gained one key (`bvn.retrieve_agent_code`, env `BVN_RETRIEVE_AGENT_CODE`, default empty), `routes/web.php` gained 47 route definitions - **44 of them carry a `can_admin:<slug>` gate**, which is the whole point of `6f14c4e8` - and `bootstrap/app.php` registers the `audit_owner` and `can_admin` aliases, prepends `CorrelationId` to the `web` group and adds a validation-failure render hook. **`.env.example` is no longer unchanged**: it gains two documented, deliberately empty lists (`AUDIT_OWNER_USER_IDS`, `MASTER_ADMIN_USER_IDS`) and no secret, no email and no id value. The seeders are still unchanged |
 
 Checklist staleness this preflight corrects in passing: §0.1's printed sha is
 `afb3260d…` "or a descendant the owner has read" - the descendant being read now is
 `f4ab0ad8`, which the owner has reviewed by name. §7.4 expects **three** money migrations to
-show `Ran`; this range adds **seven** - all seven must say `Ran` (section 2). §9 item 4 says
+show `Ran`; this range adds **ten** - all ten must say `Ran` (section 2). §9 item 4 says
 "ten" MySQL concurrency tests; the suite has been twelve since the held-deposit proof went in.
 
-## 2. The eight migrations - what each one does to existing records
+## 2. The ten migrations - what each one does to existing records
 
 | # | Migration | Schema change | Existing records | `down()` |
 |---|---|---|---|---|
@@ -61,12 +76,36 @@ show `Ran`; this range adds **seven** - all seven must say `Ran` (section 2). §
 | 6 | `2026_10_16_000001_create_flutterwave_charge_claims_table` | `flutterwave_charge_claims` with a unique `charge_token` | **backfill** (section 3) | drops the table |
 | 7 | `2026_10_16_000002_create_flutterwave_held_deposits_table` | `flutterwave_held_deposits` with a unique `charge_token` | none - forward-only by design, because a credit that already happened cannot be un-paid by a migration | drops the table |
 | 8 | `2026_10_17_000001_create_admin_activity_logs_table` (arrives with `3be00d41`, not part of the 29 the owner reviewed) | `admin_activity_logs`: correlation id, actor, category, action, description, target, reference, result, reason, `changes` json, ip, salted 32-char `session_hash`, user agent, unique `dedupe_key`, `created_at`. No `updated_at` | none - it stores no history that exists today, and inventing one was rejected; the trail starts at the deploy. Writes no other table | drops the table |
+| 9 | `2026_10_18_000001_create_wallet_settlement_links_table` (arrives with `6f14c4e8`) | `wallet_settlement_links`: unique `charge_token` (191) plus `charge_token_kind` (`charge_id` or `flw_ref`, the only two keys the money path will read), nullable `tx_ref` kept **for the human at the screen and never matched on**, `wallet_id`, `manual_transaction_id`, `amount_kobo`, `status` default `active`, `reason` (500), `declared_by_user_id` + `declared_at`, `retracted_by_user_id` + `retracted_at` + `retraction_note`, timestamps | none - the table arrives empty, and it reads no existing row. A declaration can only exist after an admin types one on the new Settlement Links screen, so nothing about today's money changes on migrate day | drops the table, which erases every signed statement about which charge was paid by hand - the audit trail still says a declaration was made, but not what it named |
+| 10 | `2026_10_18_000002_create_admin_permission_grants_table` (arrives with `6f14c4e8`) | `admin_permission_grants`: `user_id` indexed, `permission` (64) indexed, unique on `(user_id, permission)`, `granted_by_user_id` nullable, `note` (500) nullable, timestamps | **backfill**: 27 rows - one per permission slug - for **every account with `is_admin = true`**, except the ids configured as Master, each with `granted_by_user_id = NULL` and the baseline note, inserted `insertOrIgnore` in 200-row chunks. It writes no other table and edits no existing row; its size is 27 × the administrator count, so a box that wants that number first can take it as one read-only `COUNT(*)`, the same discipline as every other pre-migrate read in [production-checks.md](production-checks.md). So the deploy **starts** with every current administrator holding everything they hold today, and narrowing anyone is a later, deliberate act on the permissions screen | drops the table: the recorded decision of who holds which permission disappears, and it cannot be rebuilt from anything else in the database - only its audit history would remain |
 
-All eight are additive: no column is narrowed, no row is deleted, no table is rewritten. That
-is what makes checklist §10.3's "do not roll the database back" true for this range.
+All ten are additive: no column is narrowed, no row is deleted, no existing row is rewritten.
+Rows 2 and 6 read existing rows to derive new ones, and row 10 does the same for administrators;
+that is the only contact any of them has with data that exists today. That is what makes
+checklist §10.3's "do not roll the database back" true for this range - and row 10 is the
+sharpest case of it, because its `down()` discards decisions no other table records.
 
-After checklist §1 runs, `php artisan migrate:status` gains **eight** `Ran` rows. None may
+After checklist §1 runs, `php artisan migrate:status` gains **ten** `Ran` rows. None may
 show `Pending`, and none may be absent.
+
+**Row 10 has an order dependency the box must not miss.** Its backfill calls
+`AdminPermissions::masterUserIds()` while it runs, which reads `MASTER_ADMIN_USER_IDS` and falls
+back to `AUDIT_OWNER_USER_IDS`. Name the owner's id in `.env` **before** `migrate --force`, and
+the owner's account is skipped as a Master; run `migrate` first and the owner's own account gets
+27 baseline grant rows. Functionally that changes nothing - a Master holds all 27 implicitly
+whatever the pivot says, and the screen refuses to edit a Master's rows - but it writes grant
+history the permissions screen can never act on, and it is the kind of untidy first record the
+owner would have to live with.
+
+**The trap is the config cache, and it was measured here on 2026-10-17, not recalled.** This
+host keeps `bootstrap/cache/config.php` between deploys (checklist §4 says so), and Laravel does
+not read `.env` at all while that file exists - `migrate` included. Proof taken on the dev box
+with a backup of its own `.env` and restored afterwards: with the cache present and
+`AUDIT_OWNER_USER_IDS` **emptied in `.env`**, `config('audit.owner_user_ids')` still answered
+`[1]`; only after `config:cache` rebuilt the file did it answer `[]`. So the value has to be in
+`.env` **and the config cache has to be rebuilt before `migrate --force` runs**, or the backfill
+reads the previous deploy's list. Checklist §1.3 now carries that one line; §4's closing
+`optimize` is still what makes the value live for the site.
 
 Two live reads (2026-10-16) sharpen this table. **Zero virtual account numbers are shared
 by two customers today**, so the ambiguity migration 7 exists to hold starts empty - the
@@ -98,7 +137,9 @@ account lands in Held Deposits rather than their wallet. That is deliberate, and
 be told it exists. **And because this commit edits the money path itself, the twelve two-process
 InnoDB proofs had to be re-run on this head.** That re-run happened on 2026-10-17 on real MySQL
 **8.4.3** - **12 passed / 110 assertions / 28.57 s**, scratch database verified empty afterwards
-(approval row A6). What remains open is the same twelve on **MariaDB 10.6.28**, the version the
+(approval row A6). It has been done once more since, **on `6f14c4e8`**, on the same isolated 8.4.3
+harness: **12 passed / 110 assertions / 18.29 s**, 27 tables all InnoDB, every one of the tree's 35
+migrations applied, scratch database counted back to zero. What remains open is the same twelve on **MariaDB 10.6.28**, the version the
 live box reports. That workflow's push trigger is filtered to its own file, so the 2026-10-17 push
 did not start it and no code push will; it has to be started from `workflow_dispatch` on GitHub,
 which this machine cannot do (row C5 carries both routes).
@@ -126,7 +167,7 @@ Four things about it are deploy decisions, not code details:
    `php artisan config:cache` at the end of checklist §4 must run **after** that edit or the
    cached config keeps the empty list.
 2. **`AUDIT_DATABASE_TRIGGERS` does nothing yet, and the docs used to say otherwise.** Measured
-   on this head: `config/audit.php:45` declares the flag, and **no code anywhere reads it** -
+   on this head: `config/audit.php:49` declares the flag, and **no code anywhere reads it** -
    `grep -rniE "create trigger|before update|before delete" app config database tests` finds the
    string only in that config comment and in two unrelated tests that build triggers to prove a
    database guard *would* work (`WalletLedgerSafetyTest:393`, `ManualOrderAnswerSafetyTest:403`).
@@ -137,9 +178,11 @@ Four things about it are deploy decisions, not code details:
    does not - and cannot - bind. Anyone holding the database password can still change the table.
    Turning the flag on would not change that, because there is nothing behind it to turn on; the
    missing piece is trigger DDL plus the `TRIGGER` privilege, which is a decision and a separate
-   change, not a `.env` edit. The stale comment in `config/audit.php:33-41` saying the migration
-   installs triggers is listed as a one-line correction the owner has not yet approved, because
-   that file is under `config/` and would make this documentation batch runtime-touching.
+   change, not a `.env` edit. The stale comment in `config/audit.php` saying the migration
+   installs triggers **was corrected in `6f14c4e8`** (section 2c), which is what the owner's §4
+   instruction asked for; the file is under `config/`, so that commit is runtime-touching.
+   Re-measured on this head: `grep -rn database_triggers app config database tests routes` matches
+   only the inert declaration in that file and nothing that reads it.
 3. **A manual wallet movement now requires a note.** `Admin/UsersController` validates `note`
    as `required|string|min:10|max:255` on the hand credit (`:279`) and on the
    credit/debit/set adjustment (`:399`), and the balance only moves if that write and the log
@@ -178,7 +221,87 @@ What this section does **not** do: it does not certify these three commits. The 
 approval of the work and approval of a deploy target are different readings, and row A1 stays
 PENDING until the diffs above are read as a target.
 
-## 3. The two backfills, in detail
+## 2c. `6f14c4e8` - the granular permission set, the settlement declarations, and the phone-board evidence
+
+Written 2026-10-17, the day it was committed. **One commit, 44 files (+3,756 / −152), 42 of them
+under the runtime prefixes, plus `.env.example` and `phpunit.xml`.** It is **local only**: the
+remote review head is still `e32744d4`, and this commit has not been pushed, reviewed as a deploy
+target, or run against anything but synthetic data. It is one commit rather than three because
+`routes/web.php` carries both the permission gates and the declaration endpoints - splitting it
+would leave an intermediate commit whose router names classes that do not exist yet.
+
+Six things in it are deploy decisions rather than code details.
+
+1. **Administrative access stops being one flag.** 27 permission slugs (`app/Support/AdminPermissions.php`),
+   an `admin_permission_grants` pivot (§2 row 10), and a `can_admin:<slug>` route middleware
+   registered in `bootstrap/app.php`. **44 route definitions in `routes/web.php` now name the power
+   they need**, which is the owner's rule that hiding a button is not sufficient: a typed URL and a
+   replayed form post are refused by the same check the button would have been, with `403`, and each
+   refusal is written into the activity trail as `admin.permission_denied` or `admin.access_denied`
+   (`EnsureAdminPermission:48-74`). Four screens take an ANY-of list because one page really does
+   hold several powers - the wallet adjustment route accepts `wallet.debit`, `wallet.credit` or
+   `wallet.balance.set`; `/settings` accepts any of `prices.edit`, `provider.config`,
+   `settings.change`.
+2. **Nothing narrows on migrate day.** The backfill gives every account that already has
+   `is_admin = true` all 27 slugs, so no administrator loses a screen they can reach today and the
+   support-alert routing below keeps its current recipients. Removing a power becomes a visible act
+   on the permissions screen, per account, recorded with who made it. That is the owner's "keep
+   existing functionality working while preparing the migration", and the box should read it as
+   **the deploy grants no restraint by itself** - the restraint begins the first time an edit is
+   saved on that screen.
+3. **Master Admin comes from configuration, not a column.** `config/admin.php`'s
+   `master_user_ids` reads `MASTER_ADMIN_USER_IDS` and **falls back to `AUDIT_OWNER_USER_IDS`** when
+   unset, so one `.env` value establishes both roles; when both are empty the layer fails closed and
+   nobody is Master. A Master holds all 27 implicitly with zero grant rows, cannot be edited or
+   demoted on the permissions screen, and is never replaced automatically - which is the mechanism
+   behind the owner's "prevent accidental lockout": the door is held by `.env`, and `.env` is not
+   reachable from the website.
+4. **A manual settlement is now a signed statement about one charge.** §2 row 9's table holds the
+   charge's own `id` or `flw_ref`, the hand credit it stands for, and who declared it. The money
+   path reads it **before** the ownership gate (`WalletFundingService::chargeDealtWithBefore()`), so
+   a declared charge that comes back is held as `manual_settlement_declared` and paid to nobody, and
+   `creditHeldDepositTo()` refuses to release a hold while its declaration stands - only an explicit,
+   audited retraction opens it. What the desk has to be told: this is the closed form of the gap
+   approval row C9 recorded, and it closes it the way the owner's brief demanded - "any
+   manual-settlement relationship must be explicitly declared and audited rather than inferred",
+   never inferred from an amount, an account number or a customer match. The same commit fixes the
+   other half of that gap: the older hand-settled marker matched *any* marked request on the wallet
+   when the arrival carried no `tx_ref`, which was holding genuine new deposits behind unrelated
+   help given months earlier. It now matches only when the arrival really carries the reference.
+5. **Support alerts follow the permission, with a fallback.**
+   `SupportBotController::supportRecipients:334-346` notifies the admins holding `support.manage`
+   instead of every admin account; if **nobody** holds it, it still notifies every admin and logs a
+   warning, so a permission the owner forgot to grant cannot make a customer's complaint vanish.
+6. **No compiled asset changes, and the CSS is untouched.** `git diff --name-only 6f14c4e8^..6f14c4e8
+   -- resources/css/app.css public/build` returns **nothing**, so checklist row A5's hashes
+   (`app-k_-jzmjF.css`, `app-DXuAyQnv.js`) still describe what ships and §2 needs no rebuild. The
+   phone-board work in this commit is **tests only** (`MobileAdminRecordsTest`, 6 methods / 100
+   assertions) against the markup and stylesheet `69418773` already shipped.
+
+Two smaller things the box should not be surprised by. `config/audit.php`'s comment claimed the
+`admin_activity_logs` migration installs `BEFORE UPDATE` / `BEFORE DELETE` triggers; it does not and
+nothing reads that flag, and the comment now says so - the correction the owner's §4 asked for, and
+a text change to a `config/` file, so it makes this commit runtime-touching. And `phpunit.xml` pins
+`AUDIT_OWNER_USER_IDS` and `MASTER_ADMIN_USER_IDS` empty for the same reason it already pins the
+provider keys: in a fresh test database the factory's first user carries id 1, so a developer's own
+`.env` value would silently make that user the owner and let the tests that prove the owner-only
+boards are shut pass for the wrong reason. **Test file only - the running site never reads it.**
+
+Evidence on this head, run 2026-10-17: sqlite **561 passed / 12 skipped / 4,144 assertions / 0
+failures** (`artisan test` prints passed and skipped separately, so the run is 573 tests in total -
+state it that way rather than calling all 573 a pass; the 12 skips are the two-process InnoDB
+proofs, which skip by design off MySQL), and those
+12 re-run on the isolated MySQL **8.4.3** scratch instance - **12 passed / 110 assertions / 18.29 s**,
+with `wallet_settlement_links`, `admin_permission_grants` and `admin_activity_logs` among **27 tables,
+all 27 InnoDB**, `migrations` holding **35 rows against the 35 migration files in the tree**, and the
+scratch database exact-counted (`COUNT(*)`, not the `information_schema` estimate) back to zero rows in
+`users`, `orders`, `wallet_transactions`, `wallet_settlement_links`, `admin_permission_grants` and
+`admin_activity_logs`. The instance was stopped and its datadir deleted. `gh`/Actions could not be
+reached from this machine, so
+the **MariaDB 10.6.28** run the live engine reports is still owed for this head - see rows A6 and C5,
+and no MariaDB figure may be quoted for `6f14c4e8`.
+
+## 3. The three backfills, in detail
 
 **Order assignments** (`2026_10_15_000001`). Reads `orders` where `status = pending` and
 `meta.work_state = in_progress`, and writes `assigned_to = meta.work_state_by`,
@@ -193,12 +316,23 @@ customer's `tx_ref` or the account number, which repeat by design), and inserts 
 per unique token, attributed to the first ledger row that carried it. Deposits already banked
 are thereby claimed before the guard goes live, so a transfer credited last month cannot be
 credited to somebody else after the deploy. Existing duplicates in the ledger - the very thing
-this guard closes - are kept exactly as they are and claimed once. Both backfills chunk at 200
+this guard closes - are kept exactly as they are and claimed once.
+
+**Administrator grants** (`2026_10_18_000002`). Reads `users` where `is_admin = true`, skips the
+ids `AdminPermissions::masterUserIds()` names as Master, and writes **27 rows per remaining
+administrator** - one for every slug - with `granted_by_user_id = NULL` and the baseline note, so
+the record says "this came from the deploy, not from a person's decision". It creates nothing in
+any other table and changes nothing in `users`. Its purpose is the opposite of a lockdown: without
+it, every admin on the box would wake up with zero permissions and the site would be undriveable.
+All three backfills chunk at 200
 rows, so the run is seconds, not minutes, at this site's volume.
 
 Checklist §8.3 already owns the verification: `flutterwave_charge_claims` must count **greater
 than zero** on a box with funding history the moment `migrate` finishes. Zero means the
-backfill found nothing to read and only new deposits are guarded.
+backfill found nothing to read and only new deposits are guarded. The grants row count is
+checked the same way in §7.4: `admin_permission_grants` must be **27 × (the administrator count
+minus any configured Master)**, and §2 row 10 explains why an owner id in `.env` before
+`migrate` changes that product.
 
 ## 4. Saved service-form definitions - what actually happens to them
 
@@ -366,4 +500,4 @@ presences and §8's log counts. **§6's audit command is not** - on the old code
 so the audit runs only once the new code is live. The pre-deploy ledger baseline comes from
 the count query §6 now carries. Post-deploy adds: §6's audit (now genuinely offline, and the
 orphan-check it exists for), `schedule:list` showing three rows, `migrate:status` showing all
-eight migrations `Ran`, §8.3's claims count greater than zero, and §7's smoke table.
+ten migrations `Ran`, §8.3's claims count greater than zero, and §7's smoke table.

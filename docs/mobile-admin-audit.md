@@ -65,6 +65,16 @@ never fires, so no pixel measurement was taken here. What was done instead:
    the file; the six members exist to be listed, not to be signed in as. **Read-only: the
    provider keys are blank on purpose, so do not use a paid service from this screen.**
 
+   One consequence of `6f14c4e8` for this walkthrough, because it will otherwise look like a
+   bug: `AdminPermissions::masterUserIds()` (`app/Support/AdminPermissions.php:216-218`) falls
+   back to `config('audit.owner_user_ids')` while `MASTER_ADMIN_USER_IDS` is unset, and the
+   command above sets `AUDIT_OWNER_USER_IDS=1` - so the preview admin (id 1) is now **Master**,
+   holds all 27 powers and can never be refused. That is the intended fail-safe, not a hole, but
+   it means **no permission refusal is observable from this account**. To see the refusal on a
+   phone - the 403 plus its audited row - a second admin must be built into the preview file and
+   have one slug revoked from `/admin/permissions`. Until then the refusal screens in section 3.1
+   are covered by `AdminPermissionsEnforcementTest`, not by this walkthrough.
+
 So the layout claims below are **reasoned from the rules that the browser will apply**, and
 the content claims are **proved by executed tests**. The one thing nobody has done is look at
 a rendered phone screen. That is the owner's step, and it is listed in section 6.
@@ -116,6 +126,8 @@ branch, with the one thing that matters for a phone:
 | `/admin/wallet-deposits/held` | work card | Copy chips added, account number deliberately left whole |
 | `/admin/activity-log` | read board (14 columns) | already masked; `--records-min` gives it room to scroll instead of collapsing |
 | `/admin/administrators` | read board | 44px controls, wrapping pager |
+| `/admin/permissions` (grant powers) | `<x-app-layout>` + cards, **no table element at all** | added by `6f14c4e8` after this document's walkthrough, so it is **not** one of the eighteen served screens; read statically: the search row is `grid-cols-1 sm:grid-cols-[1fr_auto_auto]` and the 27 permission checkboxes are `grid-cols-1 sm:grid-cols-2`, so a phone gets one column and the sheet's own width - there is no wide surface to scroll |
+| `/admin/settlement-links` (declared charges) | `<x-app-layout>` + cards, **no table element at all** | same: not walked served. The charge token and `tx_ref` reuse the `.records-copy` chip (44px, `overflow-wrap: anywhere`), the declare form is `grid gap-4 sm:grid-cols-2` with plain `.input-field`s, and each card's Retract button is a full-width `btn-danger` |
 | `/admin/orders/{order}/keys` (issued codes) | one-column cards (`sm:grid-cols-4`) | nothing to fix - codes are alphanumeric and the grid is single-column below 640px |
 | `/admin/broadcast` | form + 3 metric tiles (`grid-cols-2 sm:grid-cols-3`) | checked; two short figures per row at 320px, no wide content |
 | `/admin/notifications` | stacked cards | checked; server-written titles, one link per card, uses the shared pager |
@@ -299,15 +311,26 @@ pages. Nothing else on the admin surface relies on it.
    animation, the sheet's scroll feel and the density of the work cards on a 320px screen are
    judgement calls only a screen can settle. `artisan serve` on this box with the synthetic
    database is ready for that.
-2. **The two generations.** User Accounts still carries five forms inside each row on mobile,
-   which is a long card and a mis-tap risk next to `Fund Wallet`. Moving those actions behind a
-   link to the customer's own profile would make it a read board like the others - but that
-   page writes money and permissions, so it is the owner's call, not a drive-by refactor.
-3. **Nothing here is a production change.** The release stays NO-GO, and the blockers are the
+2. **The two generations.** User Accounts still carries four action forms (discount, make
+   administrator, reset password, fund wallet) plus a View Details link inside each row on
+   mobile, which is a long card and a mis-tap risk next to `Fund Wallet`. Moving those actions
+   behind a link to the customer's own profile would make it a read board like the others - but
+   that page writes money and permissions, so it is the owner's call, not a drive-by refactor.
+3. **The permission refusal is not visible from the preview account.** Since `6f14c4e8`, the
+   walkthrough admin (id 1, set by `AUDIT_OWNER_USER_IDS=1`) resolves to Master through the
+   fallback in `AdminPermissions::masterUserIds()` (`app/Support/AdminPermissions.php:216-218`),
+   so `EnsureAdminPermission` can never refuse it. The 403 screen and its audited row on a phone
+   are proved by `AdminPermissionsEnforcementTest`, not by a served page. Seeing them needs a
+   second admin in `scratch/mobile-audit/build-preview.php` with one slug revoked.
+4. **Nothing here is a production change.** The release stays NO-GO, and the blockers are the
    ones [deploy-approval-checklist.md](deploy-approval-checklist.md) lists, not new ones: C1
-   credential rotation (the hard red gate), the owner user ID still unnamed so `AUDIT_OWNER_USER_IDS`
-   ships empty and both audit screens answer 403 by design (row C8), the BVN agent code's live
-   value unconfirmed (C7), `admin_activity_logs` not migrated on production, the deploy-target
-   rows A1/A3/A4/A6 reopened by this batch, the C4 rows still awaiting the owner's disposition,
-   and the Part 4 evidence set unfinished - including the twelve InnoDB proofs, which have not
-   been re-run on a tree containing this work.
+   credential rotation (the hard red gate), the owner's decision on row C8 - Master is
+   `users.id` 1 - **named but not yet written anywhere**, because production `.env` still has no
+   `MASTER_ADMIN_USER_IDS` and the tables behind these screens are not in the production
+   database;
+   the BVN agent code's live value unconfirmed (C7); the deploy-target rows A1/A3/A4/A6 reopened
+   by this batch, with the MariaDB 10.6.28 run still owed for `6f14c4e8`; and the C4 rows still
+   awaiting the owner's disposition. What has **closed** since this document was written: C9 (the
+   hold now sees both manual-credit paths, `6f14c4e8`), and the twelve InnoDB proofs, which
+   **have** been re-run on a tree containing this work - MySQL 8.4.3, 12 passed / 110 assertions /
+   18.29 s, with 27 of 27 scratch tables InnoDB and all 35 migrations in the tree applied.
