@@ -26,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'is_admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'can_admin' => \App\Http\Middleware\EnsureAdminPermission::class,
             'no_cache' => \App\Http\Middleware\NoCacheHeaders::class,
             'audit_owner' => \App\Http\Middleware\AuditOwnerAccess::class,
         ]);

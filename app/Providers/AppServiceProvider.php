@@ -9,12 +9,14 @@ use App\Models\User;
 use App\Observers\UserObserver;
 use App\Services\Sms\NullSmsGateway;
 use App\Services\Sms\SettingHttpSmsGateway;
+use App\Support\AdminPermissions;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -41,6 +43,16 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         User::observe(UserObserver::class);
+
+        /* One gate per permission, so a Blade template can ask the same question the
+           middleware asks. The gate is a convenience for hiding a control; the
+           middleware is what actually refuses. Both read the same answer from the
+           account, so a screen can never promise something the server will not do. */
+        foreach (AdminPermissions::slugs() as $slug) {
+            Gate::define($slug, static fn (User $user): bool => $user->hasAdminPermission($slug));
+        }
+
+        Gate::define(AdminPermissions::MASTER_PERMISSION, static fn (User $user): bool => $user->isMasterAdmin());
 
         // Every list in the site shares one pager. The framework's own view builds a
         // single unwrapping line of small buttons that runs off a phone screen whose

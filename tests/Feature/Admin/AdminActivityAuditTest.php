@@ -49,7 +49,7 @@ class AdminActivityAuditTest extends TestCase
             'name' => $name,
             'email_verified_at' => now(),
         ]);
-        $admin->forceFill(['is_admin' => true])->save();
+        $admin = $this->promoteAsAdministrator($admin);
 
         return $admin;
     }
@@ -302,7 +302,8 @@ class AdminActivityAuditTest extends TestCase
             'name' => 'Quiet Admin',
             'email_verified_at' => now(),
         ]);
-        $quiet->forceFill(['is_admin' => true, 'last_login_at' => null, 'last_login_ip' => null])->save();
+        $quiet = $this->promoteAsAdministrator($quiet);
+        $quiet->forceFill(['last_login_at' => null, 'last_login_ip' => null])->save();
 
         $this->recorderWithActor($owner);
 

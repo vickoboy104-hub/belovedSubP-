@@ -33,7 +33,9 @@ class ProfileTest extends TestCase
 
         $this->assertStringContainsString('Ada Lovelace', $profile);
         $this->assertStringContainsString('08012345678', $profile);
-        $this->assertSame(4, substr_count($profile, 'readonly'), 'Every mirrored field is a read-only box.');
+        // The four account details plus the User ID, which is shown but never
+        // editable - it is the number an audit record points at.
+        $this->assertSame(5, substr_count($profile, 'readonly'), 'Every mirrored field is a read-only box.');
 
         // A mirror has no way to write: not a PATCH, not a PUT, not a DELETE,
         // and no file input to upload a photo through.

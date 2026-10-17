@@ -224,6 +224,49 @@ class WalletFundingService
     }
 
     /**
+     * The active declaration that this charge's money was already paid out by hand,
+     * or null. Only the charge's own id or flw_ref can produce a match, so an
+     * unrelated transfer sharing an account number is never caught by it.
+     *
+     * @param  array<string, mixed>  $charge
+     * @return array{id:int,charge_token:string,manual_transaction_id:int,declared_by_user_id:int,reason:string}|null
+     */
+    public function declaredSettlementFor(array $charge, bool $forUpdate = false): ?array
+    {
+        $tokens = array_values(array_unique(array_filter([
+            trim((string) ($charge['id'] ?? '')),
+            trim((string) ($charge['flw_ref'] ?? '')),
+        ], static fn (string $token): bool => $token !== '')));
+
+        if ($tokens === []) {
+            return null;
+        }
+
+        $query = DB::table('wallet_settlement_links')
+            ->where('status', 'active')
+            ->whereIn('charge_token', $tokens)
+            ->orderBy('id');
+
+        if ($forUpdate) {
+            $query->lockForUpdate();
+        }
+
+        $link = $query->first();
+
+        if (!$link) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $link->id,
+            'charge_token' => (string) $link->charge_token,
+            'manual_transaction_id' => (int) $link->manual_transaction_id,
+            'declared_by_user_id' => (int) $link->declared_by_user_id,
+            'reason' => (string) $link->reason,
+        ];
+    }
+
+    /**
      * Finish what a machine could not decide: an admin has read this transfer and
      * named the customer it belongs to. The global charge claim still applies, so
      * a held deposit that has already been paid out - by a later webhook, or by a
@@ -232,11 +275,24 @@ class WalletFundingService
     public function creditHeldDepositTo(FlutterwaveHeldDeposit $held, User $customer, User $admin, string $note): int
     {
         return (int) DB::transaction(function () use ($held, $customer, $admin, $note): int {
+            $payload = (array) ($held->payload ?? []);
+
+            /* An admin declaration says this exact charge was already paid by hand.
+               Releasing the hold would pay it a second time, and only retracting the
+               declaration - an explicit, audited act - can say that was wrong. */
+            if ($this->declaredSettlementFor($payload, true) !== null) {
+                Log::warning('Held deposit not released because an admin declared this charge already settled by hand.', [
+                    'held_deposit_id' => $held->id,
+                ]);
+
+                return 0;
+            }
+
             $wallet = Wallet::query()->firstOrCreate(['user_id' => $customer->id], ['balance' => 0]);
 
             $credited = $this->creditFlutterwaveCharge(
                 $wallet,
-                (array) ($held->payload ?? []),
+                $payload,
                 (string) ($held->channel ?: 'flutterwave_virtual_account'),
                 'admin_resolution',
                 [
@@ -651,7 +707,7 @@ class WalletFundingService
         // replay of the first. Only the charge's own identity says "paid twice".
         $alreadyBanked = $rows->first(
             fn (WalletTransaction $row): bool => $row->status === 'success'
-                && $this->isSameCharge($row, $chargeId, $flutterwaveId, $gatewayReference)
+                && $this->isSameCharge($row, $chargeId, $flutterwaveId)
         );
 
         if ($alreadyBanked) {
@@ -672,12 +728,18 @@ class WalletFundingService
     /**
      * Whether this wallet has already dealt with this exact money.
      *
-     * Two kinds of record answer yes, and they are looked up differently on purpose.
+     * Three kinds of record answer yes, and they are looked up differently on purpose.
+     *
+     * A settlement an admin declared against one charge identity is the only record
+     * that can speak for money paid outside the gateway, so it is read first. It is
+     * keyed on the charge's own id or flw_ref, never on an account number, a funding
+     * reference or an amount, so it can hold the money it names and nothing else.
      *
      * A request an admin marked as settled by hand is matched on the funding
-     * reference: that is the only handle a manual settlement has, because the money
-     * was moved outside the gateway and left no charge identity behind anywhere. The
-     * cost is honest and bounded - a permanent account repeats one reference, so a
+     * reference, and only when this arrival actually carries one: without it there is
+     * nothing to match, and matching "any marked request on this wallet" would hold a
+     * genuine new deposit behind unrelated help given months earlier. The cost of the
+     * marker is honest and bounded - a permanent account repeats one reference, so a
      * marked request also holds later transfers into that account until an admin
      * releases or reopens it. Held is the safe side of that trade: the money is
      * written down, paid to nobody, and one click finishes it.
@@ -691,21 +753,52 @@ class WalletFundingService
      */
     private function chargeDealtWithBefore(Wallet $wallet, string $chargeId, string $flutterwaveId, string $txRef): ?array
     {
-        $marked = WalletTransaction::query()
-            ->where('wallet_id', $wallet->id)
-            ->where('type', 'credit')
-            ->where(function ($query) use ($txRef): void {
-                $query->where('meta->manually_settled', true);
+        /* A declaration an admin made about one specific charge. It is checked
+           first because it is the only record that can name money this site paid
+           outside the gateway: an admin credit leaves no charge identity behind, so
+           without the declaration nothing here can see it. It is keyed on a
+           charge-scoped token alone, which is why it can never hold a different
+           transfer that happens to share an account number or a reference. */
+        $tokens = array_values(array_unique(array_filter(
+            [$chargeId, $flutterwaveId],
+            static fn (string $token): bool => $token !== ''
+        )));
 
-                if ($txRef !== '') {
-                    $query->where(function ($inner) use ($txRef): void {
-                        $inner->where('reference', $txRef)->orWhere('meta->tx_ref', $txRef);
-                    });
-                }
-            })
-            ->lockForUpdate()
-            ->orderBy('id')
-            ->first();
+        if ($tokens !== []) {
+            $declared = DB::table('wallet_settlement_links')
+                ->where('status', 'active')
+                ->whereIn('charge_token', $tokens)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->first();
+
+            if ($declared) {
+                return [
+                    'reason' => 'manual_settlement_declared',
+                    'transaction_id' => (int) $declared->manual_transaction_id,
+                ];
+            }
+        }
+
+        /* The marker an admin puts on an open funding request is matched on that
+           request's own reference, so a tx_ref is required to match on at all. An
+           arrival that arrives without one cannot be connected to any particular
+           marked request, and matching it to "some marked request on this wallet"
+           would hold a genuine new deposit behind an unrelated piece of old help. */
+        if ($txRef === '') {
+            $marked = null;
+        } else {
+            $marked = WalletTransaction::query()
+                ->where('wallet_id', $wallet->id)
+                ->where('type', 'credit')
+                ->where('meta->manually_settled', true)
+                ->where(function ($query) use ($txRef): void {
+                    $query->where('reference', $txRef)->orWhere('meta->tx_ref', $txRef);
+                })
+                ->lockForUpdate()
+                ->orderBy('id')
+                ->first();
+        }
 
         if ($marked) {
             return ['reason' => 'already_settled_manually', 'transaction_id' => (int) $marked->id];
@@ -744,14 +837,21 @@ class WalletFundingService
     /**
      * Whether this ledger row and this charge are the same money, judged only on
      * the identifiers Flutterwave gives an individual charge.
+     *
+     * The charge's `reference` is deliberately not in this list. For a virtual
+     * account transfer it names the account's session, not the money, and the
+     * account is reused for every transfer its owner receives, so treating it as
+     * proof of identity would report a customer's second real payment as a replay
+     * of their first - and a row that is already banked ends the funding call with
+     * nothing credited and nothing held, which is the silent disappearance this
+     * whole path exists to prevent.
      */
     private function isSameCharge(
         WalletTransaction $row,
         string $chargeId,
         string $flutterwaveId,
-        string $gatewayReference,
     ): bool {
-        if ($chargeId === '' && $flutterwaveId === '' && $gatewayReference === '') {
+        if ($chargeId === '' && $flutterwaveId === '') {
             return false;
         }
 
@@ -764,11 +864,9 @@ class WalletFundingService
             (string) ($meta['flw_ref'] ?? ''),
             (string) ($meta['flutterwave_id'] ?? ''),
             (string) ($payload['flw_ref'] ?? ''),
-            (string) ($meta['flutterwave_reference'] ?? ''),
-            (string) ($payload['reference'] ?? ''),
         ], static fn (string $value): bool => $value !== ''));
 
-        foreach ([$chargeId, $flutterwaveId, $gatewayReference] as $token) {
+        foreach ([$chargeId, $flutterwaveId] as $token) {
             if ($token !== '' && in_array($token, $recorded, true)) {
                 return true;
             }

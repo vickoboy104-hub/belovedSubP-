@@ -15,7 +15,7 @@ class WalletStatsPageTest extends TestCase
     private function admin(): User
     {
         $admin = User::factory()->create(['email_verified_at' => now()]);
-        $admin->forceFill(['is_admin' => true])->save();
+        $admin = $this->promoteAsAdministrator($admin);
 
         return $admin;
     }

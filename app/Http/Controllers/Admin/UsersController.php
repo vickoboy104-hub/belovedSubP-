@@ -33,7 +33,17 @@ class UsersController extends Controller
             ->when($search !== '', function ($query) use ($search) {
                 $like = '%' . $search . '%';
 
-                $query->where(function ($userQuery) use ($like) {
+                $query->where(function ($userQuery) use ($like, $search) {
+                    // An id is the one identifier that cannot belong to somebody
+                    // else, so a number that names a real account means that account
+                    // and nothing else. A longer digit string - a phone number - is
+                    // not an id anybody holds, and still searches the fuzzy fields.
+                    if (ctype_digit($search) && (int) $search > 0 && User::query()->whereKey((int) $search)->exists()) {
+                        $userQuery->where('id', (int) $search);
+
+                        return;
+                    }
+
                     $userQuery
                         ->where('email', 'like', $like)
                         ->orWhere('phone', 'like', $like)
@@ -230,6 +240,20 @@ class UsersController extends Controller
             return back()->with('error', 'You cannot remove administrator access from the account that owns the audit trail.');
         }
 
+        /* A Master Admin is protected whoever the actor is, including another Master.
+           The role is the owner's decision, written in the server's configuration,
+           and a click that could switch it off would make every permission in the
+           system revocable by accident - or by the next account that gets here.
+           Demotion also cannot happen by silence: if the environment ever stops
+           naming this account, the flag stays on and the owner fixes the list. */
+        $masterIds = \App\Support\AdminPermissions::masterUserIds();
+
+        if (!$makeAdmin && in_array((int) $user->id, $masterIds, true)) {
+            $recordRefusal('That account is a Master Admin named in configuration.');
+
+            return back()->with('error', 'A Master Admin cannot be deactivated from this screen. The owner names Master Admins in the server configuration.');
+        }
+
         if (!$makeAdmin && $user->is_admin) {
             $adminCount = User::where('is_admin', true)->count();
             if ($adminCount <= 1) {
@@ -242,14 +266,22 @@ class UsersController extends Controller
         $user->is_admin = $makeAdmin;
         $user->save();
 
+        /* Promotion turns a screen on, it does not decide what that screen may do.
+           A newly promoted administrator is given nothing here: if promotion also
+           handed out the full set, then anybody holding admins.grant could create a
+           customer account, promote it, and have effectively granted every permission
+           in the system through a route that is not the permissions page. The grants
+           are named one at a time by a Master Admin, on their own page. */
         $this->audit->success('customer', 'admin.access_changed', $makeAdmin
-            ? 'Administrator access granted to an account.'
+            ? 'Administrator access granted to an account, with no permissions yet.'
             : 'Administrator access removed from an account.', [
             'target' => ['user', $user->id],
             'changes' => ['is_admin' => $makeAdmin],
         ]);
 
-        return back()->with('success', 'Admin role updated successfully.');
+        return back()->with('success', $makeAdmin
+            ? 'Administrator access granted. The account opens with no permissions - a Master Admin names what it may do on the permissions page.'
+            : 'Admin role updated successfully.');
     }
 
     public function resetPassword(User $user)
@@ -401,8 +433,31 @@ class UsersController extends Controller
 
         $amountKobo = (int) round(((float) $data['amount']) * 100);
 
+        /* One route, three powers. The form field that decides the direction is read
+           before anything is locked, because an account allowed to take an over-credit
+           back must not thereby be able to hand one out, and a person allowed to name
+           an exact balance is the only one who can move a wallet in both directions at
+           once. The route cannot see this: the mode is in the body. */
+        $mode = (string) $data['adjustment_type'];
+        $requiredPermission = match ($mode) {
+            'credit' => 'wallet.credit',
+            'debit' => 'wallet.debit',
+            default => 'wallet.balance.set',
+        };
+
+        if (!$request->user()->hasAdminPermission($requiredPermission)) {
+            $this->audit->recordQuietly('denied', 'wallet', 'wallet.adjustment.denied', 'Wallet adjustment refused: permission not held.', [
+                'target' => ['user', $user->id],
+                'reason' => 'Missing permission: '.$requiredPermission.'.',
+                'changes' => ['mode' => $mode],
+                'throttle_seconds' => 300,
+            ]);
+
+            return back()->with('error', 'You do not have permission to make that adjustment.');
+        }
+
         try {
-            DB::transaction(function () use ($user, $data, $amountKobo, $request): void {
+            DB::transaction(function () use ($user, $data, $amountKobo, $request, $mode): void {
                 $lockedUser = User::query()->lockForUpdate()->findOrFail($user->id);
                 $wallet = $lockedUser->wallet()->lockForUpdate()->first();
 
@@ -410,7 +465,6 @@ class UsersController extends Controller
                     throw new \RuntimeException('User wallet not found.');
                 }
 
-                $mode = (string) $data['adjustment_type'];
                 $nowKobo = (int) DB::table('wallets')->where('id', $wallet->id)->value('balance');
 
                 /* Set-to-a-number is still a movement: it is turned into the credit or

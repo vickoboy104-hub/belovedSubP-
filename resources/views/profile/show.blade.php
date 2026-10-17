@@ -7,6 +7,7 @@
         // in the same words the edit form asks for, so the two pages can never
         // disagree about what a field is called.
         $fields = [
+            ['label' => 'Your User ID', 'value' => (string) $user->id],
             ['label' => 'Full Name', 'value' => $fullName !== '' ? $fullName : 'Not set yet'],
             ['label' => 'Email Address', 'value' => (string) $user->email],
             ['label' => 'Phone Number', 'value' => trim((string) $user->phone) !== '' ? $user->phone : 'Not provided'],

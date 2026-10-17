@@ -21,8 +21,12 @@
                     <div class="amount-fit mt-2 text-2xl font-extrabold text-slate-900">&#8358;{{ number_format($walletBalanceKobo / 100, 2) }}</div>
                 </div>
                 <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-                    <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Role</div>
-                    <div class="mt-2 text-2xl font-extrabold {{ $user->is_admin ? 'text-emerald-700' : 'text-slate-900' }}">{{ $user->is_admin ? 'Admin' : 'User' }}</div>
+                    <div class="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Account role</div>
+                    <div class="amount-fit mt-2 text-2xl font-extrabold {{ $user->isMasterAdmin() ? 'text-amber-700' : ($user->is_admin ? 'text-emerald-700' : 'text-slate-900') }}">{{ $user->accountRoleLabel() }}</div>
+                    <div class="mt-1 break-words text-xs font-medium text-slate-500">
+                        User ID <span class="font-mono">{{ $user->id }}</span> - the number an audit record and a
+                        support note point at.
+                    </div>
                 </div>
             </div>
         </section>

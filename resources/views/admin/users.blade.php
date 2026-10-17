@@ -16,7 +16,7 @@
                     <input type="text"
                            name="search"
                            value="{{ $search ?? '' }}"
-                           placeholder="Search email, phone, or username"
+                           placeholder="Search user ID, email, phone or name"
                            class="input-field">
                     <button class="btn-primary justify-center">Search</button>
                     @if(!empty($search))
@@ -27,7 +27,8 @@
 
             <p class="mt-3 text-xs text-slate-500">
                 Phone numbers and virtual account numbers show their last four digits on this list - searching still
-                matches the full number. Both are complete on the customer's own profile page.
+                matches the full number. Both are complete on the customer's own profile page. Typing a User ID finds
+                that one account.
             </p>
         </section>
 
@@ -45,8 +46,8 @@
                                 <div class="mt-1 text-sm text-slate-500">{{ $u->email }}</div>
                             </div>
                             <div class="flex flex-wrap items-center gap-2 justify-end">
-                                <span class="px-2 py-1 rounded-full text-xs font-semibold {{ $u->is_admin ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">
-                                    {{ $u->is_admin ? 'Admin' : 'User' }}
+                                <span class="px-2 py-1 rounded-full text-xs font-semibold {{ $u->is_admin ? ($u->isMasterAdmin() ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700') : 'bg-slate-100 text-slate-600' }}">
+                                    {{ $u->accountRoleLabel() }}
                                 </span>
                                 @if($u->id === auth()->id())
                                     <span class="text-xs text-slate-400">You</span>
@@ -55,6 +56,14 @@
                         </div>
 
                         <div class="app-record-grid">
+                            <div>
+                                <div class="app-record-label">User ID</div>
+                                <div class="app-record-value font-mono">{{ $u->id }}</div>
+                            </div>
+                            <div>
+                                <div class="app-record-label">Account role</div>
+                                <div class="app-record-value">{{ $u->accountRoleLabel() }}</div>
+                            </div>
                             <div>
                                 <div class="app-record-label">Phone</div>
                                 <div class="app-record-value">{{ $mask($u->phone ?: '-') }}</div>
@@ -196,8 +205,8 @@
 
                                 <td class="p-4">
                                     <div class="flex flex-wrap items-center gap-2">
-                                        <span class="px-2 py-1 rounded-full text-xs font-semibold {{ $u->is_admin ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">
-                                            {{ $u->is_admin ? 'Admin' : 'User' }}
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold {{ $u->is_admin ? ($u->isMasterAdmin() ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700') : 'bg-slate-100 text-slate-600' }}">
+                                            {{ $u->accountRoleLabel() }}
                                         </span>
                                         @if($u->id === auth()->id())
                                             <span class="text-xs text-slate-400">You</span>

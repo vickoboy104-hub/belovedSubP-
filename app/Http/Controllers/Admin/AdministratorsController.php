@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminActivityLog;
+use App\Models\AdminPermissionGrant;
 use App\Models\User;
+use App\Support\AdminPermissions;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -39,6 +41,14 @@ class AdministratorsController extends Controller
 
         if ($search !== '') {
             $query->where(function ($q) use ($search): void {
+                // A number that names a real account means that account alone; the
+                // id is what the audit trail itself records.
+                if (ctype_digit($search) && (int) $search > 0 && User::query()->whereKey((int) $search)->exists()) {
+                    $q->where('id', (int) $search);
+
+                    return;
+                }
+
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
                     ->orWhere('phone', 'like', "%{$search}%")
@@ -63,9 +73,21 @@ class AdministratorsController extends Controller
             ->get()
             ->keyBy('admin_user_id');
 
+        // Which permissions, not just whether the flag is on. One grouped query for
+        // the page, so the answer is on this screen and not only on the Master's.
+        $granted = AdminPermissionGrant::query()
+            ->whereIn('user_id', $ids)
+            ->orderBy('permission')
+            ->get(['user_id', 'permission'])
+            ->groupBy('user_id')
+            ->map(fn ($rows): array => $rows->pluck('permission')->all());
+
         return view('admin.administrators', [
             'users' => $users,
             'stats' => $stats,
+            'granted' => $granted,
+            'masterIds' => AdminPermissions::masterUserIds(),
+            'permissionTotal' => count(AdminPermissions::slugs()),
             'search' => $search,
             'scope' => $scope,
             'perPage' => $perPage,

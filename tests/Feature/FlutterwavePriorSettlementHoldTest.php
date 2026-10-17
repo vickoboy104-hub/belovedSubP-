@@ -40,13 +40,16 @@ class FlutterwavePriorSettlementHoldTest extends TestCase
 
     private function member(array $attributes = []): User
     {
-        $isAdmin = (bool) ($attributes['is_admin'] ?? false);
-        unset($attributes['is_admin']);
+        // The administrator flag goes in through the factory so the new account gets
+        // the same baseline grant set the permission migration gave every admin
+        // account already in the database.
+        $user = User::factory()->create(array_merge(
+            $attributes,
+            ['is_admin' => (bool) ($attributes['is_admin'] ?? false)]
+        ));
 
-        $user = User::factory()->create($attributes);
         $user->forceFill([
             'email_verified_at' => now(),
-            'is_admin' => $isAdmin,
             'virtual_account_number' => array_key_exists('virtual_account_number', $attributes)
                 ? $attributes['virtual_account_number']
                 : self::ACCOUNT,
@@ -355,5 +358,64 @@ class FlutterwavePriorSettlementHoldTest extends TestCase
 
         $this->assertSame(295_000, $this->balance($customer));
         $this->assertSame(0, $this->balance($stranger));
+    }
+
+    public function test_an_arrival_carrying_no_tx_ref_is_never_matched_to_an_unrelated_marked_request(): void
+    {
+        $customer = $this->member();
+
+        // Help the desk gave on a different request, signed as settled by hand. It
+        // names no charge, and this arrival names no funding reference, so nothing
+        // connects them. Matching on "this wallet has a marked request somewhere"
+        // would hold genuine money behind a month-old favour.
+        $this->ledgerRow($customer, [
+            'reference' => 'FLW_VA_REQ_ONE',
+            'status' => 'success',
+            'meta' => ['manually_settled' => true, 'manually_settled_note' => 'Settled by phone.', 'tx_ref' => 'FLW_VA_REQ_ONE'],
+        ]);
+
+        $this->assertSame(295_000, app(WalletFundingService::class)->creditFlutterwaveCharge(
+            $customer->wallet,
+            $this->charge(['tx_ref' => '', 'id' => 9002, 'flw_ref' => 'FLW-MOCK-9002']),
+            'flutterwave_virtual_account',
+            'deposit_check'
+        ));
+
+        $this->assertSame(295_000, $this->balance($customer));
+        $this->assertSame(0, DB::table('flutterwave_held_deposits')->count(), 'A new deposit was held behind an unrelated hand settlement.');
+    }
+
+    public function test_a_second_charge_into_a_permanent_account_is_credited_even_though_both_share_its_reference(): void
+    {
+        $customer = $this->member();
+
+        // A virtual account is issued once and its reference never changes, so every
+        // transfer it receives arrives carrying the same reference. The first one is
+        // banked; the second is different money. If the shared account reference were
+        // read as charge identity, the second transfer would be logged as a replay and
+        // vanish - no credit and no hold for a real deposit.
+        $this->ledgerRow($customer, [
+            'reference' => 'FLW_VA_REQ_ONE',
+            'status' => 'success',
+            'meta' => [
+                'tx_ref' => 'FLW_VA_REQ_ONE',
+                'flutterwave_charge_id' => '9001',
+                'flw_ref' => 'FLW-MOCK-9001',
+                'flutterwave_reference' => 'REF_PERMANENT_ACCOUNT',
+                'flutterwave_payload' => ['id' => 9001, 'flw_ref' => 'FLW-MOCK-9001', 'reference' => 'REF_PERMANENT_ACCOUNT'],
+            ],
+        ]);
+
+        $this->assertSame(0, $this->balance($customer), 'A ledger row written by hand in this test must not move a balance.');
+
+        $this->assertSame(295_000, app(WalletFundingService::class)->creditFlutterwaveCharge(
+            $customer->wallet,
+            $this->charge(['tx_ref' => 'FLW_VA_REQ_TWO', 'id' => 9002, 'flw_ref' => 'FLW-MOCK-9002', 'reference' => 'REF_PERMANENT_ACCOUNT']),
+            'flutterwave_virtual_account',
+            'webhook'
+        ));
+
+        $this->assertSame(295_000, $this->balance($customer), 'The customer\'s second real transfer was thrown away as a replay of the first.');
+        $this->assertSame(0, DB::table('flutterwave_held_deposits')->count());
     }
 }

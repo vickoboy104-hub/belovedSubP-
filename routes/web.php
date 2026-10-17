@@ -22,6 +22,8 @@ use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\Admin\WebsiteEditorController;
 use App\Http\Controllers\Admin\AdministratorsController;
 use App\Http\Controllers\Admin\ActivityLogController;
+use App\Http\Controllers\Admin\PermissionsController;
+use App\Http\Controllers\Admin\SettlementLinkController;
 use App\Http\Controllers\ReferralController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 
@@ -141,51 +143,75 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
 });
 
 Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')->group(function () {
+    // Reading the desk summary needs an administrator and nothing more: it shows
+    // counts, not a customer's records. Every screen past this point names the
+    // permission that opens it, and the name is checked on the server, so a saved
+    // form post from a person without the grant is refused the same way a typed URL
+    // is.
     Route::get('/', [DashboardController::class, 'index'])->name('admin.dashboard');
-    Route::get('/orders', [OrdersController::class, 'index'])->name('admin.orders');
-    Route::get('/orders/{order}/keys', [OrdersController::class, 'keys'])->name('admin.orders.keys');
-    Route::post('/orders/{order}/keys', [OrdersController::class, 'storeKeys'])->name('admin.orders.keys.store');
-    Route::get('/manual-orders', [ManualOrdersController::class, 'index'])->name('admin.manual-orders.index');
-    Route::get('/manual-orders/{order}', [ManualOrdersController::class, 'show'])->name('admin.manual-orders.show');
-    Route::get('/manual-orders/{order}/document/{field}', [ManualOrdersController::class, 'document'])->name('admin.manual-orders.document');
-    Route::post('/manual-orders/{order}/claim', [ManualOrdersController::class, 'claim'])->name('admin.manual-orders.claim');
-    Route::post('/manual-orders/{order}/fulfil', [ManualOrdersController::class, 'fulfil'])->name('admin.manual-orders.fulfil');
-    Route::post('/manual-orders/{order}/reject', [ManualOrdersController::class, 'reject'])->name('admin.manual-orders.reject');
-    Route::get('/users', [UsersController::class, 'index'])->name('admin.users');
-    Route::get('/users/{user}', [UsersController::class, 'show'])->name('admin.users.show');
-    Route::post('/users/{user}/profile', [UsersController::class, 'updateProfile'])->name('admin.users.profile');
-    Route::post('/users/{user}/discount', [UsersController::class, 'updateDiscount'])->name('admin.users.discount');
-    Route::post('/users/{user}/admin', [UsersController::class, 'updateAdmin'])->name('admin.users.admin');
-    Route::post('/users/{user}/reset-password', [UsersController::class, 'resetPassword'])->name('admin.users.reset-password');
-    Route::post('/users/{user}/fund-wallet', [UsersController::class, 'fundWallet'])->name('admin.users.fund-wallet');
-    Route::post('/users/{user}/adjust-wallet', [UsersController::class, 'adjustWallet'])->name('admin.users.adjust-wallet');
-    Route::get('/wallet-transactions', [WalletTransactionsController::class, 'index'])->name('admin.wallet.transactions');
-    Route::get('/wallet-deposits/held', [HeldDepositController::class, 'index'])->name('admin.wallet.deposits.held');
-    Route::post('/wallet-deposits/held/{deposit}/credit', [HeldDepositController::class, 'credit'])->name('admin.wallet.deposits.held.credit');
-    Route::post('/wallet-deposits/held/{deposit}/dismiss', [HeldDepositController::class, 'dismiss'])->name('admin.wallet.deposits.held.dismiss');
-    Route::post('/wallet-requests/{transaction}/mark-settled', [FundingRequestController::class, 'markSettled'])->name('admin.wallet.requests.mark-settled');
-    Route::post('/wallet-requests/{transaction}/unmark-settled', [FundingRequestController::class, 'unmarkSettled'])->name('admin.wallet.requests.unmark-settled');
-    Route::get('/wallet-stats', [WalletStatsController::class, 'index'])->name('admin.wallet-stats');
     Route::post('/notifications/read-all', [DashboardController::class, 'markNotificationsRead'])->name('admin.notifications.read-all');
     Route::get('/notifications', [DashboardController::class, 'notificationsIndex'])->name('admin.notifications.index');
-    Route::get('/support/chats', [SupportChatsController::class, 'index'])->name('admin.support.chats');
-    Route::post('/metrics/reset', [DashboardController::class, 'resetMetric'])->name('admin.metrics.reset');
-    Route::get('/website-editor', [WebsiteEditorController::class, 'index'])->name('admin.website-editor');
-    Route::post('/website-editor', [WebsiteEditorController::class, 'update'])->name('admin.website-editor.update');
-    Route::post('/website-editor/reset', [WebsiteEditorController::class, 'reset'])->name('admin.website-editor.reset');
-    Route::get('/settings', [SettingsController::class, 'edit'])->name('admin.settings');
-    Route::post('/settings', [SettingsController::class, 'update'])->name('admin.settings.update');
-    Route::post('/settings/provider-prices/sync', [SettingsController::class, 'syncProviderPrices'])->name('admin.settings.provider-prices.sync');
+    Route::post('/metrics/reset', [DashboardController::class, 'resetMetric'])->middleware('can_admin:settings.change')->name('admin.metrics.reset');
+
+    Route::get('/orders', [OrdersController::class, 'index'])->middleware('can_admin:orders.view')->name('admin.orders');
+    Route::get('/orders/{order}/keys', [OrdersController::class, 'keys'])->middleware('can_admin:orders.keys')->name('admin.orders.keys');
+    Route::post('/orders/{order}/keys', [OrdersController::class, 'storeKeys'])->middleware('can_admin:orders.keys')->name('admin.orders.keys.store');
+
+    Route::get('/manual-orders', [ManualOrdersController::class, 'index'])->middleware('can_admin:orders.manual.view')->name('admin.manual-orders.index');
+    Route::get('/manual-orders/{order}', [ManualOrdersController::class, 'show'])->middleware('can_admin:orders.manual.view')->name('admin.manual-orders.show');
+    Route::get('/manual-orders/{order}/document/{field}', [ManualOrdersController::class, 'document'])->middleware('can_admin:orders.manual.view')->name('admin.manual-orders.document');
+    Route::post('/manual-orders/{order}/claim', [ManualOrdersController::class, 'claim'])->middleware('can_admin:orders.manual.claim')->name('admin.manual-orders.claim');
+    Route::post('/manual-orders/{order}/fulfil', [ManualOrdersController::class, 'fulfil'])->middleware('can_admin:orders.manual.answer')->name('admin.manual-orders.fulfil');
+    Route::post('/manual-orders/{order}/reject', [ManualOrdersController::class, 'reject'])->middleware('can_admin:orders.manual.answer')->name('admin.manual-orders.reject');
+
+    Route::get('/users', [UsersController::class, 'index'])->middleware('can_admin:customers.view')->name('admin.users');
+    Route::get('/users/{user}', [UsersController::class, 'show'])->middleware('can_admin:customers.view')->name('admin.users.show');
+    Route::post('/users/{user}/profile', [UsersController::class, 'updateProfile'])->middleware('can_admin:customers.edit')->name('admin.users.profile');
+    Route::post('/users/{user}/discount', [UsersController::class, 'updateDiscount'])->middleware('can_admin:customers.discount')->name('admin.users.discount');
+    Route::post('/users/{user}/admin', [UsersController::class, 'updateAdmin'])->middleware('can_admin:admins.grant')->name('admin.users.admin');
+    Route::post('/users/{user}/reset-password', [UsersController::class, 'resetPassword'])->middleware('can_admin:customers.password_reset')->name('admin.users.reset-password');
+    Route::post('/users/{user}/fund-wallet', [UsersController::class, 'fundWallet'])->middleware('can_admin:wallet.credit')->name('admin.users.fund-wallet');
+    // One route, three different powers: taking money back, adding it and replacing
+    // the figure outright are decided separately inside the action, because a person
+    // allowed to correct an over-credit must not become allowed to hand one out.
+    Route::post('/users/{user}/adjust-wallet', [UsersController::class, 'adjustWallet'])->middleware('can_admin:wallet.debit,wallet.credit,wallet.balance.set')->name('admin.users.adjust-wallet');
+
+    Route::get('/wallet-transactions', [WalletTransactionsController::class, 'index'])->middleware('can_admin:wallet.transactions.view')->name('admin.wallet.transactions');
+    Route::get('/wallet-deposits/held', [HeldDepositController::class, 'index'])->middleware('can_admin:wallet.held.view')->name('admin.wallet.deposits.held');
+    Route::post('/wallet-deposits/held/{deposit}/credit', [HeldDepositController::class, 'credit'])->middleware('can_admin:wallet.held.resolve')->name('admin.wallet.deposits.held.credit');
+    Route::post('/wallet-deposits/held/{deposit}/dismiss', [HeldDepositController::class, 'dismiss'])->middleware('can_admin:wallet.held.resolve')->name('admin.wallet.deposits.held.dismiss');
+    Route::post('/wallet-requests/{transaction}/mark-settled', [FundingRequestController::class, 'markSettled'])->middleware('can_admin:wallet.settlement.declare')->name('admin.wallet.requests.mark-settled');
+    Route::post('/wallet-requests/{transaction}/unmark-settled', [FundingRequestController::class, 'unmarkSettled'])->middleware('can_admin:wallet.settlement.declare')->name('admin.wallet.requests.unmark-settled');
+    Route::get('/settlement-links', [SettlementLinkController::class, 'index'])->middleware('can_admin:wallet.settlement.declare')->name('admin.settlement-links.index');
+    Route::post('/settlement-links', [SettlementLinkController::class, 'store'])->middleware('can_admin:wallet.settlement.declare')->name('admin.settlement-links.store');
+    Route::post('/settlement-links/{link}/retract', [SettlementLinkController::class, 'retract'])->middleware('can_admin:wallet.settlement.declare')->name('admin.settlement-links.retract');
+    Route::get('/wallet-stats', [WalletStatsController::class, 'index'])->middleware('can_admin:wallet.stats.view')->name('admin.wallet-stats');
+
+    Route::get('/support/chats', [SupportChatsController::class, 'index'])->middleware('can_admin:support.manage')->name('admin.support.chats');
+
+    Route::get('/website-editor', [WebsiteEditorController::class, 'index'])->middleware('can_admin:content.edit')->name('admin.website-editor');
+    Route::post('/website-editor', [WebsiteEditorController::class, 'update'])->middleware('can_admin:content.edit')->name('admin.website-editor.update');
+    Route::post('/website-editor/reset', [WebsiteEditorController::class, 'reset'])->middleware('can_admin:content.edit')->name('admin.website-editor.reset');
+
+    // The settings page is one screen holding three kinds of power, so the route
+    // admits anybody with any one of them and the save step refuses the groups that
+    // person was not given. Prices, provider routing and site behaviour are granted
+    // apart on purpose: the cheapest mistake an admin can make is a price, and the
+    // most expensive is a provider key.
+    Route::get('/settings', [SettingsController::class, 'edit'])->middleware('can_admin:prices.edit,provider.config,settings.change')->name('admin.settings');
+    Route::post('/settings', [SettingsController::class, 'update'])->middleware('can_admin:prices.edit,provider.config,settings.change')->name('admin.settings.update');
+    Route::post('/settings/provider-prices/sync', [SettingsController::class, 'syncProviderPrices'])->middleware('can_admin:prices.edit')->name('admin.settings.provider-prices.sync');
 
     // What each identity service asks its customer, edited here instead of in
     // code. The rates those answers select stay on the Settings page.
-    Route::get('/services', [ServiceFormsController::class, 'index'])->name('admin.services.index');
-    Route::get('/services/{service}', [ServiceFormsController::class, 'edit'])->name('admin.services.edit');
-    Route::post('/services/{service}', [ServiceFormsController::class, 'update'])->name('admin.services.update');
-    Route::post('/services/{service}/reset', [ServiceFormsController::class, 'reset'])->name('admin.services.reset');
-    Route::get('/broadcast', [BroadcastController::class, 'index'])->name('admin.broadcast');
-    Route::post('/broadcast/send', [BroadcastController::class, 'send'])->name('admin.broadcast.send');
-    Route::get('/broadcast/export', [BroadcastController::class, 'export'])->name('admin.broadcast.export');
+    Route::get('/services', [ServiceFormsController::class, 'index'])->middleware('can_admin:services.forms')->name('admin.services.index');
+    Route::get('/services/{service}', [ServiceFormsController::class, 'edit'])->middleware('can_admin:services.forms')->name('admin.services.edit');
+    Route::post('/services/{service}', [ServiceFormsController::class, 'update'])->middleware('can_admin:services.forms')->name('admin.services.update');
+    Route::post('/services/{service}/reset', [ServiceFormsController::class, 'reset'])->middleware('can_admin:services.forms')->name('admin.services.reset');
+
+    Route::get('/broadcast', [BroadcastController::class, 'index'])->middleware('can_admin:broadcasts.send')->name('admin.broadcast');
+    Route::post('/broadcast/send', [BroadcastController::class, 'send'])->middleware('can_admin:broadcasts.send')->name('admin.broadcast.send');
+    Route::get('/broadcast/export', [BroadcastController::class, 'export'])->middleware('can_admin:broadcasts.send')->name('admin.broadcast.export');
 
     // The trail belongs to the owner, not to every account with is_admin turned on,
     // so these two screens sit behind audit_owner as well as the admin group. The
@@ -195,4 +221,11 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
         Route::get('/administrators', [AdministratorsController::class, 'index'])->name('admin.administrators');
         Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('admin.activity-log');
     });
+
+    // Who is allowed to do what is decided here, and only by a Master Admin. The
+    // slug is not in the assignable list, so no grant anywhere in the database can
+    // hand this screen to an ordinary administrator: the answer comes from the
+    // server's configuration, which is the owner's, not from a screen.
+    Route::get('/permissions', [PermissionsController::class, 'index'])->middleware('can_admin:'.\App\Support\AdminPermissions::MASTER_PERMISSION)->name('admin.permissions.index');
+    Route::post('/permissions/{user}', [PermissionsController::class, 'update'])->middleware('can_admin:'.\App\Support\AdminPermissions::MASTER_PERMISSION)->name('admin.permissions.update');
 });

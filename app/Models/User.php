@@ -56,6 +56,13 @@ class User extends Authenticatable
     ];
 
     /**
+     * This account's permission slugs, read from the database at most once per
+     * request. Not an attribute: a column with this name would be a permission an
+     * attacker could write.
+     */
+    private ?array $adminPermissionCache = null;
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -93,6 +100,77 @@ class User extends Authenticatable
     public function referrals(): HasMany
     {
         return $this->hasMany(self::class, 'referred_by_user_id');
+    }
+
+    public function permissionGrants(): HasMany
+    {
+        return $this->hasMany(\App\Models\AdminPermissionGrant::class);
+    }
+
+    /**
+     * Whether this account is one of the Master Admins the owner named in
+     * configuration. The answer comes from the server's environment, never from a
+     * column, because a promotable account is an account anybody with the right
+     * screen can promote.
+     */
+    public function isMasterAdmin(): bool
+    {
+        return $this->is_admin
+            && in_array((int) $this->id, \App\Support\AdminPermissions::masterUserIds(), true);
+    }
+
+    /**
+     * What this account is, in the words the owner asked for on the profile.
+     */
+    public function accountRoleLabel(): string
+    {
+        if (!$this->is_admin) {
+            return 'USER';
+        }
+
+        return $this->isMasterAdmin() ? 'MASTER ADMIN' : 'ADMIN';
+    }
+
+    /**
+     * The permissions this account holds, read once per request.
+     *
+     * A Master Admin holds every permission without a row behind it. An ordinary
+     * administrator is limited to what was signed for them, and an account that is
+     * no longer an administrator holds nothing at all, so deactivation cannot be
+     * worked around by leftover grant rows.
+     *
+     * @return list<string>
+     */
+    public function adminPermissionSlugs(): array
+    {
+        if (!$this->is_admin) {
+            return [];
+        }
+
+        if ($this->isMasterAdmin()) {
+            return \App\Support\AdminPermissions::slugs();
+        }
+
+        if ($this->adminPermissionCache === null) {
+            $this->adminPermissionCache = $this->permissionGrants()
+                ->pluck('permission')
+                ->filter(static fn ($slug): bool => \App\Support\AdminPermissions::exists((string) $slug))
+                ->values()
+                ->all();
+        }
+
+        return $this->adminPermissionCache;
+    }
+
+    public function hasAdminPermission(string $slug): bool
+    {
+        if ($slug === \App\Support\AdminPermissions::MASTER_PERMISSION) {
+            // Only configuration makes a Master, and a Master is not a permission
+            // anybody can ask for.
+            return $this->isMasterAdmin();
+        }
+
+        return in_array($slug, $this->adminPermissionSlugs(), true);
     }
 
     /**

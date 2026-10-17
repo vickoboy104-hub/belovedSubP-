@@ -52,5 +52,13 @@
         <env name="SMS_API_KEY" value=""/>
         <env name="SMS_ENDPOINT" value=""/>
         <env name="SMS_SENDER_ID" value=""/>
+        <!-- The same rule as the provider keys, applied to the two owner lists.
+             A developer's .env names his own account so he can open the owner-only
+             boards, and in a test database the factory's first user carries exactly
+             that id. Left alone, the account under test silently inherits Master and
+             every audit screen answers 200, so the tests that prove those doors are
+             shut would pass for the wrong reason. -->
+        <env name="AUDIT_OWNER_USER_IDS" value=""/>
+        <env name="MASTER_ADMIN_USER_IDS" value=""/>
     </php>
 </phpunit>

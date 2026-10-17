@@ -94,9 +94,9 @@ class SupportBotController extends Controller
                 ],
             ]);
 
-            $admins = User::query()->where('is_admin', true)->get();
-            if ($admins->isNotEmpty()) {
-                Notification::send($admins, new AdminSupportComplaintNotification($ticket, $request->user()));
+            $recipients = $this->supportRecipients();
+            if ($recipients->isNotEmpty()) {
+                Notification::send($recipients, new AdminSupportComplaintNotification($ticket, $request->user()));
             }
         } catch (QueryException $e) {
             Log::error('Support bot query error', ['error' => $e->getMessage()]);
@@ -132,7 +132,7 @@ class SupportBotController extends Controller
     public function sessions(Request $request): JsonResponse
     {
         $user = $request->user();
-        $isAdmin = (bool) ($user?->is_admin ?? false);
+        $isAdmin = $this->actsAsSupportStaff($user);
 
         try {
             $query = SupportTicket::query()
@@ -187,11 +187,11 @@ class SupportBotController extends Controller
     public function messages(Request $request, SupportTicket $ticket): JsonResponse
     {
         $user = $request->user();
-        if (!$this->canAccessTicket($user?->id, (bool) ($user?->is_admin ?? false), $ticket)) {
+        $isAdmin = $this->actsAsSupportStaff($user);
+        if (!$this->canAccessTicket($user?->id, $isAdmin, $ticket)) {
             return response()->json(['ok' => false, 'message' => 'Forbidden'], 403);
         }
 
-        $isAdmin = (bool) ($user?->is_admin ?? false);
         if ($isAdmin) {
             $ticket->admin_last_read_at = now();
         } else {
@@ -231,7 +231,7 @@ class SupportBotController extends Controller
     public function sendMessage(Request $request, SupportTicket $ticket): JsonResponse
     {
         $user = $request->user();
-        $isAdmin = (bool) ($user?->is_admin ?? false);
+        $isAdmin = $this->actsAsSupportStaff($user);
 
         if (!$this->canAccessTicket($user?->id, $isAdmin, $ticket)) {
             return response()->json(['ok' => false, 'message' => 'Forbidden'], 403);
@@ -279,9 +279,12 @@ class SupportBotController extends Controller
                 $ticket->user->notify(new SupportChatMessageNotification($ticket, $message, true));
             }
         } else {
-            $admins = User::query()->where('is_admin', true)->get();
-            if ($admins->isNotEmpty()) {
-                Notification::send($admins, new SupportChatMessageNotification($ticket, $message, false));
+            // Only accounts that can open the chat are told about it. Notifying every
+            // administrator about a conversation their screen then refuses is noise
+            // that trains them to ignore the alert.
+            $recipients = $this->supportRecipients();
+            if ($recipients->isNotEmpty()) {
+                Notification::send($recipients, new SupportChatMessageNotification($ticket, $message, false));
             }
         }
 
@@ -304,5 +307,41 @@ class SupportBotController extends Controller
     {
         if ($isAdmin) return true;
         return (int) ($ticket->user_id ?? 0) === (int) ($userId ?? 0);
+    }
+
+    /**
+     * Whether this viewer may read and answer conversations that are not theirs.
+     *
+     * The administrator flag alone used to be enough, which made every admin account
+     * on the site a support agent with the whole chat history in reach. Reading a
+     * customer's complaint is its own permission now, so an account without it sees
+     * exactly what a customer sees: their own conversation.
+     */
+    private function actsAsSupportStaff(?\App\Models\User $user): bool
+    {
+        return $user !== null && (bool) $user->is_admin && $user->hasAdminPermission('support.manage');
+    }
+
+    /**
+     * Who to tell about a conversation that needs attention.
+     *
+     * Support staff are the accounts that can answer, so they receive the alert. If no
+     * account on the site holds the permission, a customer complaint must still reach a
+     * human: every administrator is told and the gap is logged instead of swallowed.
+     *
+     * @return \Illuminate\Support\Collection<int, User>
+     */
+    private function supportRecipients(): \Illuminate\Support\Collection
+    {
+        $admins = User::query()->where('is_admin', true)->get();
+        $staff = $admins->filter(fn (User $admin): bool => $admin->hasAdminPermission('support.manage'));
+
+        if ($staff->isNotEmpty()) {
+            return $staff->values();
+        }
+
+        Log::warning('No administrator holds support.manage; a support alert went to every admin account instead.');
+
+        return $admins;
     }
 }

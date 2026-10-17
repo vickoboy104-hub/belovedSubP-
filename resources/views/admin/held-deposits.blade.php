@@ -21,6 +21,16 @@
                 is, and a guess is how the wrong wallet gets credited.
             </p>
 
+            @if(auth()->check() && auth()->user()->hasAdminPermission('wallet.settlement.declare'))
+                <p class="mt-3 text-sm">
+                    <a href="{{ route('admin.settlement-links.index') }}" class="font-bold text-slate-700 underline">
+                        Settlement declarations
+                    </a>
+                    &mdash; if a charge here was already paid to the customer by hand, record that here instead of
+                    releasing the hold on a match. A declared charge cannot be credited from this board.
+                </p>
+            @endif
+
             <div class="mt-4 flex flex-wrap gap-3">
                 <a href="{{ route('admin.wallet.deposits.held') }}"
                    class="app-choice-chip {{ $showResolved ? '' : 'is-active' }}">Held ({{ $heldCount }})</a>
@@ -32,6 +42,20 @@
         @forelse($deposits as $held)
             @php
                 $holders = collect($held->holder_user_ids ?? [])->map(fn ($id) => $candidates->get($id))->filter();
+
+                // Every reason the funding path can hold on has to read correctly here.
+                // An agent who is told "belongs to a different customer" when the real
+                // reason is a hand settlement will credit the wrong wallet.
+                $reasonLabels = [
+                    'shared_account_number' => 'More than one customer holds this account number',
+                    'wrong_wallet' => 'This account number belongs to a different customer',
+                    'already_settled_manually' => 'A credit on this wallet was marked as settled by hand',
+                    'manual_settlement_declared' => 'An admin declared this exact charge already paid by hand',
+                    'charge_previously_reported_failed' => 'This charge reached us before and was closed as failed',
+                ];
+
+                $declaration = $declarations->get(trim((string) ($held->flutterwave_charge_id ?? '')))
+                    ?: $declarations->get(trim((string) ($held->flutterwave_id ?? '')));
             @endphp
             <article class="app-section p-6 sm:p-8">
                 <div class="flex items-start justify-between gap-4">
@@ -57,9 +81,7 @@
                     <div>
                         <div class="app-record-label">Why it is held</div>
                         <div class="app-record-value">
-                            {{ $held->reason === 'shared_account_number'
-                                ? 'More than one customer holds this account number'
-                                : 'This account number belongs to a different customer' }}
+                            {{ $reasonLabels[$held->reason] ?? ('Held for a person to read (reason recorded: '.($held->reason ?: 'unspecified').')') }}
                         </div>
                     </div>
                     <div>
@@ -99,21 +121,46 @@
                         </ul>
                     </div>
 
-                    <form method="POST" action="{{ route('admin.wallet.deposits.held.credit', $held) }}" class="mt-4 space-y-3">
-                        @csrf
-                        <label class="block text-sm font-bold text-slate-700" for="held-{{ $held->id }}-user">Credit which customer</label>
-                        <select id="held-{{ $held->id }}-user" name="user_id" class="input-field" required>
-                            @foreach($holders as $candidate)
-                                <option value="{{ $candidate->id }}">{{ $candidate->name }} &middot; {{ $candidate->email }}</option>
-                            @endforeach
-                        </select>
+                    @if($declaration)
+                        <div class="mt-5 rounded-[18px] border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                            <div class="text-sm font-extrabold text-amber-900">
+                                Declaration #{{ $declaration->id }} already records this charge as paid by hand.
+                            </div>
+                            <p class="mt-1">
+                                Stated by {{ $declaration->declaredBy?->name ?? 'a removed account' }}
+                                against {{ $declaration->charge_token_kind === 'charge_id' ? 'charge id' : 'flw_ref' }}
+                                <span class="break-all font-mono text-xs">{{ $declaration->charge_token }}</span>:
+                                {{ $declaration->reason }}
+                            </p>
+                            <p class="mt-2">
+                                This hold cannot be released while that declaration stands, and it will not be released
+                                by pressing the button again. Read both records, then retract the declaration on the
+                                <a href="{{ route('admin.settlement-links.index') }}" class="font-bold underline">declarations page</a>
+                                if you can say what makes it wrong.
+                            </p>
+                        </div>
+                    @else
+                        <form method="POST" action="{{ route('admin.wallet.deposits.held.credit', $held) }}" class="mt-4 space-y-3">
+                            @csrf
+                            <label class="block text-sm font-bold text-slate-700" for="held-{{ $held->id }}-user">Credit which customer</label>
+                            <select id="held-{{ $held->id }}-user" name="user_id" class="input-field" required>
+                                @foreach($holders as $candidate)
+                                    <option value="{{ $candidate->id }}">{{ $candidate->name }} &middot; {{ $candidate->email }}</option>
+                                @endforeach
+                            </select>
 
-                        <label class="block text-sm font-bold text-slate-700" for="held-{{ $held->id }}-note">What proved it</label>
-                        <textarea id="held-{{ $held->id }}-note" name="note" rows="3" class="input-field" required
-                            placeholder="Who paid, how you know, and any reference they gave you."></textarea>
+                            <label class="block text-sm font-bold text-slate-700" for="held-{{ $held->id }}-note">What proved it</label>
+                            <textarea id="held-{{ $held->id }}-note" name="note" rows="3" class="input-field" required
+                                placeholder="Who paid, how you know, and any reference they gave you."></textarea>
 
-                        <button type="submit" class="btn-primary">Credit this customer</button>
-                    </form>
+                            <p class="text-xs text-slate-500">
+                                If what you found is that this charge was already paid to the customer by hand, do not
+                                release this hold - declare the settlement instead, or the customer is credited twice.
+                            </p>
+
+                            <button type="submit" class="btn-primary">Credit this customer</button>
+                        </form>
+                    @endif
 
                     <form method="POST" action="{{ route('admin.wallet.deposits.held.dismiss', $held) }}" class="mt-4 space-y-3">
                         @csrf

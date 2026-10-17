@@ -7,21 +7,33 @@
     // person reads them, so they have to be impossible to walk past.
     $heldDeposits = \App\Models\FlutterwaveHeldDeposit::query()->where('status', 'held')->count();
 
+    // Each link names the permission that opens its page, so the drawer never shows
+    // an administrator a door that will refuse them. The refusal is real either way -
+    // this only keeps the menu honest.
     $adminPages = [
         ['label' => 'Admin Dashboard', 'route' => 'admin.dashboard'],
-        ['label' => 'Orders', 'route' => 'admin.orders'],
-        ['label' => 'Manual Requests', 'route' => 'admin.manual-orders.index', 'badge' => $waitingManualRequests],
-        ['label' => 'Users', 'route' => 'admin.users'],
-        ['label' => 'Wallet Transactions', 'route' => 'admin.wallet.transactions'],
-        ['label' => 'Wallet Statistics', 'route' => 'admin.wallet-stats'],
-        ['label' => 'Held Deposits', 'route' => 'admin.wallet.deposits.held', 'badge' => $heldDeposits],
+        ['label' => 'Orders', 'route' => 'admin.orders', 'can' => ['orders.view']],
+        ['label' => 'Manual Requests', 'route' => 'admin.manual-orders.index', 'badge' => $waitingManualRequests, 'can' => ['orders.manual.view']],
+        ['label' => 'Users', 'route' => 'admin.users', 'can' => ['customers.view']],
+        ['label' => 'Wallet Transactions', 'route' => 'admin.wallet.transactions', 'can' => ['wallet.transactions.view']],
+        ['label' => 'Wallet Statistics', 'route' => 'admin.wallet-stats', 'can' => ['wallet.stats.view']],
+        ['label' => 'Held Deposits', 'route' => 'admin.wallet.deposits.held', 'badge' => $heldDeposits, 'can' => ['wallet.held.view']],
+        ['label' => 'Settlement Declarations', 'route' => 'admin.settlement-links.index', 'can' => ['wallet.settlement.declare']],
         ['label' => 'Notifications', 'route' => 'admin.notifications.index'],
-        ['label' => 'Support Chats', 'route' => 'admin.support.chats'],
-        ['label' => 'Announcements', 'route' => 'admin.broadcast'],
-        ['label' => 'Website Editor', 'route' => 'admin.website-editor'],
-        ['label' => 'Service Forms', 'route' => 'admin.services.index'],
-        ['label' => 'Settings', 'route' => 'admin.settings'],
+        ['label' => 'Support Chats', 'route' => 'admin.support.chats', 'can' => ['support.manage']],
+        ['label' => 'Announcements', 'route' => 'admin.broadcast', 'can' => ['broadcasts.send']],
+        ['label' => 'Website Editor', 'route' => 'admin.website-editor', 'can' => ['content.edit']],
+        ['label' => 'Service Forms', 'route' => 'admin.services.index', 'can' => ['services.forms']],
+        ['label' => 'Settings', 'route' => 'admin.settings', 'can' => ['prices.edit', 'provider.config', 'settings.change']],
     ];
+
+    $viewer = request()->user();
+
+    $adminPages = array_values(array_filter(
+        $adminPages,
+        static fn (array $page): bool => empty($page['can'])
+            || ($viewer !== null && (bool) array_intersect($page['can'], $viewer->adminPermissionSlugs()))
+    ));
 
     // The two audit screens are the owner's, so the links appear only for accounts
     // named in the owner list. Showing every admin a door that refuses them is
@@ -29,6 +41,11 @@
     if (\App\Http\Middleware\AuditOwnerAccess::isOwner(request())) {
         $adminPages[] = ['label' => 'All Administrators', 'route' => 'admin.administrators'];
         $adminPages[] = ['label' => 'Activity Log', 'route' => 'admin.activity-log'];
+    }
+
+    // Who may do what is decided here, and only by the Master Admin.
+    if ($viewer !== null && $viewer->isMasterAdmin()) {
+        $adminPages[] = ['label' => 'Master Admin Permissions', 'route' => 'admin.permissions.index'];
     }
 
     // The settings page keeps its Save card in the same corner, so the handle lifts.

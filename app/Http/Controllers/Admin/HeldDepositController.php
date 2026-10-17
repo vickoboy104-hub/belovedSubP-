@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\FlutterwaveHeldDeposit;
 use App\Models\User;
+use App\Models\WalletSettlementLink;
 use App\Services\AdminActivityRecorder;
 use App\Services\WalletFundingService;
 use Illuminate\Http\Request;
@@ -48,9 +49,30 @@ class HeldDepositController extends Controller
             ? collect()
             : User::query()->with('wallet')->whereIn('id', $ids)->get()->keyBy('id');
 
+        // A charge that somebody declared as already paid by hand cannot be released
+        // from this board, so the board says so on the card instead of letting the
+        // admin press a button that only refuses them.
+        $tokens = $query->getCollection()
+            ->flatMap(fn (FlutterwaveHeldDeposit $held): array => array_filter([
+                trim((string) ($held->flutterwave_charge_id ?? '')),
+                trim((string) ($held->flutterwave_id ?? '')),
+            ]))
+            ->unique()
+            ->values()
+            ->all();
+
+        $declarations = $tokens === []
+            ? collect()
+            : WalletSettlementLink::query()
+                ->where('status', 'active')
+                ->whereIn('charge_token', $tokens)
+                ->get()
+                ->keyBy('charge_token');
+
         return view('admin.held-deposits', [
             'deposits' => $query,
             'candidates' => $candidates,
+            'declarations' => $declarations,
             'heldCount' => FlutterwaveHeldDeposit::query()->where('status', 'held')->count(),
             'resolvedCount' => FlutterwaveHeldDeposit::query()->where('status', '!=', 'held')->count(),
             'showResolved' => $request->input('status') === 'resolved',
@@ -83,6 +105,23 @@ class HeldDepositController extends Controller
         }
 
         $customer = User::query()->findOrFail($validated['user_id']);
+
+        /* A declaration against this charge means an admin already recorded the money
+           as paid by hand. Releasing the hold on top of it would pay the customer
+           twice, so the declaration has to be retracted - explicitly and on the
+           record - before this button can fund anything. */
+        $declared = $funding->declaredSettlementFor((array) ($deposit->payload ?? []));
+        if ($declared !== null) {
+            $this->audit->recordQuietly('failed', 'wallet', 'held_deposit.credit', 'Refused to release a held deposit: this charge is declared already settled by hand.', [
+                'target' => ['held_deposit', $deposit->id],
+                'reference' => $declared['charge_token'],
+                'reason' => $declared['reason'],
+                'changes' => ['settlement_link_id' => $declared['id'], 'chosen_user_id' => $customer->id],
+            ]);
+
+            return back()->with('error', 'This charge is recorded as already settled by hand (declaration #'.$declared['id'].'). Retract that declaration first if it was made in error.');
+        }
+
         $credited = $funding->creditHeldDepositTo($deposit, $customer, $request->user(), $validated['note']);
 
         if ($credited <= 0) {

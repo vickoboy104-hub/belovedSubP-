@@ -42,7 +42,7 @@
 
             <form method="GET" action="{{ route('admin.administrators') }}" class="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto_auto]">
                 <input type="search" name="search" value="{{ $search }}"
-                       placeholder="Name, email or phone" class="input-field" aria-label="Search administrators">
+                       placeholder="User ID, name, email or phone" class="input-field" aria-label="Search administrators">
                 <select name="scope" class="input-field" aria-label="Show which accounts">
                     <option value="admins" @selected($scope === 'admins')>Administrators</option>
                     <option value="members" @selected($scope === 'members')>Non-admin accounts</option>
@@ -59,8 +59,8 @@
                     ['key' => 'id', 'label' => 'ID'],
                     ['key' => 'name', 'label' => 'Account'],
                     ['key' => 'email', 'label' => 'Email'],
-                    ['key' => 'admin_status', 'label' => 'Admin status'],
-                    ['key' => 'role', 'label' => 'Role / permissions'],
+                    ['key' => 'admin_status', 'label' => 'Account role'],
+                    ['key' => 'role', 'label' => 'Permissions'],
                     ['key' => 'account_status', 'label' => 'Account status'],
                     ['key' => 'joined', 'label' => 'Registered'],
                     ['key' => 'login', 'label' => 'Last known login'],
@@ -72,11 +72,21 @@
                     ? \Illuminate\Support\Carbon::parse($stamp)->timezone(config('app.timezone'))->format('d M Y, h:ia')
                     : '';
 
-                $rows = collect($users->items())->map(function ($u) use ($stats, $ownerIds, $format): array {
+                $rows = collect($users->items())->map(function ($u) use ($stats, $ownerIds, $granted, $masterIds, $permissionTotal, $format): array {
                     $name = trim(($u->first_name ?? '').' '.($u->last_name ?? ''));
                     $stat = $stats->get($u->id);
                     $trailAt = $stat->last_activity_at ?? null;
                     $lastKnown = max((string) ($u->last_login_at ? $u->last_login_at->format('Y-m-d H:i:s') : ''), (string) ($trailAt ?? ''));
+
+                    $isMaster = in_array((int) $u->id, $masterIds, true);
+                    $slugs = (array) $granted->get((int) $u->id, []);
+                    $isOwner = in_array((int) $u->id, $ownerIds, true);
+
+                    $permissionNote = $slugs === []
+                        ? ($u->is_admin ? 'Nothing granted to this account yet.' : '')
+                        : (count($slugs) > 4
+                            ? implode(', ', array_slice($slugs, 0, 4)).' +'.(count($slugs) - 4).' more'
+                            : implode(', ', $slugs));
 
                     return [
                         'id' => $u->id,
@@ -84,15 +94,26 @@
                             'id' => '#'.$u->id,
                             'name' => ['value' => $name !== '' ? $name : ($u->name ?: 'Unnamed account'), 'strong' => true],
                             'email' => $u->email,
-                            'admin_status' => $u->is_admin
-                                ? ['value' => 'Administrator', 'tone' => 'success']
-                                : ['value' => 'Member', 'tone' => ''],
-                            // There is no role table in this application: an account is either an administrator or
-                            // it is not, and the one extra permission is the audit owner list. Anything else shown
-                            // here would be a role the code does not have.
-                            'role' => in_array((int) $u->id, $ownerIds, true)
-                                ? ['value' => 'Audit owner', 'tone' => 'info']
-                                : ['value' => $u->is_admin ? 'Full admin area' : 'No admin area', 'tone' => ''],
+                            'admin_status' => ['value' => $u->accountRoleLabel(), 'tone' => $u->is_admin ? 'success' : ''],
+                            // The role comes from is_admin plus the Master list in the
+                            // server's configuration; the permissions are the grant rows
+                            // signed for that account. Both are shown because they are
+                            // two different questions.
+                            'role' => $u->is_admin
+                                ? ($isMaster
+                                    ? [
+                                        'value' => 'Every permission'.($isOwner ? ' · Audit owner' : ''),
+                                        'tone' => 'warning',
+                                    ]
+                                    : [
+                                        // No badge tone here on purpose: the component
+                                        // prints a cell's note only when it is not a
+                                        // badge, and the list of what this account may
+                                        // actually do is the point of the column.
+                                        'value' => count($slugs).' of '.$permissionTotal.' permissions'.($isOwner ? ' · Audit owner' : ''),
+                                        'note' => $permissionNote,
+                                    ])
+                                : ['value' => 'None - not an administrator', 'tone' => ''],
                             'account_status' => $u->email_verified_at
                                 ? ['value' => 'Active', 'tone' => 'success']
                                 : ['value' => 'Email unverified', 'tone' => 'warning'],
@@ -121,7 +142,7 @@
                     :pages="$users->lastPage()"
                     :per-page="$perPage"
                     :hidden="['search' => $search, 'scope' => $scope]"
-                    search-placeholder="Name, email or phone"
+                    search-placeholder="User ID, name, email or phone"
                     empty-text="No account matches this filter."
                 />
             </div>

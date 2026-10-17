@@ -27,18 +27,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Tamper protection at the database layer
+    | Tamper protection at the database layer - NOT IMPLEMENTED, reads nothing
     |--------------------------------------------------------------------------
     |
-    | The model itself refuses to update or delete a record, which covers every
-    | write the application makes. That is application-level only: an account
-    | with SQL access can still change the table. Setting this to true makes the
-    | migration also install BEFORE UPDATE and BEFORE DELETE triggers, which the
-    | database enforces no matter who issues the statement.
+    | This flag is inert: no code in this repository reads it, and the
+    | admin_activity_logs migration installs the table only - there is no trigger
+    | DDL anywhere in the branch. Setting it to true in .env would therefore
+    | change nothing, and nothing here must be described as database-level tamper
+    | protection because of it.
     |
-    | Off by default because triggers need the TRIGGER privilege and are not
-    | reproduced by a plain `git pull` plus migrate - they are a deployment step
-    | the owner has to approve, so it is a switch rather than a surprise.
+    | What is actually in place is application-level only: the AdminActivityLog
+    | model throws on any update or delete, which stops every write made through
+    | the site. Anyone holding the database password can still change the table,
+    | and no PHP setting can prevent that. Real database enforcement would be a
+    | separate approved change - BEFORE UPDATE and BEFORE DELETE triggers, the
+    | TRIGGER privilege for the application's MySQL user, and a deploy step that a
+    | plain `git pull` plus `migrate` cannot reproduce.
     |
     */
 

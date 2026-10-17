@@ -303,6 +303,26 @@ class SettingsController extends Controller
             'favicon'         => ['nullable', 'image', 'max:1024'],
         ], $serviceMapRules, $manualRules, $smsRules));
 
+        /* This one page carries three separate powers: what a customer is charged,
+           how the site talks to its providers, and how the site itself behaves. They
+           are granted apart, so the save step decides which of them this post is
+           actually exercising.
+           The form sends every field it holds whether or not the person changed it,
+           so the test is a comparison against what is stored: leaving a provider key
+           untouched is not a provider change, and rewriting one without the grant for
+           it is refused outright rather than quietly dropped, because half a saved
+           settings form is worse than none. */
+        $refusal = $this->unauthorisedSettingWrites(
+            $request,
+            $data,
+            array_merge($dataServiceToggleKeys, $availabilitySwitchKeys, $referralServiceToggleKeys),
+            array_keys($manualRules)
+        );
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
         $submittedPlanPrices = $data['provider_plan_prices'] ?? [];
         unset($data['provider_plan_prices']);
         $this->updateProviderPlanPrices($submittedPlanPrices);
@@ -381,6 +401,141 @@ class SettingsController extends Controller
         ]);
 
         return back()->with('success', 'Settings updated successfully!');
+    }
+
+    /**
+     * The permission this post would exercise, or null when it exercises none.
+     *
+     * Only a value that is actually different from what is stored counts as a write.
+     * A settings page sends its whole shape on every save, so "present in the
+     * request" says nothing about who changed what; the database does.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  list<string>  $toggleKeys
+     * @return \Illuminate\Http\RedirectResponse|null
+     */
+    private function unauthorisedSettingWrites(Request $request, array $data, array $toggleKeys, array $manualKeys)
+    {
+        $actor = $request->user();
+
+        $prospective = [];
+
+        foreach ($data as $key => $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            $prospective[(string) $key] = $value;
+        }
+
+        foreach ($toggleKeys as $key) {
+            $prospective[$key] = $request->boolean($key) ? '1' : '0';
+        }
+
+        foreach (['logo' => 'logo_url', 'login_logo' => 'login_logo_url', 'loader_logo' => 'loader_logo_url', 'favicon' => 'favicon_url'] as $field => $settingKey) {
+            if ($request->hasFile($field)) {
+                // A new file is a change by definition, whatever it is named.
+                $prospective[$settingKey] = "\0upload";
+            }
+        }
+
+        foreach (['home_popup_message', 'dashboard_popup_message', 'login_popup_message'] as $key) {
+            if (array_key_exists($key, $prospective)) {
+                // Compared after the same cleaning the save applies, so a message
+                // nobody touched is not mistaken for one that changed.
+                $prospective[$key] = sanitize_popup_message_html((string) $prospective[$key]);
+            }
+        }
+
+        if (array_key_exists('home_popup_message', $prospective)) {
+            $prospective['popup_message'] = $prospective['home_popup_message'];
+        }
+
+        $blocked = [];
+
+        foreach ($prospective as $key => $value) {
+            $permission = $this->permissionForSettingKey($key, $manualKeys);
+
+            if ($actor->hasAdminPermission($permission)) {
+                continue;
+            }
+
+            $stored = Setting::query()->where('key', $key)->value('value');
+
+            if ($this->isTheSameValue($value, $stored)) {
+                continue;
+            }
+
+            $blocked[$permission][] = $key;
+        }
+
+        if ($blocked === []) {
+            return null;
+        }
+
+        $this->audit->recordQuietly('denied', 'platform', 'platform.settings_denied', 'Settings save refused: permission not held for the values being changed.', [
+            'reason' => 'Missing permission: '.implode(' or ', array_keys($blocked)).'.',
+            'changes' => ['blocked_keys' => $blocked],
+            'throttle_seconds' => 30,
+        ]);
+
+        return back()->with('error', 'You do not have permission to change: '.implode(', ', array_map(
+            static fn (string $label): string => $label.' settings',
+            array_keys($blocked)
+        )).'. Nothing was saved.');
+    }
+
+    /**
+     * @param  list<string>  $manualKeys
+     */
+    private function permissionForSettingKey(string $key, array $manualKeys): string
+    {
+        // Plan prices are money, whatever the word "provider" in their name says.
+        if ($key === 'provider_plan_prices' || $key === 'wallet_funding_fee' || $key === 'airtime_discount_percent') {
+            return 'prices.edit';
+        }
+
+        if (in_array($key, $manualKeys, true)) {
+            return str_starts_with($key, 'turnaround_') ? 'settings.change' : 'prices.edit';
+        }
+
+        if (str_starts_with($key, 'price_')
+            || str_starts_with($key, 'markup_')
+            || str_starts_with($key, 'referral_percent_')
+            || $key === 'referral_default_percent') {
+            return 'prices.edit';
+        }
+
+        if ($key === 'provider'
+            || str_starts_with($key, 'provider_')
+            || str_starts_with($key, 'nin_')
+            || str_starts_with($key, 'bvn_')
+            || str_starts_with($key, 'sms_')
+            || str_starts_with($key, 'service_map_profile_')) {
+            return 'provider.config';
+        }
+
+        return 'settings.change';
+    }
+
+    /**
+     * Whether the value about to be stored is the value already stored.
+     */
+    private function isTheSameValue(mixed $value, ?string $stored): bool
+    {
+        if (is_array($value) || is_object($value)) {
+            return json_encode($value) === (string) $stored;
+        }
+
+        $string = $value instanceof \Illuminate\Http\UploadedFile
+            ? "\0upload"
+            : trim((string) $value);
+
+        if ($string === "\0upload") {
+            return false;
+        }
+
+        return $string === trim((string) ($stored ?? ''));
     }
 
     public function syncProviderPrices()

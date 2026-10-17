@@ -282,7 +282,7 @@ class WalletLedgerSafetyTest extends TestCase
     public function test_the_admin_funding_route_moves_the_balance_and_books_one_row(): void
     {
         $admin = $this->member(0);
-        $admin->forceFill(['is_admin' => true])->save();
+        $admin = $this->promoteAsAdministrator($admin);
         $customer = $this->member(12_000);
 
         $this->actingAs($admin)
@@ -303,7 +303,7 @@ class WalletLedgerSafetyTest extends TestCase
     public function test_an_admin_setting_a_balance_books_only_the_difference(): void
     {
         $admin = $this->member(0);
-        $admin->forceFill(['is_admin' => true])->save();
+        $admin = $this->promoteAsAdministrator($admin);
         $customer = $this->member(70_000);
 
         $this->actingAs($admin)
@@ -327,7 +327,7 @@ class WalletLedgerSafetyTest extends TestCase
     public function test_an_admin_cannot_take_a_wallet_below_zero(): void
     {
         $admin = $this->member(0);
-        $admin->forceFill(['is_admin' => true])->save();
+        $admin = $this->promoteAsAdministrator($admin);
         $customer = $this->member(30_000);
 
         $this->actingAs($admin)
