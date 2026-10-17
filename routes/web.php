@@ -3,17 +3,25 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\VtuController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\ManualOrdersController;
 use App\Http\Controllers\Admin\OrdersController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\ServiceFormsController;
 use App\Http\Controllers\Admin\UsersController;
 use App\Http\Controllers\Admin\WalletTransactionsController;
+use App\Http\Controllers\Admin\FundingRequestController;
+use App\Http\Controllers\Admin\HeldDepositController;
+use App\Http\Controllers\Admin\WalletStatsController;
 use App\Http\Controllers\Admin\SupportChatsController;
+use App\Http\Controllers\Admin\BroadcastController;
 use App\Http\Controllers\FlutterwaveController;
 use App\Http\Controllers\VirtualAccountController;
 use App\Http\Controllers\SupportBotController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\Admin\WebsiteEditorController;
+use App\Http\Controllers\Admin\AdministratorsController;
+use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\ReferralController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 
@@ -41,6 +49,7 @@ require __DIR__.'/auth.php';
 Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
 
     Route::get('/dashboard', [VtuController::class, 'dashboard'])->name('dashboard');
+    Route::view('/identity', 'identity.index')->name('identity.index');
 
     Route::get('/vtu/airtime', [VtuController::class, 'airtimeForm'])->name('vtu.airtime');
     Route::get('/vtu/airtime/{service}', [VtuController::class, 'airtimeServiceForm'])->name('vtu.airtime.service');
@@ -71,6 +80,7 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::get('/vtu/nin', [VtuController::class, 'ninForm'])->name('vtu.nin');
     Route::post('/vtu/nin/search', [VtuController::class, 'ninSearch'])->name('vtu.nin.search');
     Route::post('/vtu/nin/print', [VtuController::class, 'ninPrint'])->name('vtu.nin.print');
+    Route::get('/vtu/nin/slip/{order}', [VtuController::class, 'ninSlip'])->name('vtu.nin.slip');
     Route::get('/vtu/nin/reports', [VtuController::class, 'ninSlipReports'])->name('vtu.nin.reports');
     Route::get('/vtu/nin-validation', [VtuController::class, 'ninValidationForm'])->name('vtu.nin-validation');
     Route::post('/vtu/nin-validation', [VtuController::class, 'ninValidationSubmit'])->name('vtu.nin-validation.submit');
@@ -79,8 +89,19 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::post('/vtu/bvn/verify', [VtuController::class, 'bvnVerify'])->name('vtu.bvn.verify');
     Route::post('/vtu/bvn/retrieve', [VtuController::class, 'bvnRetrieve'])->name('vtu.bvn.retrieve');
 
+    // A verification result is shown once, from a grant this session holds, and the
+    // slip is a document of its own so the browser can print that page alone.
+    Route::get('/vtu/bvn/details/{order}', [VtuController::class, 'bvnDetails'])->name('vtu.bvn.details');
+    Route::post('/vtu/bvn/details/{order}/seen', [VtuController::class, 'bvnDetailsAck'])->name('vtu.bvn.details.ack');
+    Route::post('/vtu/bvn/print', [VtuController::class, 'bvnPrint'])->name('vtu.bvn.print');
+    Route::get('/vtu/bvn/slip/{order}', [VtuController::class, 'bvnSlip'])->name('vtu.bvn.slip');
+    Route::get('/vtu/bvn/slip/{order}/sheet', [VtuController::class, 'bvnSlipSheet'])->name('vtu.bvn.slip.sheet');
+
     Route::get('/vtu/orders', [VtuController::class, 'orders'])->name('vtu.orders');
+    Route::get('/vtu/manual/{service}', [VtuController::class, 'manualServiceForm'])->name('vtu.manual.form');
+    Route::post('/vtu/manual/{service}', [VtuController::class, 'manualServiceSubmit'])->name('vtu.manual.submit');
     Route::get('/vtu/receipt/{id}', [VtuController::class, 'receipt'])->name('vtu.receipt');
+    Route::get('/vtu/receipt/{id}/result-file', [VtuController::class, 'receiptFile'])->name('vtu.receipt.file');
     Route::get('/vtu/profit-calculator', [VtuController::class, 'profitCalculator'])->name('vtu.profit-calculator');
 
     // ✅ Wallet pages still handled by WalletController
@@ -95,13 +116,21 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
     Route::post('/wallet/virtual-account/temporary', [VirtualAccountController::class, 'assignTemporary'])
         ->name('wallet.virtual-account.temporary');
 
+    // A webhook only ever arrives if Flutterwave can reach this site from the
+    // outside, so the customer can always ask directly what has been paid in.
+    Route::post('/wallet/deposits/check', [FlutterwaveController::class, 'checkDeposits'])
+        ->name('wallet.deposits.check');
+
     // Wallet transactions page
     Route::get('/wallet/transactions', [WalletController::class, 'transactions'])->name('wallet.transactions');
 
     Route::get('/ajax/gsubz/plans', [VtuController::class, 'gsubzPlans'])->name('gsubz.plans');
+    Route::get('/referral', [ReferralController::class, 'index'])->name('referral.index');
     Route::post('/referral/link/generate', [ReferralController::class, 'generate'])->name('referral.generate');
     Route::post('/referral/withdraw', [ReferralController::class, 'withdraw'])->name('referral.withdraw');
+    Route::get('/notifications/feed', [VtuController::class, 'notificationFeed'])->name('notifications.feed');
     Route::post('/notifications/read-all', [VtuController::class, 'markUserNotificationsRead'])->name('notifications.read-all');
+    Route::post('/notifications/{notificationId}/read', [VtuController::class, 'markUserNotificationRead'])->name('notifications.read');
     Route::get('/notifications', [VtuController::class, 'notificationsIndex'])->name('notifications.index');
 
     Route::get('/support/bot', [SupportBotController::class, 'index'])->name('support.bot');
@@ -114,6 +143,14 @@ Route::middleware(['auth', 'verified', 'no_cache'])->group(function () {
 Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('admin.dashboard');
     Route::get('/orders', [OrdersController::class, 'index'])->name('admin.orders');
+    Route::get('/orders/{order}/keys', [OrdersController::class, 'keys'])->name('admin.orders.keys');
+    Route::post('/orders/{order}/keys', [OrdersController::class, 'storeKeys'])->name('admin.orders.keys.store');
+    Route::get('/manual-orders', [ManualOrdersController::class, 'index'])->name('admin.manual-orders.index');
+    Route::get('/manual-orders/{order}', [ManualOrdersController::class, 'show'])->name('admin.manual-orders.show');
+    Route::get('/manual-orders/{order}/document/{field}', [ManualOrdersController::class, 'document'])->name('admin.manual-orders.document');
+    Route::post('/manual-orders/{order}/claim', [ManualOrdersController::class, 'claim'])->name('admin.manual-orders.claim');
+    Route::post('/manual-orders/{order}/fulfil', [ManualOrdersController::class, 'fulfil'])->name('admin.manual-orders.fulfil');
+    Route::post('/manual-orders/{order}/reject', [ManualOrdersController::class, 'reject'])->name('admin.manual-orders.reject');
     Route::get('/users', [UsersController::class, 'index'])->name('admin.users');
     Route::get('/users/{user}', [UsersController::class, 'show'])->name('admin.users.show');
     Route::post('/users/{user}/profile', [UsersController::class, 'updateProfile'])->name('admin.users.profile');
@@ -123,6 +160,12 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::post('/users/{user}/fund-wallet', [UsersController::class, 'fundWallet'])->name('admin.users.fund-wallet');
     Route::post('/users/{user}/adjust-wallet', [UsersController::class, 'adjustWallet'])->name('admin.users.adjust-wallet');
     Route::get('/wallet-transactions', [WalletTransactionsController::class, 'index'])->name('admin.wallet.transactions');
+    Route::get('/wallet-deposits/held', [HeldDepositController::class, 'index'])->name('admin.wallet.deposits.held');
+    Route::post('/wallet-deposits/held/{deposit}/credit', [HeldDepositController::class, 'credit'])->name('admin.wallet.deposits.held.credit');
+    Route::post('/wallet-deposits/held/{deposit}/dismiss', [HeldDepositController::class, 'dismiss'])->name('admin.wallet.deposits.held.dismiss');
+    Route::post('/wallet-requests/{transaction}/mark-settled', [FundingRequestController::class, 'markSettled'])->name('admin.wallet.requests.mark-settled');
+    Route::post('/wallet-requests/{transaction}/unmark-settled', [FundingRequestController::class, 'unmarkSettled'])->name('admin.wallet.requests.unmark-settled');
+    Route::get('/wallet-stats', [WalletStatsController::class, 'index'])->name('admin.wallet-stats');
     Route::post('/notifications/read-all', [DashboardController::class, 'markNotificationsRead'])->name('admin.notifications.read-all');
     Route::get('/notifications', [DashboardController::class, 'notificationsIndex'])->name('admin.notifications.index');
     Route::get('/support/chats', [SupportChatsController::class, 'index'])->name('admin.support.chats');
@@ -133,4 +176,23 @@ Route::middleware(['auth', 'verified', 'is_admin', 'no_cache'])->prefix('admin')
     Route::get('/settings', [SettingsController::class, 'edit'])->name('admin.settings');
     Route::post('/settings', [SettingsController::class, 'update'])->name('admin.settings.update');
     Route::post('/settings/provider-prices/sync', [SettingsController::class, 'syncProviderPrices'])->name('admin.settings.provider-prices.sync');
+
+    // What each identity service asks its customer, edited here instead of in
+    // code. The rates those answers select stay on the Settings page.
+    Route::get('/services', [ServiceFormsController::class, 'index'])->name('admin.services.index');
+    Route::get('/services/{service}', [ServiceFormsController::class, 'edit'])->name('admin.services.edit');
+    Route::post('/services/{service}', [ServiceFormsController::class, 'update'])->name('admin.services.update');
+    Route::post('/services/{service}/reset', [ServiceFormsController::class, 'reset'])->name('admin.services.reset');
+    Route::get('/broadcast', [BroadcastController::class, 'index'])->name('admin.broadcast');
+    Route::post('/broadcast/send', [BroadcastController::class, 'send'])->name('admin.broadcast.send');
+    Route::get('/broadcast/export', [BroadcastController::class, 'export'])->name('admin.broadcast.export');
+
+    // The trail belongs to the owner, not to every account with is_admin turned on,
+    // so these two screens sit behind audit_owner as well as the admin group. The
+    // owner list ships empty, which means they 403 for everyone until the owner
+    // names their own account.
+    Route::middleware(['audit_owner'])->group(function () {
+        Route::get('/administrators', [AdministratorsController::class, 'index'])->name('admin.administrators');
+        Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('admin.activity-log');
+    });
 });

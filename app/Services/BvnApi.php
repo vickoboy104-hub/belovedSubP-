@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class BvnApi
 {
@@ -13,12 +14,21 @@ class BvnApi
     private string $verifyEndpoint;
     private string $retrievePhoneEndpoint;
     private string $retrieveBmsEndpoint;
+    private string $retrieveAgentCode;
     private string $printEndpoint;
 
     public function __construct()
     {
         $configuredKey = trim((string) setting('bvn_api_key', ''));
-        $this->apiKey = $configuredKey !== '' ? $configuredKey : trim((string) config('services.bvn.key', ''));
+        if ($configuredKey === '') {
+            // ConfirmIdent issues one key per account for all four endpoints, so an empty
+            // BVN field means "reuse the NIN key", not "BVN is not configured".
+            $configuredKey = trim((string) setting('nin_api_key', ''));
+        }
+
+        $this->apiKey = $configuredKey !== ''
+            ? $configuredKey
+            : (trim((string) config('services.bvn.key', '')) ?: trim((string) config('services.nin.key', '')));
 
         $configuredBase = trim((string) setting('bvn_base_url', ''));
         $fallbackBase = trim((string) config('services.bvn.base', 'https://confirmident.com.ng/api'));
@@ -27,6 +37,9 @@ class BvnApi
         $this->verifyEndpoint = trim((string) setting('bvn_verify_endpoint', config('services.bvn.verify_endpoint', '/bvn_search')));
         $this->retrievePhoneEndpoint = trim((string) setting('bvn_retrieve_phone_endpoint', config('services.bvn.retrieve_phone_endpoint', '')));
         $this->retrieveBmsEndpoint = trim((string) setting('bvn_retrieve_bms_endpoint', config('services.bvn.retrieve_bms_endpoint', '')));
+        // An agent code identifies OUR account to the provider, so it is configured
+        // beside the key and never asked for at the customer's end.
+        $this->retrieveAgentCode = trim((string) setting('bvn_retrieve_agent_code', config('services.bvn.retrieve_agent_code', '')));
         $this->printEndpoint = trim((string) setting('bvn_print_endpoint', config('services.bvn.print_endpoint', '')));
     }
 
@@ -41,18 +54,20 @@ class BvnApi
             return [
                 'success' => false,
                 'message' => 'BVN retrieve-by-phone endpoint is not configured.',
+                'provider_asked' => false,
             ];
         }
 
         return $this->post($this->retrievePhoneEndpoint, ['phone' => trim($phone)]);
     }
 
-    public function retrieveByBms(string $bmsNo, string $ticketId, ?string $agentCode = null): array
+    public function retrieveByBms(string $bmsNo, string $ticketId): array
     {
         if (!$this->supportsRetrieveByBms()) {
             return [
                 'success' => false,
                 'message' => 'BVN retrieve-by-BMS endpoint is not configured.',
+                'provider_asked' => false,
             ];
         }
 
@@ -61,8 +76,8 @@ class BvnApi
             'ticket_id' => trim($ticketId),
         ];
 
-        if (trim((string) $agentCode) !== '') {
-            $payload['agent_code'] = trim((string) $agentCode);
+        if ($this->retrieveAgentCode !== '') {
+            $payload['agent_code'] = $this->retrieveAgentCode;
         }
 
         return $this->post($this->retrieveBmsEndpoint, $payload);
@@ -74,6 +89,7 @@ class BvnApi
             return [
                 'success' => false,
                 'message' => 'BVN print endpoint is not configured.',
+                'provider_asked' => false,
             ];
         }
 
@@ -141,6 +157,7 @@ class BvnApi
             return [
                 'success' => false,
                 'message' => 'BVN API key is not configured.',
+                'provider_asked' => false,
             ];
         }
 
@@ -148,6 +165,7 @@ class BvnApi
             return [
                 'success' => false,
                 'message' => 'BVN endpoint is not configured.',
+                'provider_asked' => false,
             ];
         }
 
@@ -177,17 +195,44 @@ class BvnApi
                 'raw' => $json,
             ];
         } catch (ConnectionException $e) {
+            Log::warning('BVN provider connection failed', [
+                'method' => strtoupper($method),
+                'url' => $url,
+                'payload_keys' => array_keys($payload),
+                'error' => $e->getMessage(),
+            ]);
+
             return [
                 'success' => false,
                 'message' => 'Could not connect to BVN provider.',
                 'error' => $e->getMessage(),
             ];
         } catch (RequestException $e) {
+            $providerResponse = optional($e->response)->json();
+            $providerMessage = '';
+
+            if (is_array($providerResponse)) {
+                $providerMessage = trim((string) ($providerResponse['message'] ?? $providerResponse['error'] ?? ''));
+            }
+
+            // A rejected HTTP status still carries the provider's own reason, and
+            // that reason is the only thing separating an outage from a wrong
+            // number from an exhausted provider wallet.
+            Log::warning('BVN provider request failed', [
+                'method' => strtoupper($method),
+                'url' => $url,
+                'status' => optional($e->response)->status(),
+                'payload_keys' => array_keys($payload),
+                'provider_response' => $providerResponse,
+                'error' => $e->getMessage(),
+            ]);
+
             return [
                 'success' => false,
-                'message' => 'BVN provider request failed.',
+                'message' => $providerMessage !== '' ? $providerMessage : 'BVN provider request failed.',
                 'error' => $e->getMessage(),
-                'response' => optional($e->response)->json(),
+                'response' => $providerResponse,
+                'status' => optional($e->response)->status(),
             ];
         }
     }

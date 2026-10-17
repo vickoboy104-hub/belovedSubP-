@@ -7,24 +7,21 @@
             'nabteb' => '/images/providers/nabteb.png',
         ];
 
-        $transactionFee = (float) setting('price_exam_transaction_fee', setting('markup_exam', 100));
+        $examDefaults = exam_price_defaults();
+        $transactionFee = (float) setting('price_exam_transaction_fee', $examDefaults['fee']);
         $prices = [
-            'jamb' => (float) setting('price_exam_jamb', 0),
-            'waec' => (float) setting('price_exam_waec', 0),
-            'neco' => (float) setting('price_exam_neco', 0),
-            'nabteb' => (float) setting('price_exam_nabteb', 0),
+            'jamb' => (float) setting('price_exam_jamb', $examDefaults['jamb']),
+            'waec' => (float) setting('price_exam_waec', $examDefaults['waec']),
+            'neco' => (float) setting('price_exam_neco', $examDefaults['neco']),
+            'nabteb' => (float) setting('price_exam_nabteb', $examDefaults['nabteb']),
         ];
     @endphp
 
-    <div class="mx-auto max-w-3xl space-y-5 sm:space-y-6">
-        <section class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <div class="app-kicker">Education Services</div>
-                <h1 class="app-page-title mt-2 text-[1.7rem] leading-tight sm:text-[2.3rem]">Buy {{ $selectedServiceLabel }}</h1>
-            </div>
-            <a href="{{ route('vtu.exam') }}" class="btn-outline sm:w-auto">All Education Services</a>
-        </section>
+    <x-page-hero class="reference-shared-banner" title="Buy {{ $selectedServiceLabel }}">
+        <a href="{{ route('vtu.exam') }}" class="reference-hero-action">All Education Services</a>
+    </x-page-hero>
 
+    <div class="reference-flow-page mx-auto max-w-3xl space-y-5 sm:space-y-6">
         <section class="app-form-shell space-y-4 sm:space-y-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <p class="max-w-xl text-sm leading-6 text-slate-500 sm:text-[0.95rem]">Enter the required details below and continue with wallet checkout.</p>
@@ -35,6 +32,7 @@
 
             <form id="examPurchaseForm" method="POST" action="{{ route('vtu.exam.buy') }}" class="space-y-4">
                 @csrf
+                <x-purchase-intent />
                 <input type="hidden" id="pin_code" name="pin_code" value="{{ $selectedService }}">
 
                 <div>
@@ -96,11 +94,6 @@
             const actionBtn = document.getElementById('examActionBtn');
             const form = document.getElementById('examPurchaseForm');
             const confirmBtn = document.querySelector('[data-modal-confirm="confirmExam"]');
-
-            function notify(type, message) {
-                if (typeof window.showFlashToast === 'function') window.showFlashToast(type, message);
-                else alert(message);
-            }
 
             function normalizePhone(raw) {
                 let p = (raw || '').toString().trim();
@@ -205,7 +198,7 @@
                     const message = ok ? (data.message || 'Purchase successful.') : getErrorMessage(response, data, 'Transaction failed. Please try again.');
 
                     if (typeof window.showTransactionResult === 'function') {
-                        window.showTransactionResult({ ok, message, orderId: data?.order_id });
+                        window.showTransactionResult({ ok, message, orderId: data?.order_id, payload: data });
                     } else {
                         notify(ok ? 'success' : 'error', message);
                     }
