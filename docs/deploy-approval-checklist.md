@@ -14,7 +14,7 @@ re-investigation.
 
 | # | Row | State | Evidence |
 |---|---|---|---|
-| A1 | Deploy target is the reviewed branch head | **PASS** | remote head at the time of writing `b5b93a638e9636853d126637dceaf6099f1047a1`, ls-remote verified 2026-10-17 (pushed under the owner's per-batch approval); **every commit after the reviewed `6db7a49b` is docs/CI-only** - re-verify any later head with `git diff --name-status 6db7a49b..<head>`, which must list only `docs/` and `.github/` files; checklist §0.1 carries the same pin |
+| A1 | Deploy target is the reviewed branch head | **PASS** | the last **runtime** commit the owner reviewed is `6db7a49b46c2c399439efdafee992f7dbb800c51` (ls-remote verified 2026-10-17, pushed under per-batch approval). **Everything on the branch after it is documentation or CI** - proven for whatever head `rev-parse` reports at deploy time with `git diff --name-status 6db7a49b..<head>`, which must list only `docs/` and `.github/` files. This row pins a runtime commit rather than the moving head so it cannot go stale |
 | A2 | Fast-forward from what is live | **PASS** | `0935a7f7..8992cbaa` linear; `merge-base --is-ancestor` exits 0 |
 | A3 | Range content known and reviewed | **PASS** | 33 commits (29 runtime + 4 documentation-only), 117 files, +18,126 / −640, re-measured 2026-10-17; the runtime content is [deploy-preflight.md](deploy-preflight.md)'s 29-commit review |
 | A4 | All seven migrations present in the range | **PASS** | `git diff --name-status 0935a7f7..4daaaee9 -- database/migrations`: seven `A` rows, the exact set of preflight §2 |
