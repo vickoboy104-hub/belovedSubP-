@@ -323,6 +323,16 @@ class FlutterwaveController extends Controller
         $reference = trim((string) ($verifiedData['tx_ref'] ?? ($data['tx_ref'] ?? '')));
 
         if ($reference === '') {
+            // A completed charge with no reference this site issued still moved real
+            // money, so it is written down rather than dropped.
+            $this->funding->recordUnclaimedCharge(
+                $verifiedData,
+                'flutterwave',
+                'webhook',
+                '',
+                'no_reference_in_webhook'
+            );
+
             return;
         }
 
@@ -334,6 +344,8 @@ class FlutterwaveController extends Controller
                 'flutterwave_charge_id' => trim((string) ($verifiedData['id'] ?? '')),
                 'flutterwave_id' => trim((string) ($verifiedData['flw_ref'] ?? '')),
             ]);
+
+            $this->funding->recordUnclaimedCharge($verifiedData, 'flutterwave', 'webhook');
 
             return;
         }
@@ -403,6 +415,18 @@ class FlutterwaveController extends Controller
                 'data' => $verifiedData,
                 'meta' => $meta,
             ]);
+
+            /* Every lookup that could own this money came back empty, which is the one
+               case a log line cannot serve: nobody is holding the wallet, nobody is
+               waiting on a reference, and the deposit sweep only ever asks about
+               requests this site already has. Write the charge down with no candidate
+               so it reaches the board a person reads. */
+            $this->funding->recordUnclaimedCharge(
+                $verifiedData,
+                'flutterwave_virtual_account',
+                'webhook',
+                $virtualAccountNumber
+            );
 
             return;
         }

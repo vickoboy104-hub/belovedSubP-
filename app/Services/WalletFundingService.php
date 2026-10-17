@@ -88,13 +88,76 @@ class WalletFundingService
                 return 0;
             }
 
-            if ($row && $grossKobo < (int) $row->amount) {
+            if ($row && $grossKobo < (int) $row->amount && !$ownershipApproved) {
                 Log::warning('Flutterwave reported less than the amount this deposit asked for.', [
                     'wallet_id' => $lockedWallet->id,
                     'reference' => $row->reference,
                     'expected_kobo' => (int) $row->amount,
                     'received_kobo' => $grossKobo,
                 ]);
+
+                /* Paying the shortfall into the wallet would silently accept less than
+                   the customer agreed to; paying the requested figure would credit money
+                   that did not arrive. Either way the ledger would disagree with the
+                   bank. So nothing is paid, the request stays open, and this is written
+                   down for the same board that holds an unowned transfer - because a
+                   transfer that lands short is exactly the kind of deposit a customer
+                   then complains never arrived. An admin who has read this transfer and
+                   named its customer is the one human who can settle that disagreement,
+                   and what they approve banks the amount that actually landed. */
+                if (!$ownershipApproved) {
+                    $this->holdUnattributedCharge(
+                        $lockedWallet,
+                        $charge,
+                        $channel,
+                        $via,
+                        [
+                            'ambiguous' => true,
+                            'reason' => 'amount_below_requested',
+                            'holders' => [(int) $lockedWallet->user_id],
+                        ],
+                        $grossKobo,
+                        $chargeId,
+                        $flutterwaveId,
+                        $txRef
+                    );
+                }
+
+                return 0;
+            }
+
+            /* A transfer that lands below the funding fee would credit nothing at all,
+               and the code below would still write it as a success: the money would be
+               marked banked, the balance would not move, and no list a human reads
+               would ever mention it again. Hold it for a person instead of burying it.
+               The same arithmetic the credit path uses decides this, so a funding
+               request whose agreed fee genuinely pays out is never held by mistake.
+               Nothing is banked here even when an admin has approved the transfer:
+               money that the agreed fee consumes entirely is not a deposit, and an
+               approval names a customer, it does not create kobo. */
+            $wouldCredit = $this->resolveCredit(
+                $grossKobo,
+                $row && (int) $row->amount === $grossKobo ? (array) ($row->meta ?? []) : []
+            );
+
+            if ((int) $wouldCredit['credited_kobo'] === 0) {
+                if (!$ownershipApproved) {
+                    $this->holdUnattributedCharge(
+                        $lockedWallet,
+                        $charge,
+                        $channel,
+                        $via,
+                        [
+                            'ambiguous' => true,
+                            'reason' => 'amount_below_fee',
+                            'holders' => [(int) $lockedWallet->user_id],
+                        ],
+                        $grossKobo,
+                        $chargeId,
+                        $flutterwaveId,
+                        $txRef
+                    );
+                }
 
                 return 0;
             }
@@ -603,8 +666,82 @@ class WalletFundingService
         string $flutterwaveId,
         string $txRef
     ): void {
+        $this->writeHeldDeposit(
+            $wallet,
+            $charge,
+            $channel,
+            $via,
+            $attribution['reason'],
+            $attribution['holders'],
+            $grossKobo,
+            $chargeId,
+            $flutterwaveId,
+            $txRef
+        );
+    }
+
+    /**
+     * A verified transfer this site cannot match to any customer at all. Without
+     * this record the money exists only in a log file: the customer sees a balance
+     * that never moved, and the person who could fix it sees an empty board. So the
+     * charge is written down with no candidate, paid to nobody, and left for a human
+     * who can read the bank side of it. The same charge arriving through the webhook
+     * and the sweep produces one row, because the key is the charge identity.
+     *
+     * @param  array<string, mixed>  $charge
+     */
+    public function recordUnclaimedCharge(
+        array $charge,
+        string $channel,
+        string $via,
+        string $accountHint = '',
+        string $reason = 'no_matching_customer',
+    ): void {
+        $grossKobo = (int) round(((float) ($charge['charged_amount'] ?? $charge['amount'] ?? 0)) * 100);
+
+        if ($grossKobo <= 0) {
+            return;
+        }
+
+        $this->writeHeldDeposit(
+            null,
+            $charge,
+            $channel,
+            $via,
+            $reason,
+            [],
+            $grossKobo,
+            trim((string) ($charge['id'] ?? '')),
+            trim((string) ($charge['flw_ref'] ?? '')),
+            trim((string) ($charge['tx_ref'] ?? '')),
+            $accountHint
+        );
+    }
+
+    /**
+     * The single place a held deposit is written, whether the arrival reached a
+     * wallet and could not be attributed to its owner, landed short, or never
+     * resolved to anybody. $wallet is the wallet that was being considered, not a
+     * customer being paid, and it is null when nothing was considered.
+     *
+     * @param  array<string, mixed>  $charge
+     * @param  list<int>  $holders
+     */
+    private function writeHeldDeposit(
+        ?Wallet $wallet,
+        array $charge,
+        string $channel,
+        string $via,
+        string $reason,
+        array $holders,
+        int $grossKobo,
+        string $chargeId,
+        string $flutterwaveId,
+        string $txRef,
+        string $accountHint = ''
+    ): void {
         $token = $this->heldDepositToken($charge, $chargeId, $flutterwaveId, $txRef, $grossKobo);
-        $account = $this->chargeAccountNumber($charge);
+        $account = $this->chargeAccountNumber($charge) ?: $accountHint;
         $now = now();
 
         $written = DB::table('flutterwave_held_deposits')->insertOrIgnore([
@@ -617,23 +754,23 @@ class WalletFundingService
             'currency' => strtoupper((string) ($charge['currency'] ?? 'NGN')),
             'channel' => $channel,
             'arrived_via' => $via,
-            'reason' => $attribution['reason'],
-            'holder_user_ids' => json_encode($attribution['holders']),
+            'reason' => $reason,
+            'holder_user_ids' => json_encode($holders),
             'payload' => json_encode($charge),
             'status' => 'held',
             'created_at' => $now,
             'updated_at' => $now,
         ]);
 
-        Log::warning('Flutterwave deposit held for reconciliation because no single customer owns it.', [
-            'wallet_id_considered' => $wallet->id,
+        Log::warning('Flutterwave deposit recorded for review and paid to nobody.', [
+            'wallet_id_considered' => $wallet?->id,
             'flutterwave_charge_id' => $chargeId,
             'flutterwave_id' => $flutterwaveId,
             'tx_ref' => $txRef,
             'virtual_account_number' => $account,
             'amount_kobo' => $grossKobo,
-            'reason' => $attribution['reason'],
-            'candidate_user_ids' => $attribution['holders'],
+            'reason' => $reason,
+            'candidate_user_ids' => $holders,
             'arrived_via' => $via,
             'newly_recorded' => $written === 1,
         ]);

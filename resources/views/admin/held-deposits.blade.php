@@ -52,6 +52,10 @@
                     'already_settled_manually' => 'A credit on this wallet was marked as settled by hand',
                     'manual_settlement_declared' => 'An admin declared this exact charge already paid by hand',
                     'charge_previously_reported_failed' => 'This charge reached us before and was closed as failed',
+                    'amount_below_requested' => 'Less landed than this deposit asked for',
+                    'amount_below_fee' => 'What landed is smaller than the funding fee, so it cannot pay anything out',
+                    'no_matching_customer' => 'No customer here matches this transfer at all - a person has to name the account',
+                    'no_reference_in_webhook' => 'The gateway reported a completed charge with no reference of ours',
                 ];
 
                 $declaration = $declarations->get(trim((string) ($held->flutterwave_charge_id ?? '')))
@@ -111,7 +115,11 @@
                 @if($held->status === 'held')
                     <div class="mt-5 rounded-[18px] border border-slate-200 bg-slate-50 p-4">
                         <div class="text-sm font-bold text-slate-900">
-                            {{ count($holders) }} {{ count($holders) === 1 ? 'customer' : 'customers' }} this could belong to
+                            @if(count($holders) === 0)
+                                No customer here can be matched to this transfer
+                            @else
+                                {{ count($holders) }} {{ count($holders) === 1 ? 'customer' : 'customers' }} this could belong to
+                            @endif
                         </div>
                         <ul class="mt-2 space-y-1 text-sm text-slate-600">
                             @foreach($holders as $candidate)
@@ -119,6 +127,14 @@
                                     &middot; balance &#8358;{{ number_format((int) ($candidate->wallet?->balance ?? 0) / 100, 2) }}</li>
                             @endforeach
                         </ul>
+                        @if(count($holders) === 0)
+                            <p class="mt-2 text-sm leading-6 text-slate-600">
+                                Every account number, reference and customer record this transfer could have been traced
+                                through came back empty, so there is nobody to choose between. Naming the account here is
+                                a decision made from the bank side of it, and the record will say plainly that no
+                                candidate was ever found.
+                            </p>
+                        @endif
                     </div>
 
                     @if($declaration)
@@ -140,14 +156,24 @@
                             </p>
                         </div>
                     @else
+                        @can('wallet.held.resolve')
                         <form method="POST" action="{{ route('admin.wallet.deposits.held.credit', $held) }}" class="mt-4 space-y-3">
                             @csrf
-                            <label class="block text-sm font-bold text-slate-700" for="held-{{ $held->id }}-user">Credit which customer</label>
-                            <select id="held-{{ $held->id }}-user" name="user_id" class="input-field" required>
-                                @foreach($holders as $candidate)
-                                    <option value="{{ $candidate->id }}">{{ $candidate->name }} &middot; {{ $candidate->email }}</option>
-                                @endforeach
-                            </select>
+                            @if(count($holders) > 0)
+                                <label class="block text-sm font-bold text-slate-700" for="held-{{ $held->id }}-user">Credit which customer</label>
+                                <select id="held-{{ $held->id }}-user" name="user_id" class="input-field" required>
+                                    @foreach($holders as $candidate)
+                                        <option value="{{ $candidate->id }}">{{ $candidate->name }} &middot; {{ $candidate->email }}</option>
+                                    @endforeach
+                                </select>
+                            @else
+                                <label class="block text-sm font-bold text-slate-700" for="held-{{ $held->id }}-user">
+                                    Credit which customer - their User ID
+                                </label>
+                                <input type="number" min="1" step="1" id="held-{{ $held->id }}-user" name="user_id"
+                                       value="{{ old('user_id') }}" required class="input-field"
+                                       placeholder="User ID you have proved this to">
+                            @endif
 
                             <label class="block text-sm font-bold text-slate-700" for="held-{{ $held->id }}-note">What proved it</label>
                             <textarea id="held-{{ $held->id }}-note" name="note" rows="3" class="input-field" required
@@ -160,8 +186,10 @@
 
                             <button type="submit" class="btn-primary">Credit this customer</button>
                         </form>
+                        @endcan
                     @endif
 
+                    @can('wallet.held.resolve')
                     <form method="POST" action="{{ route('admin.wallet.deposits.held.dismiss', $held) }}" class="mt-4 space-y-3">
                         @csrf
                         <label class="block text-sm font-bold text-slate-700" for="held-{{ $held->id }}-dismiss">Not ours to credit</label>
@@ -170,6 +198,7 @@
 
                         <button type="submit" class="btn-danger">Keep the record, credit nobody</button>
                     </form>
+                    @endcan
                 @else
                     <div class="mt-5 rounded-[18px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                         <div>{{ optional($held->resolved_at)->format('d M Y, h:i A') }}

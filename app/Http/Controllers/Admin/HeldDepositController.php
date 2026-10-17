@@ -81,19 +81,34 @@ class HeldDepositController extends Controller
 
     public function credit(Request $request, FlutterwaveHeldDeposit $deposit, WalletFundingService $funding)
     {
-        // The choice is limited to the customers this transfer could actually have
-        // come from. Somebody else's wallet is what the manual credit tool is for:
-        // letting this screen name any account would rebuild the guess it replaced,
-        // only slower and with a note attached to make it look decided.
+        /* The choice is limited to the customers this transfer could actually have
+           come from. Somebody else's wallet is what the manual credit tool is for:
+           letting this screen name any account would rebuild the guess it replaced,
+           only slower and with a note attached to make it look decided.
+
+           A row with no candidate at all is the opposite case: every lookup that
+           could own this money came back empty, so there is no guess to protect
+           against and nothing on this board except a human reading the bank side.
+           The admin then names the account, and the record says plainly that nobody
+           was ever a candidate for it. */
         $candidates = array_map(
             static fn ($id): int => (int) $id,
             (array) $deposit->holder_user_ids
         );
+        $namedWithoutCandidates = $candidates === [];
 
         $validated = $request->validate([
-            'user_id' => ['required', 'integer', Rule::in($candidates)],
+            'user_id' => [
+                'required',
+                'integer',
+                $namedWithoutCandidates
+                    ? Rule::exists('users', 'id')
+                    : Rule::in($candidates),
+            ],
             'note' => ['required', 'string', 'min:10', 'max:2000'],
-        ]);
+        ], $namedWithoutCandidates
+            ? ['user_id.exists' => 'This transfer named no customer here, so the account you name must exist.']
+            : []);
 
         if (!$deposit->isHeld()) {
             $this->audit->recordQuietly('failed', 'wallet', 'held_deposit.credit', 'Attempt to release a held deposit that was already dealt with.', [
@@ -125,10 +140,14 @@ class HeldDepositController extends Controller
         $credited = $funding->creditHeldDepositTo($deposit, $customer, $request->user(), $validated['note']);
 
         if ($credited <= 0) {
-            $this->audit->recordQuietly('failed', 'wallet', 'held_deposit.credit', 'Nothing was credited: this charge has already been paid out.', [
+            $this->audit->recordQuietly('failed', 'wallet', 'held_deposit.credit', 'Nothing was credited from this held deposit.', [
                 'target' => ['held_deposit', $deposit->id],
-                'changes' => ['chosen_user_id' => $customer->id],
+                'changes' => ['chosen_user_id' => $customer->id, 'held_because' => $deposit->reason],
             ]);
+
+            if ($deposit->reason === 'amount_below_fee') {
+                return back()->with('error', 'This transfer landed smaller than the funding fee, so there is nothing to credit from it. Keep the record or dismiss it - do not press this button again.');
+            }
 
             return back()->with('error', 'Nothing was credited: this charge has already been paid out somewhere.');
         }
@@ -136,7 +155,12 @@ class HeldDepositController extends Controller
         $this->audit->recordQuietly('success', 'wallet', 'held_deposit.credit', 'Released a held deposit: credited '.number_format($credited / 100, 2).' to a customer.', [
             'target' => ['held_deposit', $deposit->id],
             'reason' => $validated['note'],
-            'changes' => ['credited_kobo' => $credited, 'chosen_user_id' => $customer->id],
+            'changes' => [
+                'credited_kobo' => $credited,
+                'chosen_user_id' => $customer->id,
+                'named_without_candidates' => $namedWithoutCandidates,
+                'held_because' => $deposit->reason,
+            ],
         ]);
 
         return back()->with('success', 'Credited '.number_format($credited / 100, 2).' to '.$customer->name.'.');
