@@ -17,16 +17,23 @@ The read-only checks to run before anyone decides are in
 | **LOCAL-FAKE** | The route is exercised end to end, but against a faked provider or gateway. The shape of the request is asserted; the real service's answer never was. |
 | **LIVE** | Cannot be proven from this machine at all. Somebody has to read it on `s3470`, or spend real money with the owner's say-so. |
 
-Suite as it stands on this branch: **561 passed, 12 skipped, 4,144 assertions** (573 tests in
-total; sqlite, head `6f14c4e8`, re-run 2026-10-17, zero failures). The 12 skips are the two-process
+Suite as it stands on this branch: **579 passed, 12 skipped, 4,263 assertions** (591 tests in
+total; sqlite, runtime head `1e33de76`, re-run 2026-10-17, zero failures). The 12 skips are the two-process
 InnoDB proofs, which cannot run on
 sqlite by design. They were **re-run on this head on 2026-10-17 against real MySQL 8.4.3** -
 isolated second instance, port 3307, scratch database, synthetic rows only - and passed:
-**12 passed, 110 assertions, 18.29 s**, with the scratch database read back afterwards as **27
+**12 passed, 110 assertions, 12.77 s**, with the scratch database read back afterwards as **27
 tables, every one of them InnoDB** (including `admin_activity_logs`, `wallet_settlement_links` and
 `admin_permission_grants`), **35 rows in `migrations`** against the 35 migration files in the tree,
 and exact `COUNT(*)` zero in every money table - so the whole migration set on this branch has now
-been applied on InnoDB, not only the ones that were there before.
+been applied on InnoDB, not only the ones that were there before. The first attempt at that run
+**failed 2 of 12**, and the reason matters more than the retry: the scratch datadir still on disk was
+the `69418773` schema (25 tables, 33 `migrations` rows), `MysqlMoneyPathConcurrencyTest::readySchema()`
+checks only its `MONEY_TABLES` list, all of which existed, so the suite never applied
+`2026_10_18_000001_create_wallet_settlement_links_table` and the credit path died on the missing
+table. It refused loudly rather than measuring a schema the application would reject; the fix was
+`artisan migrate --force` on the scratch database with the same environment the documented block
+prints, not an edit to the test.
 
 **What that does not prove.** The live box is not MySQL 8.4.3, it is **MariaDB 10.6.28**, and the
 only run on that version (GitHub Actions run 38999509204, 2026-10-17) executed on `f2cfaa5f`,
@@ -40,11 +47,12 @@ that gap and both routes to closing it.
 ## Where the code stands
 
 Branch `codex/identity-first-jhtech-experience`. The **runtime** head on this machine is
-`6f14c4e8` and the branch tip above it is documentation (`b54fde5b` plus the commit that records
-it), none of it pushed; the remote head,
-read again with `git ls-remote` on 2026-10-17, is `e32744d4`, and the **runtime** head on the remote
-is `69418773` - everything between it and `e32744d4` is documentation. `6f14c4e8` has not been
-pushed and no push is authorized for it.
+`1e33de76`; the branch tip above it is documentation (this file's own commit), none of that pushed.
+The remote head, read again with `git ls-remote` on 2026-10-17, is
+`94c5b4b71e827f42708bd49db281266c28abe916`, and the **runtime** head on the remote is `6f14c4e8` -
+everything between it and `94c5b4b7` is documentation (`git merge-base --is-ancestor 6f14c4e8
+94c5b4b7` exits 0). `ee3bfef9` and `1e33de76` have not been pushed and no push is authorized for
+them.
 
 | Commit | Pushed? | What it is |
 |---|---|---|
@@ -56,20 +64,25 @@ pushed and no push is authorized for it.
 | `3d7deacb` | **yes - 2026-10-17, review only** | Docs: the read-only gateway-reference probe (§11.7). No code. |
 | `f2d40bd2` | **yes - 2026-10-17, review only** | Hold a charge the wallet already dealt with instead of crediting it twice; 10 new tests, and it changes `WalletFundingService` itself. |
 | `3be00d41` | **yes - 2026-10-17, review only** | The append-only administrator activity trail, its migration, the mandatory note on manual wallet movements, and the two owner-only screens. |
-| `69418773` | **yes - 2026-10-17, review only** | The phone-usable admin boards, the read-side figure mask, the shared pager and the Transaction Explorer. This is the head the numbers above were measured on, and the **runtime head on the remote**. |
-| `e32744d4` | **yes - 2026-10-17, review only** | Docs: every figure the last three commits made stale, re-measured. The current remote head. |
-| `98c96cb1` | **no - local only** | Docs: the measurement showing which manual-credit channels the duplicate-credit hold cannot see (approval-checklist C9), and the widened §11.7 count. No code. |
-| `6f14c4e8` | **no - local only, and no push is authorized for it** | Runtime: granular administrator permissions (27 slugs, the `admin_permission_grants` table, a `can_admin:` gate on the admin routes) and the explicit manual-settlement declaration (`wallet_settlement_links`), real `users.id` display, and the corrected `config/audit.php` comment about database triggers. Two migrations. 44 files, +3,756 / −152. |
-| `b54fde5b` | **no - local only, and no push is authorized for it** | Docs only: seven files, all under `docs/`, zero runtime files. It re-measures everything `6f14c4e8` made stale and corrects two false claims - "573 passed" was really 561 passed plus 12 skipped, and row A5's "no customer view is touched" is contradicted by `resources/views/profile/show.blade.php`. The commit that adds this row is a second documentation commit above the same runtime head, also local, also unpushed. |
+| `69418773` | **yes - 2026-10-17, review only** | The phone-usable admin boards, the read-side figure mask, the shared pager and the Transaction Explorer. No longer the remote runtime head: `6f14c4e8` sits above it and was pushed for review the same day. |
+| `e32744d4` | **yes - 2026-10-17, review only** | Docs: every figure the last three commits made stale, re-measured. Superseded as the remote head by `94c5b4b7`. |
+| `98c96cb1` | **yes - 2026-10-17, review only** | Docs: the measurement showing which manual-credit channels the duplicate-credit hold cannot see (approval-checklist C9), and the widened §11.7 count. No code. |
+| `6f14c4e8` | **yes - 2026-10-17, review only; this is the remote runtime head** | Runtime: granular administrator permissions (27 slugs, the `admin_permission_grants` table, a `can_admin:` gate on the admin routes) and the explicit manual-settlement declaration (`wallet_settlement_links`), real `users.id` display, and the corrected `config/audit.php` comment about database triggers. Two migrations. 44 files, +3,756 / −152. |
+| `b54fde5b` | **yes - 2026-10-17, review only** | Docs only: seven files, all under `docs/`, zero runtime files. It re-measures everything `6f14c4e8` made stale and corrects two false claims - "573 passed" was really 561 passed plus 12 skipped, and row A5's "no customer view is touched" is contradicted by `resources/views/profile/show.blade.php`. |
+| `11f362e9` | **yes - 2026-10-17, review only** | Docs only: three files, zero runtime files. Anchors the measured figures to the runtime head instead of to `HEAD`, so a documentation commit cannot silently invalidate them. |
+| `70260144` | **yes - 2026-10-17, review only** | Docs only: one file. Records approval row C10 - the owner's own address as a compiled-in `setting()` fallback in shipped source - reported, not edited, and not copied into any file. |
+| `94c5b4b7` | **yes - 2026-10-17, review only; the remote head** | Docs only: one file. Stops the public repository naming which account is the Master Admin; the id and the read-only check stay. |
+| `ee3bfef9` | **no - local only, and no push is authorized for it** | Runtime: 5 files, +697 / −24. The three deposits that arrived and were then thrown away are now recorded as one deduplicated held row each (`amount_below_requested`, `amount_below_fee`, `no_matching_customer`, `no_reference_in_webhook`); an admin release of a landed-short transfer banks what actually landed; a sub-fee arrival credits nobody and the refusal is unconditional. `tests/Feature/FlutterwaveDepositRecordingTest.php` (11 tests / 73 assertions), gateway faked. This is the PRIORITY 1 fix and the first diff to read. |
+| `1e33de76` | **no - local only, and no push is authorized for it** | Runtime: 7 files, +340 / −1, view markup and tests only. Six `admin/` views stop rendering actions the server already refuses, and `tests/Feature/AdminUnavailableControlsAreHiddenTest.php` (7 tests / 46 assertions) fails if any guard or route names a permission that does not exist. One pre-existing test's slice sentinel moved because the section it used as a marker is now gated. |
 
 "Pushed" here means **on `codex/identity-first-jhtech-experience` for independent review and
 testing**, under the owner's 2026-10-17 development-only authorization. It does not mean merged,
 deployed, migrated or reviewed-and-approved; `main` is untouched at `17cb6eec…`.
 
-`www.belovedsubp.com` still runs whatever `~/vtu` was last checked out to (`0935a7f7`): 48
-commits behind the runtime head `6f14c4e8`, 49 behind this branch tip. None of the above is live.
+`www.belovedsubp.com` still runs whatever `~/vtu` was last checked out to (`0935a7f7`): 54
+commits behind the runtime head `1e33de76`, 55 behind this branch tip. None of the above is live.
 
-The four runtime commits above the reviewed anchor touch **72 files** under `app/ tests/ database/ config/ routes/
+The six runtime commits above the reviewed anchor touch **78 files** under `app/ tests/ database/ config/ routes/
 resources/ bootstrap/ public/`, and they **do** change `resources/css` and `public/build`, so
 there is an asset step in this batch. The layout delta is **not** admin-only, and the honest
 wording is this: `resources/css/app.css` gained **109 lines and rewrote 7** (its diffstat is
@@ -81,10 +94,12 @@ rendered by three customer pages (`resources/views/vtu/manual-service.blade.php`
 `resources/views/vtu/orders.blade.php`, `resources/views/wallet/transactions.blade.php`), so
 those pages render at new dimensions on a phone. Exactly **one customer view file is edited in
 the range**: `resources/views/profile/show.blade.php` shows the signed-in customer their own
-`users.id` (one added line, existing markup, nothing editable) - the other fourteen changed views
-are eleven under `admin/` and three shared components
-(`git diff --name-status cd19810c..HEAD -- resources/views`). No price, brand, form field
-or copy was changed in any commit on this branch, and `git diff --name-only 0935a7f7..HEAD --
+`users.id` (one added line, existing markup, nothing editable) - the other sixteen changed views
+are thirteen under `admin/` (six of them gained a permission guard in `1e33de76`, which is markup
+only: no route, middleware or controller moved) and three shared components
+(`git diff --name-status cd19810c..1e33de76 -- resources/views`). No price, brand or form field was
+changed in any commit on this branch - and the one piece of customer-visible **copy** is that single
+"Your User ID" label, named above, not denied here. `git diff --name-only 0935a7f7..HEAD --
 app/Helpers/settings.php` returns nothing.
 
 ---
@@ -101,8 +116,12 @@ minutes.
 |---|---|---|
 | A ₦3,000 deposit credits 295,000 kobo - the ₦50 fee the customer agreed to, nothing else | LOCAL | `WalletFundingAgreementTest` |
 | Coming back from checkout twice, or pressing the button twice, credits once | LOCAL | `WalletFundingAgreementTest`, `WalletDepositNotificationTest` |
-| A transfer that lands short of what was requested is **not** credited as if it had arrived; it stays pending and the sweep finishes it | LOCAL | `WalletDepositNotificationTest::test_a_short_transfer_is_not_credited_as_the_amount_requested` |
+| A transfer that lands short of what was requested is **not** credited as if it had arrived; it stays pending and the sweep finishes it | LOCAL | `WalletDepositNotificationTest::test_a_short_transfer_is_not_credited_as_the_amount_requested` - and since `ee3bfef9` it is **also written down**, not just refused: see the three rows below |
 | A transfer that lands large is credited on what landed, fee included | LOCAL | `::test_a_larger_transfer_is_credited_on_what_actually_landed` |
+| A short arrival leaves **one held record a human can resolve**, and an admin who reads it and names the customer banks the amount that actually landed - once, never twice | LOCAL | `FlutterwaveDepositRecordingTest` (`amount_below_requested`, then release = 245,000 kobo of a ₦2,500 arrival against a ₦3,000 request, then the replay credits 0) |
+| An arrival the agreed funding fee consumes entirely credits **nobody** and never writes a `success` ledger row; it is held as `amount_below_fee` and the board tells the admin not to press the button | LOCAL | `FlutterwaveDepositRecordingTest` - asserts the ledger holds **no** success row, and that releasing a sub-fee hold still credits 0 and leaves it `held` |
+| A verified charge that matches no customer, or carries no reference this site issued, reaches the Held Deposits board instead of only a log file - and webhook + sweep + a direct call for one charge produce **one** row | LOCAL | `FlutterwaveDepositRecordingTest` (`no_matching_customer`, `no_reference_in_webhook`, dedupe on `charge_token`, and an orphan transfer stored with `holder_user_ids = []`) |
+| None of the above stands in front of a genuine new deposit: a full-size transfer still credits 295,000 of a 300,000 charge with the held board **empty**, and a later transfer into an account whose earlier one is held still credits | LOCAL | `FlutterwaveDepositRecordingTest` - the two "must not break" cases, plus a short arrival leaving `flutterwave_charge_claims` at 0 so the request can still be finished |
 | One verified charge can never fund two wallets | LOCAL, and on InnoDB | `FlutterwaveChargeIdempotencyTest`; `MysqlMoneyPathConcurrencyTest::test_one_verified_transfer_cannot_fund_two_wallets_at_the_same_time` |
 | A transfer more than one customer could claim pays **nobody** and is written down for an admin | LOCAL, and on InnoDB | `FlutterwaveDepositAttributionTest` (10 methods); `MysqlMoneyPathConcurrencyTest::test_two_processes_hold_one_ambiguous_transfer_once` |
 | An admin can release a held deposit to one candidate, once, with a mandatory note, and dismissing keeps the record | LOCAL | `FlutterwaveDepositAttributionTest` |
@@ -168,6 +187,8 @@ acknowledgement, BVN slip sheet, IPE clearance and the other staffed manual serv
 | One admin correcting another admin's published result needs an audited reason; the publisher may self-correct without one; the completion notice is never duplicated | LOCAL | `AdminManualQueueNavigationTest`, `ManualOrderAnswerSafetyTest` (owner decision 2026-10-15) |
 | The admin sees every answer, the document, the money, the provider reference, and nobody outside can read any of it (member `403`, guest `403`, unknown field `404`) | LOCAL | `ManualIdentityQueueTest`, `NinModificationWorkflowTest` |
 | Held wallet deposits have a screen, a badge, candidates, a mandatory note and a status change instead of a delete | LOCAL | `FlutterwaveDepositAttributionTest`, `resources/views/admin/held-deposits.blade.php` |
+| A hold whose release would need a guess **cannot** be released to an arbitrary account, while a hold with no candidate at all can be resolved by naming one - and the audit says which case it was | LOCAL | `FlutterwaveDepositAttributionTest` (candidate list enforced with `Rule::in`), `FlutterwaveDepositRecordingTest` (a `Rule::exists('users','id')` name on a `no_matching_customer` hold, recorded as `named_without_candidates`, and a nonexistent id refused) |
+| An administrator who lacks a permission no longer sees the action, and the server refused it before and still does | LOCAL | `AdminUnavailableControlsAreHiddenTest` (7 tests / 46 assertions; also fails if any `@can` in `resources/views/admin` or any `can_admin:` in `routes/web.php` names a slug that does not exist) |
 | An agent actually working the real queue on the live box after a deploy | **LIVE** | Never walked on `www.belovedsubp.com`. |
 
 Deliberate gap, not a bug: a customer cannot re-download the document *they* uploaded. Making
@@ -193,18 +214,18 @@ development copy: `prices:sync` hourly, `wallet:sync-deposits` every five minute
 | The sweep banks a deposit the webhook lost, for a customer who never opens their page | LOCAL | `WalletSupersededDepositRecoveryTest` |
 | The sweep stops looking: 12 candidates, 8 references per pass, abandoned after 60 minutes, 14 days back | constants read in code, **not** test-proven | `WalletDepositSync.php:30,33,40,49`; behaviour documented in `docs/wallet-funding-review.md` §4 |
 | Recovery runs on paid orders owed paper | LOCAL | as §6 |
-| **A cron exists on the live box at all** | **LIVE** | The `crontab -l` line filtered for comments has never been read here. Without a `schedule:run` entry, the sweep and both recovery jobs do not run and the webhook - the path that depends on `FLUTTERWAVE_SECRET_HASH` - is the only route money takes. production-checks §4. |
-| Prices are being synced from the provider | **LIVE** | Needs the cron and a working key; the hourly heartbeat is `provider_plan_prices.last_synced_at`. |
+| **A cron exists on the live box at all** | **LIVE - READ, ANSWERED 2026-10-16/17** | The owner read `crontab -l` and watched `wallet:sync-deposits` execute and complete: a `schedule:run` entry fires **every minute**, so the sweep and both recovery jobs do run and the webhook is not the only route money takes. Recorded as approval-checklist row **B10** - do not re-ask it. What remains is the post-deploy `schedule:list` smoke check (§7.8 expects **three** jobs; the live box runs `0935a7f7` and shows two until the checkout lands). |
+| Prices are being synced from the provider | **LIVE** | Needs a working key; the hourly heartbeat is `provider_plan_prices.last_synced_at`. The cron half of that is answered above. |
 
 ## 8. Provider configuration
 
 | Item | Status | Note |
 |---|---|---|
-| Which provider is saved (`gsubz` / `mock` / retired / empty) | **LIVE** | `setting('provider')`; admin settings beat `.env` wherever both exist. Any value this code cannot call now refuses every sale before the wallet is touched. |
-| GSUBZ key | **LIVE** | presence only in the report-back; never printed. |
-| ConfirmIdent NIN / BVN keys, and BVN falling back to the NIN key | **LIVE** | presence only. |
-| `nin_verify_mode`, `bvn_verify_mode` | **LIVE** | Development held `automatic` / `manual`. |
-| Flutterwave `.env` keys and `FLUTTERWAVE_SECRET_HASH` | **LIVE** | Empty hash = the webhook answers `500` to everything and credits nothing. |
+| Which provider is saved (`gsubz` / `mock` / retired / empty) | **LIVE - READ** | `provider` = **gsubz** (approval row B8). admin settings beat `.env` wherever both exist. Any value this code cannot call now refuses every sale before the wallet is touched. |
+| GSUBZ key | **LIVE - PRESENCE READ** | `provider_gsubz_api_key` present (row C2); never printed. |
+| ConfirmIdent NIN / BVN keys, and BVN falling back to the NIN key | **LIVE - PRESENCE READ** | `nin_api_key` and `bvn_api_key` present (row C2); presence only, never printed. What is **not** read anywhere is the retrieve-by-BMS agent code - approval row **C7**, open, no money in it. |
+| `nin_verify_mode`, `bvn_verify_mode` | **LIVE - READ** | both **automatic** on the box (row B8), which is why every answered check is ₦160 / ₦80 of real float. |
+| Flutterwave `.env` keys and `FLUTTERWAVE_SECRET_HASH` | **LIVE - READ** | secret key present and the hash present in Laravel `config()` (row B9), so the cached-config failure mode does not apply. Empty hash would be the webhook answering `500` to everything and crediting nothing. |
 | Prices | LOCAL | Every selling price in this batch is unchanged; the tiers and the ₦160/₦80 costs are pinned by `IdentityPriceReferenceTest` and the NIN Modification test. |
 | The credential exposure behind all of the above | **LIVE, owed** | This machine carried a file infector with a credential stealer. The owner is handling rotation separately; it stays a release requirement, not something a green test suite can clear. |
 
@@ -238,23 +259,25 @@ in this batch - row A5 and §8 above carry that.
 
 **Not yet cleared for a deploy**, and none of it is code:
 
-1. the three runtime commits are on the review branch as of 2026-10-17 and have **not been reviewed
-   as a deploy target**; the reviewed runtime anchor is still `cd19810c` (row A1);
+1. the six runtime commits above the anchor are described in preflight §2b, §2c and §2d and have
+   **not been reviewed as a deploy target**; the reviewed runtime anchor is still `cd19810c` (row
+   A1). Four of the six are on the review branch; `ee3bfef9` and `1e33de76` are local only.
 2. answered since this list was first written - `crontab -l`, `FLUTTERWAVE_SECRET_HASH`, `provider`,
    `nin_verify_mode` and `bvn_verify_mode` are all owner-read and recorded in approval rows B2-B11;
 3. hosting's engine is now read (**MariaDB 10.6.28**, isolation REPEATABLE-READ, lock timeout 50 s,
    row B3-B4), but the twelve two-process proofs have only run on scratch MySQL 8.4.3; the run on
    the live engine's own version has to be started by hand because the workflow's push trigger is
    path-filtered (rows A6 and C5);
-4. how many live customers already share one virtual account number is unmeasured
-   (production-checks §7) - that number decides whether the held-deposit queue opens with two
-   rows or two hundred;
-5. credential rotation is owed and owned by the owner, separately;
-6. ConfirmIdent's billing answer for a failed check is still open;
-7. the duplicate-credit hold does not see either admin credit channel, so a manual help followed by
-   a gateway report of the same money is still a live double-credit path. The proposed closure needs
-   an explicit admin-declared link, never amount or account matching - approval row C9, and it is a
-   money-path change, so it waits on the owner.
+4. answered: **zero duplicate virtual account numbers** on the live box (approval row B7, read
+   2026-10-16), so the held-deposit queue opens empty, not with a backlog;
+5. credential rotation is owed and owned by the owner, separately - the one hard red gate (row C1);
+6. ConfirmIdent's billing answer for a failed check is still open (row C6, advisory);
+7. closed **on the branch, not deployed**: the duplicate-credit hold now sees both admin credit
+   channels, because `6f14c4e8` added the explicit admin-declared settlement link - a link names a
+   charge by its own id or `flw_ref`, never by amount or account number, which is the owner's rule.
+   The residue is deliberate and stated in row C9: declaring is a human act, so an admin who never
+   declares keeps the old behaviour. `ee3bfef9` then closed the opposite half of the same complaint -
+   money that arrives and is discarded instead of recorded.
 
 The honest sequence is: push on approval → run the read-only checks → decide the deploy with
 the five answers in hand → migrate → smoke test read-only → then, only with a yes, one real

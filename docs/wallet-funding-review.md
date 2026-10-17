@@ -269,6 +269,62 @@ the app's own reference column can never repeat across two rows. The reuse count
 key on the **gateway payload** `reference`, which is the account-scoped token in question, not on
 the unique column.
 
+## 3c. Three deposits that arrived, and were then thrown away
+
+The owner's complaint from customers was specific: *the transfer came and my balance did not
+move*. Section 3 and 3b closed the double-credit side of that story. This section closes the
+other side - arrivals this site **knew about** and then discarded, with a log line as the only
+trace. All three were read in the code first, then fixed, then proved with
+`tests/Feature/FlutterwaveDepositRecordingTest.php` (11 tests, 73 assertions, synthetic charges
+and an `Http::fake()` - no gateway was contacted and no live wallet was touched).
+
+**1. A verified transfer no lookup could attribute.** Every customer-identifying lookup in
+`FlutterwaveController::handleVirtualAccountTransfer` came back empty - not the account number,
+not the `tx_ref`, not a funding request that recorded the number. The branch ended in
+`Log::warning` and a `return`. The money had been verified with Flutterwave, and then dropped.
+`WalletFundingService::recordUnclaimedCharge()` now writes the whole verified payload into
+`flutterwave_held_deposits` with `holder_user_ids = []`, pays nobody, and the board renders it.
+The same charge arriving again - webhook retry, the five-minute sweep, or the customer pressing
+*check my deposit* - produces **one** row, because the insert is keyed on the charge identity.
+A hold with no candidate is finishable: `HeldDepositController::credit()` accepts a User ID the
+admin has proved, and the audit record carries `named_without_candidates: true` so the trail
+says plainly that no machine ever offered that name.
+
+**2. A transfer that landed short of its own funding request.** The check already existed and
+already refused to bank the shortfall - which is right, because accepting less than the customer
+agreed to and crediting what was asked for both disagree with the bank. What it did not do is
+*record* anything. It now holds with reason `amount_below_requested`, and the request stays
+`pending`, so the read-only deposit audit still counts it as owed.
+
+**3. A transfer smaller than the funding fee, written up as a success.** This was the worst of
+the three and it was not a missing log. Default fee is ₦50 (`WalletFundingService::fundingFeeKobo()`,
+`setting('wallet_funding_fee', 50)`, line 441): a ₦20 arrival computes `credited_kobo = 0`, and the
+code went straight on to `ledger->shift(..., 0)` plus a `status = success` ledger row. The ledger
+said the money was banked; the balance said it was not; no screen mentioned it. A transfer that
+the agreed fee consumes entirely is now recorded as `amount_below_fee` and returns before any row
+is written.
+
+Two defects were found **while writing these tests**, both in my own first cut of the fix, and
+both would have been shipped as improvements:
+
+- The short-arrival branch returned `0` before the ownership check, so it also returned `0` when
+  an **approved** release ran through it. The result: the board showed a hold with a Credit
+  button that could never work. The branch is now gated on `!$ownershipApproved`, so an admin who
+  has read the transfer banks the amount that actually landed - fee taken on what landed, request
+  row corrected to the arrived figure. Proved by
+  `test_an_admin_who_names_the_customer_banks_the_amount_that_actually_landed`.
+- The below-fee guard was written as `!$ownershipApproved && credited === 0`, which put the
+  original bug back on the admin path: an approved release of a sub-fee arrival would still write
+  the `success` row crediting zero. The refusal to bank nothing is now unconditional; only the
+  *hold* is conditional on approval, because an approval names a customer, it does not create
+  kobo. Proved by `test_a_transfer_below_the_fee_credits_nobody_even_when_an_admin_releases_it`.
+
+The rule the whole section exists for, and the half that is easy to break by accident: **a
+protective hold must never stand in front of a genuine new deposit.** Three of the eleven tests
+pay real money through - a full-size transfer answering its own request, a second transfer into
+an account whose earlier transfer is sitting on the board, and an admin release - and assert the
+balance moves and the board stays empty.
+
 ## 4. What the sweep looks for, and when it stops
 
 `WalletDepositSync::sweep()` (`app/Console/Commands/WalletDepositSync.php:69`):

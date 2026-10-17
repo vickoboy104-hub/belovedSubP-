@@ -1,19 +1,20 @@
 # Final functional audit - what each claim rests on
 
 Audited 2026-10-16 on the development branch `codex/identity-first-jhtech-experience`, and every
-line re-run on 2026-10-17 against head `69418773` (the full sqlite suite plus the twelve InnoDB
-proofs on real MySQL).
+line re-run on 2026-10-17 against the runtime head `1e33de76` (the full sqlite suite plus the twelve
+InnoDB proofs on real MySQL; earlier passes of the same re-run were taken at `69418773` and at
+`6f14c4e8`, and the figures those paragraphs quote are labelled with the head they were measured on).
 Every line below names the test that proves it, in the form
 `tests/Feature/File::method`. Nothing in this file is an opinion about behaviour I did not
 run; where a claim is *not* proven by a test it says so.
 
-Whole suite as it stands: **561 passed, 12 skipped, 4,144 assertions** (573 tests in total; sqlite,
-in-memory, head `6f14c4e8`, re-run 2026-10-17, zero failures).
+Whole suite as it stands: **579 passed, 12 skipped, 4,263 assertions** (591 tests in total; sqlite,
+in-memory, runtime head `1e33de76`, re-run 2026-10-17, zero failures).
 
 The 12 skips are all in `MysqlMoneyPathConcurrencyTest` when it runs on sqlite: those proofs
 need two operating-system processes and row locks, which sqlite does not have. They are not
 skips of convenience - the suite was re-run on **MySQL 8.4.3 on 2026-10-17, on this head
-(`6f14c4e8`), and passed: 12 passed, 110 assertions, 18.29 s**, in an isolated second instance
+(`1e33de76`), and passed: 12 passed, 110 assertions, 12.77 s**, in an isolated second instance
 on port 3307 against a scratch database that held nothing else, and an `information_schema` read
 afterwards showed **27 tables, all of them InnoDB**, rows only in `migrations` (**35**, one per
 migration file in the tree), with exact `COUNT(*)` zero in `users`, `orders`, `wallet_transactions`,
@@ -21,9 +22,17 @@ migration file in the tree), with exact `COUNT(*)` zero in `users`, `orders`, `w
 `flutterwave_held_deposits` in both the engine check and
 `::test_two_processes_hold_one_ambiguous_transfer_once`, where a second operating-system process
 meets the first one's uncommitted hold and the outcome is one held record, no charge claim and
-nobody paid, and because the scratch schema is built by running every migration in the tree, the two
-tables `6f14c4e8` adds (`wallet_settlement_links`, `admin_permission_grants`) are created and proved
-on real InnoDB rather than only on sqlite.
+nobody paid.
+
+**Correcting a claim this file used to make.** It said the scratch schema "is built by running every
+migration in the tree". It is not, and the first attempt at this head proved it: `readySchema()` only
+checks the tables in `MONEY_TABLES`, so a scratch datadir left over from `69418773` (25 tables, 33
+`migrations` rows) was taken as ready, the two `6f14c4e8` migrations were never applied, and the run
+died twice on `Table 'vtu_money_tests.wallet_settlement_links' doesn't exist`. That is a loud failure,
+not a false pass - which is the only reason it was cheap to catch - and the repair was to apply the
+pending migrations to the scratch database with the same environment the documented block prints, not
+to touch the test. **Anyone re-running these proofs on an old datadir must expect that refusal; the
+tables `6f14c4e8` adds are proved on real InnoDB only after `migrate --force` has run there.**
 
 **What that run is not.** The live box reports **MariaDB 10.6.28**, not MySQL 8.4.3, and the only
 run on that version was GitHub Actions run 38999509204 on `f2cfaa5f`, which does not contain this
@@ -69,12 +78,16 @@ actually arrived, less the ₦50 funding fee, and never credits the same money t
 |---|---|
 | `WalletFundingAgreementTest::test_coming_back_from_the_checkout_credits_the_deposit_once_at_the_agreed_price` | **New.** The checkout return leg - previously untested end to end. A ₦2,000 card payment verified by `/v3/transactions/{id}/verify` credits **195,000 kobo**, writes one `success` row, takes two charge claims (`id` and `flw_ref`), and the customer arriving again from their own browser history is told "Wallet already funded" with the balance unchanged. |
 | `WalletFundingAgreementTest::test_a_checkout_return_that_flutterwave_does_not_confirm_credits_nothing` | A cancelled/identifier-less return fails the pending row, banks nothing, and claims nothing. |
-| `WalletDepositNotificationTest::test_a_short_transfer_is_not_credited_as_the_amount_requested` | ₦2,500 against a ₦3,000 request is **held**, not credited, and stays `pending` for the sweep. |
+| `WalletDepositNotificationTest::test_a_short_transfer_is_not_credited_as_the_amount_requested` | ₦2,500 against a ₦3,000 request is **held**, not credited, and stays `pending` for the sweep. Since `ee3bfef9` it is also **written down** - see `FlutterwaveDepositRecordingTest` below. |
 | `::test_a_larger_transfer_is_credited_on_what_actually_landed` | ₦3,500 arriving credits ₦3,450 - the fee is taken on what landed, not on what was promised. |
 | `::test_a_transfer_belonging_to_somebody_else_is_not_credited` | Ownership is proved before money moves. |
 | `::test_the_same_transfer_reported_twice_is_still_credited_once` | Reconciliation replay. |
 | `FlutterwaveChargeIdempotencyTest` | Global charge uniqueness: see [wallet-funding-review.md](wallet-funding-review.md) section 3. The headline is `::test_a_transfer_that_could_belong_to_either_customer_credits_neither` - the bug that let one ₦3,000 transfer put ₦5,900 into two wallets, now proven to pay nobody automatically - and `::test_two_real_transfers_into_one_virtual_account_are_both_credited`, which is the test that stops the fix from throwing away a genuine second deposit. |
 | `FlutterwaveDepositAttributionTest` (10 methods) | **New.** Ownership before money moves, end to end through the webhook, the sweep and the customer's Check deposit button: a shared account number credits neither candidate and records one held deposit (reason, gross amount, holders, full payload) with **zero** charge claims consumed; a transfer that belongs to a different customer is held as `wrong_wallet`; a deposit the customer asked for by their own `tx_ref` still pays them even when the number is shared; two genuine transfers into a single-owner account still both credit (295,000 + 145,000 = 440,000); webhook plus sweep competing over one transfer hold it **once**; admin resolution credits exactly once (replay refused, resolver and note recorded), a missing note and a non-candidate both fail validation, and dismissing keeps the record while blocking any later credit; Admin sees the queue, a member and a guest are refused. On the real engine, `MysqlMoneyPathConcurrencyTest::test_two_processes_hold_one_ambiguous_transfer_once` |
+| `FlutterwaveDepositRecordingTest` (11 methods / 73 assertions, `ee3bfef9`) | **New, and it is the PRIORITY 1 answer.** The three arrivals that used to end as a log line now end on the board a human reads: a short arrival records `amount_below_requested` and leaves `flutterwave_charge_claims` at **0** so the request can still be finished; an arrival the fee consumes entirely records `amount_below_fee`, writes **no** `success` ledger row, credits nobody, and stays `held` even after an admin presses *Credit this customer* on it; a verified charge with no `tx_ref` of ours records `no_reference_in_webhook`; a transfer into an account nobody holds reaches the board with `holder_user_ids = []`. An admin who reads it and names the customer banks **what landed** (245,000 of a ₦2,500 arrival against a ₦3,000 request) and the replay then credits 0. Webhook + sweep + a direct call for one charge produce **one** row. And the three cases that must not regress are in the same file: a full-size deposit credits 295,000 with the board **empty**, a later transfer into an account whose earlier one is held still credits, and naming a nonexistent account on a no-candidate hold is refused. |
+| `FlutterwavePriorSettlementHoldTest` (10 tests / 50 assertions, `f2d40bd2`) | A charge the wallet already dealt with is held rather than paid twice: `already_settled_manually` and `charge_previously_reported_failed`, matched only on charge-scoped tokens, with the claim left free so an admin release still pays exactly once. The three must-not-break cases live here too - a brand-new charge funds with nobody consulted, a second transfer into the same account credits after a failed first request, and the read never leaves this wallet. |
+| `ManualSettlementDeclarationTest` (14 methods / 84 assertions, `6f14c4e8`) | The explicit admin-declared link (`wallet_settlement_links`): a hand credit declared against one charge's own id or `flw_ref` makes a later report of that charge hold as `manual_settlement_declared`, a held deposit refuses release while the declaration stands, an audited retraction opens it again, and **nothing matches on amount or account number** - which is the owner's rule, not a style choice. |
+| `AdminUnavailableControlsAreHiddenTest` (7 methods / 46 assertions, `1e33de76`) | Backend enforcement is unchanged and still refused; what is proven here is that an admin holding only `customers.view` sees none of the discount / reset-password / fund-wallet / admin-control actions, that the same four POSTs are all `403`, that the denial audit writes **one** row because refusals are throttled per action+result+IP for 300 s (the attempts still happened), and that **every** `@can`/`@canany` slug in `resources/views/admin` and every `can_admin:` slug in `routes/web.php` names a real permission - a guard written against a typo is a gate that never opens. |
 | `WalletSupersededDepositRecoveryTest::test_the_scheduled_check_credits_a_customer_who_never_opens_their_page` | `artisan wallet:sync-deposits` really banks a deposit the webhook lost. |
 | `::test_the_audit_asks_about_missing_money_without_moving_any` | `deposits:audit` is read-only. |
 | `::test_the_audit_with_zero_references_makes_no_http_call_at_all` | **New.** `deposits:audit --references=0` makes no HTTP request at all - run with Flutterwave fully configured and a pending deposit on the ledger, `Http::assertNothingSent()` holds, because a zero no longer clamps up to one live call. |
@@ -167,14 +180,16 @@ Private by default:
   pins retail ≥ provider cost for every key, the ₦160 / ₦80 provider costs, and that an owner
   override still works. The four NIN Modification tiers are pinned as in section 4.
 - **Prices: unchanged, and this is checkable.** `git diff --name-only 0935a7f7..HEAD --
-  app/Helpers/settings.php` prints nothing, re-run 2026-10-17 across all **49** commits of the
-  deploy range as it now stands (48 to the runtime head `6f14c4e8`, plus the documentation commit
-  above it), so no price key moved.
+  app/Helpers/settings.php` prints nothing, re-run 2026-10-17 to the runtime head `1e33de76` -
+  **54** commits of the deploy range, and the only commit above it is this documentation pass -
+  so no price key moved.
 - **Layout: the older "no customer-visible layout change" line in this section is superseded,
   and I am correcting it rather than leaving it standing.** It was true of the four commits that
   existed when it was written (`resources/views/admin/settings.blade.php`, +26/−2, was then the
-  only view touched). It is not true of this head. Measured over the three runtime commits above
-  the reviewed anchor (`git diff --numstat cd19810c..HEAD`): `resources/css/app.css` **109 added /
+  only view touched). It is not true of this head. Measured over the **six** runtime commits above
+  the reviewed anchor - `f2d40bd2`, `3be00d41`, `69418773`, `6f14c4e8`, `ee3bfef9`, `1e33de76`, out
+  of the 26 commits in `git rev-list cd19810c..1e33de76`
+  (`git diff --numstat cd19810c..1e33de76`): `resources/css/app.css` **109 added /
   7 removed**, `resources/views/components/records-table.blade.php` **44 / 9**, and the CSS
   bundle swaps from `app-D-vIop72.css` (185,588 B) to `app-k_-jzmjF.css` (187,639 B). Those are
   **shared** classes and a **shared** component, and three customer pages render that component
@@ -182,11 +197,24 @@ Private by default:
   `resources/views/wallet/transactions.blade.php`), so a phone holding a customer session sees
   new dimensions: drawer links, modal buttons and the close control reach 44 px, and a records
   table now takes a per-board `min-width` so a wide table scrolls instead of crushing.
-  **What did not move:** no customer **view file** is edited in the range (the view diff lists
-  nine `admin/` files, one new shared component and two changed shared components), no price, no
-  brand value, no form field and no copy. `resources/js` is not in the range at all, and the JS
+  **What moved, stated exactly, because an earlier version of this line denied it.** Over
+  `cd19810c..1e33de76` the view diff is 17 files: **thirteen** `admin/` views (4 new, 9 modified),
+  **three** shared components (`pagination.blade.php` new, `admin-quick-nav.blade.php` and
+  `records-table.blade.php` modified), and **one customer view** -
+  `resources/views/profile/show.blade.php`, **+1/−0**, which adds a read-only
+  "Your User ID" row to the customer's own profile page. That one line is the owner's Priority 2
+  instruction ("Every user must see their own User ID in their profile"), not an accident, and it
+  is the only customer-visible copy in the anchor-relative range. It adds no input field, changes
+  no price, no brand value and no form. `resources/js` is not in that range at all
+  (`git diff --name-only cd19810c..1e33de76 -- resources/js` prints nothing), and the JS
   bundle `app-DXuAyQnv.js` (106,512 B) is byte-for-byte the file already accounted for at the
-  anchor.
+  anchor - re-verified on 2026-10-17 against the built `public/build/manifest.json`. **Say the
+  wider range separately, because it is different:** across the full deploy range
+  `0935a7f7..1e33de76` the view diff is 40 files (16 `admin/`, 8 shared components, and 16
+  customer pages: 13 under `vtu/` plus `dashboard.blade.php`, `layouts/app.blade.php` and
+  `profile/show.blade.php`), and
+  `resources/js/app.js` and `resources/js/service-form.js` **were** changed there - by commits the
+  live box has never had, which is the whole point of the range, not by this batch.
 - This audit pass adds no production code at all: the files it changes are the three test
   suites named above plus the two documents it writes itself
   (`MockProviderChargeTest`, `NinModificationWorkflowTest`, `WalletFundingAgreementTest`,

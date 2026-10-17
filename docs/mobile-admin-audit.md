@@ -329,8 +329,13 @@ pages. Nothing else on the admin surface relies on it.
    `MASTER_ADMIN_USER_IDS` and the tables behind these screens are not in the production
    database;
    the BVN agent code's live value unconfirmed (C7); the deploy-target rows A1/A3/A4/A6 reopened
-   by this batch, with the MariaDB 10.6.28 run still owed for `6f14c4e8`; and the C4 rows still
+   by this batch, with the MariaDB 10.6.28 run still owed for the current runtime head `1e33de76`;
+   and the C4 rows still
    awaiting the owner's disposition. What has **closed** since this document was written: C9 (the
-   hold now sees both manual-credit paths, `6f14c4e8`), and the twelve InnoDB proofs, which
+   hold now sees both manual-credit paths, `6f14c4e8`), the buttons a server would refuse being
+   hidden from the administrator who cannot use them (`1e33de76`, pinned by
+   `AdminUnavailableControlsAreHiddenTest` across all 27 slugs and every admin view), and the
+   twelve InnoDB proofs, which
    **have** been re-run on a tree containing this work - MySQL 8.4.3, 12 passed / 110 assertions /
-   18.29 s, with 27 of 27 scratch tables InnoDB and all 35 migrations in the tree applied.
+   12.77 s at `1e33de76` (28.57 s at `69418773`, 18.29 s at `6f14c4e8`), with 27 of 27 scratch
+   tables InnoDB and all 35 migrations in the tree applied.

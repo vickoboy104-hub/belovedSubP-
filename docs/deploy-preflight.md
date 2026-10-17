@@ -5,19 +5,21 @@ this file was written against: `0935a7f7..f4ab0ad8` - **29 commits, 115 files (+
 −640)**, linear and fast-forward, `git merge-base --is-ancestor <live> <target>` answering 0,
 which is checklist §0.2's pass condition.
 
-**Re-measured 2026-10-17 against the current branch head `69418773b3621b0eec19ec4119c8a8dc19cb504d`:
-45 commits, 152 files, +23,389 / −898, still linear and still a fast-forward.** Sections 2
-through 8 below describe the 29 commits the owner reviewed; **section 2b is the diff this file
-had not seen when it was written - three further runtime commits, one of them a migration** -
-and nothing in sections 2-8 is contradicted by them.
+**Re-measured 2026-10-17 against the current runtime head `1e33de76`: `git rev-list --count
+0935a7f7..1e33de76` = 54 commits, `git diff --shortstat` = **180 files, +28,669 / −967**, split by
+the rule printed in checklist A3 into **30 runtime + 24 documentation/CI-only**. Still linear,
+still a fast-forward** (`git merge-base --is-ancestor 0935a7f7 1e33de76` answers 0). Sections 2
+through 8 below describe the 29 commits the owner reviewed; **section 2b is the diff this file had
+not seen when it was written**, section 2c the granular-permission commit, and **section 2d the
+two runtime commits that are now the head** - and nothing in sections 2-8 is contradicted by them.
 
-**Re-measured again the same day against `6f14c4e8` (the granular permission set, the settlement
-declarations and the phone-board evidence, one commit, 42 runtime files + `.env.example` +
-`phpunit.xml`): `git rev-list --count 0935a7f7..6f14c4e8` = **48 commits**, `git diff
---shortstat` = **177 files, +27,440 / −965**, and the split by the rule printed in checklist A3
-is **28 runtime + 20 documentation/CI-only**. Still linear, still a fast-forward.** It is **local
-only** - not pushed, not reviewed by the owner as a deploy target - so section 2c describes it and
-row A1 stays PENDING. `6f14c4e8` is not on the remote; the remote review head remains `e32744d4`.
+**Remote state, re-read 2026-10-17 with `git ls-remote origin`:** the review branch head is
+`94c5b4b71e827f42708bd49db281266c28abe916`, which **contains** `6f14c4e8` and the documentation
+commits above it, so those are pushed and reviewable against `origin`. `main` is untouched at
+`17cb6eec82cd037d191c7965a90dd86a6777e3f9`. The two runtime commits `ee3bfef9` and `1e33de76` -
+the deposit-recording fix and the button-hiding fix - are **local only, unpushed and unread by the
+owner**; `git pull` on any other machine still tops out at `94c5b4b7`, whose runtime head is
+`6f14c4e8`. Nothing in this file is authorized to deploy.
 
 The shorthand that got us here - "two new tables and no changed assets" - is wrong for this
 range, and this file is the correction. It invents no procedure: every command block that gets
@@ -32,19 +34,31 @@ Since this file was written the branch has moved again. Documentation-only commi
 head above it, `46f0d8c3`, was documentation and CI only on top of it (7 files, none outside `docs/`
 and `.github/`). Then three **runtime** commits landed under the owner's later approvals, with two
 documentation commits around them. On 2026-10-17 the owner authorized a **development-only push** of
-that batch for independent review and testing, so the remote review branch head is now
+that batch for independent review and testing, so the remote review branch head was
 `e32744d45d10ccec3cdeb5cdcfea4db6e94ff288`: `46f0d8c3 → 3d7deacb` (docs) `→ f2d40bd2 → 3be00d41 →
-69418773` (runtime) `→ e32744d4` (docs, 8 files, all under `docs/`), which makes **`69418773` the
-runtime head on the remote** and leaves `main` untouched at `17cb6eec…`. Those three runtime commits
-are now reviewable; they are still **not reviewed as a deploy target and not approved for one**, and
-this file describes them rather than certifying them. Section 2b records what they are.
+69418773` (runtime) `→ e32744d4` (docs, 8 files, all under `docs/`), which made **`69418773` the
+runtime head on the remote** and left `main` untouched at `17cb6eec…`. Those three runtime commits
+became reviewable; they are still **not reviewed as a deploy target and not approved for one**, and
+this file describes them rather than certifying them. Section 2b records what they are. **The remote
+has moved twice since that sentence was written** - it is `94c5b4b7` today, see the next two
+paragraphs.
 
-**And a fourth has landed since, which is not pushed at all.** `6f14c4e8` (granular administrator
+**And a fourth has landed since.** `6f14c4e8` (granular administrator
 permissions + the manual-settlement declaration + the corrected `config/audit.php` comment, 44 files,
-+3,756 / −152, **two migrations**) sits on this machine above a documentation commit `98c96cb1`, with
-nothing on the remote above `e32744d4`. Section 2c records it. The consequence for the desk is worth
-stating plainly: `git pull` on the live box can only ever reach `69418773` today, and that tree is
-**not** the one rows A3, A4 and A6 of the approval checklist now describe.
++3,756 / −152, **two migrations**) sits above a documentation commit `98c96cb1`. Section 2c records
+it. **This paragraph's own remote claim is now stale and is corrected here rather than left
+standing:** as it was written, `6f14c4e8` was unpushed. It is **pushed now** - the owner authorized
+the development-only batch on 2026-10-17, and the remote review head is `94c5b4b7`, a descendant of
+`6f14c4e8` (`git merge-base --is-ancestor 6f14c4e8 94c5b4b7` answers 0). So the runtime head
+reachable by `git pull` is `6f14c4e8`, not `69418773` - and that tree is still **not** the one rows
+A3, A4 and A6 of the approval checklist now describe, because two further runtime commits sit above
+it unpushed: `ee3bfef9` and `1e33de76`, recorded in section 2d.
+
+**The two commits that make up the head today.** `ee3bfef9` (5 files, +697 / −24) closes the three
+silent-loss arrival paths in the funding service, and `1e33de76` (7 files, +340 / −1) stops the admin
+screens offering a button the server will refuse. Neither adds a migration and neither touches CSS,
+JS or a compiled asset. Section 2d holds the reading order, the two defects found in the first
+attempt at this fix, and the cases that must not break.
 
 ## 1. The range at a glance
 
@@ -139,7 +153,9 @@ InnoDB proofs had to be re-run on this head.** That re-run happened on 2026-10-1
 **8.4.3** - **12 passed / 110 assertions / 28.57 s**, scratch database verified empty afterwards
 (approval row A6). It has been done once more since, **on `6f14c4e8`**, on the same isolated 8.4.3
 harness: **12 passed / 110 assertions / 18.29 s**, 27 tables all InnoDB, every one of the tree's 35
-migrations applied, scratch database counted back to zero. What remains open is the same twelve on **MariaDB 10.6.28**, the version the
+migrations applied, scratch database counted back to zero - and a third time since, **on the runtime
+head `1e33de76`**, at **12 passed / 110 assertions / 12.77 s** (§2d carries that run, including the
+way the first attempt failed and what it exposed about a stale scratch datadir). What remains open is the same twelve on **MariaDB 10.6.28**, the version the
 live box reports. That workflow's push trigger is filtered to its own file, so the 2026-10-17 push
 did not start it and no code push will; it has to be started from `workflow_dispatch` on GitHub,
 which this machine cannot do (row C5 carries both routes).
@@ -224,9 +240,11 @@ PENDING until the diffs above are read as a target.
 ## 2c. `6f14c4e8` - the granular permission set, the settlement declarations, and the phone-board evidence
 
 Written 2026-10-17, the day it was committed. **One commit, 44 files (+3,756 / −152), 42 of them
-under the runtime prefixes, plus `.env.example` and `phpunit.xml`.** It is **local only**: the
-remote review head is still `e32744d4`, and this commit has not been pushed, reviewed as a deploy
-target, or run against anything but synthetic data. It is one commit rather than three because
+under the runtime prefixes, plus `.env.example` and `phpunit.xml`.** It was **pushed for review the
+same day** - `git ls-remote origin` answers `94c5b4b71e827f42708bd49db281266c28abe916` for the review
+branch and `git merge-base --is-ancestor 6f14c4e8 94c5b4b7` exits 0 - which makes the diff readable,
+not approved: it has still not been reviewed as a deploy target or run against anything but synthetic
+data. It is one commit rather than three because
 `routes/web.php` carries both the permission gates and the declaration endpoints - splitting it
 would leave an intermediate commit whose router names classes that do not exist yet.
 
@@ -287,7 +305,8 @@ provider keys: in a fresh test database the factory's first user carries id 1, s
 `.env` value would silently make that user the owner and let the tests that prove the owner-only
 boards are shut pass for the wrong reason. **Test file only - the running site never reads it.**
 
-Evidence on this head, run 2026-10-17: sqlite **561 passed / 12 skipped / 4,144 assertions / 0
+Evidence on **`6f14c4e8`** (the head this section describes, not the branch head), run 2026-10-17:
+sqlite **561 passed / 12 skipped / 4,144 assertions / 0
 failures** (`artisan test` prints passed and skipped separately, so the run is 573 tests in total -
 state it that way rather than calling all 573 a pass; the 12 skips are the two-process InnoDB
 proofs, which skip by design off MySQL), and those
@@ -298,8 +317,103 @@ scratch database exact-counted (`COUNT(*)`, not the `information_schema` estimat
 `users`, `orders`, `wallet_transactions`, `wallet_settlement_links`, `admin_permission_grants` and
 `admin_activity_logs`. The instance was stopped and its datadir deleted. `gh`/Actions could not be
 reached from this machine, so
-the **MariaDB 10.6.28** run the live engine reports is still owed for this head - see rows A6 and C5,
+the **MariaDB 10.6.28** run the live engine reports is still owed for `6f14c4e8` - see rows A6 and C5,
 and no MariaDB figure may be quoted for `6f14c4e8`.
+
+## 2d. `ee3bfef9` and `1e33de76` - the deposits that were being thrown away, and the buttons that were being shown
+
+Written 2026-10-17, the day they were committed. Both are **local only**: `git rev-list --count
+94c5b4b7..HEAD` answers 2 (plus this document's commit, making 3), and no push is authorized for
+them. Neither runs anything on the live box, and neither was reached by a real provider call - every
+test below fakes the gateway and spends money only in a synthetic database.
+
+### `ee3bfef9` - 5 files, +697 / −24 (`app/Services/WalletFundingService.php`, two controllers, one admin view, one new test file)
+
+This is the commit that answers the complaint "transfers arrived but balances did not update", and it
+is a **behaviour change to the credit path**, so it is the one the owner should read first.
+
+What was measured before it was written: three arrivals ended with a `Log::warning` and nothing a
+human reads. (1) A transfer that landed **short** of what the funding request asked for returned 0
+without recording anything; (2) a transfer the funding fee consumes entirely returned 0 - and before
+the fee floor was traced, that same arrival wrote a `wallet_transactions` row with `status=success`
+and a **zero** credit, which marks money banked that no wallet received; (3) a verified webhook for a
+charge carrying no `tx_ref`, or for a virtual account no lookup recognises, was dropped in
+`FlutterwaveController` before it reached the service at all.
+
+Read the diff in this order, because the interesting part is the ordering inside the DB transaction:
+
+```
+git show ee3bfef9 -- app/Services/WalletFundingService.php
+```
+
+- the short-arrival refusal and the new fee-floor refusal sit **after** the already-success refusal
+  and **before** `chargeDealtWithBefore()` / `depositAttribution()` / `claimCharge()` - so a held
+  arrival never consumes its own global claim, which is what still lets an admin pay it later;
+- both refusals **hold** (write `flutterwave_held_deposits`) only when `!$ownershipApproved`; the
+  fee-floor refusal itself is unconditional. Those two gates are the two defects found in this own
+  change while the tests were being written, and they are pinned individually: an admin-approved
+  release of a landed-short transfer now banks what actually landed (245,000 kobo of a ₦2,500
+  arrival against a ₦3,000 request), and an approval can no longer resurrect the zero-credit success
+  row, because an approval names a customer, it does not create kobo;
+- every held write goes through one new private `writeHeldDeposit()`, keyed on the existing
+  `charge_token` unique index with `insertOrIgnore`, so webhook + sweep + a direct call for the same
+  charge leave **one** row. Four new `reason` values: `amount_below_requested`, `amount_below_fee`,
+  `no_matching_customer`, `no_reference_in_webhook`.
+
+What must **not** change, and is proven not to: a genuine full-size deposit still credits 295,000 of a
+300,000 gross charge with the held board **empty**; a second transfer into a permanent virtual account
+whose earlier transfer is held still credits in full; and a short arrival leaves
+`flutterwave_charge_claims` at 0 rows, so the deposit can still be finished by the ordinary path. That
+is the owner's rule made executable - *do not solve duplicate credits by breaking genuine new wallet
+funding*. `tests/Feature/FlutterwaveDepositRecordingTest.php`, 11 tests / 73 assertions, gateway
+faked throughout.
+
+Consequence for the admin screens: a hold with **no** candidate can now be resolved by naming a
+customer, because there is no candidate list to constrain - the record says `named_without_candidates`
+in its audit `changes` so the trail distinguishes it from releasing to a proven holder. A name that
+matches no user is refused (`Rule::exists('users','id')`), and pressing *Credit this customer* on a
+sub-fee hold credits nobody and tells the admin not to press it again.
+
+### `1e33de76` - 7 files, +340 / −1 (six `admin/` views, two test files)
+
+View markup only: no route, no middleware, no permission definition, no controller and no CSS changed.
+Each screen now asks the same question the route already asks before it renders the action, so an
+administrator who holds `customers.view` stops seeing *Fund Wallet*, *Reset Password*, *Admin
+Controls* and the discount form - all four of which the server was already refusing with a 403 and an
+`admin.permission_denied` row. Hiding is presentation; enforcement stays where it was.
+
+```
+git show 1e33de76 --stat
+git show 1e33de76 -- resources/views/admin/users.blade.php
+```
+
+The reviewable part is the test, not the markup:
+`tests/Feature/AdminUnavailableControlsAreHiddenTest.php` (7 tests / 46 assertions) walks every file
+under `resources/views/admin`, extracts every `@can` / `@canany` slug and fails if any names a
+permission that does not exist, then does the same for every `can_admin:` slug in `routes/web.php`. A
+guard written against a typo'd slug is a gate that never opens, and that is the failure this catches -
+27 guards and every route slug currently name real slugs.
+
+Two readings the owner should have before approving: **denial audit is throttled, the refusal is not**
+(`AdminActivityRecorder:110-114` caches per action+result+IP for 300 s, so four refused POSTs write
+exactly one row - the test asserts one and says why), and **an admin made admin by writing
+`is_admin` directly holds zero grants** while one created through `UserFactory` holds all 27. That
+second fact is the real behaviour of `admin_permission_grants`, and it is why migration §10's baseline
+backfill matters: without it, every existing administrator would deploy able to see nothing.
+
+`tests/Feature/IdentityProfitTest.php` is the only pre-existing test edited, and only its slice
+sentinel: the dashboard section it used as an end marker (`Reset Totals`) is now permission-gated, so
+the slice ran to the foot of the page. It moves to `Admin Profit Calculator`, which is not gated. No
+assertion about money changed.
+
+### Evidence on this head
+
+sqlite full suite: **579 passed / 12 skipped / 4,263 assertions**. The twelve InnoDB proofs on an
+isolated MySQL 8.4.3 (port 3307, own datadir, `vtu_money_tests`, synthetic rows only): **12 passed /
+110 assertions / 12.77 s**, with `information_schema` reading 27 tables and **all 27 InnoDB**, 35 rows
+in `migrations` against the 35 files in the tree, and `COUNT(*) = 0` on every money table afterwards.
+**No MariaDB number exists for this head** - that run is the owner's to start (approval row C5), and
+pushing this code does not start it, because the workflow's push trigger is filtered to its own file.
 
 ## 3. The three backfills, in detail
 

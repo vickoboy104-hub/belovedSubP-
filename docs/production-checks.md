@@ -59,7 +59,8 @@ the MariaDB proof has to run again here before any GO claim. The 2026-10-17 push
 that workflow's push trigger is filtered to its own file, so it needs a hand-started
 `workflow_dispatch` run on GitHub, which this machine cannot do (approval rows A1, A6 and C5). The
 MySQL 8.4.3 half **is**
-current - re-run 2026-10-17 on head `69418773`, 12 passed / 110 assertions, scratch database
+current - re-run 2026-10-17 on the runtime head `1e33de76`, 12 passed / 110 assertions / 12.77 s
+(earlier passes the same day: `69418773` at 28.57 s, `6f14c4e8` at 18.29 s), scratch database
 verified empty again afterwards. Tracked as checklist §9 item 4 and approval row C5.
 
 ---
