@@ -18,7 +18,7 @@ Read this whole file before touching the live box. Two rules override everything
 
 | # | Check | How to check | Pass looks like |
 |---|---|---|---|
-| 0.1 | The branch you are deploying is the reviewed one | `git -C /home/beloveds/vtu rev-parse origin/codex/identity-first-jhtech-experience` | `afb3260d54d5e6c58402ed8ba1bb75cdca3c7cbb` or a descendant the owner has read - currently `8992cbaa0f089e2db7b85ff0bbed01b146709b75`, reviewed and push-approved by name 2026-10-17 |
+| 0.1 | The branch you are deploying is the reviewed one | `git -C /home/beloveds/vtu rev-parse origin/codex/identity-first-jhtech-experience` | `8992cbaa0f089e2db7b85ff0bbed01b146709b75` or a descendant the owner has read - currently `6db7a49b46c2c399439efdafee992f7dbb800c51`, reviewed and push-approved by name 2026-10-17 |
 | 0.2 | It is a fast-forward from what is live | `git merge-base --is-ancestor <live-HEAD> <new-HEAD>; echo $?` | `0`. If it is not `0`, **stop** and work out why before pulling |
 | 0.3 | The full suite is green on the machine that built it | `php artisan test` | no failures, and the twelve MySQL concurrency tests run somewhere before a money-path change ships (section 9, item 4) |
 | 0.4 | Every credential has been rotated **after** the machine cleaning | owner's list: GitHub, cPanel, FTP, DB, GSUBZ, ConfirmIdent, Flutterwave, SMTP | done. Until it is done this deploy is **not** cleared for production - see section 6 |

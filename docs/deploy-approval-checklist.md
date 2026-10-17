@@ -14,9 +14,9 @@ re-investigation.
 
 | # | Row | State | Evidence |
 |---|---|---|---|
-| A1 | Deploy target is the reviewed branch head | **PASS** | remote `8992cbaa0f089e2db7b85ff0bbed01b146709b75`, ls-remote verified 2026-10-17 (pushed under the owner's per-batch approval); any later commit re-pins checklist §0.1 by sha |
+| A1 | Deploy target is the reviewed branch head | **PASS** | remote `6db7a49b46c2c399439efdafee992f7dbb800c51`, ls-remote verified 2026-10-17 (pushed under the owner's per-batch approval); any later commit re-pins checklist §0.1 by sha |
 | A2 | Fast-forward from what is live | **PASS** | `0935a7f7..8992cbaa` linear; `merge-base --is-ancestor` exits 0 |
-| A3 | Range content known and reviewed | **PASS** | 32 commits (29 runtime + 3 documentation-only), 117 files, +18,011 / −640, re-measured 2026-10-17; the runtime content is [deploy-preflight.md](deploy-preflight.md)'s 29-commit review |
+| A3 | Range content known and reviewed | **PASS** | 33 commits (29 runtime + 4 documentation-only), 117 files, +18,126 / −640, re-measured 2026-10-17; the runtime content is [deploy-preflight.md](deploy-preflight.md)'s 29-commit review |
 | A4 | All seven migrations present in the range | **PASS** | `git diff --name-status 0935a7f7..4daaaee9 -- database/migrations`: seven `A` rows, the exact set of preflight §2 |
 | A5 | Compiled assets present and understood | **PASS** | 2 new hashed bundles (`app-D-vIop72.css`, `app-DXuAyQnv.js`) + rewritten `manifest.json`; the 2 old hashed files are **removed by the checkout** - preflight §5 (corrected 2026-10-17) covers the straggler case and the window that closes it |
 | A6 | Suite green on the machine that built it | **PASS** | 481 passed / 12 skipped / 3,615 assertions on sqlite; the 12 MySQL-only proofs passed on real InnoDB (MySQL 8.4.3, 110 assertions) |
@@ -43,11 +43,24 @@ re-investigation.
 | # | Row | State | What closes it |
 |---|---|---|---|
 | C1 | Credential rotation (checklist §0.4) | **FAIL until done** | owner rotates GitHub, cPanel, FTP, DB, GSUBZ, ConfirmIdent, Flutterwave, SMTP - the one hard red gate |
-| C2 | Remaining key presences (production-checks §3) | **PENDING** | one read-only command: `provider_gsubz_api_key`, `nin_api_key`, `bvn_api_key`, `flutterwave_public_key`, `fixed_account_bvn` - presence only, no values |
-| C3 | Log counts (production-checks §8) | **PENDING** | webhook count, `user not found` count, `held for reconciliation` count (expected zero pre-deploy), summary tail - read-only |
-| C4 | The 1 pending + 3 failed credits characterized | **PENDING** | production-checks §11's read-only plan answers the three questions - duplicate references (§11.2), previous successful payments (§11.2's retry check), manual-reconciliation candidates (§11.4); results recorded beside B11; does not block the deploy by itself |
-| C5 | MariaDB proof run | **DECIDED - OPEN** | owner decision 2026-10-17: run the twelve tests against a disposable, empty MariaDB 10.6 outside production, synthetic data only. The development box cannot host it - no MariaDB exists under `C:\laragon\bin` (MySQL only), every other binary there is on the infected list, installs forbidden on the compromised machine - so the MySQL 8.4.3 pass is **not** read as MariaDB proof. Closes by: the trusted second machine (pre-deploy); a host scratch database (post-deploy only - the suite files themselves arrive with this deploy, and it is production infrastructure, so it counts only if the owner reads "outside production" as including it); or documented acceptance |
+| C2 | Remaining key presences (production-checks §3) | **PASS** | `provider_gsubz_api_key`, `nin_api_key`, `bvn_api_key`, `flutterwave_public_key`, `fixed_account_bvn` all present (owner-read 2026-10-17) |
+| C3 | Log counts (production-checks §8) | **PASS** | Flutterwave webhook 28, `user not found` 7, `held for reconciliation` 0 (owner-read 2026-10-17) |
+| C4 | The 1 pending + 3 failed credits characterized | **PENDING - PLAN READY** | production-checks §11's read-only plan is corrected (same reference / same wallet+amount are clues, not proof; only matching charge identity is proof; old rows are not backfilled into held deposits). The commands are ready and privacy-safe, but the actual ledger output has not been supplied yet, so the per-row buckets in the summary below are still blank. Does not block the deploy by itself once the results are read |
+| C5 | MariaDB proof run | **DECIDED - OPEN** | owner decision 2026-10-17: run the twelve tests against a disposable, empty MariaDB 10.6 outside production, synthetic data only. The development box cannot host it - no MariaDB exists under `C:\laragon\bin` (MySQL only), every other binary there is on the infected list, installs forbidden on the compromised machine - so the MySQL 8.4.3 pass is **not** read as MariaDB proof. A GitHub Actions workflow using a `mariadb:10.6` service container is proposed (see final report). Closes by: approved GitHub Actions run; the trusted second machine (pre-deploy); a host scratch database (post-deploy only - the suite files themselves arrive with this deploy, and it is production infrastructure, so it counts only if the owner reads "outside production" as including it); or documented acceptance |
 | C6 | ConfirmIdent billing for a failed check | **ADVISORY** | does not block the deploy; every ambiguous NIN lookup costs ₦160 until answered (checklist §9 item 3) |
+
+### C4 summary - the one pending and three failed credits
+
+Run the three commands in [production-checks.md](production-checks.md) §11.1, §11.2 and §11.3, then fill this table. Nothing here changes a row; it only records the pre-deploy picture.
+
+| Ledger id | Status | Amount | Wallet user | Account holders | Duplicate reference? | Same wallet+amount twin? | Same charge identity success? | Log lines present | Bucket |
+|---|---|---|---|---|---|---|---|---|---|
+| | | | | | | | | | |
+| | | | | | | | | | |
+| | | | | | | | | | |
+| | | | | | | | | | |
+
+**Bucket meanings.** `settled` = verified charge identity match to a successful row, nothing owed. `dashboard-check` = a strong clue (same reference or same wallet+amount within a day) but no proven identity; the owner checks the Flutterwave dashboard. `manual-reconcile` = failed, no proven match and no strong clue; if the dashboard shows the charge completed, resolve after deploy by ordinary admin credit with an audit note (not through Held Deposits, which does not backfill old rows). `pending-watch` = still pending with no proven match; post-deploy audit re-run decides it, and the new code can only credit a provable owner or hold a **new** arrival.
 
 ## D. The deploy, executed as written (deploy-checklist.md owns every block)
 
@@ -65,12 +78,12 @@ re-investigation.
 ## E. The decision rule
 
 **GO requires, all at once:** every row of A and B PASS (already true as of 2026-10-17);
-C1 done; C2 and C3 answered and acceptable; C5 closed - the MariaDB run executed, or the
-residual risk accepted in writing (the decision to run is recorded; the run itself is what is
-awaited, and the MySQL 8.4.3 pass does not substitute for it); C4's results read and the
-pending row's disposition understood; and the owner's explicit go-ahead. Anything less is
-**NO-GO**, and the response is this document plus checklist §10 (rollback) - never an
-improvised fix on the box.
+C1 done; C2 and C3 answered and acceptable; C5 closed - the MariaDB run executed (GitHub
+Actions with a `mariadb:10.6` service container is acceptable) or the residual risk accepted
+in writing (the decision to run is recorded; the run itself is what is awaited, and the MySQL
+8.4.3 pass does not substitute for it); C4's results read and the pending row's disposition
+understood; and the owner's explicit go-ahead. Anything less is **NO-GO**, and the response is
+this document plus checklist §10 (rollback) - never an improvised fix on the box.
 
 ## What this checklist deliberately does not do
 

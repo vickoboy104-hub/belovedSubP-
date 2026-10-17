@@ -122,9 +122,9 @@ the five-minute sweep finds them. That single line is the most likely explanatio
 
 **Answered (2026-10-16): `flutterwave_secret_key` present, and the secret hash present in
 Laravel `config()`** - the side that decides whether the webhook actually works, so the
-cached-config failure mode above does not apply on this box. Still open from §3, and the
-only reason to run its first command again: `provider_gsubz_api_key`, `nin_api_key`,
-`bvn_api_key`, `flutterwave_public_key`, and `fixed_account_bvn` - presence only.
+cached-config failure mode above does not apply on this box.
+**Answered (2026-10-17): `provider_gsubz_api_key`, `nin_api_key`, `bvn_api_key`,
+`flutterwave_public_key`, and `fixed_account_bvn` are all present.**
 
 ## 4. Is the scheduler running at all
 
@@ -268,8 +268,10 @@ and nobody was paid, and after the deploy means a held deposit. The third only e
 attribution guard is live.
 
 **Partly answered (2026-10-16): the strongest scheduler evidence arrived outside the greps -
-`wallet:sync-deposits` was observed executing and completing.** Still open here: the four
-counts above.
+`wallet:sync-deposits` was observed executing and completing.**
+**Answered (2026-10-17): `grep -c` counts are Flutterwave webhook 28, `user not found` 7,
+held for reconciliation 0.** These are log-message counts, not necessarily unique payment
+counts.
 
 ## 9. What NOT to run while doing these checks
 
@@ -343,9 +345,11 @@ Read each line against three cases:
 
 ### 11.2 Has any of the four references been seen again?
 
-A failed row followed by a successful row on the same reference is a customer's retry that
-worked - closed, nothing owed. Two successful rows on one reference would be a pre-guard
-double payment, which the 2026-10-16 measurement says the old code could produce:
+A failed row followed by a successful row on the same reference is a **strong clue** that a
+retry worked, but it is **not proof** the same Flutterwave charge was paid - two different
+transfers can share a reference. Only a matching charge identity (see below) is proof. Two
+successful rows on one reference would be a pre-guard double payment, which the 2026-10-16
+measurement says the old code could produce:
 
 ```sh
 php artisan tinker --execute='echo json_encode(DB::table("wallet_transactions")->selectRaw("reference, group_concat(distinct status) as statuses, count(*) as rows_total")->where("channel","like","flutterwave%")->where("type","credit")->whereNotNull("reference")->where("reference","<>","")->groupBy("reference")->havingRaw("count(*) > 1")->get(), JSON_PRETTY_PRINT); echo PHP_EOL;'
@@ -355,14 +359,26 @@ An empty answer is the quiet one: every reference appears exactly once.
 
 A retry can also succeed under a **new** reference, which no reference-grouped query can see.
 For each of the four rows, count same-wallet, same-amount **successful** credits within a day
-either side - the previous-successful-payment question:
+either side - a previous-successful-payment **clue**:
 
 ```sh
 php artisan tinker --execute='foreach (\App\Models\WalletTransaction::query()->where("type","credit")->where("channel","like","flutterwave%")->whereIn("status",["pending","failed"])->where("created_at",">=",now()->subDays(30))->orderBy("id")->get() as $t) { $twins = \App\Models\WalletTransaction::query()->where("wallet_id",$t->wallet_id)->where("type","credit")->where("status","success")->where("amount",$t->amount)->whereBetween("created_at",[$t->created_at->copy()->subDay(),$t->created_at->copy()->addDay()])->count(); echo "#".$t->id." (".$t->status.", amount ".$t->amount."): same-wallet same-amount successes within a day: ".$twins.PHP_EOL; }'
 ```
 
-A nonzero answer means the customer's money most likely arrived through the retry: the failed
-row is the record of an attempt, not an unpaid debt.
+A nonzero answer is a clue that a retry may have paid the same customer, but it is **not**
+proof - two unrelated transfers can share a wallet and amount. Verify charge identity before
+classifying the row as settled.
+
+The **definitive** previous-payment check compares the Flutterwave charge identity tokens
+stored in `meta` (`flutterwave_charge_id`, `id`, `flw_ref`) against every successful credit
+in the same window. This command prints only `yes` or `no` and never exposes the tokens:
+
+```sh
+php artisan tinker --execute='foreach (\App\Models\WalletTransaction::query()->where("type","credit")->where("channel","like","flutterwave%")->whereIn("status",["pending","failed"])->where("created_at",">=",now()->subDays(30))->orderBy("id")->get() as $t) { $m = $t->meta ?? []; $ids = array_values(array_filter([$m["flutterwave_charge_id"] ?? null, $m["id"] ?? null, $m["flw_ref"] ?? null])); $match = false; if ($ids !== []) { $successes = \App\Models\WalletTransaction::query()->where("type","credit")->where("status","success")->where("channel","like","flutterwave%")->where("created_at",">=",now()->subDays(30))->get(); foreach ($successes as $s) { $sm = $s->meta ?? []; $sids = array_values(array_filter([$sm["flutterwave_charge_id"] ?? null, $sm["id"] ?? null, $sm["flw_ref"] ?? null])); foreach ($ids as $id) { if (in_array($id, $sids, true)) { $match = true; break 3; } } } } echo "#".$t->id." (".$t->status."): same-charge-identity success exists: ".($match ? "yes" : "no").PHP_EOL; }'
+```
+
+`yes` here is the only result that proves the same charge was already credited; everything
+else is a clue that needs independent evidence.
 
 ### 11.3 What the site itself said at the time - logs, not the provider
 
@@ -381,21 +397,34 @@ not be attributed.
 
 ### 11.4 Which rows become manual reconciliation candidates
 
-Read 11.1's attribution case, 11.2's duplicate answers and 11.3's log lines together, and each
-of the four rows lands in exactly one bucket:
+Read 11.1's attribution case, 11.2's three checks and 11.3's log lines together. The rule is:
+only a **verified charge identity** (matching `flutterwave_charge_id`, `id` or `flw_ref`
+between two rows) is proof that the same Flutterwave charge was paid. Same reference or same
+wallet+amount is a clue, not proof - two different charges can share a reference typo or the
+same amount.
 
-- **A successful twin exists** (same reference from 11.2, or same wallet and amount from the
-  retry check) - the money already arrived through the retry. Nothing is owed; the row needs
-  no action beyond this note.
-- **Failed, no twin** - no balance ever moved, and whether Flutterwave is holding the money is
-  a question for the owner's dashboard, not for this site's API. If the dashboard shows the
-  transfer completed, the row is a **manual reconciliation candidate**: resolution after the
-  deploy runs through the held-deposits screen or a manual credit with an audit note - never
-  a hand-written SQL fix, and never anything during the deploy itself.
-- **Pending, no twin** - swept repeatedly and still unresolved: either the transfer never
-  completed (nothing owed) or it arrived in a form the old code could not attribute, which the
-  old code drops quietly. Post-deploy, §6's audit re-run answers it: the new code can only
-  credit a provable owner or hold the row for an admin.
+Also: migration `2026_10_16_000002_create_flutterwave_held_deposits_table` is forward-only and
+does **not** backfill old `pending` or `failed` rows. So an old failed deposit will **not**
+automatically appear in Admin → Held Deposits after the deploy. The held-deposits screen is
+for **new** ambiguous arrivals; old rows are resolved through ordinary admin credit with an
+audit note, not through that screen.
+
+With that, each of the four rows lands in one bucket:
+
+- **Verified charge identity match to a successful row** - the same Flutterwave charge was
+  already credited. Nothing is owed; annotate only.
+- **No verified identity match, but a strong clue** (same reference, or same wallet+amount
+  within a day) - flag for the owner to check the Flutterwave dashboard. It is **not** closed.
+- **Failed, no verified match and no strong clue** - no balance ever moved. Whether
+  Flutterwave is holding the money is a dashboard question, not a site API question. If the
+  dashboard shows the charge completed, the row is a **manual reconciliation candidate**:
+  resolve after the deploy through an ordinary manual credit with an audit note - never a
+  hand-written SQL fix, never during the deploy itself, and not through the held-deposits
+  screen (old rows are not backfilled there).
+- **Pending, no verified match** - swept repeatedly and still unresolved: either the transfer
+  never completed (nothing owed) or it arrived unattributed, which the old code drops quietly.
+  Post-deploy, §6's audit re-run answers it: the new code can only credit a provable owner or
+  hold a **new** arrival for an admin. An old pending row is not backfilled into held deposits.
 
 The one hard rule stands regardless of bucket: nothing in this investigation refunds, credits,
 edits or deletes anything. It only sorts the four rows into the buckets above so the
